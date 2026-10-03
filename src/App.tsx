@@ -14,6 +14,7 @@ type Tab = (typeof TABS)[number];
 export default function App() {
   const [tab, setTab] = useState<Tab>("Containers");
   const [active, setActive] = useState<string | null>(null);
+  const [detailId, setDetailId] = useState<string | null>(null);
   const { data, error, reload } = usePoll(() => invoke<Profile[]>("list_profiles"), []);
   const profiles = data ?? [];
   const live = profiles.filter((p) => p.status === "Running");
@@ -21,6 +22,8 @@ export default function App() {
   useEffect(() => {
     if (!live.some((p) => p.name === active)) setActive(live[0]?.name ?? null);
   }, [data]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => setDetailId(null), [active]);
 
   const ctx = active ? ctxFor(active) : null;
 
@@ -54,9 +57,12 @@ export default function App() {
         ) : !ctx ? (
           <Empty title="Colima isn't running">Start a profile in the Colima tab to see its containers, images and volumes.</Empty>
         ) : tab === "Containers" ? (
-          <Containers key={ctx} ctx={ctx} />
+          <Containers key={ctx} ctx={ctx} detailId={detailId} setDetailId={setDetailId} />
         ) : tab === "Images" ? (
-          <Images key={ctx} ctx={ctx} onRan={() => setTab("Containers")} />
+          <Images key={ctx} ctx={ctx} onRan={(id) => {
+              setDetailId(id);
+              setTab("Containers");
+            }} />
         ) : (
           <Volumes key={ctx} ctx={ctx} />
         )}

@@ -3,9 +3,9 @@ import { docker } from "./api";
 import { usePoll } from "./hooks";
 import { Banner } from "./ui";
 
-type Props = { ctx: string; id: string; name: string; onClose: () => void };
+type Props = { ctx: string; id: string };
 
-export default function Logs({ ctx, id, name, onClose }: Props) {
+export default function Logs({ ctx, id }: Props) {
   const { data, error } = usePoll(() => docker(ctx, ["logs", "--tail", "1000", id], true), [ctx, id], 2000);
   const [filter, setFilter] = useState("");
   const [follow, setFollow] = useState(true);
@@ -22,18 +22,11 @@ export default function Logs({ ctx, id, name, onClose }: Props) {
   }, [text, follow]);
 
   return (
-    <section className="logs-view">
-      <header>
-        <button onClick={onClose}>Back</button>
-        <h2>{name}</h2>
-        <input
-          className="filter"
-          placeholder="Filter lines"
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-        />
+    <>
+      <div className="log-bar">
+        <input className="filter" placeholder="Filter lines" value={filter} onChange={(e) => setFilter(e.target.value)} />
         <span className="state">{follow ? "Following" : "Paused: scroll to the bottom to follow"}</span>
-      </header>
+      </div>
       <Banner error={error} />
       <pre
         ref={box}
@@ -45,6 +38,6 @@ export default function Logs({ ctx, id, name, onClose }: Props) {
       >
         {text || (data === null ? "Loading…" : "No log output.")}
       </pre>
-    </section>
+    </>
   );
 }
