@@ -1,0 +1,118 @@
+import { useEffect, useRef, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
+import { dockerJson } from "./api";
+import { Banner } from "./ui";
+
+type Hit = { Name: string; Description: string; StarCount: string; IsOfficial: string };
+type Props = { ctx: string; onClose: () => void; onPulled: () => void };
+
+export default function PullPanel({ ctx, onClose, onPulled }: Props) {
+  const [image, setImage] = useState("");
+  const [hits, setHits] = useState<Hit[] | null>(null);
+  const [searching, setSearching] = useState(false);
+  const [pulling, setPulling] = useState(false);
+  const [done, setDone] = useState<string | null>(null);
+  const [lines, setLines] = useState<string[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const log = useRef<HTMLPreElement>(null);
+  const name = image.trim();
+
+  useEffect(() => {
+    const un = listen<string>("pull-progress", (e) => setLines((l) => [...l.slice(-300), e.payload]));
+    return () => {
+      un.then((f) => f());
+    };
+  }, []);
+
+  useEffect(() => {
+    log.current?.scrollTo({ top: log.current.scrollHeight });
+  }, [lines]);
+
+  async function search() {
+    const term = name.split(":")[0];
+    if (!term || term.startsWith("-")) return;
+    setSearching(true);
+    setError(null);
+    try {
+      setHits(await dockerJson<Hit>(ctx, ["search", "--limit", "12", term]));
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setSearching(false);
+    }
+  }
+
+  async function pull() {
+    setPulling(true);
+    setDone(null);
+    setError(null);
+    setLines([]);
+    try {
+      await invoke("docker_pull", { context: ctx, image: name });
+      setDone(name);
+      onPulled();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setPulling(false);
+    }
+  }
+
+  return (
+    <>
+      <div className="scrim" onClick={() => !pulling && onClose()} />
+      <div className="drawer" role="dialog" aria-label="Pull image">
+        <div className="drawer-head">
+          <h3>Pull image</h3>
+          <button disabled={pulling} onClick={onClose}>Close</button>
+        </div>
+
+        <label>
+          Image
+          <span className="inline">
+            <input
+              autoFocus
+              value={image}
+              placeholder="nginx or postgres:16"
+              onChange={(e) => setImage(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && search()}
+            />
+            <button disabled={!name || searching || pulling} onClick={search}>
+              {searching ? "Searching…" : "Search"}
+            </button>
+          </span>
+        </label>
+        <p className="hint">Search Docker Hub, pick a result, then pull. With no tag, Docker pulls <code>latest</code>.</p>
+
+        {hits && hits.length === 0 && <p className="hint">No images found on Docker Hub for that name.</p>}
+        {hits && hits.length > 0 && (
+          <ul className="hits">
+            {hits.map((h) => (
+              <li key={h.Name}>
+                <button className="hit" disabled={pulling} onClick={() => setImage(h.Name)}>
+                  <span className="hit-name">
+                    {h.Name}
+                    {h.IsOfficial === "true" && <span className="tag">Official</span>}
+                  </span>
+                  <span className="hit-meta">{Number(h.StarCount).toLocaleString()} stars</span>
+                  <span className="hit-desc">{h.Description || "No description"}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <div className="actions">
+          <button className="primary" disabled={!name || pulling} onClick={pull}>
+            {pulling ? "Pulling…" : name ? `Pull ${name}` : "Pull"}
+          </button>
+        </div>
+
+        <Banner error={error} />
+        {done && <p className="ok">Pulled {done}. It's in your image list now.</p>}
+        {lines.length > 0 && <pre ref={log} className="pull-log">{lines.join("\n")}</pre>}
+      </div>
+    </>
+  );
+}
