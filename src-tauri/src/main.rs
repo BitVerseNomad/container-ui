@@ -183,11 +183,28 @@ async fn delete_profile(name: String) -> Result<(), String> {
     run(vec!["delete".into(), "--force".into(), name]).await.map(|_| ())
 }
 
+// Only plain http://localhost:<port> links may be opened, so a container can't send you elsewhere.
+fn localhost_url(u: &str) -> bool {
+    match u.strip_prefix("http://localhost:") {
+        Some(port) => !port.is_empty() && port.len() <= 5 && port.chars().all(|c| c.is_ascii_digit()),
+        None => false,
+    }
+}
+
+#[tauri::command]
+fn open_url(url: String) -> Result<(), String> {
+    if !localhost_url(&url) {
+        return Err("Only http://localhost links can be opened".into());
+    }
+    let opener = if cfg!(target_os = "macos") { "open" } else { "xdg-open" };
+    Command::new(opener).arg(&url).spawn().map(|_| ()).map_err(|e| e.to_string())
+}
+
 fn main() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             list_profiles, docker, docker_pull, start_profile, apply_resources,
-            stop_profile, restart_profile, delete_profile
+            stop_profile, restart_profile, delete_profile, open_url
         ])
         .run(tauri::generate_context!())
         .expect("error while running Colima UI");
@@ -216,6 +233,17 @@ mod tests {
     fn kubernetes_false_adds_nothing() {
         let o = StartOpts { kubernetes: Some(false), ..opts("dev") };
         assert_eq!(start_args(&o), ["start", "dev"]);
+    }
+
+    #[test]
+    fn only_plain_localhost_links_open() {
+        assert!(localhost_url("http://localhost:8080"));
+        assert!(!localhost_url("http://localhost:"));
+        assert!(!localhost_url("http://localhost:8080/admin"));
+        assert!(!localhost_url("http://localhost:80@evil.com"));
+        assert!(!localhost_url("https://localhost:8080"));
+        assert!(!localhost_url("http://evil.com"));
+        assert!(!localhost_url("http://localhost:123456"));
     }
 
     #[test]
