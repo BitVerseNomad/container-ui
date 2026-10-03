@@ -3,13 +3,15 @@ import { docker, dockerJson } from "./api";
 import { usePoll } from "./hooks";
 import { Banner, Empty } from "./ui";
 import PullPanel from "./PullPanel";
+import RunPanel from "./RunPanel";
 
 type I = { ID: string; Repository: string; Tag: string; Size: string; CreatedSince: string };
 
-export default function Images({ ctx }: { ctx: string }) {
+export default function Images({ ctx, onRan }: { ctx: string; onRan: (id: string) => void }) {
   const { data, error, reload } = usePoll(() => dockerJson<I>(ctx, ["images"]), [ctx], 5000);
   const [err, setErr] = useState<string | null>(null);
   const [pulling, setPulling] = useState(false);
+  const [running, setRunning] = useState<string | null>(null);
 
   async function act(args: string[]) {
     try {
@@ -53,6 +55,7 @@ export default function Images({ ctx }: { ctx: string }) {
                   <td className="mono">{i.Size}</td>
                   <td>{i.CreatedSince}</td>
                   <td className="row-actions">
+                    <button onClick={() => setRunning(ref)}>Run</button>
                     <button className="danger" onClick={() => confirm(`Remove image ${ref}?`) && act(["rmi", ref])}>
                       Remove
                     </button>
@@ -63,7 +66,18 @@ export default function Images({ ctx }: { ctx: string }) {
           </tbody>
         </table>
       )}
-      {pulling && <PullPanel ctx={ctx} onClose={() => setPulling(false)} onPulled={reload} />}
+      {pulling && (
+        <PullPanel
+          ctx={ctx}
+          onClose={() => setPulling(false)}
+          onPulled={reload}
+          onRun={(image) => {
+            setPulling(false);
+            setRunning(image);
+          }}
+        />
+      )}
+      {running && <RunPanel ctx={ctx} image={running} onClose={() => setRunning(null)} onRan={onRan} />}
     </section>
   );
 }

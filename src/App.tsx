@@ -56,7 +56,7 @@ export default function App() {
         ) : tab === "Containers" ? (
           <Containers key={ctx} ctx={ctx} />
         ) : tab === "Images" ? (
-          <Images key={ctx} ctx={ctx} />
+          <Images key={ctx} ctx={ctx} onRan={() => setTab("Containers")} />
         ) : (
           <Volumes key={ctx} ctx={ctx} />
         )}

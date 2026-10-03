@@ -5,9 +5,9 @@ import { dockerJson } from "./api";
 import { Banner } from "./ui";
 
 type Hit = { Name: string; Description: string; StarCount: string; IsOfficial: string };
-type Props = { ctx: string; onClose: () => void; onPulled: () => void };
+type Props = { ctx: string; onClose: () => void; onPulled: () => void; onRun: (image: string) => void };
 
-export default function PullPanel({ ctx, onClose, onPulled }: Props) {
+export default function PullPanel({ ctx, onClose, onPulled, onRun }: Props) {
   const [image, setImage] = useState("");
   const [hits, setHits] = useState<Hit[] | null>(null);
   const [searching, setSearching] = useState(false);
@@ -85,6 +85,13 @@ export default function PullPanel({ ctx, onClose, onPulled }: Props) {
         </label>
         <p className="hint">Search Docker Hub, pick a result, then pull. With no tag, Docker pulls <code>latest</code>.</p>
 
+        <div className="chips">
+          <span className="hint">Or try one:</span>
+          {["hello-world", "nginx", "mysql", "postgres", "redis"].map((n) => (
+            <button key={n} className="chip" disabled={pulling} onClick={() => setImage(n)}>{n}</button>
+          ))}
+        </div>
+
         {hits && hits.length === 0 && <p className="hint">No images found on Docker Hub for that name.</p>}
         {hits && hits.length > 0 && (
           <ul className="hits">
@@ -110,7 +117,12 @@ export default function PullPanel({ ctx, onClose, onPulled }: Props) {
         </div>
 
         <Banner error={error} />
-        {done && <p className="ok">Pulled {done}. It's in your image list now.</p>}
+        {done && (
+          <>
+            <p className="ok">Pulled {done}. It's in your image list now.</p>
+            <button className="primary" onClick={() => onRun(done)}>Run {done}</button>
+          </>
+        )}
         {lines.length > 0 && <pre ref={log} className="pull-log">{lines.join("\n")}</pre>}
       </div>
     </>
