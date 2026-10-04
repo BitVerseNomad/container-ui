@@ -6,3 +6,4 @@ src-tauri/icons/
 .DS_Store
 *.log
 preview/index.html
+.superpowers/
