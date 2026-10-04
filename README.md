@@ -32,3 +32,7 @@ stop). Run the Rust unit tests with `cd src-tauri && cargo test`.
 ## Tests
     npm test                      # TypeScript helpers (Node 22.6+)
     cd src-tauri && cargo test    # Rust helpers
+
+## Browser preview (no install of Tauri or Rust)
+    npm run preview     # writes preview/index.html; open it in any browser
+The same UI code runs against a simulated Docker/Colima backend (`preview/mock.ts`).

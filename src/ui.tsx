@@ -25,7 +25,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
       {children}
       {req && (
         <>
-          <div className="scrim" onClick={() => close(false)} />
+          <div className="scrim scrim-top" onClick={() => close(false)} />
           <div className="modal" role="alertdialog" aria-modal="true" onKeyDown={(e) => e.key === "Escape" && close(false)}>
             <p>{req.message}</p>
             <div className="actions">

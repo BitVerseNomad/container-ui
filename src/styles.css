@@ -39,7 +39,7 @@ td { padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: mi
 .clip { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .row-actions { text-align: right; white-space: nowrap; }
 .row-actions button { margin-left: 6px; }
-.badge { font-size: 13px; color: var(--muted); }
+.badge { font-size: 13px; color: var(--muted); white-space: nowrap; }
 .badge.on { color: var(--on); }
 
 .empty { max-width: 380px; margin-top: 12vh; }
@@ -132,7 +132,7 @@ main:has(.detail) > .detail { flex: 1; min-height: 0; display: flex; flex-direct
 .modal { position: fixed; z-index: 21; top: 28vh; left: 50%; transform: translateX(-50%); width: min(380px, calc(100% - 32px)); padding: 20px 22px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); box-shadow: 0 16px 40px rgb(0 0 0 / .3); }
 .modal p { margin: 0 0 16px; line-height: 1.45; }
 .modal .actions { display: flex; gap: 8px; justify-content: flex-end; }
-.scrim { z-index: 20; }
+.scrim-top { z-index: 20; }
 .danger-fill { background: var(--danger); border-color: var(--danger); color: #fff; }
 .out { margin-bottom: 18px; }
 .out .pull-log { max-height: 200px; }
