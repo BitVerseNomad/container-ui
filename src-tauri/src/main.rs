@@ -1,7 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use serde::{Deserialize, Serialize};
-use std::io::{BufRead, BufReader};
+use std::io::{BufReader, Read};
 use std::process::{Command, Stdio};
 use tauri::Emitter;
 
@@ -109,6 +109,61 @@ async fn docker(context: String, args: Vec<String>, merge_stderr: bool) -> Resul
     exec("docker", a, merge_stderr).await
 }
 
+// Splits child output into frames at \n and \r. A frame that follows a \r overwrites the previous
+// line (a progress redraw), which the second field marks.
+#[derive(Default)]
+struct FrameSplitter {
+    buf: Vec<u8>,
+    replace: bool,
+}
+
+impl FrameSplitter {
+    fn push(&mut self, byte: u8) -> Option<(String, bool)> {
+        if byte == b'\n' || byte == b'\r' {
+            let frame = self.take();
+            self.replace = byte == b'\r';
+            frame
+        } else {
+            self.buf.push(byte);
+            None
+        }
+    }
+
+    fn finish(&mut self) -> Option<(String, bool)> {
+        self.take()
+    }
+
+    fn take(&mut self) -> Option<(String, bool)> {
+        if self.buf.is_empty() {
+            return None;
+        }
+        let text = String::from_utf8_lossy(&self.buf).into_owned();
+        self.buf.clear();
+        Some((text, self.replace))
+    }
+}
+
+fn split_frames(bytes: &[u8]) -> Vec<(String, bool)> {
+    let mut splitter = FrameSplitter::default();
+    let mut out: Vec<(String, bool)> = bytes.iter().filter_map(|b| splitter.push(*b)).collect();
+    out.extend(splitter.finish());
+    out
+}
+
+// Replacing frames are sent with a leading \r so the UI can overwrite its last line.
+fn emit_frame(app: &tauri::AppHandle, event: &str, tail: &mut Vec<String>, frame: (String, bool)) {
+    let (text, replace) = frame;
+    let payload = if replace { format!("\r{text}") } else { text.clone() };
+    let _ = app.emit(event, payload);
+    if replace && !tail.is_empty() {
+        tail.pop();
+    }
+    tail.push(text);
+    if tail.len() > 30 {
+        tail.remove(0);
+    }
+}
+
 // Runs a command and emits each output line as an event, so slow work (pulls, VM starts) is visible.
 // On failure the last lines are returned as the error.
 fn stream(app: &tauri::AppHandle, event: &str, bin: &str, args: &[String]) -> Result<(), String> {
@@ -121,12 +176,14 @@ fn stream(app: &tauri::AppHandle, event: &str, bin: &str, args: &[String]) -> Re
         .map_err(|e| format!("Could not run {bin}: {e}. Is it installed?"))?;
     let mut tail: Vec<String> = Vec::new();
     if let Some(out) = child.stdout.take() {
-        for line in BufReader::new(out).lines().map_while(Result::ok) {
-            let _ = app.emit(event, line.clone());
-            tail.push(line);
-            if tail.len() > 30 {
-                tail.remove(0);
+        let mut splitter = FrameSplitter::default();
+        for byte in BufReader::new(out).bytes().map_while(Result::ok) {
+            if let Some(frame) = splitter.push(byte) {
+                emit_frame(app, event, &mut tail, frame);
             }
+        }
+        if let Some(frame) = splitter.finish() {
+            emit_frame(app, event, &mut tail, frame);
         }
     }
     let status = child.wait().map_err(|e| e.to_string())?;
@@ -152,6 +209,77 @@ async fn docker_pull(app: tauri::AppHandle, context: String, image: String) -> R
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+#[derive(Serialize)]
+struct Tool {
+    path: String,
+    version: String,
+}
+
+#[derive(Serialize)]
+struct EnvReport {
+    brew: Option<Tool>,
+    colima: Option<Tool>,
+    docker: Option<Tool>,
+}
+
+fn parse_version(out: &str) -> Option<String> {
+    out.split(|c: char| c.is_whitespace() || c == ',')
+        .map(|t| t.trim_start_matches('v'))
+        .find(|t| t.chars().next().map_or(false, |c| c.is_ascii_digit()) && t.contains('.'))
+        .map(|t| t.to_string())
+}
+
+// Known Homebrew locations first, then whatever PATH offers.
+fn locate(bin: &str) -> Option<String> {
+    let known = find_bin(bin);
+    if std::path::Path::new(&known).is_absolute() && std::path::Path::new(&known).exists() {
+        return Some(known);
+    }
+    let out = Command::new("sh")
+        .args(["-c", "command -v \"$0\"", bin])
+        .env("PATH", path_env())
+        .output()
+        .ok()?;
+    let found = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    if out.status.success() && !found.is_empty() { Some(found) } else { None }
+}
+
+fn tool(bin: &str) -> Option<Tool> {
+    let path = locate(bin)?;
+    let out = Command::new(&path).arg("--version").env("PATH", path_env()).output().ok()?;
+    let version = parse_version(&String::from_utf8_lossy(&out.stdout))
+        .or_else(|| parse_version(&String::from_utf8_lossy(&out.stderr)))
+        .unwrap_or_default();
+    Some(Tool { path, version })
+}
+
+#[tauri::command]
+async fn env_check() -> Result<EnvReport, String> {
+    tauri::async_runtime::spawn_blocking(|| EnvReport { brew: tool("brew"), colima: tool("colima"), docker: tool("docker") })
+        .await
+        .map_err(|e| e.to_string())
+}
+
+fn validate_install(names: &[String]) -> Result<(), String> {
+    if names.is_empty() {
+        return Err("Nothing to install".into());
+    }
+    match names.iter().find(|n| !matches!(n.as_str(), "colima" | "docker")) {
+        Some(bad) => Err(format!("Cannot install \"{bad}\" from the app")),
+        None => Ok(()),
+    }
+}
+
+#[tauri::command]
+async fn install_tools(app: tauri::AppHandle, names: Vec<String>) -> Result<(), String> {
+    validate_install(&names)?;
+    let mut args = vec!["install".to_string()];
+    args.extend(names);
+    tauri::async_runtime::spawn_blocking(move || stream(&app, "brew-progress", "brew", &args))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -221,7 +349,7 @@ fn open_url(url: String) -> Result<(), String> {
 fn main() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
-            list_profiles, docker, docker_pull, start_profile, apply_resources,
+            list_profiles, docker, docker_pull, env_check, install_tools, start_profile, apply_resources,
             stop_profile, restart_profile, delete_profile, open_url
         ])
         .run(tauri::generate_context!())
@@ -262,6 +390,45 @@ mod tests {
         assert!(!localhost_url("https://localhost:8080"));
         assert!(!localhost_url("http://evil.com"));
         assert!(!localhost_url("http://localhost:123456"));
+    }
+
+    #[test]
+    fn frames_split_on_newline() {
+        assert_eq!(split_frames(b"a\nb"), vec![("a".to_string(), false), ("b".to_string(), false)]);
+    }
+
+    #[test]
+    fn carriage_returns_mark_replacing_frames() {
+        assert_eq!(
+            split_frames(b"10%\r20%\r30%\n"),
+            vec![("10%".to_string(), false), ("20%".to_string(), true), ("30%".to_string(), true)]
+        );
+    }
+
+    #[test]
+    fn crlf_is_one_line_break() {
+        assert_eq!(split_frames(b"a\r\nb"), vec![("a".to_string(), false), ("b".to_string(), false)]);
+    }
+
+    #[test]
+    fn a_trailing_progress_frame_without_newline_is_flushed() {
+        assert_eq!(split_frames(b"x\r50%"), vec![("x".to_string(), false), ("50%".to_string(), true)]);
+    }
+
+    #[test]
+    fn versions_are_read_from_tool_output() {
+        assert_eq!(parse_version("colima version 0.8.1"), Some("0.8.1".to_string()));
+        assert_eq!(parse_version("Docker version 27.3.1, build ce12230"), Some("27.3.1".to_string()));
+        assert_eq!(parse_version("Homebrew 4.4.2"), Some("4.4.2".to_string()));
+        assert_eq!(parse_version(""), None);
+    }
+
+    #[test]
+    fn install_accepts_only_colima_and_docker() {
+        assert!(validate_install(&["colima".to_string(), "docker".to_string()]).is_ok());
+        assert!(validate_install(&[]).is_err());
+        assert!(validate_install(&["wget".to_string()]).is_err());
+        assert!(validate_install(&["--force".to_string()]).is_err());
     }
 
     #[test]
