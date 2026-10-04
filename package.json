@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "tauri": "tauri",
-    "test": "node --experimental-strip-types --no-warnings --test src/*.test.ts",
+    "test": "node --experimental-strip-types --no-warnings --test \"src/**/*.test.ts\"",
     "preview": "node scripts/build-preview.mjs"
   },
   "dependencies": {

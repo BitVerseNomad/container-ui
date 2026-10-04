@@ -1,0 +1,25 @@
+/* Design tokens. Palette sampled from the reference screenshots; contrast is pinned by src/lib/contrast.test.ts. */
+:root {
+  --page: #f3f5f3;
+  --sidebar: #e8ece8;
+  --card: #f0f2f0;
+  --border: #d3dad4;
+  --ink: #1c2a27;
+  --muted: #66726e;
+  --primary: #397863;
+  --on-primary: #ffffff;
+  --danger: #a14b3f;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --page: #121a18;
+    --sidebar: #172321;
+    --card: #1a2724;
+    --border: #2b3a36;
+    --ink: #e6eeea;
+    --muted: #8fa09a;
+    --primary: #5aa688;
+    --on-primary: #0b1a15;
+    --danger: #e07a6d;
+  }
+}
