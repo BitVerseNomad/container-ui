@@ -109,30 +109,46 @@ async fn docker(context: String, args: Vec<String>, merge_stderr: bool) -> Resul
     exec("docker", a, merge_stderr).await
 }
 
-// Streams `docker pull` output to the frontend as "pull-progress" events, one line each.
+// Runs a command and emits each output line as an event, so slow work (pulls, VM starts) is visible.
+// On failure the last lines are returned as the error.
+fn stream(app: &tauri::AppHandle, event: &str, bin: &str, args: &[String]) -> Result<(), String> {
+    let mut child = Command::new("sh")
+        .args(["-c", "exec \"$@\" 2>&1", "sh", &find_bin(bin)])
+        .args(args)
+        .env("PATH", path_env())
+        .stdout(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("Could not run {bin}: {e}. Is it installed?"))?;
+    let mut tail: Vec<String> = Vec::new();
+    if let Some(out) = child.stdout.take() {
+        for line in BufReader::new(out).lines().map_while(Result::ok) {
+            let _ = app.emit(event, line.clone());
+            tail.push(line);
+            if tail.len() > 30 {
+                tail.remove(0);
+            }
+        }
+    }
+    let status = child.wait().map_err(|e| e.to_string())?;
+    if status.success() { Ok(()) } else { Err(tail.join("\n")) }
+}
+
+async fn colima_stream(app: tauri::AppHandle, steps: Vec<Vec<String>>) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        for args in &steps {
+            stream(&app, "colima-progress", "colima", args)?;
+        }
+        Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 #[tauri::command]
 async fn docker_pull(app: tauri::AppHandle, context: String, image: String) -> Result<(), String> {
     safe(&image)?;
     tauri::async_runtime::spawn_blocking(move || {
-        let mut child = Command::new("sh")
-            .args(["-c", "exec \"$@\" 2>&1", "sh", &find_bin("docker"), "--context", &context, "pull", &image])
-            .env("PATH", path_env())
-            .stdout(Stdio::piped())
-            .spawn()
-            .map_err(|e| format!("Could not run docker: {e}. Is it installed?"))?;
-        let mut last = String::new();
-        if let Some(out) = child.stdout.take() {
-            for line in BufReader::new(out).lines().map_while(Result::ok) {
-                let _ = app.emit("pull-progress", line.clone());
-                last = line;
-            }
-        }
-        let status = child.wait().map_err(|e| e.to_string())?;
-        if status.success() {
-            Ok(())
-        } else {
-            Err(last)
-        }
+        stream(&app, "pull-progress", "docker", &["--context".into(), context, "pull".into(), image])
     })
     .await
     .map_err(|e| e.to_string())?
@@ -149,38 +165,40 @@ async fn list_profiles() -> Result<Vec<Profile>, String> {
 }
 
 #[tauri::command]
-async fn start_profile(opts: StartOpts) -> Result<(), String> {
+async fn start_profile(app: tauri::AppHandle, opts: StartOpts) -> Result<(), String> {
     safe(&opts.name)?;
-    run(start_args(&opts)).await.map(|_| ())
+    colima_stream(app, vec![start_args(&opts)]).await
 }
 
 // Colima applies CPU/memory/disk changes on the next start, so a running VM is stopped first.
 // If the stop fails, nothing has changed. If the start fails, the profile is left stopped.
 #[tauri::command]
-async fn apply_resources(opts: StartOpts, restart: bool) -> Result<(), String> {
+async fn apply_resources(app: tauri::AppHandle, opts: StartOpts, restart: bool) -> Result<(), String> {
     safe(&opts.name)?;
+    let mut steps = Vec::new();
     if restart {
-        run(vec!["stop".into(), opts.name.clone()]).await?;
+        steps.push(vec!["stop".to_string(), opts.name.clone()]);
     }
-    run(start_args(&opts)).await.map(|_| ())
+    steps.push(start_args(&opts));
+    colima_stream(app, steps).await
 }
 
 #[tauri::command]
-async fn stop_profile(name: String) -> Result<(), String> {
+async fn stop_profile(app: tauri::AppHandle, name: String) -> Result<(), String> {
     safe(&name)?;
-    run(vec!["stop".into(), name]).await.map(|_| ())
+    colima_stream(app, vec![vec!["stop".into(), name]]).await
 }
 
 #[tauri::command]
-async fn restart_profile(name: String) -> Result<(), String> {
+async fn restart_profile(app: tauri::AppHandle, name: String) -> Result<(), String> {
     safe(&name)?;
-    run(vec!["restart".into(), name]).await.map(|_| ())
+    colima_stream(app, vec![vec!["restart".into(), name]]).await
 }
 
 #[tauri::command]
-async fn delete_profile(name: String) -> Result<(), String> {
+async fn delete_profile(app: tauri::AppHandle, name: String) -> Result<(), String> {
     safe(&name)?;
-    run(vec!["delete".into(), "--force".into(), name]).await.map(|_| ())
+    colima_stream(app, vec![vec!["delete".into(), "--force".into(), name]]).await
 }
 
 // Only plain http://localhost:<port> links may be opened, so a container can't send you elsewhere.

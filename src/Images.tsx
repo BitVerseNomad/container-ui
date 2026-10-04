@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useConfirm } from "./ui";
 import { docker, dockerJson } from "./api";
 import { usePoll } from "./hooks";
 import { Banner, Empty } from "./ui";
@@ -8,6 +9,7 @@ import RunPanel from "./RunPanel";
 type I = { ID: string; Repository: string; Tag: string; Size: string; CreatedSince: string };
 
 export default function Images({ ctx, onRan }: { ctx: string; onRan: (id: string) => void }) {
+  const confirm = useConfirm();
   const { data, error, reload } = usePoll(() => dockerJson<I>(ctx, ["images"]), [ctx], 5000);
   const [err, setErr] = useState<string | null>(null);
   const [pulling, setPulling] = useState(false);
@@ -30,7 +32,7 @@ export default function Images({ ctx, onRan }: { ctx: string; onRan: (id: string
         <button className="primary" onClick={() => setPulling(true)}>Pull image</button>
         <button
           className="danger"
-          onClick={() => confirm("Remove all images not used by a container?") && act(["image", "prune", "-a", "-f"])}
+          onClick={async () => (await confirm("Remove all images not used by a container?")) && act(["image", "prune", "-a", "-f"])}
         >
           Remove unused
         </button>
@@ -56,7 +58,7 @@ export default function Images({ ctx, onRan }: { ctx: string; onRan: (id: string
                   <td>{i.CreatedSince}</td>
                   <td className="row-actions">
                     <button onClick={() => setRunning(ref)}>Run</button>
-                    <button className="danger" onClick={() => confirm(`Remove image ${ref}?`) && act(["rmi", ref])}>
+                    <button className="danger" onClick={async () => (await confirm(`Remove image ${ref}?`)) && act(["rmi", ref])}>
                       Remove
                     </button>
                   </td>

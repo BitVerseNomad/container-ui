@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useConfirm } from "./ui";
 import { docker, dockerJson } from "./api";
 import { usePoll } from "./hooks";
 import { Banner, Empty } from "./ui";
@@ -8,6 +9,7 @@ type C = { ID: string; Names: string; Image: string; State: string; Status: stri
 type Props = { ctx: string; detailId: string | null; setDetailId: (id: string | null) => void };
 
 export default function Containers({ ctx, detailId, setDetailId }: Props) {
+  const confirm = useConfirm();
   const { data, error, reload } = usePoll(() => dockerJson<C>(ctx, ["ps", "-a"]), [ctx]);
   const [err, setErr] = useState<string | null>(null);
 
@@ -54,7 +56,7 @@ export default function Containers({ ctx, detailId, setDetailId }: Props) {
                     ) : (
                       <button onClick={() => act(["start", c.ID])}>Start</button>
                     )}
-                    <button className="danger" onClick={() => confirm(`Remove container "${c.Names}"?`) && act(["rm", "-f", c.ID])}>
+                    <button className="danger" onClick={async () => (await confirm(`Remove container "${c.Names}"?`)) && act(["rm", "-f", c.ID])}>
                       Remove
                     </button>
                   </td>

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useConfirm } from "./ui";
 import { invoke } from "@tauri-apps/api/core";
 import { docker } from "./api";
 import { Inspect, publishedPorts } from "./containerInfo";
@@ -12,6 +13,7 @@ type Tab = (typeof TABS)[number];
 type Props = { ctx: string; id: string; onBack: () => void };
 
 export default function ContainerDetail({ ctx, id, onBack }: Props) {
+  const confirm = useConfirm();
   const [tab, setTab] = useState<Tab>("Logs");
   const [err, setErr] = useState<string | null>(null);
   const { data: c, error, reload } = usePoll(async () => JSON.parse(await docker(ctx, ["inspect", id]))[0] as Inspect, [ctx, id]);
@@ -56,7 +58,7 @@ export default function ContainerDetail({ ctx, id, onBack }: Props) {
               </>
             )}
             {!running && !paused && <button onClick={() => act(["start", id])}>Start</button>}
-            <button className="danger" onClick={() => confirm(`Remove container "${name}"?`) && act(["rm", "-f", id], onBack)}>
+            <button className="danger" onClick={async () => (await confirm(`Remove container "${name}"?`)) && act(["rm", "-f", id], onBack)}>
               Remove
             </button>
           </div>

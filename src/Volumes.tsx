@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useConfirm } from "./ui";
 import { docker, dockerJson } from "./api";
 import { usePoll } from "./hooks";
 import { Banner, Empty } from "./ui";
@@ -6,6 +7,7 @@ import { Banner, Empty } from "./ui";
 type V = { Name: string; Driver: string; Mountpoint?: string };
 
 export default function Volumes({ ctx }: { ctx: string }) {
+  const confirm = useConfirm();
   const { data, error, reload } = usePoll(() => dockerJson<V>(ctx, ["volume", "ls"]), [ctx], 5000);
   const [err, setErr] = useState<string | null>(null);
 
@@ -25,7 +27,7 @@ export default function Volumes({ ctx }: { ctx: string }) {
         <h2>Volumes</h2>
         <button
           className="danger"
-          onClick={() => confirm("Remove all volumes not used by a container? Their data is lost.") && act(["volume", "prune", "-a", "-f"])}
+          onClick={async () => (await confirm("Remove all volumes not used by a container? Their data is lost.")) && act(["volume", "prune", "-a", "-f"])}
         >
           Remove unused
         </button>
@@ -43,7 +45,7 @@ export default function Volumes({ ctx }: { ctx: string }) {
                 <td className="mono clip" title={v.Name}>{v.Name}</td>
                 <td>{v.Driver}</td>
                 <td className="row-actions">
-                  <button className="danger" onClick={() => confirm(`Remove volume ${v.Name}? Its data is lost.`) && act(["volume", "rm", v.Name])}>
+                  <button className="danger" onClick={async () => (await confirm(`Remove volume ${v.Name}? Its data is lost.`)) && act(["volume", "rm", v.Name])}>
                     Remove
                   </button>
                 </td>

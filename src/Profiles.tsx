@@ -1,4 +1,6 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { listen } from "@tauri-apps/api/event";
+import { useConfirm } from "./ui";
 import { invoke } from "@tauri-apps/api/core";
 import { Profile, StartOpts, gbOf } from "./api";
 import EditPanel from "./EditPanel";
@@ -7,13 +9,29 @@ import { Banner, Empty } from "./ui";
 const gb = (bytes: number) => `${gbOf(bytes)} GB`;
 
 export default function Profiles({ profiles, reload }: { profiles: Profile[]; reload: () => void }) {
+  const confirm = useConfirm();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<Profile | null>(null);
   const dialog = useRef<HTMLDialogElement>(null);
+  const [log, setLog] = useState<string[]>([]);
+  const [newName, setNewName] = useState("default");
+  const logBox = useRef<HTMLPreElement>(null);
+  const taken = profiles.some((p) => p.name === newName.trim());
+
+  useEffect(() => {
+    const un = listen<string>("colima-progress", (e) => setLog((l) => [...l.slice(-300), e.payload]));
+    return () => {
+      un.then((f) => f());
+    };
+  }, []);
+  useEffect(() => {
+    logBox.current?.scrollTo({ top: logBox.current.scrollHeight });
+  }, [log]);
 
   async function act(name: string, label: string, cmd: string, args: Record<string, unknown>) {
     setBusy(`${name}: ${label}`);
+    setLog([]);
     setError(null);
     try {
       await invoke(cmd, args);
@@ -29,10 +47,27 @@ export default function Profiles({ profiles, reload }: { profiles: Profile[]; re
     <section>
       <header>
         <h2>Colima</h2>
-        <button className="primary" onClick={() => dialog.current?.showModal()}>New profile</button>
+        <button
+          className="primary"
+          onClick={() => {
+            setNewName(["default", "dev", "work", "test"].find((n) => !profiles.some((p) => p.name === n)) ?? "profile2");
+            dialog.current?.showModal();
+          }}
+        >
+          New profile
+        </button>
         {busy && <span className="state">{busy}</span>}
       </header>
       <Banner error={error} onClose={() => setError(null)} />
+      {log.length > 0 && (
+        <div className="out">
+          <div className="row-head">
+            <span className="state">Colima output</span>
+            <button disabled={!!busy} onClick={() => setLog([])}>Clear</button>
+          </div>
+          <pre ref={logBox} className="pull-log">{log.join("\n")}</pre>
+        </div>
+      )}
       {profiles.length === 0 && <Empty title="No Colima profiles yet">Create one to start a container runtime on this machine.</Empty>}
       {profiles.length > 0 && (
         <table>
@@ -70,8 +105,8 @@ export default function Profiles({ profiles, reload }: { profiles: Profile[]; re
                     <button
                       className="danger"
                       disabled={!!busy}
-                      onClick={() =>
-                        confirm(`Delete profile "${p.name}" and its VM? All its containers and images are removed.`) &&
+                      onClick={async () =>
+                        (await confirm(`Delete profile "${p.name}" and its VM? All its containers and images are removed.`, "Delete")) &&
                         act(p.name, "deleting", "delete_profile", { name: p.name })
                       }
                     >
@@ -113,7 +148,8 @@ export default function Profiles({ profiles, reload }: { profiles: Profile[]; re
           }}
         >
           <h3>New profile</h3>
-          <label>Name<input name="name" defaultValue="default" required pattern="[a-zA-Z0-9_\-]+" /></label>
+          <label>Name<input name="name" value={newName} onChange={(e) => setNewName(e.target.value)} required pattern="[a-zA-Z0-9_-]+" /></label>
+          {taken && <p className="hint err">A profile named "{newName}" already exists. Use Edit on it instead.</p>}
           <label>CPUs<input name="cpus" type="number" min={1} defaultValue={2} /></label>
           <label>Memory (GB)<input name="memory" type="number" min={1} defaultValue={4} /></label>
           <label>Disk (GB)<input name="disk" type="number" min={10} defaultValue={60} /></label>
@@ -127,7 +163,7 @@ export default function Profiles({ profiles, reload }: { profiles: Profile[]; re
           <label className="check"><input name="kubernetes" type="checkbox" /> Enable Kubernetes</label>
           <div className="actions">
             <button type="button" onClick={() => dialog.current?.close()}>Cancel</button>
-            <button className="primary" type="submit">Create and start</button>
+            <button className="primary" type="submit" disabled={taken}>Create and start</button>
           </div>
         </form>
       </dialog>
