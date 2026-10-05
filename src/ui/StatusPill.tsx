@@ -10,7 +10,7 @@ const TEXT: Record<PillState, string> = {
 
 export default function StatusPill({ state }: { state: PillState }) {
   return (
-    <span className={`pill ${state}`} role="status">
+    <span className={`pill pill-${state}`} role="status">
       <span className="pdot" aria-hidden="true" />
       {TEXT[state]}
     </span>

@@ -15,8 +15,15 @@ export function usePoll<T>(load: () => Promise<T>, deps: unknown[], ms = 3000) {
   useEffect(() => {
     setData(null);
     reload();
-    const id = setInterval(reload, ms);
-    return () => clearInterval(id);
+    const tick = () => {
+      if (!document.hidden) reload();
+    };
+    const id = setInterval(tick, ms);
+    document.addEventListener("visibilitychange", tick);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", tick);
+    };
   }, [reload, ms]);
   return { data, error, reload };
 }

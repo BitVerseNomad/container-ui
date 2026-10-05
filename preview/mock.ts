@@ -36,6 +36,14 @@ const HUB = [
   ["hello-world", "Hello World! (an example of minimal Dockerization)", 2400, true], ["bitnami/mysql", "Bitnami container image for MySQL", 120, false],
 ] as const;
 
+const scenario = typeof location !== "undefined" ? new URLSearchParams(location.search).get("scenario") ?? "running" : "running";
+const env = {
+  brew: scenario === "nobrew" ? null : { path: "/opt/homebrew/bin/brew", version: "4.4.2" },
+  colima: ["missing", "partial", "nobrew"].includes(scenario) ? null : { path: "/opt/homebrew/bin/colima", version: "0.8.1" },
+  docker: ["missing", "nobrew"].includes(scenario) ? null : { path: "/opt/homebrew/bin/docker", version: "27.3.1" },
+};
+if (["stopped", "failed"].includes(scenario)) db.profiles[0].status = "Stopped";
+if (["none", "missing", "partial", "nobrew"].includes(scenario)) db.profiles = [];
 const find = (id: string) => db.ctrs.find((c) => c.id.startsWith(id) || c.name === id);
 const lines = (rows: object[]) => rows.map((r) => JSON.stringify(r)).join("\n");
 const fmtPorts = (c: Ctr) => c.state === "running" ? c.ports.map(([h, p]) => `0.0.0.0:${h}->${p}/tcp`).join(", ") : "";
@@ -65,7 +73,13 @@ function dockerCmd(args: string[]): string {
     }
     case "logs": { const c = find(args[args.length - 1])!; const t = new Date().toISOString(); const base = logLines(c); return Array.from({ length: 160 }, (_, i) => `${t.slice(0, 17)}${String(i % 60).padStart(2, "0")}Z ${base[i % base.length]}`).join("\n") + "\n"; }
     case "inspect": { const c = find(args[1])!; return JSON.stringify([{ Id: c.id, Name: `/${c.name}`, Created: new Date(c.born).toISOString(), Path: c.image.startsWith("mysql") ? "docker-entrypoint.sh" : "/docker-entrypoint.sh", Args: ["mysqld"], State: { Status: c.state, Running: c.state !== "exited", Paused: c.state === "paused" }, Config: { Image: c.image, Env: c.env }, HostConfig: { RestartPolicy: { Name: "no" } }, NetworkSettings: { Ports: Object.fromEntries(c.ports.map(([h, p]) => [`${p}/tcp`, [{ HostIp: "0.0.0.0", HostPort: String(h) }]])), Networks: { bridge: { IPAddress: "172.17.0.2" } } }, Mounts: c.mounts }]); }
-    case "stats": { const c = find(args[args.length - 1])!; c.cpu = Math.max(0.1, c.cpu + (Math.random() - 0.45)); return lines([{ CPUPerc: `${c.cpu.toFixed(2)}%`, MemUsage: `${(c.mem / 2 ** 20).toFixed(1)}MiB / 7.7GiB`, NetIO: "1.2kB / 648B", BlockIO: "0B / 4.1kB", PIDs: "29" }]); }
+    case "system": return lines([
+      { Type: "Images", TotalCount: "4", Active: "2", Size: "1.3GB", Reclaimable: "2.1GB (80%)" },
+      { Type: "Containers", TotalCount: "3", Active: "2", Size: "12MB", Reclaimable: "0B" },
+      { Type: "Local Volumes", TotalCount: "3", Active: "1", Size: "380MB", Reclaimable: "20MB (5%)" },
+      { Type: "Build Cache", TotalCount: "0", Active: "0", Size: "0B", Reclaimable: "0B" }]);
+    case "stats": {
+      if (args[args.length - 1] === "--no-stream") return lines(db.ctrs.filter((c) => c.state === "running").map((c) => ({ Name: c.name, CPUPerc: `${c.cpu.toFixed(2)}%`, MemUsage: `${(c.mem / 2 ** 20).toFixed(1)}MiB / 7.7GiB` }))); const c = find(args[args.length - 1])!; c.cpu = Math.max(0.1, c.cpu + (Math.random() - 0.45)); return lines([{ CPUPerc: `${c.cpu.toFixed(2)}%`, MemUsage: `${(c.mem / 2 ** 20).toFixed(1)}MiB / 7.7GiB`, NetIO: "1.2kB / 648B", BlockIO: "0B / 4.1kB", PIDs: "29" }]); }
     case "start": case "stop": case "restart": case "pause": case "unpause": { const c = find(args[1])!; c.state = cmd === "stop" ? "exited" : cmd === "pause" ? "paused" : "running"; return c.id; }
     case "rm": db.ctrs = db.ctrs.filter((c) => c !== find(args[args.length - 1])); return args[args.length - 1];
     case "run": {
@@ -92,10 +106,23 @@ export async function invoke<T>(cmd: string, a: Record<string, any> = {}): Promi
       if (!db.images.some((i) => i.Repository === repo && i.Tag === tag)) db.images.unshift({ Repository: repo, Tag: tag, Size: "142MB", ID: hex(12), CreatedSince: "2 days ago" });
       return undefined as T;
     }
+    case "env_check": return { ...env } as T; // a fresh object per call, like the real IPC
+    case "install_tools": {
+      for (const n of a.names as string[]) {
+        await progress("brew-progress", [[`==> Fetching ${n}`, 200], [(env as any)[n] ? `Warning: ${n} is already installed and up-to-date.` : `==> Pouring ${n}--1.0.arm64.bottle.tar.gz`, 400]]);
+        (env as any)[n] = { path: `/opt/homebrew/bin/${n}`, version: "1.0.0" };
+      }
+      await progress("brew-progress", [["==> Summary", 150]]);
+      return undefined as T;
+    }
     case "start_profile": case "apply_resources": {
+      if (scenario === "failed") {
+        await progress("colima-progress", [['time="2026-10-04T12:00:00Z" level=info msg="starting colima"', 200], ["INFO[0002] provisioning ...   context=docker", 400]]);
+        throw 'time="2026-10-04T12:00:00Z" level=info msg="starting colima"\nINFO[0002] provisioning ...   context=docker\nFATA[0009] error starting vm: exit status 1';
+      }
+      await progress("colima-progress", [['time="2026-10-04T12:00:00Z" level=info msg="starting colima [profile=default]"', 150], ["\x1b[32mINFO\x1b[0m[0001] runtime: docker", 200], ["> Downloading the image (ubuntu-24.04)", 200], ["Downloading 12%", 200], ["\rDownloading 45%", 300], ["\rDownloading 100%", 300], ['level=warning msg="disk is slow"', 200]]);
       const o = a.opts; const p = db.profiles.find((x) => x.name === o.name);
-      const steps: [string, number][] = [[`level=info msg="starting colima [profile=${o.name}]"`, 200], ['level=info msg="creating and starting ..." context=vm', 900], ['level=info msg="provisioning ..." context=docker', 900], ['level=info msg="done"', 300]];
-      await progress("colima-progress", steps);
+      await progress("colima-progress", [[`INFO[0004] creating and starting ...   context=vm`, 400], ['level=info msg="done"', 300]]);
       if (p) { Object.assign(p, { status: "Running" }); if (o.cpus) p.cpus = o.cpus; if (o.memory) p.memory = o.memory * GB; if (o.disk) p.disk = o.disk * GB; }
       else db.profiles.push({ name: o.name, status: "Running", arch: "aarch64", cpus: o.cpus ?? 2, memory: (o.memory ?? 2) * GB, disk: (o.disk ?? 100) * GB, runtime: o.runtime ?? "docker", address: "" });
       return undefined as T;

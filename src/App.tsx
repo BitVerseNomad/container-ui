@@ -10,11 +10,17 @@ import Containers from "./Containers";
 import Images from "./Images";
 import Volumes from "./Volumes";
 import Profiles from "./Profiles";
+import Overview, { VmState } from "./Overview";
+import InstallCard from "./InstallCard";
+import { useEnv } from "./useEnv";
 
 export default function App() {
   const [tab, setTab] = useState<Tab>("Overview");
   const [active, setActive] = useState<string | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [pullOnOpen, setPullOnOpen] = useState(false);
+  const [vm, setVm] = useState<VmState>({ op: null, failure: null });
+  const { env, recheck } = useEnv();
   const { data, error, reload } = usePoll(() => invoke<Profile[]>("list_profiles"), []);
   const profiles = data ?? [];
 
@@ -28,11 +34,27 @@ export default function App() {
 
   const current = profiles.find((p) => p.name === active) ?? null;
   const ctx = current?.status === "Running" ? ctxFor(current.name) : null;
-  const pill: PillState = !current ? "stopped" : current.status === "Running" ? "running" : current.status === "Stopped" ? "stopped" : "error";
+  const derived: PillState = !current ? "stopped" : current.status === "Running" ? "running" : current.status === "Stopped" ? "stopped" : "error";
+  const pill: PillState = vm.op ?? (vm.failure ? "error" : derived);
+  const toolsMissing = !!env && (!env.colima || !env.docker);
 
   const page =
     tab === "Overview" ? (
-      <Empty title="Nothing here yet">The Overview arrives in the next step.</Empty>
+      env && toolsMissing ? (
+        <InstallCard env={env} onDone={recheck} />
+      ) : (
+        <Overview
+          profile={current}
+          ctx={ctx}
+          vm={vm}
+          onVm={setVm}
+          reload={reload}
+          onOpen={(id) => { setDetailId(id); setTab("Containers"); }}
+          onPull={() => { setPullOnOpen(true); setTab("Images"); }}
+          onReview={(to) => { setDetailId(null); setTab(to); }}
+          onProfiles={() => setTab("Profiles")}
+        />
+      )
     ) : tab === "Profiles" ? (
       <Profiles profiles={profiles} reload={reload} />
     ) : !ctx ? (
@@ -41,8 +63,9 @@ export default function App() {
       <Containers key={ctx} ctx={ctx} detailId={detailId} setDetailId={setDetailId} />
     ) : tab === "Images" ? (
       <Images
-        key={ctx}
+        key={`${ctx}-${pullOnOpen}`}
         ctx={ctx}
+        startPull={pullOnOpen}
         onRan={(id) => {
           setDetailId(id);
           setTab("Containers");
@@ -53,7 +76,7 @@ export default function App() {
     );
 
   return (
-    <Shell nav={tab} onNav={(t) => { setDetailId(null); setTab(t); }} profiles={profiles} active={active} onSelect={setActive}>
+    <Shell nav={tab} onNav={(t) => { setDetailId(null); setPullOnOpen(false); setTab(t); }} profiles={profiles} active={active} onSelect={setActive}>
       <PageHeader breadcrumb={`Colima / ${current?.name ?? "no profile"}`} title={tab} status={<StatusPill state={pill} />} />
       <Banner error={error} />
       {page}
