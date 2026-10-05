@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Profile, ctxFor } from "./api";
 import { usePoll } from "./hooks";
@@ -31,6 +31,14 @@ export default function App() {
   }, [data]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => setDetailId(null), [active]);
+
+  // A failure goes stale when the VM comes up some other way (for example from Profiles).
+  const prevStatus = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    const now = profiles.find((p) => p.name === active)?.status;
+    if (prevStatus.current !== "Running" && now === "Running" && vm.op === null) setVm({ op: null, failure: null });
+    prevStatus.current = now;
+  }, [data, active]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const current = profiles.find((p) => p.name === active) ?? null;
   const ctx = current?.status === "Running" ? ctxFor(current.name) : null;

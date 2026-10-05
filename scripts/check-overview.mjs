@@ -106,5 +106,26 @@ check(/first|start|create/i.test(await text(p, ".content")) && p.errors.length =
 await p.screenshot({ path: "/tmp/ov-none.png" });
 await p.close();
 
+// retry repeats the failed operation (a failed stop must not start the VM)
+p = await open("stopfail");
+await p.waitForSelector(".ov-row", { timeout: 4000 }).catch(() => {});
+await p.getByRole("button", { name: "Stop", exact: true }).click();
+await p.waitForSelector(".out-fail", { timeout: 9000 }).catch(() => {});
+await p.getByRole("button", { name: "Retry", exact: true }).click();
+await p.waitForTimeout(1200);
+const calls = await p.evaluate(() => window.__calls);
+check(calls.filter((c) => c === "stop_profile").length === 2 && !calls.includes("start_profile"), "stopfail: Retry repeats the stop, it does not start the VM");
+await p.close();
+
+// a stale failure clears once the VM is running again (started elsewhere)
+p = await open("failed");
+await p.waitForSelector(".vm-card", { timeout: 4000 }).catch(() => {});
+await p.getByRole("button", { name: "Start", exact: true }).click();
+await p.waitForSelector(".out-fail", { timeout: 9000 }).catch(() => {});
+await p.evaluate(() => window.__mock.setStatus("Running"));
+await p.waitForSelector(".out-fail", { state: "detached", timeout: 6000 }).catch(() => {});
+check(await p.locator(".out-fail").count() === 0 && /VM running/.test(await text(p, ".pill")), "failed: the failure clears once the VM is running");
+await p.close();
+
 await browser.close();
 process.exit(failed ? 1 : 0);

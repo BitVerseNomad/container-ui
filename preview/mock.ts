@@ -96,9 +96,11 @@ function dockerCmd(args: string[]): string {
 async function progress(event: string, steps: [string, number][]) { for (const [l, ms] of steps) { await sleep(ms); emit(event, l); } }
 
 export async function invoke<T>(cmd: string, a: Record<string, any> = {}): Promise<T> {
+  ((window as any).__calls ??= []).push(cmd);
+  (window as any).__mock = { setStatus: (s: string) => { db.profiles[0].status = s; } };
   await sleep(60);
   switch (cmd) {
-    case "list_profiles": return db.profiles as T;
+    case "list_profiles": return db.profiles.map((p) => ({ ...p })) as T; // fresh objects per call, like the real IPC
     case "docker": { const args: string[] = a.args.filter((x: string) => x !== "--format" && x !== "{{json .}}"); const i = a.args.indexOf("--format"); return dockerCmd(i > 0 && a.args[0] === "image" ? a.args : args) as T; }
     case "docker_pull": {
       const [repo, tag = "latest"] = a.image.split(":");
@@ -127,7 +129,8 @@ export async function invoke<T>(cmd: string, a: Record<string, any> = {}): Promi
       else db.profiles.push({ name: o.name, status: "Running", arch: "aarch64", cpus: o.cpus ?? 2, memory: (o.memory ?? 2) * GB, disk: (o.disk ?? 100) * GB, runtime: o.runtime ?? "docker", address: "" });
       return undefined as T;
     }
-    case "stop_profile": case "restart_profile": { await progress("colima-progress", [[`level=info msg="stopping colima"`, 300], ['level=info msg="done"', 500]]); db.profiles.find((x) => x.name === a.name)!.status = cmd === "stop_profile" ? "Stopped" : "Running"; return undefined as T; }
+    case "stop_profile": case "restart_profile": {
+      if (scenario === "stopfail" && cmd === "stop_profile") throw "FATA[0003] could not stop the VM: timeout"; await progress("colima-progress", [[`level=info msg="stopping colima"`, 300], ['level=info msg="done"', 500]]); db.profiles.find((x) => x.name === a.name)!.status = cmd === "stop_profile" ? "Stopped" : "Running"; return undefined as T; }
     case "delete_profile": db.profiles = db.profiles.filter((x) => x.name !== a.name); return undefined as T;
     case "open_url": throw "Preview only: localhost links don't open here.";
   }

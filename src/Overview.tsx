@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Profile, dockerJson } from "./api";
 import { usePoll } from "./hooks";
@@ -38,8 +38,10 @@ export default function Overview({ profile, ctx, vm, onVm, reload, onOpen, onPul
   const [picking, setPicking] = useState(false);
   const [runImage, setRunImage] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const last = useRef<(() => Promise<void>) | null>(null);
 
   async function act(op: "starting" | "stopping", cmd: string, args: Record<string, unknown>) {
+    last.current = () => act(op, cmd, args);
     onVm({ op, failure: null });
     try {
       await invoke(cmd, args);
@@ -88,6 +90,7 @@ export default function Overview({ profile, ctx, vm, onVm, reload, onOpen, onPul
         busy={busy}
         failure={vm.failure}
         onStart={start}
+        onRetry={() => last.current?.() ?? start()}
         onStop={() => act("stopping", "stop_profile", { name: profile.name })}
         onRestart={() => act("starting", "restart_profile", { name: profile.name })}
       />

@@ -13,11 +13,12 @@ type Props = {
   busy: boolean;
   failure: string | null;
   onStart: () => void;
+  onRetry: () => void;
   onStop: () => void;
   onRestart: () => void;
 };
 
-export default function VmCard({ profile, totals, busy, failure, onStart, onStop, onRestart }: Props) {
+export default function VmCard({ profile, totals, busy, failure, onStart, onRetry, onStop, onRestart }: Props) {
   const running = profile.status === "Running";
   const t = totals ?? { cores: 0, memBytes: 0, diskBytes: 0 };
   return (
@@ -34,7 +35,7 @@ export default function VmCard({ profile, totals, busy, failure, onStart, onStop
               <button disabled={busy} onClick={onStop}><Icon name="stop" size={14} /> Stop</button>
             </>
           ) : failure ? (
-            <button className="primary" disabled={busy} onClick={onStart}>Retry</button>
+            <button className="primary" disabled={busy} onClick={onRetry}>Retry</button>
           ) : (
             <button className="primary" disabled={busy} onClick={onStart}>Start</button>
           )}
