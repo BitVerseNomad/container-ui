@@ -35,9 +35,9 @@ export default function Shell({ nav, onNav, profiles, active, onSelect, children
         </div>
         <nav aria-label="Main">
           {NAV.map(({ tab, icon }) => (
-            <button key={tab} className={tab === nav ? "nav-item active" : "nav-item"} aria-current={tab === nav ? "page" : undefined} onClick={() => onNav(tab)}>
+            <button key={tab} className={tab === nav ? "nav-item active" : "nav-item"} aria-label={tab} title={tab} aria-current={tab === nav ? "page" : undefined} onClick={() => onNav(tab)}>
               <Icon name={icon} />
-              {tab}
+              <span className="nav-label">{tab}</span>
             </button>
           ))}
         </nav>

@@ -36,3 +36,20 @@ stop). Run the Rust unit tests with `cd src-tauri && cargo test`.
 ## Browser preview (no install of Tauri or Rust)
     npm run preview     # writes preview/index.html; open it in any browser
 The same UI code runs against a simulated Docker/Colima backend (`preview/mock.ts`).
+
+## Changelog
+
+### Shell, visual system and Overview
+- New fixed-sidebar shell: only the content area scrolls (logs no longer move the page). Icon navigation, active-profile footer, status pill on every page.
+- Sage palette with light and dark modes; contrast is pinned by tests (`src/lib/contrast.test.ts`).
+- **Overview**: VM card with start, stop, restart and retry, CPU/memory/disk meters, searchable containers, Pull image and Run image, and a quiet "needs attention" strip.
+- **Onboarding**: if Colima or Docker is missing, the Overview offers `brew install ...` (runs only on click). If Homebrew is missing it shows the official installer to run yourself.
+- Cleaner Colima output: colour codes, logfmt and progress redraws are tidied; **Copy raw output** keeps the original text.
+- The old "Colima" tab is now **Profiles**, with a one-line explainer.
+- Row actions are labelled icon buttons; no screen scrolls sideways.
+
+### Checks
+    npm test                                    # TypeScript logic (Node 22.6+)
+    cd src-tauri && cargo test                  # Rust (not run in the authoring sandbox)
+    npm run preview && node scripts/check-layout.mjs && node scripts/check-overview.mjs && node scripts/check-restyle.mjs   # needs playwright
+Preview scenarios: `preview/index.html?scenario=running|stopped|failed|missing|partial|nobrew|none|two`.

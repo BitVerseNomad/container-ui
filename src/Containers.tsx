@@ -1,4 +1,5 @@
 import { useState } from "react";
+import IconButton from "./ui/IconButton";
 import { useConfirm } from "./ui";
 import { docker, dockerJson } from "./api";
 import { usePoll } from "./hooks";
@@ -46,18 +47,16 @@ export default function Containers({ ctx, detailId, setDetailId }: Props) {
                   <td><span className={up ? "badge on" : "badge"}>{c.Status}</span></td>
                   <td className="mono clip" title={c.Ports}>{c.Ports || "none"}</td>
                   <td className="row-actions">
-                    <button onClick={() => setDetailId(c.ID)}>Details</button>
+                    <IconButton label={`Logs for ${c.Names}`} icon="logs" onClick={() => setDetailId(c.ID)} />
                     {up ? (
                       <>
-                        <button onClick={() => act(["stop", c.ID])}>Stop</button>
-                        <button onClick={() => act(["restart", c.ID])}>Restart</button>
+                        <IconButton label={`Stop ${c.Names}`} icon="stop" onClick={() => act(["stop", c.ID])} />
+                        <IconButton label={`Restart ${c.Names}`} icon="restart" onClick={() => act(["restart", c.ID])} />
                       </>
                     ) : (
-                      <button onClick={() => act(["start", c.ID])}>Start</button>
+                      <IconButton label={`Start ${c.Names}`} icon="play" onClick={() => act(["start", c.ID])} />
                     )}
-                    <button className="danger" onClick={async () => (await confirm(`Remove container "${c.Names}"?`)) && act(["rm", "-f", c.ID])}>
-                      Remove
-                    </button>
+                    <IconButton label={`Remove ${c.Names}`} icon="trash" danger onClick={async () => (await confirm(`Remove container "${c.Names}"?`)) && act(["rm", "-f", c.ID])} />
                   </td>
                 </tr>
               );

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import IconButton from "./ui/IconButton";
 import { useConfirm } from "./ui";
 import { docker, dockerJson } from "./api";
 import { usePoll } from "./hooks";
@@ -56,10 +57,8 @@ export default function Images({ ctx, onRan, startPull = false }: { ctx: string;
                   <td className="mono">{i.Size}</td>
                   <td>{i.CreatedSince}</td>
                   <td className="row-actions">
-                    <button onClick={() => setRunning(ref)}>Run</button>
-                    <button className="danger" onClick={async () => (await confirm(`Remove image ${ref}?`)) && act(["rmi", ref])}>
-                      Remove
-                    </button>
+                    <IconButton label={`Run ${ref}`} icon="play" onClick={() => setRunning(ref)} />
+                    <IconButton label={`Remove ${ref}`} icon="trash" danger onClick={async () => (await confirm(`Remove image ${ref}?`)) && act(["rmi", ref])} />
                   </td>
                 </tr>
               );

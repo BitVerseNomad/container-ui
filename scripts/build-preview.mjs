@@ -80,7 +80,7 @@ const html = `<!doctype html>
 <title>Colima UI (preview)</title>
 <style>:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 ${css}
-.preview-note{position:fixed;right:10px;bottom:calc(8px + env(safe-area-inset-bottom,0px));font-size:11px;color:var(--muted);pointer-events:none}</style></head>
+.preview-note{position:fixed;right:10px;bottom:calc(8px + env(safe-area-inset-bottom,0px));font-size:11px;color:var(--muted);pointer-events:none;background:var(--page);padding:2px 6px;border-radius:6px}</style></head>
 <body><div id="root"></div><div class="preview-note">Preview: simulated Docker data</div>
 <script>${runtime.replace(/<\/script/gi, "<\\/script")}</script>
 </body></html>`;

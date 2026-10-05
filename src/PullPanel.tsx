@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
 import { dockerJson } from "./api";
 import { Banner } from "./ui";
+import OutputLog from "./ui/OutputLog";
 
 type Hit = { Name: string; Description: string; StarCount: string; IsOfficial: string };
 type Props = { ctx: string; onClose: () => void; onPulled: () => void; onRun: (image: string) => void };
@@ -13,21 +13,9 @@ export default function PullPanel({ ctx, onClose, onPulled, onRun }: Props) {
   const [searching, setSearching] = useState(false);
   const [pulling, setPulling] = useState(false);
   const [done, setDone] = useState<string | null>(null);
-  const [lines, setLines] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const log = useRef<HTMLPreElement>(null);
+  const [failure, setFailure] = useState<string | null>(null);
   const name = image.trim();
-
-  useEffect(() => {
-    const un = listen<string>("pull-progress", (e) => setLines((l) => [...l.slice(-300), e.payload]));
-    return () => {
-      un.then((f) => f());
-    };
-  }, []);
-
-  useEffect(() => {
-    log.current?.scrollTo({ top: log.current.scrollHeight });
-  }, [lines]);
 
   async function search() {
     const term = name.split(":")[0];
@@ -47,13 +35,13 @@ export default function PullPanel({ ctx, onClose, onPulled, onRun }: Props) {
     setPulling(true);
     setDone(null);
     setError(null);
-    setLines([]);
+    setFailure(null);
     try {
       await invoke("docker_pull", { context: ctx, image: name });
       setDone(name);
       onPulled();
     } catch (e) {
-      setError(String(e));
+      setFailure(String(e));
     } finally {
       setPulling(false);
     }
@@ -97,7 +85,7 @@ export default function PullPanel({ ctx, onClose, onPulled, onRun }: Props) {
           <ul className="hits">
             {hits.map((h) => (
               <li key={h.Name}>
-                <button className="hit" disabled={pulling} onClick={() => setImage(h.Name)}>
+                <button className="hit" disabled={pulling} aria-selected={h.Name === name} onClick={() => setImage(h.Name)}>
                   <span className="hit-name">
                     {h.Name}
                     {h.IsOfficial === "true" && <span className="tag">Official</span>}
@@ -123,7 +111,7 @@ export default function PullPanel({ ctx, onClose, onPulled, onRun }: Props) {
             <button className="primary" onClick={() => onRun(done)}>Run {done}</button>
           </>
         )}
-        {lines.length > 0 && <pre ref={log} className="pull-log">{lines.join("\n")}</pre>}
+        <OutputLog event="pull-progress" active={pulling} failure={failure} />
       </div>
     </>
   );

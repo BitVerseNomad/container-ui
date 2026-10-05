@@ -174,6 +174,15 @@ thead th { position: sticky; top: 0; background: var(--sidebar); z-index: 1; }
 tbody tr:hover { background: color-mix(in srgb, var(--ink) 4%, transparent); }
 tbody tr[aria-selected="true"] { background: color-mix(in srgb, var(--primary) 14%, transparent); box-shadow: inset 3px 0 0 var(--primary); }
 
+@media (min-width: 701px) and (max-width: 900px) {
+  .shell { grid-template-columns: 64px minmax(0, 1fr); }
+  .sidebar { padding: 14px 8px; align-items: center; }
+  .brand div, .nav-label, .side-foot { display: none; }
+  .nav-item { justify-content: center; padding: 10px; }
+  .content { padding: 20px 20px 28px; }
+  th, td { padding-left: 8px; padding-right: 8px; }
+  .clip { max-width: 130px; }
+}
 @media (max-width: 700px) {
   .shell { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }
   .sidebar { flex-direction: row; align-items: center; overflow-x: auto; padding: 10px 12px; border-right: 0; border-bottom: 1px solid var(--border); gap: 10px; }
@@ -218,7 +227,17 @@ button:disabled.primary { opacity: .5; }
 .install-card h2, .start-first h2 { margin: 0; font-size: 20px; }
 .cmd { margin: 0; padding: 10px 12px; border-radius: 8px; background: var(--log-bg); color: var(--log-ink); font: 13px/1.5 ui-monospace, "SF Mono", Menlo, monospace; overflow-x: auto; white-space: pre-wrap; word-break: break-all; }
 @media (max-width: 700px) {
+  .ov-head { flex-wrap: wrap; }
+  .ov-head .hint { display: none; }
+  .content { padding-bottom: 44px; }
   .meters { grid-template-columns: 1fr; }
   .ov-row { grid-template-columns: 14px minmax(0, 1fr) auto; }
   .ov-usage, .ov-ports { display: none; }
 }
+
+/* Restyle: icon actions, lead text, selected result */
+.row-actions { text-align: right; white-space: nowrap; }
+.row-actions .icon-btn { margin: 0 0 0 4px; vertical-align: middle; }
+.lead { margin: 0 0 14px; font-size: 14px; max-width: 60ch; }
+.hit[aria-selected="true"] { background: color-mix(in srgb, var(--primary) 14%, transparent); border-color: var(--primary); }
+.drawer .out-log { max-height: 200px; }

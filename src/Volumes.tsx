@@ -1,4 +1,5 @@
 import { useState } from "react";
+import IconButton from "./ui/IconButton";
 import { useConfirm } from "./ui";
 import { docker, dockerJson } from "./api";
 import { usePoll } from "./hooks";
@@ -44,9 +45,7 @@ export default function Volumes({ ctx }: { ctx: string }) {
                 <td className="mono clip" title={v.Name}>{v.Name}</td>
                 <td>{v.Driver}</td>
                 <td className="row-actions">
-                  <button className="danger" onClick={async () => (await confirm(`Remove volume ${v.Name}? Its data is lost.`)) && act(["volume", "rm", v.Name])}>
-                    Remove
-                  </button>
+                  <IconButton label={`Remove volume ${v.Name}`} icon="trash" danger onClick={async () => (await confirm(`Remove volume ${v.Name}? Its data is lost.`)) && act(["volume", "rm", v.Name])} />
                 </td>
               </tr>
             ))}

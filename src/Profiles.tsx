@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from "react";
-import { listen } from "@tauri-apps/api/event";
+import { useRef, useState } from "react";
 import { useConfirm } from "./ui";
 import { invoke } from "@tauri-apps/api/core";
 import { Profile, StartOpts, gbOf } from "./api";
 import EditPanel from "./EditPanel";
-import { Banner, Empty } from "./ui";
+import { Empty } from "./ui";
+import IconButton from "./ui/IconButton";
+import OutputLog from "./ui/OutputLog";
 
 const gb = (bytes: number) => `${gbOf(bytes)} GB`;
 
@@ -14,24 +15,12 @@ export default function Profiles({ profiles, reload }: { profiles: Profile[]; re
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<Profile | null>(null);
   const dialog = useRef<HTMLDialogElement>(null);
-  const [log, setLog] = useState<string[]>([]);
   const [newName, setNewName] = useState("default");
-  const logBox = useRef<HTMLPreElement>(null);
   const taken = profiles.some((p) => p.name === newName.trim());
 
-  useEffect(() => {
-    const un = listen<string>("colima-progress", (e) => setLog((l) => [...l.slice(-300), e.payload]));
-    return () => {
-      un.then((f) => f());
-    };
-  }, []);
-  useEffect(() => {
-    logBox.current?.scrollTo({ top: logBox.current.scrollHeight });
-  }, [log]);
 
   async function act(name: string, label: string, cmd: string, args: Record<string, unknown>) {
     setBusy(`${name}: ${label}`);
-    setLog([]);
     setError(null);
     try {
       await invoke(cmd, args);
@@ -57,16 +46,8 @@ export default function Profiles({ profiles, reload }: { profiles: Profile[]; re
         </button>
         {busy && <span className="state">{busy}</span>}
       </header>
-      <Banner error={error} onClose={() => setError(null)} />
-      {log.length > 0 && (
-        <div className="out">
-          <div className="row-head">
-            <span className="state">Colima output</span>
-            <button disabled={!!busy} onClick={() => setLog([])}>Clear</button>
-          </div>
-          <pre ref={logBox} className="pull-log">{log.join("\n")}</pre>
-        </div>
-      )}
+      <p className="hint lead">A profile is a separate Colima VM with its own containers, images and volumes. Most people only need <b>default</b>.</p>
+      <OutputLog event="colima-progress" active={!!busy} failure={error} onClear={() => setError(null)} />
       {profiles.length === 0 && <Empty title="No Colima profiles yet">Create one to start a container runtime on this machine.</Empty>}
       {profiles.length > 0 && (
         <table>
@@ -87,30 +68,14 @@ export default function Profiles({ profiles, reload }: { profiles: Profile[]; re
                   <td className="row-actions">
                     {up ? (
                       <>
-                        <button disabled={!!busy} onClick={() => act(p.name, "stopping", "stop_profile", { name: p.name })}>Stop</button>
-                        <button disabled={!!busy} onClick={() => act(p.name, "restarting", "restart_profile", { name: p.name })}>Restart</button>
+                        <IconButton label={`Stop ${p.name}`} icon="stop" disabled={!!busy} onClick={() => act(p.name, "stopping", "stop_profile", { name: p.name })} />
+                        <IconButton label={`Restart ${p.name}`} icon="restart" disabled={!!busy} onClick={() => act(p.name, "restarting", "restart_profile", { name: p.name })} />
                       </>
                     ) : (
-                      <button
-                        disabled={!!busy}
-                        onClick={() =>
-                          act(p.name, "starting", "start_profile", { opts: { name: p.name } as StartOpts })
-                        }
-                      >
-                        Start
-                      </button>
+                      <IconButton label={`Start ${p.name}`} icon="play" disabled={!!busy} onClick={() => act(p.name, "starting", "start_profile", { opts: { name: p.name } as StartOpts })} />
                     )}
-                    <button disabled={!!busy} onClick={() => setEditing(p)}>Edit</button>
-                    <button
-                      className="danger"
-                      disabled={!!busy}
-                      onClick={async () =>
-                        (await confirm(`Delete profile "${p.name}" and its VM? All its containers and images are removed.`, "Delete")) &&
-                        act(p.name, "deleting", "delete_profile", { name: p.name })
-                      }
-                    >
-                      Delete
-                    </button>
+                    <IconButton label={`Edit ${p.name}`} icon="sliders" disabled={!!busy} onClick={() => setEditing(p)} />
+                    <IconButton label={`Delete ${p.name}`} icon="trash" danger disabled={!!busy} onClick={async () => (await confirm(`Delete profile "${p.name}" and its VM? All its containers and images are removed.`, "Delete")) && act(p.name, "deleting", "delete_profile", { name: p.name })} />
                   </td>
                 </tr>
               );
