@@ -27,7 +27,6 @@ export default function Containers({ ctx, detailId, setDetailId }: Props) {
 
   return (
     <section>
-      <h2>Containers</h2>
       <Banner error={error ?? err} onClose={() => setErr(null)} />
       {data && data.length === 0 && (
         <Empty title="No containers">Open the Images tab and press Run on an image to start one.</Empty>

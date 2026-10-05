@@ -28,7 +28,6 @@ export default function Images({ ctx, onRan }: { ctx: string; onRan: (id: string
   return (
     <section>
       <header>
-        <h2>Images</h2>
         <button className="primary" onClick={() => setPulling(true)}>Pull image</button>
         <button
           className="danger"

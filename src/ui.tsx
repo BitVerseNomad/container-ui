@@ -49,6 +49,7 @@ export function Banner({ error, onClose }: { error: string | null; onClose?: () 
   );
 }
 
+export { Empty as EmptyState };
 export function Empty({ title, children }: { title: string; children?: ReactNode }) {
   return (
     <div className="empty">

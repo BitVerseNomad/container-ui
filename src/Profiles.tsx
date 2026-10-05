@@ -46,7 +46,6 @@ export default function Profiles({ profiles, reload }: { profiles: Profile[]; re
   return (
     <section>
       <header>
-        <h2>Colima</h2>
         <button
           className="primary"
           onClick={() => {

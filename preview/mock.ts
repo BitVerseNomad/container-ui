@@ -27,6 +27,9 @@ const db = {
     { id: hex(64), name: "cache", image: "redis:7", state: "exited", ports: [], mounts: [], env: [], born: now - 2 * 864e5, cpu: 0, mem: 0 },
   ] as Ctr[],
 };
+if (typeof location !== "undefined" && new URLSearchParams(location.search).get("scenario") === "two") {
+  db.profiles.push({ name: "dev", status: "Stopped", arch: "aarch64", cpus: 2, memory: 2 * GB, disk: 60 * GB, runtime: "docker", address: "" });
+}
 const HUB = [
   ["nginx", "Official build of Nginx.", 21000, true], ["mysql", "MySQL is a widely used, open-source relational database management system.", 15700, true],
   ["postgres", "The PostgreSQL object-relational database system.", 13500, true], ["redis", "Redis is the world's fastest data platform for caching and vector search.", 12800, true],
@@ -60,7 +63,7 @@ function dockerCmd(args: string[]): string {
       if (user) throw `Error response from daemon: conflict: unable to remove repository reference "${args[1]}" (must force) - container ${user.id.slice(0, 12)} is using its referenced image`;
       db.images = db.images.filter((i) => i !== img); return `Untagged: ${args[1]}`;
     }
-    case "logs": { const c = find(args[args.length - 1])!; const t = new Date().toISOString(); return logLines(c).map((l, i) => `${t.slice(0, 17)}${String(10 + i).padStart(2, "0")}Z ${l}`).join("\n") + "\n"; }
+    case "logs": { const c = find(args[args.length - 1])!; const t = new Date().toISOString(); const base = logLines(c); return Array.from({ length: 160 }, (_, i) => `${t.slice(0, 17)}${String(i % 60).padStart(2, "0")}Z ${base[i % base.length]}`).join("\n") + "\n"; }
     case "inspect": { const c = find(args[1])!; return JSON.stringify([{ Id: c.id, Name: `/${c.name}`, Created: new Date(c.born).toISOString(), Path: c.image.startsWith("mysql") ? "docker-entrypoint.sh" : "/docker-entrypoint.sh", Args: ["mysqld"], State: { Status: c.state, Running: c.state !== "exited", Paused: c.state === "paused" }, Config: { Image: c.image, Env: c.env }, HostConfig: { RestartPolicy: { Name: "no" } }, NetworkSettings: { Ports: Object.fromEntries(c.ports.map(([h, p]) => [`${p}/tcp`, [{ HostIp: "0.0.0.0", HostPort: String(h) }]])), Networks: { bridge: { IPAddress: "172.17.0.2" } } }, Mounts: c.mounts }]); }
     case "stats": { const c = find(args[args.length - 1])!; c.cpu = Math.max(0.1, c.cpu + (Math.random() - 0.45)); return lines([{ CPUPerc: `${c.cpu.toFixed(2)}%`, MemUsage: `${(c.mem / 2 ** 20).toFixed(1)}MiB / 7.7GiB`, NetIO: "1.2kB / 648B", BlockIO: "0B / 4.1kB", PIDs: "29" }]); }
     case "start": case "stop": case "restart": case "pause": case "unpause": { const c = find(args[1])!; c.state = cmd === "stop" ? "exited" : cmd === "pause" ? "paused" : "running"; return c.id; }

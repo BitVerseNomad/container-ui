@@ -24,7 +24,6 @@ export default function Volumes({ ctx }: { ctx: string }) {
   return (
     <section>
       <header>
-        <h2>Volumes</h2>
         <button
           className="danger"
           onClick={async () => (await confirm("Remove all volumes not used by a container? Their data is lost.")) && act(["volume", "prune", "-a", "-f"])}

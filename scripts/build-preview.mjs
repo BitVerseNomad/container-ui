@@ -7,14 +7,18 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const ts = require("typescript");
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+const srcDir = path.join(root, "src");
 
-const files = [
-  ...fs.readdirSync(path.join(root, "src")).filter((f) => /\.tsx?$/.test(f) && !f.includes(".test.")).map((f) => path.join(root, "src", f)),
-  path.join(root, "preview", "mock.ts"),
-];
-const id = (f) => path.basename(f).replace(/\.tsx?$/, "");
+// --- sources: everything under src/ (not tests) plus the mock backend, keyed by path relative to src ---
+const walk = (dir) =>
+  fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+    e.isDirectory() ? walk(path.join(dir, e.name)) : [path.join(dir, e.name)],
+  );
+const sources = walk(srcDir).filter((f) => /\.tsx?$/.test(f) && !f.includes(".test."));
+const modId = (f) => path.relative(srcDir, f).replace(/\\/g, "/").replace(/\.tsx?$/, "");
+const entries = [...sources.map((f) => [modId(f), f]), ["mock", path.join(root, "preview", "mock.ts")]];
 
-// React ships CommonJS production builds; run them through the same tiny module loader.
+// --- React ships CommonJS production builds; run them through the same tiny module loader ---
 const pkgDir = (name, from) =>
   path.dirname((from ? createRequire(path.join(from, "package.json")) : require).resolve(`${name}/package.json`));
 const pick = (pkg, names, from) => {
@@ -33,39 +37,43 @@ vendor["react-dom/client"] = fs.existsSync(clientFile)
   ? fs.readFileSync(clientFile, "utf8")
   : 'module.exports = { createRoot: require("react-dom").createRoot };'; // React 18 layout
 
-const modules = files.map((f) => {
-  const js = ts.transpileModule(fs.readFileSync(f, "utf8"), {
+const wrap = (name, code) => `${JSON.stringify(name)}: function (module, exports, require) {\n${code}\n}`;
+const modules = entries.map(([name, file]) => {
+  const js = ts.transpileModule(fs.readFileSync(file, "utf8"), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2019, esModuleInterop: true },
   }).outputText;
-  return `${JSON.stringify(id(f))}: function (module, exports, require) {\n${js}\n}`;
+  return wrap(name, js);
 });
+const vendorDefs = Object.entries(vendor).map(([name, code]) => wrap("vendor:" + name, code));
 
-const vendorDefs = Object.entries(vendor).map(
-  ([name, code]) => `${JSON.stringify("vendor:" + name)}: function (module, exports, require) {\n${code}\n}`,
-);
 const runtime = `
 var defs = {${[...modules, ...vendorDefs].join(",\n")}};
 var cache = {};
-var ext = {
-  "@tauri-apps/api/core": function () { return load("mock"); },
-  "@tauri-apps/api/event": function () { return load("mock"); },
-};
+function resolve(from, req) {
+  var parts = from.split("/");
+  parts.pop();
+  req.replace(/\\.(tsx?|css)$/, "").split("/").forEach(function (seg) {
+    if (seg === "..") parts.pop();
+    else if (seg !== ".") parts.push(seg);
+  });
+  return parts.join("/");
+}
 function load(name) {
   if (cache[name]) return cache[name].exports;
   var module = (cache[name] = { exports: {} });
   defs[name](module, module.exports, function (req) {
     if (/\\.css$/.test(req)) return {};
-    if (req.startsWith("./")) return load(req.slice(2));
+    if (req.charAt(0) === ".") return load(resolve(name, req));
     if (defs["vendor:" + req]) return load("vendor:" + req);
-    var e = ext[req];
-    if (e === undefined) throw new Error("preview: unknown module " + req);
-    return typeof e === "function" ? e() : e;
+    if (req === "@tauri-apps/api/core" || req === "@tauri-apps/api/event") return load("mock");
+    throw new Error("preview: unknown module " + req);
   });
   return module.exports;
 }
 load("main");`;
 
-const css = fs.readFileSync(path.join(root, "src", "styles.css"), "utf8");
+const read = (...p) => fs.readFileSync(path.join(root, ...p), "utf8");
+const css = read("src", "ui", "tokens.css") + read("src", "styles.css").replace(/@import[^;]+;/g, "");
 const html = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
