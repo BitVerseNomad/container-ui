@@ -1,4 +1,5 @@
 import { useState } from "react";
+import Drawer from "./ui/Drawer";
 import { dockerJson } from "./api";
 import { usePoll } from "./hooks";
 import { Banner } from "./ui";
@@ -13,13 +14,7 @@ export default function RunPicker({ ctx, onPick, onClose }: { ctx: string; onPic
   const rows = (data ?? []).filter((i) => ref(i).toLowerCase().includes(q.toLowerCase()));
 
   return (
-    <>
-      <div className="scrim" onClick={onClose} />
-      <div className="drawer" role="dialog" aria-label="Run image">
-        <div className="drawer-head">
-          <h3>Choose an image to run</h3>
-          <button onClick={onClose}>Close</button>
-        </div>
+    <Drawer label="Run image" title={<>Choose an image to run</>} onClose={onClose}>
         <label className="search-field">
           <Icon name="search" size={14} />
           <input autoFocus placeholder="Search your images" value={q} onChange={(e) => setQ(e.target.value)} />
@@ -36,7 +31,6 @@ export default function RunPicker({ ctx, onPick, onClose }: { ctx: string; onPic
             </li>
           ))}
         </ul>
-      </div>
-    </>
+    </Drawer>
   );
 }

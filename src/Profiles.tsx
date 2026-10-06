@@ -52,7 +52,7 @@ export default function Profiles({ profiles, reload }: { profiles: Profile[]; re
       {profiles.length > 0 && (
         <table>
           <thead>
-            <tr><th>Profile</th><th>Status</th><th>CPUs</th><th>Memory</th><th>Disk</th><th>Runtime</th><th /></tr>
+            <tr><th scope="col">Profile</th><th scope="col">Status</th><th scope="col">CPUs</th><th scope="col">Memory</th><th scope="col">Disk</th><th scope="col">Runtime</th><th scope="col"><span className="sr-only">Actions</span></th></tr>
           </thead>
           <tbody>
             {profiles.map((p) => {

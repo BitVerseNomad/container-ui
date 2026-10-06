@@ -55,7 +55,7 @@ export default function Shell({ nav, onNav, profiles, active, onSelect, children
           <span className="foot-sub">{current ? `${current.runtime} · ${current.cpus} CPU · ${gbOf(current.memory)} GB` : "No VM yet"}</span>
         </div>
       </div>
-      <div className="content">{children}</div>
+      <main className="content">{children}</main>
     </div>
   );
 }

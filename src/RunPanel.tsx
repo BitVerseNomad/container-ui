@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import Drawer from "./ui/Drawer";
 import { docker, dockerJson } from "./api";
 import { PortRow, VolRow, buildRunArgs, defaultName, hintFor, parseExposedPorts, presetEnv, shouldCleanup } from "./runArgs";
 import { Banner } from "./ui";
@@ -57,13 +58,7 @@ export default function RunPanel({ ctx, image, onClose, onRan }: Props) {
     setVolumes((rows) => rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
 
   return (
-    <>
-      <div className="scrim" onClick={() => !busy && onClose()} />
-      <div className="drawer" role="dialog" aria-label={`Run ${image}`}>
-        <div className="drawer-head">
-          <h3>Run {image}</h3>
-          <button disabled={busy} onClick={onClose}>Close</button>
-        </div>
+    <Drawer label={`Run ${image}`} title={<>Run {image}</>} onClose={onClose} closeDisabled={busy}>
 
         <label>
           Name
@@ -127,7 +122,6 @@ export default function RunPanel({ ctx, image, onClose, onRan }: Props) {
           <button disabled={busy} onClick={onClose}>Cancel</button>
           <button className="primary" disabled={busy} onClick={run}>{busy ? "Starting…" : "Run"}</button>
         </div>
-      </div>
-    </>
+    </Drawer>
   );
 }

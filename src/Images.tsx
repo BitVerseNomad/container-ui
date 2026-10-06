@@ -44,7 +44,7 @@ export default function Images({ ctx, onRan, startPull = false }: { ctx: string;
       {data && data.length > 0 && (
         <table>
           <thead>
-            <tr><th>Repository</th><th>Tag</th><th>ID</th><th>Size</th><th>Created</th><th /></tr>
+            <tr><th scope="col">Repository</th><th scope="col">Tag</th><th scope="col">ID</th><th scope="col">Size</th><th scope="col">Created</th><th scope="col"><span className="sr-only">Actions</span></th></tr>
           </thead>
           <tbody>
             {data.map((i) => {

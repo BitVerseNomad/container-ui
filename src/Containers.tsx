@@ -35,7 +35,7 @@ export default function Containers({ ctx, detailId, setDetailId }: Props) {
       {data && data.length > 0 && (
         <table>
           <thead>
-            <tr><th>Name</th><th>Image</th><th>Status</th><th>Ports</th><th /></tr>
+            <tr><th scope="col">Name</th><th scope="col">Image</th><th scope="col">Status</th><th scope="col">Ports</th><th scope="col"><span className="sr-only">Actions</span></th></tr>
           </thead>
           <tbody>
             {data.map((c) => {

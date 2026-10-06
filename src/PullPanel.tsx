@@ -1,4 +1,5 @@
 import { useState } from "react";
+import Drawer from "./ui/Drawer";
 import { invoke } from "@tauri-apps/api/core";
 import { dockerJson } from "./api";
 import { Banner } from "./ui";
@@ -48,13 +49,7 @@ export default function PullPanel({ ctx, onClose, onPulled, onRun }: Props) {
   }
 
   return (
-    <>
-      <div className="scrim" onClick={() => !pulling && onClose()} />
-      <div className="drawer" role="dialog" aria-label="Pull image">
-        <div className="drawer-head">
-          <h3>Pull image</h3>
-          <button disabled={pulling} onClick={onClose}>Close</button>
-        </div>
+    <Drawer label="Pull image" title={<>Pull image</>} onClose={onClose} closeDisabled={pulling}>
 
         <label>
           Image
@@ -112,7 +107,6 @@ export default function PullPanel({ ctx, onClose, onPulled, onRun }: Props) {
           </>
         )}
         <OutputLog event="pull-progress" active={pulling} failure={failure} />
-      </div>
-    </>
+    </Drawer>
   );
 }

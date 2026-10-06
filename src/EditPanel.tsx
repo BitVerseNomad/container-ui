@@ -1,4 +1,5 @@
 import { useState } from "react";
+import Drawer from "./ui/Drawer";
 import { invoke } from "@tauri-apps/api/core";
 import { Profile, StartOpts, gbOf } from "./api";
 import { Banner } from "./ui";
@@ -46,13 +47,7 @@ export default function EditPanel({ profile, onClose, onApplied }: Props) {
   );
 
   return (
-    <>
-      <div className="scrim" onClick={() => !busy && onClose()} />
-      <div className="drawer" role="dialog" aria-label={`Edit profile ${profile.name}`}>
-        <div className="drawer-head">
-          <h3>Edit profile: {profile.name}</h3>
-          <button disabled={busy} onClick={onClose}>Close</button>
-        </div>
+    <Drawer label={`Edit profile ${profile.name}`} title={<>Edit profile: {profile.name}</>} onClose={onClose} closeDisabled={busy}>
 
         {field("cpus", "CPUs", cpus, setCpus, was.cpus, "", 1)}
         {field("memory", "Memory (GB)", memory, setMemory, was.memory, " GB", 1)}
@@ -74,7 +69,6 @@ export default function EditPanel({ profile, onClose, onApplied }: Props) {
             {busy ? "Applying…" : running ? "Stop and apply" : "Apply and start"}
           </button>
         </div>
-      </div>
-    </>
+    </Drawer>
   );
 }
