@@ -59,6 +59,40 @@ fn safe(s: &str) -> Result<(), String> {
     }
 }
 
+// The page can only ask for the docker commands the app itself uses. Anything else (exec, cp, build,
+// login, prune of volumes...) is refused here, so a compromised page cannot do more than the UI can.
+const DOCKER_SUBCOMMANDS: &[&str] =
+    &["ps", "images", "search", "logs", "inspect", "stats", "start", "stop", "restart", "pause", "unpause", "rm", "rmi", "run"];
+
+fn docker_args_allowed(args: &[String]) -> Result<(), String> {
+    let first = args.first().map(String::as_str).unwrap_or("");
+    let second = args.get(1).map(String::as_str).unwrap_or("");
+    let ok = match first {
+        "volume" => matches!(second, "ls" | "rm"),
+        "image" => matches!(second, "inspect" | "prune"),
+        "system" => second == "df",
+        other => DOCKER_SUBCOMMANDS.contains(&other),
+    };
+    if !ok {
+        return Err(format!("\"docker {}\" is not available from the app", args.join(" ")));
+    }
+    if first == "run" {
+        for a in args {
+            let flag = a.split('=').next().unwrap_or("");
+            let risky = matches!(flag, "--privileged" | "--cap-add" | "--pid" | "--ipc" | "--uts" | "--userns" | "--security-opt" | "--device");
+            if risky || a.contains("docker.sock") {
+                return Err(format!("\"{a}\" is not allowed when running a container from the app"));
+            }
+        }
+    }
+    Ok(())
+}
+
+// Colima registers "colima" (default profile) and "colima-<profile>" contexts; nothing else is used.
+fn context_ok(c: &str) -> bool {
+    c == "colima" || c.strip_prefix("colima-").map_or(false, |rest| !rest.is_empty() && !rest.starts_with('-'))
+}
+
 // GUI apps on macOS don't inherit the shell PATH, so look in the usual Homebrew spots.
 fn find_bin(name: &str) -> String {
     ["/opt/homebrew/bin", "/usr/local/bin", "/home/linuxbrew/.linuxbrew/bin"]
@@ -104,6 +138,10 @@ async fn run(args: Vec<String>) -> Result<String, String> {
 
 #[tauri::command]
 async fn docker(context: String, args: Vec<String>, merge_stderr: bool) -> Result<String, String> {
+    if !context_ok(&context) {
+        return Err(format!("Unknown Docker context \"{context}\""));
+    }
+    docker_args_allowed(&args)?;
     let mut a = vec!["--context".to_string(), context];
     a.extend(args);
     exec("docker", a, merge_stderr).await
@@ -204,6 +242,9 @@ async fn colima_stream(app: tauri::AppHandle, steps: Vec<Vec<String>>) -> Result
 #[tauri::command]
 async fn docker_pull(app: tauri::AppHandle, context: String, image: String) -> Result<(), String> {
     safe(&image)?;
+    if !context_ok(&context) {
+        return Err(format!("Unknown Docker context \"{context}\""));
+    }
     tauri::async_runtime::spawn_blocking(move || {
         stream(&app, "pull-progress", "docker", &["--context".into(), context, "pull".into(), image])
     })
@@ -429,6 +470,58 @@ mod tests {
         assert!(validate_install(&[]).is_err());
         assert!(validate_install(&["wget".to_string()]).is_err());
         assert!(validate_install(&["--force".to_string()]).is_err());
+    }
+
+    fn args(a: &[&str]) -> Vec<String> {
+        a.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn docker_allowlist_accepts_what_the_app_uses() {
+        for a in [
+            &["ps", "-a"][..],
+            &["run", "-d", "--name", "web", "-p", "127.0.0.1:8080:80", "nginx"],
+            &["volume", "ls"],
+            &["volume", "rm", "data"],
+            &["image", "prune", "-a", "-f"],
+            &["system", "df"],
+            &["rm", "-f", "abc"],
+        ] {
+            assert!(docker_args_allowed(&args(a)).is_ok(), "{a:?}");
+        }
+    }
+
+    #[test]
+    fn docker_allowlist_rejects_everything_else() {
+        for a in [
+            &["exec", "c", "sh"][..],
+            &["cp", "c:/etc/passwd", "."],
+            &["build", "."],
+            &["login"],
+            &["volume", "prune"],
+            &["system", "prune"],
+            &["--context", "other", "ps"],
+            &[],
+        ] {
+            assert!(docker_args_allowed(&args(a)).is_err(), "{a:?}");
+        }
+    }
+
+    #[test]
+    fn docker_run_cannot_escalate_privileges_or_mount_the_docker_socket() {
+        assert!(docker_args_allowed(&args(&["run", "--privileged", "x"])).is_err());
+        assert!(docker_args_allowed(&args(&["run", "--cap-add=ALL", "x"])).is_err());
+        assert!(docker_args_allowed(&args(&["run", "-v", "/var/run/docker.sock:/s", "x"])).is_err());
+    }
+
+    #[test]
+    fn only_colima_contexts_are_accepted() {
+        assert!(context_ok("colima"));
+        assert!(context_ok("colima-dev"));
+        assert!(!context_ok("default"));
+        assert!(!context_ok("desktop-linux"));
+        assert!(!context_ok("colima-"));
+        assert!(!context_ok("--host"));
     }
 
     #[test]
