@@ -53,3 +53,12 @@ The same UI code runs against a simulated Docker/Colima backend (`preview/mock.t
     cd src-tauri && cargo test                  # Rust (not run in the authoring sandbox)
     npm run preview && node scripts/check-layout.mjs && node scripts/check-overview.mjs && node scripts/check-restyle.mjs   # needs playwright
 Preview scenarios: `preview/index.html?scenario=running|stopped|failed|missing|partial|nobrew|none|two`.
+
+### Review fixes (design, accessibility and code review)
+- Volumes show which containers use them; in-use volumes can't be removed; bulk removal is limited to unused *anonymous* volumes, so a database's named volume is never swept up.
+- Run publishes ports on `127.0.0.1` by default; "Let other devices on my network connect" opts in.
+- The `docker` command the page can invoke is allowlisted (no exec, cp, build, login, privileged runs or Docker-socket mounts), and only Colima contexts are accepted.
+- `main` landmark, table header scopes, modal side panels (Escape, focus trap, focus return), and muted text that meets 4.5:1 on every surface.
+- More checks: `node scripts/check-volumes.mjs`, `node scripts/check-a11y.mjs`.
+
+Not done yet: a strict Content-Security-Policy in `tauri.conf.json` (needs testing on a real machine; the allowlist above is the safety net until then).
