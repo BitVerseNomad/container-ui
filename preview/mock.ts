@@ -20,9 +20,9 @@ const db = {
     { Repository: "redis", Tag: "7", Size: "117MB", ID: hex(12), CreatedSince: "5 weeks ago" },
     { Repository: "postgres", Tag: "16", Size: "456MB", ID: hex(12), CreatedSince: "6 weeks ago" },
   ],
-  volumes: ["mysql-data", "redis-data", "pgdata-old"],
+  volumes: ["mysql-data", "redis-data", "pgdata-old", "a".repeat(64), "c".repeat(64)],
   ctrs: [
-    { id: hex(64), name: "web", image: "nginx:latest", state: "running", ports: [[8080, 80]], mounts: [], env: ["NGINX_VERSION=1.27.2"], born: now - 36e5, cpu: 0.3, mem: 11e6 },
+    { id: hex(64), name: "web", image: "nginx:latest", state: "running", ports: [[8080, 80]], mounts: [{ Type: "volume", Name: "c".repeat(64), Source: "/var/lib/docker/volumes/c/_data", Destination: "/cache", RW: true }], env: ["NGINX_VERSION=1.27.2"], born: now - 36e5, cpu: 0.3, mem: 11e6 },
     { id: hex(64), name: "db", image: "mysql:8", state: "running", ports: [[3306, 3306]], mounts: [{ Type: "volume", Name: "mysql-data", Source: "/var/lib/docker/volumes/mysql-data/_data", Destination: "/var/lib/mysql", RW: true }], env: ["MYSQL_ROOT_PASSWORD=dev"], born: now - 864e5, cpu: 1.8, mem: 380e6 },
     { id: hex(64), name: "cache", image: "redis:7", state: "exited", ports: [], mounts: [], env: [], born: now - 2 * 864e5, cpu: 0, mem: 0 },
   ] as Ctr[],
@@ -55,11 +55,11 @@ const logLines = (c: Ctr) => c.image.startsWith("mysql")
 function dockerCmd(args: string[]): string {
   const [cmd, sub] = args;
   switch (cmd) {
-    case "ps": return lines(db.ctrs.map((c) => ({ ID: c.id.slice(0, 12), Names: c.name, Image: c.image, State: c.state, Status: status(c), Ports: fmtPorts(c) })));
+    case "ps": if (args.includes("-q")) return db.ctrs.map((c) => c.id.slice(0, 12)).join("\n"); return lines(db.ctrs.map((c) => ({ ID: c.id.slice(0, 12), Names: c.name, Image: c.image, State: c.state, Status: status(c), Ports: fmtPorts(c) })));
     case "images": return lines(db.images);
     case "volume":
       if (sub === "ls") return lines(db.volumes.map((Name) => ({ Name, Driver: "local" })));
-      if (sub === "rm") { db.volumes = db.volumes.filter((v) => v !== args[2]); return args[2]; }
+      if (sub === "rm") { db.volumes = db.volumes.filter((v) => !args.slice(2).includes(v)); return args.slice(2).join("\n"); }
       db.volumes = db.volumes.filter((v) => db.ctrs.some((c) => c.mounts.some((m) => m.Name === v))); return "Total reclaimed space: 0B";
     case "search": return lines(HUB.filter((h) => h[0].includes(args[args.length - 4] ?? "") || h[0].includes(args[3] ?? "")).map(([Name, Description, s, o]) => ({ Name, Description, StarCount: String(s), IsOfficial: String(o) })));
     case "image":
@@ -72,7 +72,7 @@ function dockerCmd(args: string[]): string {
       db.images = db.images.filter((i) => i !== img); return `Untagged: ${args[1]}`;
     }
     case "logs": { const c = find(args[args.length - 1])!; const t = new Date().toISOString(); const base = logLines(c); return Array.from({ length: 160 }, (_, i) => `${t.slice(0, 17)}${String(i % 60).padStart(2, "0")}Z ${base[i % base.length]}`).join("\n") + "\n"; }
-    case "inspect": { const c = find(args[1])!; return JSON.stringify([{ Id: c.id, Name: `/${c.name}`, Created: new Date(c.born).toISOString(), Path: c.image.startsWith("mysql") ? "docker-entrypoint.sh" : "/docker-entrypoint.sh", Args: ["mysqld"], State: { Status: c.state, Running: c.state !== "exited", Paused: c.state === "paused" }, Config: { Image: c.image, Env: c.env }, HostConfig: { RestartPolicy: { Name: "no" } }, NetworkSettings: { Ports: Object.fromEntries(c.ports.map(([h, p]) => [`${p}/tcp`, [{ HostIp: "0.0.0.0", HostPort: String(h) }]])), Networks: { bridge: { IPAddress: "172.17.0.2" } } }, Mounts: c.mounts }]); }
+    case "inspect": { const many = args.slice(1).map((i) => find(i)!).filter(Boolean); return JSON.stringify(many.map((c) => ({ Id: c.id, Name: `/${c.name}`, Created: new Date(c.born).toISOString(), Path: c.image.startsWith("mysql") ? "docker-entrypoint.sh" : "/docker-entrypoint.sh", Args: ["mysqld"], State: { Status: c.state, Running: c.state !== "exited", Paused: c.state === "paused" }, Config: { Image: c.image, Env: c.env }, HostConfig: { RestartPolicy: { Name: "no" } }, NetworkSettings: { Ports: Object.fromEntries(c.ports.map(([h, p]) => [`${p}/tcp`, [{ HostIp: "0.0.0.0", HostPort: String(h) }]])), Networks: { bridge: { IPAddress: "172.17.0.2" } } }, Mounts: c.mounts }))); }
     case "system": return lines([
       { Type: "Images", TotalCount: "4", Active: "2", Size: "1.3GB", Reclaimable: "2.1GB (80%)" },
       { Type: "Containers", TotalCount: "3", Active: "2", Size: "12MB", Reclaimable: "0B" },

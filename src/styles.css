@@ -241,3 +241,7 @@ button:disabled.primary { opacity: .5; }
 .lead { margin: 0 0 14px; font-size: 14px; max-width: 60ch; }
 .hit[aria-selected="true"] { background: color-mix(in srgb, var(--primary) 14%, transparent); border-color: var(--primary); }
 .drawer .out-log { max-height: 200px; }
+
+/* Volumes */
+.in-use { color: var(--danger); }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
