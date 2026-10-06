@@ -2,7 +2,7 @@
 
 export type PortRow = { host: string; container: string };
 export type VolRow = { source: string; target: string };
-export type RunSpec = { image: string; name: string; ports: PortRow[]; volumes: VolRow[]; env: string };
+export type RunSpec = { image: string; name: string; ports: PortRow[]; volumes: VolRow[]; env: string; exposeAll?: boolean };
 export type RunResult = { ok: true; args: string[] } | { ok: false; errors: string[] };
 
 const NAME = /^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/;
@@ -78,7 +78,9 @@ export function buildRunArgs(spec: RunSpec): RunResult {
     } else if (host && !validPort(host)) {
       errors.push(`Host port "${host}" must be a number from 1 to 65535.`);
     } else {
-      args.push("-p", host ? `${host}:${container}` : container);
+      // Published ports are reachable from other devices on the network unless bound to loopback.
+      const mapping = host ? `${host}:${container}` : container;
+      args.push("-p", spec.exposeAll ? mapping : host ? `127.0.0.1:${mapping}` : `127.0.0.1::${container}`);
     }
   }
 

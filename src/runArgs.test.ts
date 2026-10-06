@@ -10,14 +10,19 @@ test("a minimal run is detached, named, and ends with the image", () => {
   assert.deepEqual(buildRunArgs(base), { ok: true, args: ["run", "-d", "--name", "web", "nginx"] });
 });
 
-test("ports map host to container; an empty host publishes a random port", () => {
+test("ports bind to this Mac only (127.0.0.1) by default; an empty host publishes a random port", () => {
   const r = buildRunArgs({ ...base, ports: [{ host: "8080", container: "80" }, { host: "", container: "3306" }] });
-  assert.deepEqual(r, { ok: true, args: ["run", "-d", "--name", "web", "-p", "8080:80", "-p", "3306", "nginx"] });
+  assert.deepEqual(r, { ok: true, args: ["run", "-d", "--name", "web", "-p", "127.0.0.1:8080:80", "-p", "127.0.0.1::3306", "nginx"] });
 });
 
 test("blank port, volume and env rows are ignored", () => {
   const r = buildRunArgs({ ...base, ports: [{ host: "", container: "" }], volumes: [{ source: "", target: "" }], env: "\n  \n" });
   assert.deepEqual(r, { ok: true, args: ["run", "-d", "--name", "web", "nginx"] });
+});
+
+test("exposeAll lets other devices on the network connect (no 127.0.0.1 prefix)", () => {
+  const r = buildRunArgs({ ...base, exposeAll: true, ports: [{ host: "8080", container: "80" }, { host: "", container: "3306" }] });
+  assert.deepEqual(r, { ok: true, args: ["run", "-d", "--name", "web", "-p", "8080:80", "-p", "3306", "nginx"] });
 });
 
 test("bad port numbers are rejected", () => {

@@ -13,6 +13,7 @@ export default function RunPanel({ ctx, image, onClose, onRan }: Props) {
   const [ports, setPorts] = useState<PortRow[]>([]);
   const [volumes, setVolumes] = useState<VolRow[]>([]);
   const [env, setEnv] = useState(presetEnv(image));
+  const [exposeAll, setExposeAll] = useState(false);
   const [volumeNames, setVolumeNames] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
@@ -31,7 +32,7 @@ export default function RunPanel({ ctx, image, onClose, onRan }: Props) {
 
   async function run() {
     const finalName = name.trim() || placeholder;
-    const built = buildRunArgs({ image, name: finalName, ports, volumes, env });
+    const built = buildRunArgs({ image, name: finalName, ports, volumes, env, exposeAll });
     if (!built.ok) {
       setErrors(built.errors);
       return;
@@ -81,6 +82,11 @@ export default function RunPanel({ ctx, image, onClose, onRan }: Props) {
             </div>
           ))}
           <button disabled={busy} onClick={() => setPorts((r) => [...r, { host: "", container: "" }])}>Add port</button>
+          <label className="check">
+            <input type="checkbox" checked={exposeAll} disabled={busy} onChange={(e) => setExposeAll(e.target.checked)} />
+            Let other devices on my network connect
+          </label>
+          <p className="hint">{exposeAll ? "Anyone on your network can reach these ports." : "Only this Mac can reach these ports. Other containers don't use them; they connect by name."}</p>
         </div>
 
         <div className="group">
