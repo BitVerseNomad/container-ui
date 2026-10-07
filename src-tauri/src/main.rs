@@ -71,16 +71,18 @@ fn docker_args_allowed(args: &[String]) -> Result<(), String> {
         "volume" => matches!(second, "ls" | "rm"),
         "image" => matches!(second, "inspect" | "prune"),
         "system" => second == "df",
+        "network" => matches!(second, "ls" | "create"),
         other => DOCKER_SUBCOMMANDS.contains(&other),
     };
     if !ok {
         return Err(format!("\"docker {}\" is not available from the app", args.join(" ")));
     }
     if first == "run" {
-        for a in args {
+        for (i, a) in args.iter().enumerate() {
             let flag = a.split('=').next().unwrap_or("");
             let risky = matches!(flag, "--privileged" | "--cap-add" | "--pid" | "--ipc" | "--uts" | "--userns" | "--security-opt" | "--device");
-            if risky || a.contains("docker.sock") {
+            let host_net = (flag == "--network" || flag == "--net") && (a.ends_with("=host") || args.get(i + 1).map(String::as_str) == Some("host"));
+            if risky || host_net || a.contains("docker.sock") {
                 return Err(format!("\"{a}\" is not allowed when running a container from the app"));
             }
         }
@@ -378,10 +380,25 @@ fn localhost_url(u: &str) -> bool {
     }
 }
 
+// Documentation links come from image labels, so only plain https links to a real host may be opened.
+fn https_url_ok(u: &str) -> bool {
+    let rest = match u.strip_prefix("https://") {
+        Some(r) => r,
+        None => return false,
+    };
+    let authority = rest.split(['/', '?', '#']).next().unwrap_or("");
+    !authority.is_empty()
+        && authority.contains('.')
+        && authority != "localhost"
+        && authority.chars().all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-')
+        && u.len() <= 2048
+        && !u.chars().any(|c| c.is_whitespace() || c.is_control())
+}
+
 #[tauri::command]
 fn open_url(url: String) -> Result<(), String> {
-    if !localhost_url(&url) {
-        return Err("Only http://localhost links can be opened".into());
+    if !localhost_url(&url) && !https_url_ok(&url) {
+        return Err("Only http://localhost and https links can be opened".into());
     }
     let opener = if cfg!(target_os = "macos") { "open" } else { "xdg-open" };
     Command::new(opener).arg(&url).spawn().map(|_| ()).map_err(|e| e.to_string())
@@ -512,6 +529,36 @@ mod tests {
         assert!(docker_args_allowed(&args(&["run", "--privileged", "x"])).is_err());
         assert!(docker_args_allowed(&args(&["run", "--cap-add=ALL", "x"])).is_err());
         assert!(docker_args_allowed(&args(&["run", "-v", "/var/run/docker.sock:/s", "x"])).is_err());
+    }
+
+    #[test]
+    fn docker_allowlist_has_network_ls_and_create_only() {
+        assert!(docker_args_allowed(&args(&["network", "ls"])).is_ok());
+        assert!(docker_args_allowed(&args(&["network", "create", "devnet"])).is_ok());
+        assert!(docker_args_allowed(&args(&["network", "rm", "devnet"])).is_err());
+        assert!(docker_args_allowed(&args(&["network", "connect", "devnet", "c"])).is_err());
+        assert!(docker_args_allowed(&args(&["network", "prune"])).is_err());
+    }
+
+    #[test]
+    fn docker_run_refuses_host_networking() {
+        assert!(docker_args_allowed(&args(&["run", "--network", "host", "x"])).is_err());
+        assert!(docker_args_allowed(&args(&["run", "--network=host", "x"])).is_err());
+        assert!(docker_args_allowed(&args(&["run", "--net=host", "x"])).is_err());
+        assert!(docker_args_allowed(&args(&["run", "--network", "devnet", "x"])).is_ok());
+    }
+
+    #[test]
+    fn https_links_need_a_real_host_and_no_credentials() {
+        assert!(https_url_ok("https://docs.docker.com/engine/network/drivers/bridge/"));
+        assert!(https_url_ok("https://github.com/acme/x"));
+        assert!(!https_url_ok("http://docs.docker.com"));
+        assert!(!https_url_ok("https://user:pw@example.com/"));
+        assert!(!https_url_ok("https://example.com@evil.com/"));
+        assert!(!https_url_ok("https://localhost/"));
+        assert!(!https_url_ok("https://exa mple.com/"));
+        assert!(!https_url_ok("javascript:alert(1)"));
+        assert!(!https_url_ok("https:///path"));
     }
 
     #[test]
