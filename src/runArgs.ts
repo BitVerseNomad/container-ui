@@ -2,7 +2,7 @@
 
 export type PortRow = { host: string; container: string };
 export type VolRow = { source: string; target: string };
-export type RunSpec = { image: string; name: string; ports: PortRow[]; volumes: VolRow[]; env: string; exposeAll?: boolean };
+export type RunSpec = { image: string; name: string; ports: PortRow[]; volumes: VolRow[]; env: string; exposeAll?: boolean; network?: string };
 export type RunResult = { ok: true; args: string[] } | { ok: false; errors: string[] };
 
 const NAME = /^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/;
@@ -68,6 +68,13 @@ export function buildRunArgs(spec: RunSpec): RunResult {
     errors.push("Container names use letters, numbers, dots, dashes and underscores, and can't start with a symbol.");
   }
   if (name) args.push("--name", name);
+
+  const network = (spec.network ?? "").trim();
+  if (network) {
+    // Host networking removes the container's isolation, so the app doesn't offer it.
+    if (network === "host" || network === "none" || !NAME.test(network)) errors.push(`"${network}" can't be used as a network name here.`);
+    else args.push("--network", network);
+  }
 
   for (const p of spec.ports) {
     const host = p.host.trim();

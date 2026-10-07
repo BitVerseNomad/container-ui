@@ -25,6 +25,19 @@ test("exposeAll lets other devices on the network connect (no 127.0.0.1 prefix)"
   assert.deepEqual(r, { ok: true, args: ["run", "-d", "--name", "web", "-p", "8080:80", "-p", "3306", "nginx"] });
 });
 
+test("a network adds --network after the name; no network adds nothing", () => {
+  assert.deepEqual(buildRunArgs({ ...base, network: "devnet" }), { ok: true, args: ["run", "-d", "--name", "web", "--network", "devnet", "nginx"] });
+  assert.deepEqual(buildRunArgs({ ...base, network: "" }), { ok: true, args: ["run", "-d", "--name", "web", "nginx"] });
+});
+
+test("bad or flag-like network names are rejected", () => {
+  for (const network of ["-x", "bad name", "host\n"]) assert.equal(buildRunArgs({ ...base, network }).ok, false, network);
+});
+
+test("host networking is refused", () => {
+  assert.equal(buildRunArgs({ ...base, network: "host" }).ok, false);
+});
+
 test("bad port numbers are rejected", () => {
   for (const ports of [
     [{ host: "99999", container: "80" }],
