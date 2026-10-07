@@ -62,3 +62,14 @@ Preview scenarios: `preview/index.html?scenario=running|stopped|failed|missing|p
 - More checks: `node scripts/check-volumes.mjs`, `node scripts/check-a11y.mjs`.
 
 Not done yet: a strict Content-Security-Policy in `tauri.conf.json` (needs testing on a real machine; the allowlist above is the safety net until then).
+
+### Guided Run (any image, no per-image rules)
+The Run panel reads what the image itself declares (`docker image inspect`) and guides you:
+- **Setup notes** links: the image's own documentation label, then its Docker Hub page, plus source code when declared. Links show their host and open in your browser only after a click.
+- **Shared network** (`devnet`, created for you) so containers reach each other by name, with the other containers on it listed as copyable `name:port`.
+- **Ports** and **Data** prefilled from the image's declared ports and volume paths, with a named volume suggested so data survives recreation.
+- **Settings**: the image's built-in defaults are shown; you add your own.
+- **Before you run** warnings in plain words: port or name already used, unpinned version, image built for a different CPU.
+- **Show the docker run command** for transparency.
+Sources are in `docs/research/2026-10-07-guided-run.md`. It will not know image-specific rules (a database's password variable, a broker's advertised address); that is what the setup-notes link is for.
+Checks: `node scripts/check-guided.mjs`.

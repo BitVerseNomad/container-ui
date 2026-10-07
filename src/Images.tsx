@@ -9,7 +9,7 @@ import RunPanel from "./RunPanel";
 
 type I = { ID: string; Repository: string; Tag: string; Size: string; CreatedSince: string };
 
-export default function Images({ ctx, onRan, startPull = false }: { ctx: string; onRan: (id: string) => void; startPull?: boolean }) {
+export default function Images({ ctx, onRan, startPull = false, arch }: { ctx: string; onRan: (id: string) => void; startPull?: boolean; arch?: string }) {
   const confirm = useConfirm();
   const { data, error, reload } = usePoll(() => dockerJson<I>(ctx, ["images"]), [ctx], 5000);
   const [err, setErr] = useState<string | null>(null);
@@ -77,7 +77,7 @@ export default function Images({ ctx, onRan, startPull = false }: { ctx: string;
           }}
         />
       )}
-      {running && <RunPanel ctx={ctx} image={running} onClose={() => setRunning(null)} onRan={onRan} />}
+      {running && <RunPanel ctx={ctx} arch={arch} image={running} onClose={() => setRunning(null)} onRan={onRan} />}
     </section>
   );
 }

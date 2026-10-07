@@ -74,6 +74,7 @@ export default function App() {
         key={`${ctx}-${pullOnOpen}`}
         ctx={ctx}
         startPull={pullOnOpen}
+        arch={current?.arch}
         onRan={(id) => {
           setDetailId(id);
           setTab("Containers");

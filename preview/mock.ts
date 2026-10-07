@@ -10,21 +10,24 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const hex = (n: number) => Array.from({ length: n }, () => "0123456789abcdef"[Math.floor(Math.random() * 16)]).join("");
 const GB = 1024 ** 3;
 
-type Ctr = { id: string; name: string; image: string; state: string; ports: [number, number][]; mounts: { Type: string; Name?: string; Source: string; Destination: string; RW: boolean }[]; env: string[]; born: number; cpu: number; mem: number };
+type Ctr = { networks: string[]; exposed?: number[]; id: string; name: string; image: string; state: string; ports: [number, number][]; mounts: { Type: string; Name?: string; Source: string; Destination: string; RW: boolean }[]; env: string[]; born: number; cpu: number; mem: number };
 const now = Date.now();
 const db = {
   profiles: [{ name: "default", status: "Running", arch: "aarch64", cpus: 4, memory: 8 * GB, disk: 100 * GB, runtime: "docker", address: "192.168.5.2" }],
   images: [
+    { Repository: "acme/orders-api", Tag: "1.4", Size: "210MB", ID: hex(12), CreatedSince: "1 week ago" },
     { Repository: "mysql", Tag: "8", Size: "586MB", ID: hex(12), CreatedSince: "3 weeks ago" },
     { Repository: "nginx", Tag: "latest", Size: "192MB", ID: hex(12), CreatedSince: "2 weeks ago" },
     { Repository: "redis", Tag: "7", Size: "117MB", ID: hex(12), CreatedSince: "5 weeks ago" },
     { Repository: "postgres", Tag: "16", Size: "456MB", ID: hex(12), CreatedSince: "6 weeks ago" },
   ],
   volumes: ["mysql-data", "redis-data", "pgdata-old", "a".repeat(64), "c".repeat(64)],
+  networks: ["bridge", "host", "none", "devnet"],
   ctrs: [
-    { id: hex(64), name: "web", image: "nginx:latest", state: "running", ports: [[8080, 80]], mounts: [{ Type: "volume", Name: "c".repeat(64), Source: "/var/lib/docker/volumes/c/_data", Destination: "/cache", RW: true }], env: ["NGINX_VERSION=1.27.2"], born: now - 36e5, cpu: 0.3, mem: 11e6 },
-    { id: hex(64), name: "db", image: "mysql:8", state: "running", ports: [[3306, 3306]], mounts: [{ Type: "volume", Name: "mysql-data", Source: "/var/lib/docker/volumes/mysql-data/_data", Destination: "/var/lib/mysql", RW: true }], env: ["MYSQL_ROOT_PASSWORD=dev"], born: now - 864e5, cpu: 1.8, mem: 380e6 },
-    { id: hex(64), name: "cache", image: "redis:7", state: "exited", ports: [], mounts: [], env: [], born: now - 2 * 864e5, cpu: 0, mem: 0 },
+    { networks: ["devnet"], exposed: [6379], id: hex(64), name: "queue", image: "redis:7", state: "running", ports: [], mounts: [], env: [], born: now - 7e6, cpu: 0.2, mem: 9e6 },
+    { networks: ["devnet"], id: hex(64), name: "web", image: "nginx:latest", state: "running", ports: [[8080, 80]], mounts: [{ Type: "volume", Name: "c".repeat(64), Source: "/var/lib/docker/volumes/c/_data", Destination: "/cache", RW: true }], env: ["NGINX_VERSION=1.27.2"], born: now - 36e5, cpu: 0.3, mem: 11e6 },
+    { networks: ["devnet"], exposed: [3306], id: hex(64), name: "db", image: "mysql:8", state: "running", ports: [[3306, 3306]], mounts: [{ Type: "volume", Name: "mysql-data", Source: "/var/lib/docker/volumes/mysql-data/_data", Destination: "/var/lib/mysql", RW: true }], env: ["MYSQL_ROOT_PASSWORD=dev"], born: now - 864e5, cpu: 1.8, mem: 380e6 },
+    { networks: ["devnet"], exposed: [6379], id: hex(64), name: "cache", image: "redis:7", state: "exited", ports: [], mounts: [], env: [], born: now - 2 * 864e5, cpu: 0, mem: 0 },
   ] as Ctr[],
 };
 if (typeof location !== "undefined" && new URLSearchParams(location.search).get("scenario") === "two") {
@@ -42,11 +45,12 @@ const env = {
   colima: ["missing", "partial", "nobrew"].includes(scenario) ? null : { path: "/opt/homebrew/bin/colima", version: "0.8.1" },
   docker: ["missing", "nobrew"].includes(scenario) ? null : { path: "/opt/homebrew/bin/docker", version: "27.3.1" },
 };
+if (scenario === "nonet") { db.networks = ["bridge", "host", "none"]; db.ctrs.forEach((c) => { c.networks = ["bridge"]; }); }
 if (["stopped", "failed"].includes(scenario)) db.profiles[0].status = "Stopped";
 if (["none", "missing", "partial", "nobrew"].includes(scenario)) db.profiles = [];
 const find = (id: string) => db.ctrs.find((c) => c.id.startsWith(id) || c.name === id);
 const lines = (rows: object[]) => rows.map((r) => JSON.stringify(r)).join("\n");
-const fmtPorts = (c: Ctr) => c.state === "running" ? c.ports.map(([h, p]) => `0.0.0.0:${h}->${p}/tcp`).join(", ") : "";
+const fmtPorts = (c: Ctr) => c.state === "running" ? [...c.ports.map(([h, p]) => `0.0.0.0:${h}->${p}/tcp`), ...(c.exposed ?? []).filter((e) => !c.ports.some(([, p]) => p === e)).map((e) => `${e}/tcp`)].join(", ") : "";
 const status = (c: Ctr) => (c.state === "running" ? "Up 2 hours" : c.state === "paused" ? "Up 2 hours (Paused)" : "Exited (0) 3 hours ago");
 const logLines = (c: Ctr) => c.image.startsWith("mysql")
   ? ["[Server] /usr/sbin/mysqld (mysqld 8.4.3) starting as process 1", "[Server] InnoDB initialization has started", "[Server] InnoDB initialization has ended", "[Server] X Plugin ready for connections. Bind-address: '::' port: 33060", "[Server] ready for connections. Version: '8.4.3'  port: 3306"]
@@ -55,14 +59,27 @@ const logLines = (c: Ctr) => c.image.startsWith("mysql")
 function dockerCmd(args: string[]): string {
   const [cmd, sub] = args;
   switch (cmd) {
-    case "ps": if (args.includes("-q")) return db.ctrs.map((c) => c.id.slice(0, 12)).join("\n"); return lines(db.ctrs.map((c) => ({ ID: c.id.slice(0, 12), Names: c.name, Image: c.image, State: c.state, Status: status(c), Ports: fmtPorts(c) })));
+    case "ps": { if (args.includes("-q")) return db.ctrs.map((c) => c.id.slice(0, 12)).join("\n"); const f = args.find((a) => a.startsWith("network="))?.slice(8); return lines(db.ctrs.filter((c) => !f || c.networks.includes(f)).map((c) => ({ ID: c.id.slice(0, 12), Names: c.name, Image: c.image, State: c.state, Status: status(c), Ports: fmtPorts(c) }))) }
     case "images": return lines(db.images);
+    case "network":
+      if (sub === "ls") return lines(db.networks.map((Name) => ({ ID: hex(12), Name, Driver: Name === "host" || Name === "none" ? Name : "bridge", Scope: "local" })));
+      if (sub === "create") { db.networks.push(args[2]); return hex(64); }
+      throw `mock: unsupported docker network command`;
     case "volume":
       if (sub === "ls") return lines(db.volumes.map((Name) => ({ Name, Driver: "local" })));
       if (sub === "rm") { db.volumes = db.volumes.filter((v) => !args.slice(2).includes(v)); return args.slice(2).join("\n"); }
       db.volumes = db.volumes.filter((v) => db.ctrs.some((c) => c.mounts.some((m) => m.Name === v))); return "Total reclaimed space: 0B";
     case "search": return lines(HUB.filter((h) => h[0].includes(args[args.length - 4] ?? "") || h[0].includes(args[3] ?? "")).map(([Name, Description, s, o]) => ({ Name, Description, StarCount: String(s), IsOfficial: String(o) })));
     case "image":
+      if (sub === "inspect" && !args.includes("--format")) {
+        const ref = args[args.length - 1]; const known: Record<string, object> = {
+          "acme/orders-api:1.4": { Architecture: "amd64", Config: { Env: ["APP_ENV=production", "PORT=8080"], ExposedPorts: { "8080/tcp": {} }, Volumes: { "/data": {} }, Labels: { "org.opencontainers.image.documentation": "https://acme.example/docs/orders", "org.opencontainers.image.source": "https://github.com/acme/orders-api" } } },
+          "mysql:8": { Architecture: "arm64", Config: { Env: ["MYSQL_MAJOR=8.4"], ExposedPorts: { "3306/tcp": {}, "33060/tcp": {} }, Volumes: { "/var/lib/mysql": {} }, Labels: null } },
+          "redis:7": { Architecture: "arm64", Config: { Env: null, ExposedPorts: { "6379/tcp": {} }, Volumes: { "/data": {} }, Labels: {} } },
+          "nginx:latest": { Architecture: "arm64", Config: { Env: ["NGINX_VERSION=1.27.2"], ExposedPorts: { "80/tcp": {} }, Volumes: null, Labels: { maintainer: "NGINX Docker Maintainers" } } },
+        };
+        return JSON.stringify([{ Os: "linux", ...(known[ref] ?? { Architecture: "arm64", Config: { Env: null, ExposedPorts: null, Volumes: null, Labels: {} } }) }]);
+      }
       if (sub === "inspect") return /mysql/.test(args[args.length - 1]) ? '{"3306/tcp":{},"33060/tcp":{}}' : /nginx/.test(args[args.length - 1]) ? '{"80/tcp":{}}' : "null";
       db.images = db.images.filter((i) => db.ctrs.some((c) => c.image.startsWith(i.Repository))); return "Total reclaimed space: 0B";
     case "rmi": {
@@ -84,9 +101,10 @@ function dockerCmd(args: string[]): string {
     case "rm": db.ctrs = db.ctrs.filter((c) => c !== find(args[args.length - 1])); return args[args.length - 1];
     case "run": {
       const name = args[args.indexOf("--name") + 1]; const image = args[args.length - 1];
-      const ports = args.flatMap((a, i) => (args[i - 1] === "-p" ? [a] : [])).map((p) => p.split(":").map(Number)) as number[][];
+      const net = args[args.indexOf("--network") + 1]; if (args.includes("--network") && !db.networks.includes(net)) throw `docker: Error response from daemon: network ${net} not found`;
+      const ports = args.flatMap((a, i) => (args[i - 1] === "-p" ? [a] : [])).map((p) => { const parts = p.split(":"); const cp = Number(parts.pop()); const hp = parts.length ? Number(parts.pop()) : undefined; return [hp ?? NaN, cp]; }) as number[][];
       for (const [h] of ports) if (ports.length && db.ctrs.some((c) => c.state === "running" && c.ports.some(([x]) => x === h))) throw `docker: Error response from daemon: driver failed programming external connectivity: Bind for 0.0.0.0:${h} failed: port is already allocated`;
-      const c: Ctr = { id: hex(64), name, image: image.includes(":") ? image : `${image}:latest`, state: "running", ports: ports.map(([h, p]) => [h, p ?? h]), mounts: args.flatMap((a, i) => (args[i - 1] === "-v" ? [{ Type: "bind", Source: a.split(":")[0], Destination: a.split(":")[1], RW: true }] : [])), env: args.flatMap((a, i) => (args[i - 1] === "-e" ? [a] : [])), born: Date.now(), cpu: 0.5, mem: 24e6 };
+      const c: Ctr = { networks: args.includes("--network") ? [net] : ["bridge"], id: hex(64), name, image: image.includes(":") ? image : `${image}:latest`, state: "running", ports: ports.filter(([h]) => !Number.isNaN(h)).map(([h, p]) => [h, p]), mounts: args.flatMap((a, i) => (args[i - 1] === "-v" ? [{ Type: "bind", Source: a.split(":")[0], Destination: a.split(":")[1], RW: true }] : [])), env: args.flatMap((a, i) => (args[i - 1] === "-e" ? [a] : [])), born: Date.now(), cpu: 0.5, mem: 24e6 };
       db.ctrs.push(c); return c.id + "\n";
     }
   }
@@ -97,7 +115,7 @@ async function progress(event: string, steps: [string, number][]) { for (const [
 
 export async function invoke<T>(cmd: string, a: Record<string, any> = {}): Promise<T> {
   ((window as any).__calls ??= []).push(cmd);
-  (window as any).__mock = { setStatus: (s: string) => { db.profiles[0].status = s; } };
+  (window as any).__mock = { setStatus: (s: string) => { db.profiles[0].status = s; }, state: () => JSON.parse(JSON.stringify(db)) };
   await sleep(60);
   switch (cmd) {
     case "list_profiles": return db.profiles.map((p) => ({ ...p })) as T; // fresh objects per call, like the real IPC
@@ -132,7 +150,7 @@ export async function invoke<T>(cmd: string, a: Record<string, any> = {}): Promi
     case "stop_profile": case "restart_profile": {
       if (scenario === "stopfail" && cmd === "stop_profile") throw "FATA[0003] could not stop the VM: timeout"; await progress("colima-progress", [[`level=info msg="stopping colima"`, 300], ['level=info msg="done"', 500]]); db.profiles.find((x) => x.name === a.name)!.status = cmd === "stop_profile" ? "Stopped" : "Running"; return undefined as T; }
     case "delete_profile": db.profiles = db.profiles.filter((x) => x.name !== a.name); return undefined as T;
-    case "open_url": throw "Preview only: localhost links don't open here.";
+    case "open_url": { if (/^https:\/\//.test(a.url)) { ((window as any).__opened ??= []).push(a.url); return undefined as T; } throw "Preview only: localhost links don't open here."; }
   }
   throw `mock: unsupported command ${cmd}`;
 }

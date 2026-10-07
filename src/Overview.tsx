@@ -168,7 +168,7 @@ export default function Overview({ profile, ctx, vm, onVm, reload, onOpen, onPul
         <RunPicker ctx={ctx} onClose={() => setPicking(false)} onPick={(ref) => { setPicking(false); setRunImage(ref); }} />
       )}
       {runImage && ctx && (
-        <RunPanel ctx={ctx} image={runImage} onClose={() => setRunImage(null)} onRan={(id) => { setRunImage(null); onOpen(id); }} />
+        <RunPanel ctx={ctx} arch={profile?.arch} image={runImage} onClose={() => setRunImage(null)} onRan={(id) => { setRunImage(null); onOpen(id); }} />
       )}
     </div>
   );

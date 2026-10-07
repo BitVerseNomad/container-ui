@@ -40,7 +40,7 @@ export function parseExposedPorts(json: string): string[] {
   }
 }
 
-function repoName(image: string): string {
+export function repoName(image: string): string {
   const noDigest = image.split("@")[0];
   const last = noDigest.split("/").pop() ?? noDigest;
   return last.split(":")[0];
