@@ -51,7 +51,7 @@ await p.goto(`file://${root}/preview/index.html`);
 await p.waitForSelector(".content");
 await nav(p, "Images").click();
 await p.getByRole("button", { name: "Pull image" }).click();
-await p.fill(".drawer input", "redis");
+await p.getByLabel("Image to pull").fill("redis");
 await p.getByRole("button", { name: /^Pull redis/ }).click();
 await p.waitForSelector(".drawer .out-log", { timeout: 5000 }).catch(() => {});
 check(await p.locator(".drawer .out-log").count() === 1, "pull panel: progress uses OutputLog");

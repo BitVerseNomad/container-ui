@@ -73,3 +73,6 @@ The Run panel reads what the image itself declares (`docker image inspect`) and 
 - **Show the docker run command** for transparency.
 Sources are in `docs/research/2026-10-07-guided-run.md`. It will not know image-specific rules (a database's password variable, a broker's advertised address); that is what the setup-notes link is for.
 Checks: `node scripts/check-guided.mjs`.
+
+### Pull panel
+Two clear steps: **1. Find** (search Docker Hub, nothing is downloaded; sort by stars, name or official first; the chosen result is highlighted) and **2. Pull** (the image named in its own field, with a Pull button that says what it will download). Official images carry an Official tag (Docker prints it as "OK", which the old code missed). Checks: `node scripts/check-pull.mjs`.

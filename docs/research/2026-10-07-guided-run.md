@@ -26,3 +26,8 @@ Checked on 2026-10-07. Each fact below is from the linked page, not from memory.
 
 ## Not yet researched (do before building each)
 - Compose files in repos, private registries (AWS ECR login), prune guidance, image platform and architecture fields.
+
+## Docker Hub search (Pull panel)
+- `docker search` has no sort option, so sorting is done in the app. `--format` placeholders are `.Name`, `.Description`, `.StarCount`, `.IsOfficial`; `.IsOfficial` is printed as "OK" (or "[OK]") for official images, not "true", so the app accepts all three.
+- `--limit` caps results (25 is the long-standing default); `--filter stars=N` and `--filter is-official=true` exist if filtering is added later.
+  https://docs.docker.com/reference/cli/docker/search/

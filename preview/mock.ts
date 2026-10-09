@@ -69,7 +69,7 @@ function dockerCmd(args: string[]): string {
       if (sub === "ls") return lines(db.volumes.map((Name) => ({ Name, Driver: "local" })));
       if (sub === "rm") { db.volumes = db.volumes.filter((v) => !args.slice(2).includes(v)); return args.slice(2).join("\n"); }
       db.volumes = db.volumes.filter((v) => db.ctrs.some((c) => c.mounts.some((m) => m.Name === v))); return "Total reclaimed space: 0B";
-    case "search": return lines(HUB.filter((h) => h[0].includes(args[args.length - 4] ?? "") || h[0].includes(args[3] ?? "")).map(([Name, Description, s, o]) => ({ Name, Description, StarCount: String(s), IsOfficial: String(o) })));
+    case "search": return lines(HUB.filter((h) => h[0].includes(args[args.length - 4] ?? "") || h[0].includes(args[3] ?? "")).map(([Name, Description, s, o]) => ({ Name, Description, StarCount: String(s), IsOfficial: o ? "[OK]" : "" })));
     case "image":
       if (sub === "inspect" && !args.includes("--format")) {
         const ref = args[args.length - 1]; const known: Record<string, object> = {

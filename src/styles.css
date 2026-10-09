@@ -258,3 +258,11 @@ button:disabled.primary { opacity: .5; }
 .defaults summary { cursor: pointer; font-size: 13px; color: var(--muted); }
 .defaults .kv { margin-top: 6px; }
 .drawer select { width: 100%; }
+
+/* Pull panel */
+.optional { font-weight: 400; color: var(--muted); }
+.sortbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.sort { white-space: nowrap; display: flex; flex-direction: row; align-items: center; gap: 6px; margin: 0; font-size: 12px; }
+.sort select { padding: 3px 6px; }
+.drawer .group input[aria-label="Image to pull"] { width: 100%; }
+.drawer .primary + .primary { margin-top: 4px; }
