@@ -31,3 +31,12 @@ Checked on 2026-10-07. Each fact below is from the linked page, not from memory.
 - `docker search` has no sort option, so sorting is done in the app. `--format` placeholders are `.Name`, `.Description`, `.StarCount`, `.IsOfficial`; `.IsOfficial` is printed as "OK" (or "[OK]") for official images, not "true", so the app accepts all three.
 - `--limit` caps results (25 is the long-standing default); `--filter stars=N` and `--filter is-official=true` exist if filtering is added later.
   https://docs.docker.com/reference/cli/docker/search/
+
+## Private registries: AWS ECR (checked 2026-10-07)
+- Signing in: the Amazon ECR credential helper lets `docker pull` and `docker push` authenticate with the same AWS credentials the AWS CLI uses, with no `docker login`. Install: `brew install docker-credential-helper-ecr`. Configure `~/.docker/config.json` with `"credHelpers": { "<aws_account_id>.dkr.ecr.<region>.amazonaws.com": "ecr-login" }` (or `"credsStore": "ecr-login"` for all ECR registries). It can sit alongside existing `docker login` tokens. Logs: `~/.ecr/log`.
+  https://github.com/awslabs/amazon-ecr-credential-helper/
+- Browsing: `docker search` is documented as a Docker Hub search, so private ECR repositories are listed through the AWS API instead: `aws ecr describe-repositories` (all repositories in a registry, optional `--registry-id`) and `aws ecr describe-images --repository-name <name>` (returns `imageTags`).
+  https://docs.aws.amazon.com/cli/latest/reference/ecr/describe-repositories.html
+  https://docs.aws.amazon.com/cli/v1/reference/ecr/describe-images.html
+- Design consequence: the app never stores AWS keys or tokens; it checks that the AWS CLI works, that the helper is installed and configured, then lists repositories and tags through read-only AWS CLI calls.
+- Not yet verified (ask the user, or test on their machine): how their company signs in (SSO or access keys), and the exact helper behaviour with SSO sessions.
