@@ -10,6 +10,9 @@ import IconButton from "./ui/IconButton";
 import { Icon } from "./ui/icons";
 import VmCard from "./VmCard";
 import RunPicker from "./RunPicker";
+import { ActivityList, HealthBadge } from "./Health";
+import { healthFromStatus, parseState, problemsFor } from "./lib/health";
+import { eventWindow, heaviest, parseEvents, timeline } from "./lib/events";
 import RunPanel from "./RunPanel";
 import { docker } from "./api";
 
@@ -34,6 +37,13 @@ export default function Overview({ profile, ctx, vm, onVm, reload, onOpen, onPul
   const containers = usePoll<C[]>(async () => (ctx ? dockerJson<C>(ctx, ["ps", "-a"]) : []), [ctx], 3000);
   const stats = usePoll<Stat[]>(async () => (ctx ? dockerJson<Stat>(ctx, ["stats", "--no-stream"]) : []), [ctx], 5000);
   const df = usePoll<DfRow[]>(async () => (ctx ? dockerJson<DfRow>(ctx, ["system", "df"]) : []), [ctx], 30000);
+  const idKey = (containers.data ?? []).map((c) => c.ID).join(",");
+  const states = usePoll(async () => {
+    if (!ctx || !idKey) return [];
+    const all: unknown[] = JSON.parse(await docker(ctx, ["inspect", ...idKey.split(",")]));
+    return all.map((el) => parseState(JSON.stringify([el]))).filter((s): s is NonNullable<typeof s> => s !== null);
+  }, [ctx, idKey], 10000);
+  const activity = usePoll(async () => (ctx ? timeline(parseEvents(await docker(ctx, ["events", ...eventWindow(Date.now(), 86_400_000), "--filter", "type=container", "--format", "{{json .}}"])), 6) : []), [ctx], 15000);
   const [q, setQ] = useState("");
   const [picking, setPicking] = useState(false);
   const [runImage, setRunImage] = useState<string | null>(null);
@@ -63,6 +73,9 @@ export default function Overview({ profile, ctx, vm, onVm, reload, onOpen, onPul
         .sort((a, b) => Number(b.State === "running") - Number(a.State === "running") || a.Names.localeCompare(b.Names)),
     [containers.data, q],
   );
+  const idOf = new Map((containers.data ?? []).map((c) => [c.Names, c.ID]));
+  const withProblems = (states.data ?? []).map((s) => ({ s, p: problemsFor(s) })).filter((x) => x.p.length > 0);
+  const top = heaviest(stats.data ?? [], 3);
   const stopped = (containers.data ?? []).filter((c) => c.State !== "running").length;
   const reclaim = disk.reclaimableBytes;
   const attention = running && (stopped > 0 || reclaim >= 50e6);
@@ -95,6 +108,23 @@ export default function Overview({ profile, ctx, vm, onVm, reload, onOpen, onPul
         onRestart={() => act("starting", "restart_profile", { name: profile.name })}
       />
 
+      {running && withProblems.length > 0 && (
+        <div className="problems panel">
+          <h2>Needs attention</h2>
+          <ul>
+            {withProblems.map(({ s, p }) => (
+              <li key={s.name} className="problem">
+                <div>
+                  <b>{s.name}</b> <span className={`plevel ${p[0].level}`}>{p[0].title}</span>
+                  {p.length > 1 && <span className="hint"> and {p.length - 1} more</span>}
+                </div>
+                <button onClick={() => idOf.get(s.name) && onOpen(idOf.get(s.name)!)}>Open {s.name}</button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <div className="ov-head">
         <h2>Containers</h2>
         {running && <span className="hint">{(containers.data ?? []).filter((c) => c.State === "running").length} running, {stopped} stopped</span>}
@@ -124,7 +154,7 @@ export default function Overview({ profile, ctx, vm, onVm, reload, onOpen, onPul
                   <div className="ov-row" key={c.ID}>
                     <span className={up ? "sdot on" : "sdot"} aria-hidden="true" />
                     <button className="link ov-name" onClick={() => onOpen(c.ID)}>
-                      <b>{c.Names}</b>
+                      <b>{c.Names} <HealthBadge status={healthFromStatus(c.Status)} /></b>
                       <span className="mono">{c.Image}</span>
                     </button>
                     <span className="mono ov-usage">{up && s ? `${s.CPUPerc} · ${formatBytes(sumStats([s]).memBytes)}` : c.Status}</span>
@@ -150,6 +180,13 @@ export default function Overview({ profile, ctx, vm, onVm, reload, onOpen, onPul
               {rows.length === 0 && <p className="hint pad">No container matches that search.</p>}
             </div>
           )}
+          {top.length > 0 && (
+            <p className="heaviest hint">Heaviest right now: {top.map((t) => `${t.name} ${formatBytes(t.memBytes)}`).join(" · ")}</p>
+          )}
+          <div className="activity-block">
+            <h3>Recent activity</h3>
+            <ActivityList lines={activity.data ?? []} empty="Nothing notable in the last day." />
+          </div>
           {attention && (
             <div className="attention" role="note">
               <Icon name="info" size={15} />

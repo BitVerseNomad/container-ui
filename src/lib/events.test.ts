@@ -62,3 +62,14 @@ test("heaviest lists the biggest memory users first with their CPU", () => {
   assert.equal(out[0].cpu, 30);
   assert.deepEqual(heaviest([], 3), []);
 });
+
+import { ago } from "./events.ts";
+
+test("ago says how long ago, in plain words", () => {
+  const now = 1_700_000_000_000;
+  assert.equal(ago(now - 20_000, now), "just now");
+  assert.equal(ago(now - 5 * 60_000, now), "5 min ago");
+  assert.equal(ago(now - 3 * 3_600_000, now), "3 h ago");
+  assert.equal(ago(now - 2 * 86_400_000, now), "2 d ago");
+  assert.equal(ago(now + 5000, now), "just now");
+});

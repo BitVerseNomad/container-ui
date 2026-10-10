@@ -5,6 +5,8 @@ import { docker, dockerJson } from "./api";
 import { usePoll } from "./hooks";
 import { Banner, Empty } from "./ui";
 import ContainerDetail from "./ContainerDetail";
+import { HealthBadge, stripHealth } from "./Health";
+import { healthFromStatus } from "./lib/health";
 
 type C = { ID: string; Names: string; Image: string; State: string; Status: string; Ports: string };
 type Props = { ctx: string; detailId: string | null; setDetailId: (id: string | null) => void };
@@ -44,7 +46,7 @@ export default function Containers({ ctx, detailId, setDetailId }: Props) {
                 <tr key={c.ID}>
                   <td><button className="link" onClick={() => setDetailId(c.ID)}>{c.Names}</button></td>
                   <td className="mono">{c.Image}</td>
-                  <td><span className={up ? "badge on" : "badge"}>{c.Status}</span></td>
+                  <td><span className={up ? "badge on" : "badge"}>{stripHealth(c.Status)}</span> <HealthBadge status={healthFromStatus(c.Status)} /></td>
                   <td className="mono clip" title={c.Ports}>{c.Ports || "none"}</td>
                   <td className="row-actions">
                     <IconButton label={`Logs for ${c.Names}`} icon="logs" onClick={() => setDetailId(c.ID)} />

@@ -10,7 +10,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const hex = (n: number) => Array.from({ length: n }, () => "0123456789abcdef"[Math.floor(Math.random() * 16)]).join("");
 const GB = 1024 ** 3;
 
-type Ctr = { networks: string[]; exposed?: number[]; id: string; name: string; image: string; state: string; ports: [number, number][]; mounts: { Type: string; Name?: string; Source: string; Destination: string; RW: boolean }[]; env: string[]; born: number; cpu: number; mem: number };
+type Ctr = { health?: string; healthOut?: string; streak?: number; restarts?: number; exitCode?: number; oom?: boolean; networks: string[]; exposed?: number[]; id: string; name: string; image: string; state: string; ports: [number, number][]; mounts: { Type: string; Name?: string; Source: string; Destination: string; RW: boolean }[]; env: string[]; born: number; cpu: number; mem: number };
 const now = Date.now();
 const db = {
   profiles: [{ name: "default", status: "Running", arch: "aarch64", cpus: 4, memory: 8 * GB, disk: 100 * GB, runtime: "docker", address: "192.168.5.2" }],
@@ -24,10 +24,13 @@ const db = {
   volumes: ["mysql-data", "redis-data", "pgdata-old", "a".repeat(64), "c".repeat(64)],
   networks: ["bridge", "host", "none", "devnet"],
   ctrs: [
+    { health: "unhealthy", streak: 5, healthOut: "curl: (7) Failed to connect to localhost port 8080 after 0 ms: Connection refused", networks: ["devnet"], exposed: [8080], id: hex(64), name: "api", image: "acme/billing-api:3.1", state: "running", ports: [], mounts: [], env: [], born: now - 3 * 36e5, cpu: 0.6, mem: 150e6 },
+    { restarts: 7, networks: ["devnet"], id: hex(64), name: "worker", image: "acme/worker:2.0", state: "running", ports: [], mounts: [], env: [], born: now - 6e5, cpu: 3.2, mem: 90e6 },
+    { exitCode: 137, oom: true, networks: ["devnet"], id: hex(64), name: "report-job", image: "acme/report:0.9", state: "exited", ports: [], mounts: [], env: [], born: now - 2 * 36e5, cpu: 0, mem: 0 },
     { networks: ["devnet"], exposed: [9092, 9093], id: hex(64), name: "kafka", image: "apache/kafka:latest", state: "running", ports: [], mounts: [], env: [], born: now - 5e6, cpu: 1.1, mem: 420e6 },
     { networks: ["bridge"], exposed: [8080], id: hex(64), name: "kafka-ui", image: "kafbat/kafka-ui:latest", state: "running", ports: [[8082, 8080]], mounts: [], env: ["KAFKA_CLUSTERS_0_NAME=local", "KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=localhost:9092"], born: now - 4e6, cpu: 0.4, mem: 310e6 },
     { networks: ["devnet"], exposed: [6379], id: hex(64), name: "queue", image: "redis:7", state: "running", ports: [], mounts: [], env: [], born: now - 7e6, cpu: 0.2, mem: 9e6 },
-    { networks: ["devnet"], id: hex(64), name: "web", image: "nginx:latest", state: "running", ports: [[8080, 80]], mounts: [{ Type: "volume", Name: "c".repeat(64), Source: "/var/lib/docker/volumes/c/_data", Destination: "/cache", RW: true }], env: ["NGINX_VERSION=1.27.2"], born: now - 36e5, cpu: 0.3, mem: 11e6 },
+    { health: "healthy", networks: ["devnet"], id: hex(64), name: "web", image: "nginx:latest", state: "running", ports: [[8080, 80]], mounts: [{ Type: "volume", Name: "c".repeat(64), Source: "/var/lib/docker/volumes/c/_data", Destination: "/cache", RW: true }], env: ["NGINX_VERSION=1.27.2"], born: now - 36e5, cpu: 0.3, mem: 11e6 },
     { networks: ["devnet"], exposed: [3306], id: hex(64), name: "db", image: "mysql:8", state: "running", ports: [[3306, 3306]], mounts: [{ Type: "volume", Name: "mysql-data", Source: "/var/lib/docker/volumes/mysql-data/_data", Destination: "/var/lib/mysql", RW: true }], env: ["MYSQL_ROOT_PASSWORD=dev"], born: now - 864e5, cpu: 1.8, mem: 380e6 },
     { networks: ["devnet"], exposed: [6379], id: hex(64), name: "cache", image: "redis:7", state: "exited", ports: [], mounts: [], env: [], born: now - 2 * 864e5, cpu: 0, mem: 0 },
   ] as Ctr[],
@@ -54,7 +57,7 @@ const ipOf = (c: Ctr, net: string) => `172.${net === "bridge" ? 17 : 18 + Math.m
 const find = (id: string) => db.ctrs.find((c) => c.id.startsWith(id) || c.name === id);
 const lines = (rows: object[]) => rows.map((r) => JSON.stringify(r)).join("\n");
 const fmtPorts = (c: Ctr) => c.state === "running" ? [...c.ports.map(([h, p]) => `0.0.0.0:${h}->${p}/tcp`), ...(c.exposed ?? []).filter((e) => !c.ports.some(([, p]) => p === e)).map((e) => `${e}/tcp`)].join(", ") : "";
-const status = (c: Ctr) => (c.state === "running" ? "Up 2 hours" : c.state === "paused" ? "Up 2 hours (Paused)" : "Exited (0) 3 hours ago");
+const status = (c: Ctr) => (c.state === "running" ? `Up 2 hours${c.health ? ` (${c.health === "starting" ? "health: starting" : c.health})` : ""}` : c.state === "paused" ? "Up 2 hours (Paused)" : `Exited (${c.exitCode ?? 0}) 3 hours ago`);
 const logLines = (c: Ctr) => c.image.startsWith("mysql")
   ? ["[Server] /usr/sbin/mysqld (mysqld 8.4.3) starting as process 1", "[Server] InnoDB initialization has started", "[Server] InnoDB initialization has ended", "[Server] X Plugin ready for connections. Bind-address: '::' port: 33060", "[Server] ready for connections. Version: '8.4.3'  port: 3306"]
   : ["/docker-entrypoint.sh: Configuration complete; ready for start up", `${c.image}: listening on 0.0.0.0:${c.ports[0]?.[1] ?? 80}`, "GET / 200 612 \"curl/8.4.0\"", "GET /favicon.ico 404 153 \"Mozilla/5.0\""];
@@ -64,6 +67,13 @@ function dockerCmd(args: string[]): string {
   switch (cmd) {
     case "ps": { if (args.includes("-q")) return db.ctrs.map((c) => c.id.slice(0, 12)).join("\n"); const f = args.find((a) => a.startsWith("network="))?.slice(8); return lines(db.ctrs.filter((c) => !f || c.networks.includes(f)).map((c) => ({ ID: c.id.slice(0, 12), Names: c.name, Image: c.image, State: c.state, Status: status(c), Ports: fmtPorts(c) }))) }
     case "images": return lines(db.images);
+    case "events": {
+      const t = Math.floor(Date.now() / 1000);
+      const mk = (action: string, name: string, secsAgo: number, attrs: object = {}) => JSON.stringify({ Type: "container", Action: action, Actor: { ID: "x", Attributes: { name, image: "img", ...attrs } }, time: t - secsAgo, timeNano: (t - secsAgo) * 1e9 });
+      const all = [mk("start", "kafka", 5 * 3600), mk("start", "web", 3 * 3600), mk("start", "api", 3 * 3600), mk("health_status: unhealthy", "api", 20 * 60), mk("die", "worker", 9 * 60 + 5, { exitCode: "1" }), mk("start", "worker", 9 * 60), mk("restart", "worker", 4 * 60), mk("oom", "report-job", 3610), mk("die", "report-job", 3600, { exitCode: "137" }), mk("create", "web", 3 * 3600 + 2)];
+      const only = args.find((a) => a.startsWith("container="))?.slice(10);
+      return all.filter((l) => !only || JSON.parse(l).Actor.Attributes.name === only).join("\n");
+    }
     case "network":
       if (sub === "ls") return lines(db.networks.map((Name) => ({ ID: hex(12), Name, Driver: Name === "host" || Name === "none" ? Name : "bridge", Scope: "local" })));
       if (sub === "create") { db.networks.push(args[2]); return hex(64); }
@@ -96,8 +106,8 @@ function dockerCmd(args: string[]): string {
       db.images = db.images.filter((i) => i !== img); return `Untagged: ${args[1]}`;
     }
     case "logs": { const c = find(args[args.length - 1])!; const t = new Date().toISOString(); const base = logLines(c); return Array.from({ length: 160 }, (_, i) => `${t.slice(0, 17)}${String(i % 60).padStart(2, "0")}Z ${base[i % base.length]}`).join("\n") + "\n"; }
-    case "inspect": { const many = args.slice(1).map((i) => find(i)!).filter(Boolean); return JSON.stringify(many.map((c) => ({ Id: c.id, Name: `/${c.name}`, Created: new Date(c.born).toISOString(), Path: c.image.startsWith("mysql") ? "docker-entrypoint.sh" : "/docker-entrypoint.sh", Args: ["mysqld"], State: { Status: c.state, Running: c.state !== "exited", Paused: c.state === "paused" }, Config: { Image: c.image, Env: c.env, ExposedPorts: Object.fromEntries([...c.ports.map(([, p]) => p), ...(c.exposed ?? [])].map((p) => [`${p}/tcp`, {}])) }, HostConfig: { RestartPolicy: { Name: "no" } }, NetworkSettings: { Ports: Object.fromEntries(c.ports.map(([h, p]) => [`${p}/tcp`, [{ HostIp: "0.0.0.0", HostPort: String(h) }]])), Networks: Object.fromEntries(c.networks.map((n) => [n, { IPAddress: ipOf(c, n), Aliases: n === "bridge" ? null : [c.name, c.id.slice(0, 12)] }])) }, Mounts: c.mounts }))); }
-    case "system": return lines([
+    case "inspect": { const many = args.slice(1).map((i) => find(i)!).filter(Boolean); return JSON.stringify(many.map((c) => ({ Id: c.id, Name: `/${c.name}`, Created: new Date(c.born).toISOString(), Path: c.image.startsWith("mysql") ? "docker-entrypoint.sh" : "/docker-entrypoint.sh", Args: ["mysqld"], State: { Status: c.state, Running: c.state !== "exited", Paused: c.state === "paused", ExitCode: c.exitCode ?? 0, OOMKilled: !!c.oom, StartedAt: new Date(c.born).toISOString(), ...(c.health ? { Health: { Status: c.health, FailingStreak: c.streak ?? 0, Log: c.healthOut ? [{ ExitCode: 1, Output: c.healthOut }] : [] } } : {}) }, RestartCount: c.restarts ?? 0, Config: { Image: c.image, Env: c.env, ExposedPorts: Object.fromEntries([...c.ports.map(([, p]) => p), ...(c.exposed ?? [])].map((p) => [`${p}/tcp`, {}])) }, HostConfig: { RestartPolicy: { Name: "no" } }, NetworkSettings: { Ports: Object.fromEntries(c.ports.map(([h, p]) => [`${p}/tcp`, [{ HostIp: "0.0.0.0", HostPort: String(h) }]])), Networks: Object.fromEntries(c.networks.map((n) => [n, { IPAddress: ipOf(c, n), Aliases: n === "bridge" ? null : [c.name, c.id.slice(0, 12)] }])) }, Mounts: c.mounts }))); }
+    case "system": if (args.includes("-v")) { const sz: Record<string, string> = { "mysql-data": "412MB", "redis-data": "18MB", "pgdata-old": "1.2GB" }; return JSON.stringify({ Images: [], Containers: [], BuildCache: [], Volumes: db.volumes.map((Name) => ({ Name, Links: db.ctrs.filter((c) => c.mounts.some((x) => x.Name === Name)).length, Size: sz[Name] ?? (Name.startsWith("a") ? "36B" : "4kB") })) }); } return lines([
       { Type: "Images", TotalCount: "4", Active: "2", Size: "1.3GB", Reclaimable: "2.1GB (80%)" },
       { Type: "Containers", TotalCount: "3", Active: "2", Size: "12MB", Reclaimable: "0B" },
       { Type: "Local Volumes", TotalCount: "3", Active: "1", Size: "380MB", Reclaimable: "20MB (5%)" },

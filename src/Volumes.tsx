@@ -4,6 +4,8 @@ import { usePoll } from "./hooks";
 import { Banner, Empty, useConfirm } from "./ui";
 import IconButton from "./ui/IconButton";
 import { isAnonymous, unusedAnonymous, volumeUsage } from "./lib/volumes";
+import { parseVolumeSizes } from "./lib/events";
+import { formatBytes } from "./containerInfo";
 
 type V = { Name: string; Driver: string };
 
@@ -15,6 +17,8 @@ export default function Volumes({ ctx }: { ctx: string }) {
     const ids = (await docker(ctx, ["ps", "-a", "-q"])).split("\n").filter(Boolean);
     return ids.length ? volumeUsage(JSON.parse(await docker(ctx, ["inspect", ...ids]))) : new Map<string, string[]>();
   }, [ctx], 5000);
+  // The exact shape of `docker system df -v --format json` is unverified; if it can't be read, sizes show a dash.
+  const sizes = usePoll(async () => parseVolumeSizes(await docker(ctx, ["system", "df", "-v", "--format", "json"]).catch(() => "")), [ctx], 30000);
   const [err, setErr] = useState<string | null>(null);
 
   async function act(args: string[]) {
@@ -52,7 +56,7 @@ export default function Volumes({ ctx }: { ctx: string }) {
       {data && data.length > 0 && (
         <table>
           <thead>
-            <tr><th scope="col">Name</th><th scope="col">Driver</th><th scope="col">Used by</th><th scope="col"><span className="sr-only">Actions</span></th></tr>
+            <tr><th scope="col">Name</th><th scope="col">Driver</th><th scope="col">Used by</th><th scope="col">Size</th><th scope="col"><span className="sr-only">Actions</span></th></tr>
           </thead>
           <tbody>
             {data.map((v) => {
@@ -64,6 +68,7 @@ export default function Volumes({ ctx }: { ctx: string }) {
                   <td className={by.length ? "in-use" : ""}>
                     {usage.data === null ? "…" : by.length ? `In use by ${by.length} container${by.length > 1 ? "s" : ""}: ${by.join(", ")}` : "Not used"}
                   </td>
+                  <td className="mono">{sizes.data?.has(v.Name) ? formatBytes(sizes.data.get(v.Name)!) : "—"}</td>
                   <td className="row-actions">
                     <IconButton
                       label={by.length ? `Remove volume ${v.Name} (in use by ${by.join(", ")})` : `Remove volume ${v.Name}`}

@@ -30,3 +30,12 @@ for (const [mode, p] of [["light", light], ["dark", dark]] as const) {
     test(`${mode}: muted on ${name} is at least 4.5:1`, () => assert.ok(contrastRatio(p.muted, bg) >= 4.5));
   }
 }
+
+// Warning text sits on every surface and on the tinted warning boxes (the gold at 14% over the page).
+const warn = { light: "#6e5208", dark: "#e3c26b" };
+const warnTint = { light: "#ede9d6", dark: "#2c2d1a" };
+for (const [mode, p] of [["light", light], ["dark", dark]] as const) {
+  for (const [name, bg] of [["page", p.page], ...Object.entries(surfaces[mode]), ["warning box", warnTint[mode]]] as [string, string][]) {
+    test(`${mode}: warning text on ${name} is at least 4.5:1`, () => assert.ok(contrastRatio(warn[mode], bg) >= 4.5));
+  }
+}

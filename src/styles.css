@@ -254,7 +254,7 @@ button:disabled.primary { opacity: .5; }
 .peer { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 13px; }
 .peer .chip { display: inline-flex; align-items: center; gap: 4px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; }
 .checks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-.checks li { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; color: color-mix(in srgb, #8a6a10 70%, var(--ink)); }
+.checks li { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; color: var(--warn); }
 .defaults summary { cursor: pointer; font-size: 13px; color: var(--muted); }
 .defaults .kv { margin-top: 6px; }
 .drawer select { width: 100%; }
@@ -287,3 +287,29 @@ td .tag { margin-left: 8px; }
 .finding > div { min-width: 0; }
 .finding svg { flex: none; margin-top: 2px; }
 .drawer label select { width: 100%; }
+
+/* Observability */
+.hbadge { font-size: 11px; font-weight: 600; border-radius: 999px; padding: 1px 8px; border: 1px solid var(--border); color: var(--muted); }
+.hbadge.healthy { color: var(--primary); border-color: color-mix(in srgb, var(--primary) 40%, var(--border)); }
+.hbadge.unhealthy { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, var(--border)); }
+.hbadge.starting { color: var(--warn); }
+.health-panel { display: flex; flex-direction: column; gap: 8px; margin: 10px 0 0; }
+.hp-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 13px; }
+.hp-row > b { min-width: 64px; }
+.problem-line { padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border); display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+.problem-line.bad { border-color: color-mix(in srgb, var(--danger) 45%, var(--border)); }
+.problem-line.warn { background: color-mix(in srgb, #c9a227 14%, var(--page)); border-color: color-mix(in srgb, #c9a227 35%, var(--border)); }
+.problems h2, .activity-block h3 { margin: 0 0 8px; font-size: 15px; }
+.problems ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.problem { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 13px; }
+.plevel.bad { color: var(--danger); }
+.plevel.warn { color: var(--warn); }
+.activity { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.activity li { display: grid; grid-template-columns: 10px 1fr auto; gap: 10px; align-items: center; }
+.adot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.activity .good .adot { background: var(--primary); }
+.activity .bad .adot { background: var(--danger); }
+.activity .warn .adot { background: #c9a227; }
+.activity .when { color: var(--muted); font-size: 12px; }
+.heaviest { margin: 0; }
+.activity-block { margin-top: 4px; }

@@ -8,8 +8,11 @@ import { Banner } from "./ui";
 import Logs from "./Logs";
 import StatsTab from "./StatsTab";
 import Doctor from "./Doctor";
+import { ActivityList, HealthPanel } from "./Health";
+import { parseState } from "./lib/health";
+import { eventWindow, parseEvents, timeline } from "./lib/events";
 
-const TABS = ["Logs", "Inspect", "Stats", "Mounts", "Network"] as const;
+const TABS = ["Logs", "Inspect", "Stats", "Mounts", "Network", "Activity"] as const;
 type Tab = (typeof TABS)[number];
 type Props = { ctx: string; id: string; onBack: () => void };
 
@@ -36,6 +39,8 @@ export default function ContainerDetail({ ctx, id, onBack }: Props) {
   const running = !!c?.State.Running && !paused;
   const status = paused ? "paused" : c?.State.Status ?? "";
   const ports = running ? publishedPorts(c?.NetworkSettings.Ports) : [];
+  const state = c ? parseState(JSON.stringify([c])) : null;
+  const activity = usePoll(async () => timeline(parseEvents(await docker(ctx, ["events", ...eventWindow(Date.now(), 86_400_000), "--filter", `container=${name}`, "--filter", "type=container", "--format", "{{json .}}"])), 50, name), [ctx, name, tab === "Activity"], 10000);
   const ip = Object.values(c?.NetworkSettings.Networks ?? {})[0]?.IPAddress;
 
   return (
@@ -80,6 +85,8 @@ export default function ContainerDetail({ ctx, id, onBack }: Props) {
         </p>
       )}
 
+      {state && <HealthPanel state={state} onLogs={() => setTab("Logs")} />}
+
       <div className="tabs" role="tablist">
         {TABS.map((t) => (
           <button key={t} role="tab" aria-selected={t === tab} className={t === tab ? "tab active" : "tab"} onClick={() => setTab(t)}>
@@ -91,6 +98,12 @@ export default function ContainerDetail({ ctx, id, onBack }: Props) {
       <div className="tabpane" role="tabpanel">
         {tab === "Logs" && <Logs ctx={ctx} id={id} />}
         {tab === "Stats" && <StatsTab ctx={ctx} id={id} running={running} />}
+        {tab === "Activity" && (
+          <>
+            <p className="hint">What happened to {name} in the last day, newest first.</p>
+            <ActivityList lines={activity.data ?? []} empty="Nothing notable has happened to this container recently." />
+          </>
+        )}
         {tab === "Network" && c && (
           <>
             <p className="hint">Other containers on a shared network reach this one as <code>{name}</code>. The default bridge network doesn't do name lookup.</p>

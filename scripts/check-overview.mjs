@@ -34,7 +34,8 @@ check(/web/.test(await text(p, ".ov-containers")) && /db/.test(await text(p, ".o
 check(await primaries(p) === 1, "running: exactly one primary button");
 check(await p.getByRole("button", { name: "Run image" }).evaluate((b) => b.classList.contains("primary")).catch(() => false), "running: Run image is the primary");
 const rows = await p.locator(".ov-containers .ov-row").allInnerTexts();
-check(rows.length >= 2 && /db|web/.test(rows[0]), "running: running containers sorted first");
+const stoppedAt = rows.findIndex((r) => /report-job|cache/.test(r));
+check(rows.length >= 2 && stoppedAt > 0 && rows.slice(stoppedAt).every((r) => /report-job|cache/.test(r)), "running: running containers sorted first, stopped ones last");
 await p.fill(".ov-search", "mysql");
 check(await p.locator(".ov-containers .ov-row").count() === 1, "running: search filters by image");
 check(/stopped container|unused image/.test(await text(p, ".attention")), "running: needs-attention strip shows when actionable");
