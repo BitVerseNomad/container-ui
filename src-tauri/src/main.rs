@@ -72,6 +72,7 @@ fn docker_args_allowed(args: &[String]) -> Result<(), String> {
         "image" => matches!(second, "inspect" | "prune"),
         "system" => second == "df",
         "network" => matches!(second, "ls" | "create" | "inspect" | "connect" | "disconnect" | "rm"),
+        "events" => events_args_ok(args),
         other => DOCKER_SUBCOMMANDS.contains(&other),
     };
     if !ok {
@@ -123,6 +124,26 @@ fn probe_args(context: &str, from: &str, target: &str, port: u16) -> Vec<String>
 async fn network_probe(context: String, from: String, target: String, port: u16) -> Result<String, String> {
     probe_inputs_ok(&context, &from, &target, port)?;
     exec("docker", probe_args(&context, &from, &target, port), true).await
+}
+
+// `docker events` streams forever unless it has an end time, so it only runs with a --since and --until window
+// plus the filter and format flags the app uses.
+fn events_args_ok(args: &[String]) -> bool {
+    let mut i = 1;
+    let (mut since, mut until) = (false, false);
+    while i < args.len() {
+        if args.get(i + 1).is_none() {
+            return false;
+        }
+        match args[i].as_str() {
+            "--since" => since = true,
+            "--until" => until = true,
+            "--filter" | "--format" => {}
+            _ => return false,
+        }
+        i += 2;
+    }
+    since && until
 }
 
 // Colima registers "colima" (default profile) and "colima-<profile>" contexts; nothing else is used.
@@ -595,6 +616,18 @@ mod tests {
         assert!(probe_inputs_ok("colima", "a", "b;c", 80).is_err());
         assert!(probe_inputs_ok("colima", "a", "", 80).is_err());
         assert!(probe_inputs_ok("colima", "a", "b", 0).is_err());
+    }
+
+    #[test]
+    fn docker_events_only_runs_with_both_ends_of_a_time_window() {
+        let ok = ["events", "--since", "100", "--until", "200", "--filter", "type=container", "--format", "{{json .}}"];
+        assert!(docker_args_allowed(&args(&ok)).is_ok());
+        assert!(docker_args_allowed(&args(&["events", "--since", "100", "--until", "200"])).is_ok());
+        assert!(docker_args_allowed(&args(&["events"])).is_err());
+        assert!(docker_args_allowed(&args(&["events", "--since", "100"])).is_err());
+        assert!(docker_args_allowed(&args(&["events", "--until", "200"])).is_err());
+        assert!(docker_args_allowed(&args(&["events", "--since", "100", "--until", "200", "--foo", "x"])).is_err());
+        assert!(docker_args_allowed(&args(&["events", "--since", "100", "--until"])).is_err());
     }
 
     #[test]
