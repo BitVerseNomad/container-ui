@@ -16,7 +16,7 @@ for (const [w, h] of [[1100, 680], [800, 600]]) {
   const page = await browser.newPage({ viewport: { width: w, height: h } });
   await page.goto(`file://${root}/preview/index.html`);
   await page.waitForSelector(".content");
-  for (const name of ["Overview", "Containers", "Images", "Volumes", "Profiles"]) {
+  for (const name of ["Overview", "Containers", "Images", "Volumes", "Networks", "Profiles"]) {
     await nav(page, name).click();
     await page.waitForTimeout(400);
     const over = await page.evaluate(() => { const c = document.querySelector(".content"); return c.scrollWidth - c.clientWidth; });

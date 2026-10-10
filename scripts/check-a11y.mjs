@@ -13,7 +13,7 @@ await p.goto(`file://${root}/preview/index.html`);
 await p.waitForSelector(".ov-row");
 const nav = (n) => p.locator(".sidebar").getByRole("button", { name: n, exact: true }).click();
 
-for (const page of ["Overview", "Containers", "Images", "Volumes", "Profiles"]) {
+for (const page of ["Overview", "Containers", "Images", "Volumes", "Networks", "Profiles"]) {
   await nav(page);
   await p.waitForTimeout(400);
   const r = await p.evaluate(() => ({
@@ -50,7 +50,7 @@ for (const scheme of ["light", "dark"]) {
   const page = await browser.newPage({ viewport: { width: 1100, height: 680 }, colorScheme: scheme });
   await page.goto(`file://${root}/preview/index.html`);
   await page.waitForSelector(".ov-row");
-  for (const name of ["Overview", "Containers", "Images", "Volumes", "Profiles"]) {
+  for (const name of ["Overview", "Containers", "Images", "Volumes", "Networks", "Profiles"]) {
     await page.locator(".sidebar").getByRole("button", { name, exact: true }).click();
     await page.waitForTimeout(350);
     const bad = await page.evaluate(() => {

@@ -9,6 +9,7 @@ import StatusPill, { PillState } from "./ui/StatusPill";
 import Containers from "./Containers";
 import Images from "./Images";
 import Volumes from "./Volumes";
+import Networks from "./Networks";
 import Profiles from "./Profiles";
 import Overview, { VmState } from "./Overview";
 import InstallCard from "./InstallCard";
@@ -80,8 +81,10 @@ export default function App() {
           setTab("Containers");
         }}
       />
-    ) : (
+    ) : tab === "Volumes" ? (
       <Volumes key={ctx} ctx={ctx} />
+    ) : (
+      <Networks key={ctx} ctx={ctx} />
     );
 
   return (

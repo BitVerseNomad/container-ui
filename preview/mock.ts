@@ -24,6 +24,8 @@ const db = {
   volumes: ["mysql-data", "redis-data", "pgdata-old", "a".repeat(64), "c".repeat(64)],
   networks: ["bridge", "host", "none", "devnet"],
   ctrs: [
+    { networks: ["devnet"], exposed: [9092, 9093], id: hex(64), name: "kafka", image: "apache/kafka:latest", state: "running", ports: [], mounts: [], env: [], born: now - 5e6, cpu: 1.1, mem: 420e6 },
+    { networks: ["bridge"], exposed: [8080], id: hex(64), name: "kafka-ui", image: "kafbat/kafka-ui:latest", state: "running", ports: [[8082, 8080]], mounts: [], env: ["KAFKA_CLUSTERS_0_NAME=local", "KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=localhost:9092"], born: now - 4e6, cpu: 0.4, mem: 310e6 },
     { networks: ["devnet"], exposed: [6379], id: hex(64), name: "queue", image: "redis:7", state: "running", ports: [], mounts: [], env: [], born: now - 7e6, cpu: 0.2, mem: 9e6 },
     { networks: ["devnet"], id: hex(64), name: "web", image: "nginx:latest", state: "running", ports: [[8080, 80]], mounts: [{ Type: "volume", Name: "c".repeat(64), Source: "/var/lib/docker/volumes/c/_data", Destination: "/cache", RW: true }], env: ["NGINX_VERSION=1.27.2"], born: now - 36e5, cpu: 0.3, mem: 11e6 },
     { networks: ["devnet"], exposed: [3306], id: hex(64), name: "db", image: "mysql:8", state: "running", ports: [[3306, 3306]], mounts: [{ Type: "volume", Name: "mysql-data", Source: "/var/lib/docker/volumes/mysql-data/_data", Destination: "/var/lib/mysql", RW: true }], env: ["MYSQL_ROOT_PASSWORD=dev"], born: now - 864e5, cpu: 1.8, mem: 380e6 },
@@ -48,6 +50,7 @@ const env = {
 if (scenario === "nonet") { db.networks = ["bridge", "host", "none"]; db.ctrs.forEach((c) => { c.networks = ["bridge"]; }); }
 if (["stopped", "failed"].includes(scenario)) db.profiles[0].status = "Stopped";
 if (["none", "missing", "partial", "nobrew"].includes(scenario)) db.profiles = [];
+const ipOf = (c: Ctr, net: string) => `172.${net === "bridge" ? 17 : 18 + Math.max(0, db.networks.indexOf(net) - 3)}.0.${2 + db.ctrs.indexOf(c)}`;
 const find = (id: string) => db.ctrs.find((c) => c.id.startsWith(id) || c.name === id);
 const lines = (rows: object[]) => rows.map((r) => JSON.stringify(r)).join("\n");
 const fmtPorts = (c: Ctr) => c.state === "running" ? [...c.ports.map(([h, p]) => `0.0.0.0:${h}->${p}/tcp`), ...(c.exposed ?? []).filter((e) => !c.ports.some(([, p]) => p === e)).map((e) => `${e}/tcp`)].join(", ") : "";
@@ -64,6 +67,10 @@ function dockerCmd(args: string[]): string {
     case "network":
       if (sub === "ls") return lines(db.networks.map((Name) => ({ ID: hex(12), Name, Driver: Name === "host" || Name === "none" ? Name : "bridge", Scope: "local" })));
       if (sub === "create") { db.networks.push(args[2]); return hex(64); }
+      if (sub === "inspect") return JSON.stringify(args.slice(2).map((name) => ({ Name: name, Driver: name === "host" || name === "none" ? name : "bridge", IPAM: { Config: name === "bridge" || db.networks.indexOf(name) > 2 ? [{ Subnet: name === "bridge" ? "172.17.0.0/16" : `172.${18 + db.networks.indexOf(name) - 3}.0.0/16` }] : [] }, Containers: Object.fromEntries(db.ctrs.filter((c) => c.state === "running" && c.networks.includes(name)).map((c) => [c.id, { Name: c.name, IPv4Address: `${ipOf(c, name)}/16` }])) })));
+      if (sub === "connect") { const c = find(args[3]); if (!c) throw `Error response from daemon: No such container: ${args[3]}`; if (!c.networks.includes(args[2])) c.networks.push(args[2]); return ""; }
+      if (sub === "disconnect") { const c = find(args[3])!; c.networks = c.networks.filter((n) => n !== args[2]); return ""; }
+      if (sub === "rm") { if (db.ctrs.some((c) => c.networks.includes(args[2]))) throw `Error response from daemon: error while removing network: network ${args[2]} has active endpoints`; db.networks = db.networks.filter((n) => n !== args[2]); return args[2]; }
       throw `mock: unsupported docker network command`;
     case "volume":
       if (sub === "ls") return lines(db.volumes.map((Name) => ({ Name, Driver: "local" })));
@@ -89,7 +96,7 @@ function dockerCmd(args: string[]): string {
       db.images = db.images.filter((i) => i !== img); return `Untagged: ${args[1]}`;
     }
     case "logs": { const c = find(args[args.length - 1])!; const t = new Date().toISOString(); const base = logLines(c); return Array.from({ length: 160 }, (_, i) => `${t.slice(0, 17)}${String(i % 60).padStart(2, "0")}Z ${base[i % base.length]}`).join("\n") + "\n"; }
-    case "inspect": { const many = args.slice(1).map((i) => find(i)!).filter(Boolean); return JSON.stringify(many.map((c) => ({ Id: c.id, Name: `/${c.name}`, Created: new Date(c.born).toISOString(), Path: c.image.startsWith("mysql") ? "docker-entrypoint.sh" : "/docker-entrypoint.sh", Args: ["mysqld"], State: { Status: c.state, Running: c.state !== "exited", Paused: c.state === "paused" }, Config: { Image: c.image, Env: c.env }, HostConfig: { RestartPolicy: { Name: "no" } }, NetworkSettings: { Ports: Object.fromEntries(c.ports.map(([h, p]) => [`${p}/tcp`, [{ HostIp: "0.0.0.0", HostPort: String(h) }]])), Networks: { bridge: { IPAddress: "172.17.0.2" } } }, Mounts: c.mounts }))); }
+    case "inspect": { const many = args.slice(1).map((i) => find(i)!).filter(Boolean); return JSON.stringify(many.map((c) => ({ Id: c.id, Name: `/${c.name}`, Created: new Date(c.born).toISOString(), Path: c.image.startsWith("mysql") ? "docker-entrypoint.sh" : "/docker-entrypoint.sh", Args: ["mysqld"], State: { Status: c.state, Running: c.state !== "exited", Paused: c.state === "paused" }, Config: { Image: c.image, Env: c.env, ExposedPorts: Object.fromEntries([...c.ports.map(([, p]) => p), ...(c.exposed ?? [])].map((p) => [`${p}/tcp`, {}])) }, HostConfig: { RestartPolicy: { Name: "no" } }, NetworkSettings: { Ports: Object.fromEntries(c.ports.map(([h, p]) => [`${p}/tcp`, [{ HostIp: "0.0.0.0", HostPort: String(h) }]])), Networks: Object.fromEntries(c.networks.map((n) => [n, { IPAddress: ipOf(c, n), Aliases: n === "bridge" ? null : [c.name, c.id.slice(0, 12)] }])) }, Mounts: c.mounts }))); }
     case "system": return lines([
       { Type: "Images", TotalCount: "4", Active: "2", Size: "1.3GB", Reclaimable: "2.1GB (80%)" },
       { Type: "Containers", TotalCount: "3", Active: "2", Size: "12MB", Reclaimable: "0B" },
@@ -125,6 +132,15 @@ export async function invoke<T>(cmd: string, a: Record<string, any> = {}): Promi
       await progress("pull-progress", [[`Using default tag: ${tag}`, 150], [`${tag}: Pulling from library/${repo}`, 400], ["a2318d6c47ec: Pulling fs layer", 200], ["a2318d6c47ec: Download complete", 700], ["a2318d6c47ec: Pull complete", 300], [`Status: Downloaded newer image for ${repo}:${tag}`, 200]]);
       if (!db.images.some((i) => i.Repository === repo && i.Tag === tag)) db.images.unshift({ Repository: repo, Tag: tag, Size: "142MB", ID: hex(12), CreatedSince: "2 days ago" });
       return undefined as T;
+    }
+    case "network_probe": {
+      const from = find(a.from), to = find(a.target);
+      const shared = !!from && !!to && from.networks.some((n) => n !== "bridge" && n !== "host" && n !== "none" && to.networks.includes(n));
+      const declared = [...(to?.exposed ?? []), ...(to?.ports.map(([, p]) => p) ?? [])];
+      await sleep(400);
+      const dns = shared ? `Server:\t\t127.0.0.11\nAddress:\t127.0.0.11#53\n\nNon-authoritative answer:\nName:\t${a.target}\nAddress: ${ipOf(to!, to!.networks.find((n) => from!.networks.includes(n))!)}\n` : `** server can't find ${a.target}: NXDOMAIN\n`;
+      const tcp = shared && declared.includes(a.port) ? `Connection to ${a.target} (${ipOf(to!, "devnet")}) ${a.port} port [tcp/*] succeeded!\n` : `nc: connect to ${a.target} port ${a.port} (tcp) failed: Connection refused\n`;
+      return `${dns}::dns-exit=${shared ? 0 : 1}\n${tcp}::tcp-exit=${shared && declared.includes(a.port) ? 0 : 1}\n` as T;
     }
     case "env_check": return { ...env } as T; // a fresh object per call, like the real IPC
     case "install_tools": {

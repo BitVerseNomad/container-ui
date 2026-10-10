@@ -114,7 +114,7 @@ export function diagnose({ from, to, port, probe }: Facts): Finding[] {
       title: "They don't share a network",
       detail: shared.onlyBridge
         ? `Both are only on the default network, where containers can't find each other by name. Put them on a network of your own.`
-        : `${from.name} is on ${from.nets.map((n) => n.network).join(", ") || "no network"} and ${to.name} is on ${to.nets.map((n) => n.network).join(", ") || "no network"}.`,
+        : `${from.name} is on ${from.nets.map((n) => n.network).join(", ") || "no network"} and ${to.name} is on ${to.nets.map((n) => n.network).join(", ") || "no network"}. Containers find each other by name only on a network they both belong to.${[from, to].some((c) => c.nets.some((n) => n.network === "bridge")) ? " The default network (bridge) doesn't do name lookup." : ""}`,
       fix: { kind: "connect", network: target, containers: needs },
     });
   } else {

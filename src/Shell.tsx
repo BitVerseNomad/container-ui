@@ -2,13 +2,14 @@ import { ReactNode } from "react";
 import { Profile, gbOf } from "./api";
 import { Icon, IconName } from "./ui/icons";
 
-export type Tab = "Overview" | "Containers" | "Images" | "Volumes" | "Profiles";
+export type Tab = "Overview" | "Containers" | "Images" | "Volumes" | "Networks" | "Profiles";
 
 const NAV: { tab: Tab; icon: IconName }[] = [
   { tab: "Overview", icon: "gauge" },
   { tab: "Containers", icon: "box" },
   { tab: "Images", icon: "image" },
   { tab: "Volumes", icon: "database" },
+  { tab: "Networks", icon: "network" },
   { tab: "Profiles", icon: "sliders" },
 ];
 

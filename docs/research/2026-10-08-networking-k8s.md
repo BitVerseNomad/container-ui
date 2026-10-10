@@ -26,3 +26,7 @@ Checked on 2026-10-08. Each fact is from the linked page.
 
 ## Not yet researched (do before building each)
 - `docker events` and health status fields, `docker system df -v` for volume sizes, `docker network connect/disconnect/rm`, launching a command in Terminal.app from a desktop app, kubectl JSON output for pods/deployments/services.
+
+## Built so far (networking) and what is unverified
+- Built: Networks tab, connection doctor, container Network tab; pure logic in `src/lib/network.ts` with tests; Rust `network_probe` (helper container in the client's namespace; target and port passed as positional parameters) and `network` subcommands on the allowlist.
+- Unverified until run on a real Colima VM: the exact `nslookup` and `nc` output inside `nicolaka/netshoot` (the app trusts the `::dns-exit` / `::tcp-exit` markers for pass/fail and only reads the resolved address from nslookup), and that `docker run --network container:<name>` works for every container state.

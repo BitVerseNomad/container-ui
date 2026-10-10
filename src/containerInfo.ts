@@ -72,6 +72,6 @@ export type Inspect = {
   State: { Status: string; Running: boolean; Paused: boolean };
   Config: { Image: string; Env: string[] | null };
   HostConfig: { RestartPolicy?: { Name: string } };
-  NetworkSettings: { Ports?: PortMap; Networks?: Record<string, { IPAddress: string }> };
+  NetworkSettings: { Ports?: PortMap; Networks?: Record<string, { IPAddress: string; Aliases?: string[] | null }> };
   Mounts: { Type: string; Name?: string; Source: string; Destination: string; RW: boolean }[];
 };

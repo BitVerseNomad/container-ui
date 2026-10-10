@@ -7,8 +7,9 @@ import { usePoll } from "./hooks";
 import { Banner } from "./ui";
 import Logs from "./Logs";
 import StatsTab from "./StatsTab";
+import Doctor from "./Doctor";
 
-const TABS = ["Logs", "Inspect", "Stats", "Mounts"] as const;
+const TABS = ["Logs", "Inspect", "Stats", "Mounts", "Network"] as const;
 type Tab = (typeof TABS)[number];
 type Props = { ctx: string; id: string; onBack: () => void };
 
@@ -16,6 +17,7 @@ export default function ContainerDetail({ ctx, id, onBack }: Props) {
   const confirm = useConfirm();
   const [tab, setTab] = useState<Tab>("Logs");
   const [err, setErr] = useState<string | null>(null);
+  const [doctor, setDoctor] = useState(false);
   const { data: c, error, reload } = usePoll(async () => JSON.parse(await docker(ctx, ["inspect", id]))[0] as Inspect, [ctx, id]);
 
   async function act(args: string[], done?: () => void) {
@@ -89,6 +91,28 @@ export default function ContainerDetail({ ctx, id, onBack }: Props) {
       <div className="tabpane" role="tabpanel">
         {tab === "Logs" && <Logs ctx={ctx} id={id} />}
         {tab === "Stats" && <StatsTab ctx={ctx} id={id} running={running} />}
+        {tab === "Network" && c && (
+          <>
+            <p className="hint">Other containers on a shared network reach this one as <code>{name}</code>. The default bridge network doesn't do name lookup.</p>
+            {Object.keys(c.NetworkSettings.Networks ?? {}).length === 0 ? (
+              <p className="hint">This container isn't on any network.</p>
+            ) : (
+              <table>
+                <thead><tr><th scope="col">Network</th><th scope="col">Address</th><th scope="col">Also known as</th></tr></thead>
+                <tbody>
+                  {Object.entries(c.NetworkSettings.Networks ?? {}).map(([net, v]) => (
+                    <tr key={net}>
+                      <td>{net}{net === "bridge" && <span className="tag">No name lookup</span>}</td>
+                      <td className="mono">{v.IPAddress || "none"}</td>
+                      <td className="mono">{(v.Aliases ?? []).join(", ") || "none"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            <div><button onClick={() => setDoctor(true)}>Troubleshoot a connection…</button></div>
+          </>
+        )}
         {tab === "Mounts" && c && (
           c.Mounts.length === 0 ? (
             <p className="hint">No mounts. Data written inside this container is lost when it is removed.</p>
@@ -128,6 +152,7 @@ export default function ContainerDetail({ ctx, id, onBack }: Props) {
           </>
         )}
       </div>
+      {doctor && <Doctor ctx={ctx} from={name} onClose={() => setDoctor(false)} />}
     </section>
   );
 }

@@ -84,6 +84,13 @@ test("on the default bridge only, names don't resolve: say so and offer to conne
   assert.equal(byId(f, "dns"), undefined);
 });
 
+test("a different-networks case still explains why names need a shared network", () => {
+  const f = diagnose({ from: facts("ui", ["bridge"]), to: facts("kafka", ["devnet"]), port: 9092, probe: null });
+  assert.match(byId(f, "network")!.detail, /ui is on bridge and kafka is on devnet/);
+  assert.match(byId(f, "network")!.detail, /both belong to/);
+  assert.match(byId(f, "network")!.detail, /default network/i);
+});
+
 test("with no shared network the offer prefers a network the target is already on", () => {
   const f = diagnose({ from: facts("ui", ["bridge"]), to: facts("kafka", ["bridge", "stack"]), port: 9092, probe: null });
   assert.deepEqual(byId(f, "network")!.fix, { kind: "connect", network: "stack", containers: ["ui"] });

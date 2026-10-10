@@ -266,3 +266,24 @@ button:disabled.primary { opacity: .5; }
 .sort select { padding: 3px 6px; }
 .drawer .group input[aria-label="Image to pull"] { width: 100%; }
 .drawer .primary + .primary { margin-top: 4px; }
+
+/* Networks and the connection doctor */
+.newnet { margin: 0 0 14px; max-width: 460px; }
+.members { display: flex; flex-direction: column; gap: 4px; }
+.member { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.member .icon-btn { width: 24px; height: 24px; }
+.connect { display: flex; gap: 6px; margin-top: 6px; }
+.connect select { max-width: 220px; }
+td .tag { margin-left: 8px; }
+.findings { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.finding { display: flex; gap: 10px; align-items: flex-start; padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); }
+.finding > div { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+.finding.ok svg { color: var(--primary); }
+.finding.fail { border-color: color-mix(in srgb, var(--danger) 45%, var(--border)); }
+.finding.fail svg { color: var(--danger); }
+.finding.warn { background: color-mix(in srgb, #c9a227 14%, var(--page)); border-color: color-mix(in srgb, #c9a227 35%, var(--border)); }
+
+.finding .hint, .finding b { overflow-wrap: anywhere; }
+.finding > div { min-width: 0; }
+.finding svg { flex: none; margin-top: 2px; }
+.drawer label select { width: 100%; }
