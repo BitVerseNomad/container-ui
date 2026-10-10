@@ -71,7 +71,7 @@ fn docker_args_allowed(args: &[String]) -> Result<(), String> {
         "volume" => matches!(second, "ls" | "rm"),
         "image" => matches!(second, "inspect" | "prune"),
         "system" => second == "df",
-        "network" => matches!(second, "ls" | "create"),
+        "network" => matches!(second, "ls" | "create" | "inspect" | "connect" | "disconnect" | "rm"),
         other => DOCKER_SUBCOMMANDS.contains(&other),
     };
     if !ok {
@@ -88,6 +88,41 @@ fn docker_args_allowed(args: &[String]) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+// ---- Connection doctor: probe from inside the client container's network namespace ----
+// A throwaway helper container shares the client's network, so no tools are needed in the user's own image.
+// The target and port are positional parameters ($1, $2), never part of the script text.
+const PROBE_SCRIPT: &str = r#"nslookup "$1" 2>&1; echo "::dns-exit=$?"; nc -zv -w 3 "$1" "$2" 2>&1; echo "::tcp-exit=$?""#;
+
+fn container_name_ok(n: &str) -> bool {
+    let mut chars = n.chars();
+    matches!(chars.next(), Some(c) if c.is_ascii_alphanumeric())
+        && n.len() <= 128
+        && n.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | '-'))
+}
+
+fn probe_inputs_ok(context: &str, from: &str, target: &str, port: u16) -> Result<(), String> {
+    if !context_ok(context) {
+        return Err(format!("Unknown Docker context \"{context}\""));
+    }
+    if !container_name_ok(from) || !container_name_ok(target) || port == 0 {
+        return Err("That isn't a valid container name or port".into());
+    }
+    Ok(())
+}
+
+fn probe_args(context: &str, from: &str, target: &str, port: u16) -> Vec<String> {
+    ["--context", context, "run", "--rm", "--network", &format!("container:{from}"), "nicolaka/netshoot", "sh", "-c", PROBE_SCRIPT, "sh", target, &port.to_string()]
+        .iter()
+        .map(|s| s.to_string())
+        .collect()
+}
+
+#[tauri::command]
+async fn network_probe(context: String, from: String, target: String, port: u16) -> Result<String, String> {
+    probe_inputs_ok(&context, &from, &target, port)?;
+    exec("docker", probe_args(&context, &from, &target, port), true).await
 }
 
 // Colima registers "colima" (default profile) and "colima-<profile>" contexts; nothing else is used.
@@ -407,7 +442,7 @@ fn open_url(url: String) -> Result<(), String> {
 fn main() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
-            list_profiles, docker, docker_pull, env_check, install_tools, start_profile, apply_resources,
+            list_profiles, docker, docker_pull, env_check, install_tools, network_probe, start_profile, apply_resources,
             stop_profile, restart_profile, delete_profile, open_url
         ])
         .run(tauri::generate_context!())
@@ -532,12 +567,34 @@ mod tests {
     }
 
     #[test]
-    fn docker_allowlist_has_network_ls_and_create_only() {
-        assert!(docker_args_allowed(&args(&["network", "ls"])).is_ok());
-        assert!(docker_args_allowed(&args(&["network", "create", "devnet"])).is_ok());
-        assert!(docker_args_allowed(&args(&["network", "rm", "devnet"])).is_err());
-        assert!(docker_args_allowed(&args(&["network", "connect", "devnet", "c"])).is_err());
+    fn docker_allowlist_has_the_network_commands_the_app_uses() {
+        for a in [&["network", "ls"][..], &["network", "create", "devnet"], &["network", "inspect", "devnet"], &["network", "connect", "devnet", "c"], &["network", "disconnect", "devnet", "c"], &["network", "rm", "devnet"]] {
+            assert!(docker_args_allowed(&args(a)).is_ok(), "{a:?}");
+        }
         assert!(docker_args_allowed(&args(&["network", "prune"])).is_err());
+    }
+
+    #[test]
+    fn the_probe_runs_in_the_clients_network_with_values_passed_as_arguments() {
+        let a = probe_args("colima", "kafka-ui", "kafka", 9092);
+        assert!(a.contains(&"container:kafka-ui".to_string()));
+        assert!(a.contains(&"nicolaka/netshoot".to_string()));
+        // the target and port are positional parameters, never part of the script text
+        assert_eq!(&a[a.len() - 2..], &["kafka".to_string(), "9092".to_string()]);
+        assert!(!PROBE_SCRIPT.contains("kafka"));
+        assert!(PROBE_SCRIPT.contains("::dns-exit=") && PROBE_SCRIPT.contains("::tcp-exit="));
+    }
+
+    #[test]
+    fn probe_inputs_are_validated() {
+        assert!(probe_inputs_ok("colima", "kafka-ui", "kafka", 9092).is_ok());
+        assert!(probe_inputs_ok("colima-dev", "a.b_c-1", "x", 1).is_ok());
+        assert!(probe_inputs_ok("default", "a", "b", 80).is_err());
+        assert!(probe_inputs_ok("colima", "--rm", "b", 80).is_err());
+        assert!(probe_inputs_ok("colima", "a", "b c", 80).is_err());
+        assert!(probe_inputs_ok("colima", "a", "b;c", 80).is_err());
+        assert!(probe_inputs_ok("colima", "a", "", 80).is_err());
+        assert!(probe_inputs_ok("colima", "a", "b", 0).is_err());
     }
 
     #[test]
