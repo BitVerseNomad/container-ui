@@ -146,6 +146,88 @@ fn events_args_ok(args: &[String]) -> bool {
     since && until
 }
 
+// ---- Kubernetes: read-only kubectl, JSON only, Colima contexts only ----
+fn k8s_name_ok(n: &str) -> bool {
+    let edge = |c: Option<char>| c.map_or(false, |c| c.is_ascii_lowercase() || c.is_ascii_digit());
+    !n.is_empty() && n.len() <= 253 && edge(n.chars().next()) && edge(n.chars().last()) && n.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '.')
+}
+
+fn kubectl_args_allowed(args: &[String]) -> Result<(), String> {
+    let w: Vec<&str> = args.iter().map(String::as_str).collect();
+    let bad = || -> Result<(), String> { Err(format!("\"kubectl {}\" is not available from the app", args.join(" "))) };
+    match w.as_slice() {
+        ["config", "get-contexts", "-o", "name"] => Ok(()),
+        ["get", res, rest @ ..] if matches!(*res, "nodes" | "namespaces" | "pods" | "deployments" | "services" | "events") => {
+            let (mut i, mut json) = (0, false);
+            while i < rest.len() {
+                match rest[i] {
+                    "-o" if rest.get(i + 1) == Some(&"json") => { json = true; i += 2; }
+                    "-A" if !matches!(*res, "nodes" | "namespaces") => i += 1,
+                    "-n" if rest.get(i + 1).map_or(false, |v| k8s_name_ok(v)) => i += 2,
+                    _ => return bad(),
+                }
+            }
+            if json { Ok(()) } else { bad() }
+        }
+        ["logs", pod, rest @ ..] if k8s_name_ok(pod) => {
+            let (mut i, mut ns) = (0, false);
+            while i < rest.len() {
+                match rest[i] {
+                    "-n" if rest.get(i + 1).map_or(false, |v| k8s_name_ok(v)) => { ns = true; i += 2; }
+                    "-c" if rest.get(i + 1).map_or(false, |v| k8s_name_ok(v)) => i += 2,
+                    "--tail" if rest.get(i + 1).and_then(|v| v.parse::<u32>().ok()).map_or(false, |n| (1..=2000).contains(&n)) => i += 2,
+                    "--previous" => i += 1,
+                    _ => return bad(),
+                }
+            }
+            if ns { Ok(()) } else { bad() }
+        }
+        _ => bad(),
+    }
+}
+
+#[tauri::command]
+async fn kubectl(context: Option<String>, args: Vec<String>) -> Result<String, String> {
+    kubectl_args_allowed(&args)?;
+    let listing_contexts = args.first().map(String::as_str) == Some("config");
+    let mut a: Vec<String> = Vec::new();
+    match context {
+        None if listing_contexts => {}
+        Some(c) if !listing_contexts && context_ok(&c) => {
+            a.push("--context".into());
+            a.push(c);
+        }
+        _ => return Err("A Colima Kubernetes context is required".into()),
+    }
+    a.extend(args);
+    exec("kubectl", a, false).await
+}
+
+// ---- Open a terminal UI (k9s) in Terminal.app; the command is fixed and must be plain text ----
+fn terminal_script(command: &str) -> Option<String> {
+    let plain = !command.is_empty() && command.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, ' ' | '/' | '.' | '_' | '-'));
+    plain.then(|| format!("tell application \"Terminal\" to do script \"{command}\""))
+}
+
+#[tauri::command]
+fn open_terminal(kind: String, context: String) -> Result<(), String> {
+    if kind != "k9s" {
+        return Err("Only k9s can be opened from the app".into());
+    }
+    if !context_ok(&context) {
+        return Err(format!("Unknown context \"{context}\""));
+    }
+    if !cfg!(target_os = "macos") {
+        return Err("Opening Terminal is only supported on macOS".into());
+    }
+    let script = terminal_script(&format!("{} --context {}", find_bin("k9s"), context)).ok_or("That command isn't safe to open")?;
+    Command::new("osascript")
+        .args(["-e", &script, "-e", "tell application \"Terminal\" to activate"])
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
 // Colima registers "colima" (default profile) and "colima-<profile>" contexts; nothing else is used.
 fn context_ok(c: &str) -> bool {
     c == "colima" || c.strip_prefix("colima-").map_or(false, |rest| !rest.is_empty() && !rest.starts_with('-'))
@@ -321,6 +403,8 @@ struct EnvReport {
     brew: Option<Tool>,
     colima: Option<Tool>,
     docker: Option<Tool>,
+    kubectl: Option<Tool>,
+    k9s: Option<Tool>,
 }
 
 fn parse_version(out: &str) -> Option<String> {
@@ -356,7 +440,7 @@ fn tool(bin: &str) -> Option<Tool> {
 
 #[tauri::command]
 async fn env_check() -> Result<EnvReport, String> {
-    tauri::async_runtime::spawn_blocking(|| EnvReport { brew: tool("brew"), colima: tool("colima"), docker: tool("docker") })
+    tauri::async_runtime::spawn_blocking(|| EnvReport { brew: tool("brew"), colima: tool("colima"), docker: tool("docker"), kubectl: tool("kubectl"), k9s: tool("k9s") })
         .await
         .map_err(|e| e.to_string())
 }
@@ -365,7 +449,7 @@ fn validate_install(names: &[String]) -> Result<(), String> {
     if names.is_empty() {
         return Err("Nothing to install".into());
     }
-    match names.iter().find(|n| !matches!(n.as_str(), "colima" | "docker")) {
+    match names.iter().find(|n| !matches!(n.as_str(), "colima" | "docker" | "kubectl" | "k9s")) {
         Some(bad) => Err(format!("Cannot install \"{bad}\" from the app")),
         None => Ok(()),
     }
@@ -463,7 +547,7 @@ fn open_url(url: String) -> Result<(), String> {
 fn main() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
-            list_profiles, docker, docker_pull, env_check, install_tools, network_probe, start_profile, apply_resources,
+            list_profiles, docker, docker_pull, env_check, install_tools, network_probe, kubectl, open_terminal, start_profile, apply_resources,
             stop_profile, restart_profile, delete_profile, open_url
         ])
         .run(tauri::generate_context!())
@@ -649,6 +733,54 @@ mod tests {
         assert!(!https_url_ok("https://exa mple.com/"));
         assert!(!https_url_ok("javascript:alert(1)"));
         assert!(!https_url_ok("https:///path"));
+    }
+
+    #[test]
+    fn kubectl_allowlist_is_read_only_and_json() {
+        for a in [
+            &["config", "get-contexts", "-o", "name"][..],
+            &["get", "pods", "-A", "-o", "json"],
+            &["get", "nodes", "-o", "json"],
+            &["get", "pods", "-n", "shop", "-o", "json"],
+            &["get", "events", "-A", "-o", "json"],
+            &["logs", "web-abc12", "-n", "shop", "--tail", "200"],
+            &["logs", "web-abc12", "-n", "shop", "-c", "app", "--previous", "--tail", "100"],
+        ] {
+            assert!(kubectl_args_allowed(&args(a)).is_ok(), "{a:?}");
+        }
+        for a in [
+            &["delete", "pod", "x"][..],
+            &["exec", "x", "--", "sh"],
+            &["apply", "-f", "x.yaml"],
+            &["get", "secrets", "-A", "-o", "json"],
+            &["get", "pods", "-A", "-o", "yaml"],
+            &["get", "pods", "-A"],
+            &["get", "nodes", "-A", "-o", "json"],
+            &["get", "pods", "-o", "json", "--raw", "/x"],
+            &["logs", "web", "--tail", "50"],
+            &["logs", "web", "-n", "shop", "--tail", "99999"],
+            &["logs", "Web;rm", "-n", "shop"],
+            &["logs", "web", "-n", "shop", "-f"],
+            &["config", "view"],
+            &[],
+        ] {
+            assert!(kubectl_args_allowed(&args(a)).is_err(), "{a:?}");
+        }
+    }
+
+    #[test]
+    fn the_terminal_command_must_be_plain_text() {
+        assert!(terminal_script("/opt/homebrew/bin/k9s --context colima-dev").is_some());
+        for bad in ["k9s; rm -rf ~", "k9s \"x\"", "k9s $(id)", "k9s `id`", "k9s\\", "k9s && ls", ""] {
+            assert!(terminal_script(bad).is_none(), "{bad}");
+        }
+        assert!(terminal_script("k9s --context colima").unwrap().contains("do script"));
+    }
+
+    #[test]
+    fn kubectl_and_k9s_are_installable() {
+        assert!(validate_install(&["kubectl".to_string(), "k9s".to_string()]).is_ok());
+        assert!(validate_install(&["kubectl".to_string(), "kubectx".to_string()]).is_err());
     }
 
     #[test]
