@@ -19,4 +19,12 @@ Checked on 2026-10-09. Each fact is from the linked page unless marked unverifie
 ## Unverified until run on a real VM
 - The exact JSON fields of `docker events --format '{{json .}}'` (expected: Type, Action, Actor.Attributes.name/exitCode/image, time).
 - The `Status` text in `docker ps` for health, e.g. "Up 2 hours (healthy)" (the app reads health from `docker inspect`, not from that text).
-- Exit-code meanings: Docker documents 125, 126 and 127 for `docker run`; the 128+signal convention (137 killed, 143 terminated) is general Linux behaviour. Cite sources when this is built.
+- (now checked, see below) Exit-code meanings.
+
+## Exit codes (checked 2026-10-09)
+- Docker's own CLI source for `docker run` returns 127 when the command isn't found, 126 when it can't be invoked, and 125 for generic Docker daemon failures.
+  https://github.com/stapelberg/docker/blob/46a61b72402e/api/client/run.go (fork of moby/moby)
+- Signal exits are 128 + the signal number: SIGKILL (9) is 137, SIGTERM (15) is 143; sources cited: Bash Reference Manual (Exit Status) and Linux signal(7). 143 is a graceful stop and usually needs no troubleshooting; 139 is a segmentation fault; 255 is out of range; 128 on its own is an application-specific code and must not be read as a signal.
+  https://komodor.com/learn/exit-codes-in-containers-and-kubernetes-the-complete-guide/
+  https://oneuptime.com/blog/post/2026-02-08-how-to-interpret-all-docker-container-exit-codes/markdown
+- 137 means SIGKILL, which is an out-of-memory kill OR a forced kill, so the app only says "out of memory" when Docker's own `State.OOMKilled` flag is true, and otherwise says "killed".
