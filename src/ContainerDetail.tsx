@@ -40,7 +40,7 @@ export default function ContainerDetail({ ctx, id, onBack }: Props) {
   const status = paused ? "paused" : c?.State.Status ?? "";
   const ports = running ? publishedPorts(c?.NetworkSettings.Ports) : [];
   const state = c ? parseState(JSON.stringify([c])) : null;
-  const activity = usePoll(async () => timeline(parseEvents(await docker(ctx, ["events", ...eventWindow(Date.now(), 86_400_000), "--filter", `container=${name}`, "--filter", "type=container", "--format", "{{json .}}"])), 50, name), [ctx, name, tab === "Activity"], 10000);
+  const activity = usePoll(async () => timeline(parseEvents(await docker(ctx, ["events", ...eventWindow(Date.now(), 86_400_000), "--filter", `container=${name}`, "--filter", "type=container", "--format", "{{json .}}"])), 50, name), [ctx, name], 10000, !!c && tab === "Activity");
   const ip = Object.values(c?.NetworkSettings.Networks ?? {})[0]?.IPAddress;
 
   return (
@@ -101,7 +101,7 @@ export default function ContainerDetail({ ctx, id, onBack }: Props) {
         {tab === "Activity" && (
           <>
             <p className="hint">What happened to {name} in the last day, newest first.</p>
-            <ActivityList lines={activity.data ?? []} empty="Nothing notable has happened to this container recently." />
+            {activity.data === null ? <p className="hint">Loading…</p> : <ActivityList lines={activity.data} empty="Nothing notable has happened to this container recently." />}
           </>
         )}
         {tab === "Network" && c && (

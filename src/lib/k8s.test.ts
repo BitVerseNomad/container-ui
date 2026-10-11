@@ -115,3 +115,10 @@ test("events keep warnings first-class and newest first", () => {
   assert.equal(ev[0].warning, true);
   assert.equal(ev[0].count, 12);
 });
+
+import { parseNamespaces } from "./k8s.ts";
+
+test("namespaces are listed by name", () => {
+  assert.deepEqual(parseNamespaces(JSON.stringify({ items: [{ metadata: { name: "shop" } }, { metadata: { name: "default" } }] })), ["default", "shop"]);
+  assert.deepEqual(parseNamespaces("nope"), []);
+});

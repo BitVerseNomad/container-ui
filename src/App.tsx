@@ -10,6 +10,7 @@ import Containers from "./Containers";
 import Images from "./Images";
 import Volumes from "./Volumes";
 import Networks from "./Networks";
+import Kubernetes from "./Kubernetes";
 import Profiles from "./Profiles";
 import Overview, { VmState } from "./Overview";
 import InstallCard from "./InstallCard";
@@ -83,8 +84,10 @@ export default function App() {
       />
     ) : tab === "Volumes" ? (
       <Volumes key={ctx} ctx={ctx} />
-    ) : (
+    ) : tab === "Networks" ? (
       <Networks key={ctx} ctx={ctx} />
+    ) : (
+      <Kubernetes key={ctx} profile={current!} ctx={ctx} />
     );
 
   return (

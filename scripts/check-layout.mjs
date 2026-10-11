@@ -23,7 +23,7 @@ for (const [w, h] of [[1100, 680], [800, 600]]) {
   if (!(await page.$(".content"))) { bad(`.content missing at ${w}x${h}`); await page.close(); continue; }
   ok(`.content present ${w}x${h}`);
 
-  for (const name of ["Overview", "Containers", "Images", "Volumes", "Networks", "Profiles"]) {
+  for (const name of ["Overview", "Containers", "Images", "Volumes", "Networks", "Kubernetes", "Profiles"]) {
     await nav(page, name).click();
     await page.waitForTimeout(250);
     await page.screenshot({ path: `/tmp/layout-${name}-${w}.png` });

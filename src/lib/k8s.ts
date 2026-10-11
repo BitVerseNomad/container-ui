@@ -112,3 +112,5 @@ export function parseK8sEvents(json: string): K8sEvent[] {
     }))
     .sort((a, b) => b.time - a.time);
 }
+
+export const parseNamespaces = (json: string): string[] => items(json).map((n) => n.metadata?.name ?? "").filter(Boolean).sort();

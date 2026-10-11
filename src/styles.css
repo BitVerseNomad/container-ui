@@ -313,3 +313,13 @@ td .tag { margin-left: 8px; }
 .activity .when { color: var(--muted); font-size: 12px; }
 .heaviest { margin: 0; }
 .activity-block { margin-top: 4px; }
+
+/* Kubernetes */
+.k8s-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 14px; }
+.k8s-summary .panel { display: flex; flex-direction: column; gap: 2px; }
+.k8s-summary b { font-size: 20px; }
+.k8s-problems { margin-bottom: 14px; }
+.k8s-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 6px 0; flex-wrap: wrap; }
+.k8s-bar .sort select { max-width: 220px; }
+.k8s-tools button { display: inline-flex; align-items: center; gap: 6px; }
+.drawer .out-log { max-height: 320px; }

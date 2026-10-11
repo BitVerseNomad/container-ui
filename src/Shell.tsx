@@ -2,7 +2,7 @@ import { ReactNode } from "react";
 import { Profile, gbOf } from "./api";
 import { Icon, IconName } from "./ui/icons";
 
-export type Tab = "Overview" | "Containers" | "Images" | "Volumes" | "Networks" | "Profiles";
+export type Tab = "Overview" | "Containers" | "Images" | "Volumes" | "Networks" | "Kubernetes" | "Profiles";
 
 const NAV: { tab: Tab; icon: IconName }[] = [
   { tab: "Overview", icon: "gauge" },
@@ -10,6 +10,7 @@ const NAV: { tab: Tab; icon: IconName }[] = [
   { tab: "Images", icon: "image" },
   { tab: "Volumes", icon: "database" },
   { tab: "Networks", icon: "network" },
+  { tab: "Kubernetes", icon: "cluster" },
   { tab: "Profiles", icon: "sliders" },
 ];
 

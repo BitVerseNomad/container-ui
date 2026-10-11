@@ -2,7 +2,7 @@ import { ReactNode } from "react";
 
 export type IconName =
   | "gauge" | "box" | "image" | "database" | "sliders" | "play" | "stop" | "restart"
-  | "check" | "alert" | "network" | "logs" | "trash" | "search" | "download" | "close" | "info" | "copy";
+  | "cluster" | "check" | "alert" | "network" | "logs" | "trash" | "search" | "download" | "close" | "info" | "copy";
 
 const PATHS: Record<IconName, ReactNode> = {
   gauge: <><path d="M12 14l4-4" /><path d="M3.3 17a9 9 0 1 1 17.4 0" /></>,
@@ -15,6 +15,7 @@ const PATHS: Record<IconName, ReactNode> = {
   restart: <><path d="M20 12a8 8 0 1 1-2.3-5.7" /><path d="M20 4v5h-5" /></>,
   check: <><circle cx="12" cy="12" r="9" /><path d="M8 12.5l2.7 2.7L16 9.5" /></>,
   alert: <><path d="M12 3.5l9.5 16.5h-19L12 3.5z" /><path d="M12 10v4.5M12 17.5h.01" /></>,
+  cluster: <><path d="M12 3l7.8 4.5v9L12 21l-7.8-4.5v-9L12 3z" /><circle cx="12" cy="12" r="2.5" /></>,
   network: <><circle cx="12" cy="5" r="2.5" /><circle cx="5" cy="19" r="2.5" /><circle cx="19" cy="19" r="2.5" /><path d="M12 7.5v4M12 11.5L6.5 17M12 11.5l5.5 5.5" /></>,
   logs: <><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5z" /><path d="M14 3v5h5M9 13h6M9 17h6" /></>,
   trash: <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" />,

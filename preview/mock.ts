@@ -45,7 +45,11 @@ const HUB = [
 ] as const;
 
 const scenario = typeof location !== "undefined" ? new URLSearchParams(location.search).get("scenario") ?? "running" : "running";
-const env = {
+const k8sMode = typeof location !== "undefined" ? new URLSearchParams(location.search).get("k8s") ?? "on" : "on";
+let k8sOn = k8sMode === "on" || k8sMode === "nokubectl";
+const env: Record<string, any> = {
+  kubectl: k8sMode === "nokubectl" ? null : { path: "/opt/homebrew/bin/kubectl", version: "" },
+  k9s: { path: "/opt/homebrew/bin/k9s", version: "" },
   brew: scenario === "nobrew" ? null : { path: "/opt/homebrew/bin/brew", version: "4.4.2" },
   colima: ["missing", "partial", "nobrew"].includes(scenario) ? null : { path: "/opt/homebrew/bin/colima", version: "0.8.1" },
   docker: ["missing", "nobrew"].includes(scenario) ? null : { path: "/opt/homebrew/bin/docker", version: "27.3.1" },
@@ -152,6 +156,41 @@ export async function invoke<T>(cmd: string, a: Record<string, any> = {}): Promi
       const tcp = shared && declared.includes(a.port) ? `Connection to ${a.target} (${ipOf(to!, "devnet")}) ${a.port} port [tcp/*] succeeded!\n` : `nc: connect to ${a.target} port ${a.port} (tcp) failed: Connection refused\n`;
       return `${dns}::dns-exit=${shared ? 0 : 1}\n${tcp}::tcp-exit=${shared && declared.includes(a.port) ? 0 : 1}\n` as T;
     }
+    case "open_terminal": ((window as any).__terminal ??= []).push({ kind: a.kind, context: a.context }); return undefined as T;
+    case "kubectl": {
+      const args: string[] = a.args;
+      if (args[0] === "config") return (k8sOn ? "colima\n" : "") as T;
+      if (!k8sOn) throw "The connection to the server was refused";
+      const now = Date.now(), iso = (agoMs: number) => new Date(now - agoMs).toISOString();
+      const pod = (ns: string, name: string, status: object, agoMs = 3.6e6, containers = [{ name: "app" }]) => ({ metadata: { name, namespace: ns, creationTimestamp: iso(agoMs) }, spec: { nodeName: "colima", containers }, status });
+      const cs = (state: object, restartCount = 0, ready = false, lastState?: object) => ({ name: "app", ready, restartCount, state, ...(lastState ? { lastState } : {}) });
+      const podsAll = [
+        pod("kube-system", "coredns-5f9c", { phase: "Running", containerStatuses: [cs({ running: {} }, 0, true)] }, 9e6),
+        pod("shop", "web-7d9f", { phase: "Running", containerStatuses: [cs({ running: {} }, 0, true)] }),
+        pod("shop", "api-5c4d", { phase: "Running", containerStatuses: [cs({ waiting: { reason: "CrashLoopBackOff" } }, 9, false, { terminated: { reason: "Error", exitCode: 1 } })] }),
+        pod("shop", "worker-6f2a", { phase: "Pending", containerStatuses: [cs({ waiting: { reason: "ImagePullBackOff" } })] }),
+        pod("shop", "report-8a1b", { phase: "Pending", conditions: [{ type: "PodScheduled", status: "False", reason: "Unschedulable", message: "0/1 nodes are available: 1 Insufficient memory." }] }),
+        pod("shop", "cache-1b3c", { phase: "Running", containerStatuses: [cs({ running: {} }, 2, true, { terminated: { reason: "OOMKilled", exitCode: 137 } })] }),
+      ];
+      if (args[0] === "logs") {
+        const name = args[1];
+        return (name.startsWith("api-") ? Array.from({ length: 30 }, (_, i) => i % 3 === 0 ? "2026-10-10T12:00:0" + (i % 10) + "Z ERROR: connection refused (db:5432)" : "2026-10-10T12:00:0" + (i % 10) + "Z starting api server on :8080").join("\n") : "2026-10-10T12:00:00Z ready to serve\n") as T;
+      }
+      const res = args[1];
+      const list = (items: object[]) => JSON.stringify({ items }) as T;
+      if (res === "nodes") return list([{ metadata: { name: "colima" }, status: { nodeInfo: { kubeletVersion: "v1.30.2+k3s1" }, conditions: [{ type: "Ready", status: "True" }] } }]);
+      if (res === "namespaces") return list(["default", "kube-system", "shop"].map((name) => ({ metadata: { name } })));
+      if (res === "pods") return list(podsAll);
+      if (res === "deployments") return list([["web", 1, 1], ["api", 1, 0], ["worker", 1, 0]].map(([name, want, have]) => ({ metadata: { name, namespace: "shop" }, spec: { replicas: want }, status: { readyReplicas: have } })));
+      if (res === "services") return list([{ metadata: { name: "web", namespace: "shop" }, spec: { type: "ClusterIP", clusterIP: "10.43.0.5", ports: [{ port: 80, targetPort: 8080, protocol: "TCP" }] } }, { metadata: { name: "kubernetes", namespace: "default" }, spec: { type: "ClusterIP", clusterIP: "10.43.0.1", ports: [{ port: 443, targetPort: 6443, protocol: "TCP" }] } }]);
+      if (res === "events") return list([
+        { type: "Warning", reason: "BackOff", message: "Back-off restarting failed container app in pod api-5c4d", involvedObject: { kind: "Pod", name: "api-5c4d", namespace: "shop" }, count: 12, lastTimestamp: iso(2 * 60e3) },
+        { type: "Warning", reason: "Failed", message: "Failed to pull image: pull access denied", involvedObject: { kind: "Pod", name: "worker-6f2a", namespace: "shop" }, count: 4, lastTimestamp: iso(5 * 60e3) },
+        { type: "Warning", reason: "FailedScheduling", message: "0/1 nodes are available: 1 Insufficient memory.", involvedObject: { kind: "Pod", name: "report-8a1b", namespace: "shop" }, count: 2, lastTimestamp: iso(9 * 60e3) },
+        { type: "Normal", reason: "Pulled", message: "Successfully pulled image", involvedObject: { kind: "Pod", name: "web-7d9f", namespace: "shop" }, count: 1, lastTimestamp: iso(60 * 60e3) },
+      ]);
+      throw `mock: unsupported kubectl command ${args.join(" ")}`;
+    }
     case "env_check": return { ...env } as T; // a fresh object per call, like the real IPC
     case "install_tools": {
       for (const n of a.names as string[]) {
@@ -169,6 +208,7 @@ export async function invoke<T>(cmd: string, a: Record<string, any> = {}): Promi
       await progress("colima-progress", [['time="2026-10-04T12:00:00Z" level=info msg="starting colima [profile=default]"', 150], ["\x1b[32mINFO\x1b[0m[0001] runtime: docker", 200], ["> Downloading the image (ubuntu-24.04)", 200], ["Downloading 12%", 200], ["\rDownloading 45%", 300], ["\rDownloading 100%", 300], ['level=warning msg="disk is slow"', 200]]);
       const o = a.opts; const p = db.profiles.find((x) => x.name === o.name);
       await progress("colima-progress", [[`INFO[0004] creating and starting ...   context=vm`, 400], ['level=info msg="done"', 300]]);
+      if (o.kubernetes) k8sOn = true;
       if (p) { Object.assign(p, { status: "Running" }); if (o.cpus) p.cpus = o.cpus; if (o.memory) p.memory = o.memory * GB; if (o.disk) p.disk = o.disk * GB; }
       else db.profiles.push({ name: o.name, status: "Running", arch: "aarch64", cpus: o.cpus ?? 2, memory: (o.memory ?? 2) * GB, disk: (o.disk ?? 100) * GB, runtime: o.runtime ?? "docker", address: "" });
       return undefined as T;
