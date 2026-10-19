@@ -1,5 +1,8 @@
 # Colima UI
 
+**Start here:** `docs/SUMMARY.md` (what we built, verified and learned), `docs/SPEC.md` (what is left to do), `docs/VERIFY-ON-YOUR-MAC.md` (15-minute real-machine check), `docs/EVALUATION.md` (side-by-side test against other tools). Branch to use: `integration`. Single-file artifacts (browser preview, scorecard) are in `artifacts/`.
+
+
 A small Tauri desktop app that manages Colima profiles by shelling out to the `colima` CLI.
 
 ## Run
