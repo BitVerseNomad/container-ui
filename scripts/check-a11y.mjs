@@ -10,10 +10,10 @@ const check = (c, m) => { console.log(c ? "ok" : "FAIL", m); if (!c) failed++; }
 const browser = await chromium.launch();
 const p = await browser.newPage({ viewport: { width: 1100, height: 680 } });
 await p.goto(`file://${root}/preview/index.html`);
-await p.waitForSelector(".ov-row");
+await p.waitForSelector("table.list tbody tr");
 const nav = (n) => p.locator(".sidebar").getByRole("button", { name: n, exact: true }).click();
 
-for (const page of ["Overview", "Containers", "Images", "Volumes", "Networks", "Kubernetes", "Profiles"]) {
+for (const page of ["Containers", "Images", "Volumes", "Networks", "Kubernetes", "Profiles"]) {
   await nav(page);
   await p.waitForTimeout(400);
   const r = await p.evaluate(() => ({
@@ -49,8 +49,8 @@ check(await p.evaluate(() => document.activeElement?.tagName === "BUTTON" && doc
 for (const scheme of ["light", "dark"]) {
   const page = await browser.newPage({ viewport: { width: 1100, height: 680 }, colorScheme: scheme });
   await page.goto(`file://${root}/preview/index.html`);
-  await page.waitForSelector(".ov-row");
-  for (const name of ["Overview", "Containers", "Images", "Volumes", "Networks", "Kubernetes", "Profiles"]) {
+  await page.waitForSelector("table.list tbody tr");
+  for (const name of ["Containers", "Images", "Volumes", "Networks", "Kubernetes", "Profiles"]) {
     await page.locator(".sidebar").getByRole("button", { name, exact: true }).click();
     await page.waitForTimeout(350);
     const bad = await page.evaluate(() => {

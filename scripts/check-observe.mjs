@@ -13,31 +13,27 @@ async function open(tab) {
   p.errors = [];
   p.on("pageerror", (e) => p.errors.push(e.message));
   await p.goto(`file://${root}/preview/index.html`);
-  await p.waitForSelector(".ov-row");
-  if (tab !== "Overview") await p.locator(".sidebar").getByRole("button", { name: tab, exact: true }).click();
+  await p.waitForSelector("table.list tbody tr");
+  if (tab !== "Containers") await p.locator(".sidebar").getByRole("button", { name: tab, exact: true }).click();
   return p;
 }
 
-// Overview: problems in plain words, recent activity, heaviest containers
-let p = await open("Overview");
-await p.waitForSelector(".problems .problem", { timeout: 8000 }).catch(() => {});
-let t = await p.locator(".problems").innerText().catch(() => "");
-check(/api/.test(t) && /health check is failing/i.test(t), "overview: an unhealthy container is listed with a plain reason");
-check(/report-job/.test(t) && /too much memory/i.test(t), "overview: an out-of-memory stop is called out");
-check(/worker/.test(t) && /keeps restarting/i.test(t), "overview: a container that keeps restarting is called out");
-check(!/\bweb\b/.test(t), "overview: healthy containers are not listed as problems");
-await p.waitForSelector(".activity li", { timeout: 8000 }).catch(() => {});
-t = await p.locator(".activity").innerText().catch(() => "");
-check(/api became unhealthy/.test(t) && /report-job ran out of memory/.test(t) && /ago/.test(t), "overview: recent activity reads in plain words with times");
-check(/Heaviest right now/.test(await p.locator(".content").innerText()) && /kafka/.test(await p.locator(".heaviest").innerText()), "overview: shows the heaviest containers");
-check(await p.locator(".content .primary:visible").count() === 1, "overview: still exactly one primary button");
-await p.screenshot({ path: "/tmp/obs-overview.png" });
-await p.locator(".problem", { hasText: "api" }).getByRole("button", { name: /Open/ }).click();
+// Home: problems in plain words under each container's status
+let p = await open("Containers");
+await p.waitForSelector("table.list .plevel", { timeout: 8000 }).catch(() => {});
+const row = (name) => p.locator("table.list tbody tr", { has: p.locator("b", { hasText: new RegExp(`^${name}$`) }) }).first().innerText().catch(() => "");
+check(/health check is failing/i.test(await row("api")), "home: an unhealthy container shows a plain reason");
+check(/too much memory|ran out of memory/i.test(await row("report-job")), "home: an out-of-memory stop is called out");
+check(/keeps restarting/i.test(await row("worker")), "home: a container that keeps restarting is called out");
+check(!/failing|memory|restarting/i.test(await row("web")), "home: healthy containers carry no problem line");
+check(await p.locator(".content .primary:visible").count() === 1, "home: still exactly one primary button");
+await p.screenshot({ path: "/tmp/obs-home.png" });
+await p.locator("table.list button.link-plain", { hasText: "api" }).first().click();
 await p.waitForSelector(".detail");
 
 // container page: health panel with the last check's output
 await p.waitForSelector(".health-panel", { timeout: 4000 }).catch(() => {});
-t = await p.locator(".health-panel").innerText().catch(() => "");
+let t = await p.locator(".health-panel").innerText().catch(() => "");
 check(/unhealthy/i.test(t) && /Connection refused/.test(t) && /5 checks in a row/.test(t), "container page: shows what the failing health check said");
 check(/Restarts/.test(t), "container page: shows restarts");
 await p.screenshot({ path: "/tmp/obs-container.png" });
@@ -45,10 +41,9 @@ await p.close();
 
 // containers list: health badges
 p = await open("Containers");
-await p.waitForSelector("tbody tr");
 check(/unhealthy/.test(await p.locator("tr", { hasText: "api" }).first().innerText()), "containers: an unhealthy badge on api");
 check(/healthy/.test(await p.locator("tr", { hasText: "web" }).first().innerText()), "containers: a healthy badge on web");
-await p.locator("table button.link", { hasText: "report-job" }).click();
+await p.locator("table.list button.link-plain", { hasText: "report-job" }).click();
 await p.waitForSelector(".detail");
 t = await p.locator(".health-panel").innerText();
 check(/too much memory/i.test(t) && /No health check/i.test(t), "container page: out-of-memory is explained, and a missing health check is said plainly");

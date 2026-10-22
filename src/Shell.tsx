@@ -1,11 +1,10 @@
 import { ReactNode } from "react";
-import { Profile, gbOf } from "./api";
+import { Profile } from "./api";
 import { Icon, IconName } from "./ui/icons";
 
-export type Tab = "Overview" | "Containers" | "Images" | "Volumes" | "Networks" | "Kubernetes" | "Profiles";
+export type Tab = "Containers" | "Images" | "Volumes" | "Networks" | "Kubernetes" | "Profiles";
 
 const NAV: { tab: Tab; icon: IconName }[] = [
-  { tab: "Overview", icon: "gauge" },
   { tab: "Containers", icon: "box" },
   { tab: "Images", icon: "image" },
   { tab: "Volumes", icon: "database" },
@@ -30,10 +29,7 @@ export default function Shell({ nav, onNav, profiles, active, onSelect, children
       <div className="sidebar">
         <div className="brand">
           <span className="logo"><Icon name="box" size={18} /></span>
-          <div>
-            <b>Colima</b>
-            <small>Local runtimes</small>
-          </div>
+          <b>Colima</b>
         </div>
         <nav aria-label="Main">
           {NAV.map(({ tab, icon }) => (
@@ -54,7 +50,6 @@ export default function Shell({ nav, onNav, profiles, active, onSelect, children
           ) : (
             <b>{current?.name ?? "none"}</b>
           )}
-          <span className="foot-sub">{current ? `${current.runtime} · ${current.cpus} CPU · ${gbOf(current.memory)} GB` : "No VM yet"}</span>
         </div>
       </div>
       <main className="content">{children}</main>

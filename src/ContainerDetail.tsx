@@ -45,7 +45,7 @@ export default function ContainerDetail({ ctx, id, onBack }: Props) {
 
   return (
     <section className="detail">
-      <button className="back" onClick={onBack}>Back to containers</button>
+      <button className="back" onClick={onBack}>← Containers</button>
       <header>
         <h2>{name}</h2>
         <span className={running ? "state on" : "state"}>{status}</span>

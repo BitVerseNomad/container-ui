@@ -26,7 +26,7 @@ export default function InstallTool({ title, name, hasBrew, onDone }: { title: s
       {hasBrew ? (
         <button className="primary" disabled={busy} onClick={install}>{busy ? "Installing…" : "Install with Homebrew"}</button>
       ) : (
-        <p className="hint">Homebrew isn't installed yet. The Overview page explains how to install it.</p>
+        <p className="hint">Homebrew isn't installed yet. The Containers screen explains how to install it.</p>
       )}
       <OutputLog event="brew-progress" active={busy} failure={failure} />
     </div>

@@ -23,7 +23,7 @@ for (const [w, h] of [[1100, 680], [800, 600]]) {
   if (!(await page.$(".content"))) { bad(`.content missing at ${w}x${h}`); await page.close(); continue; }
   ok(`.content present ${w}x${h}`);
 
-  for (const name of ["Overview", "Containers", "Images", "Volumes", "Networks", "Kubernetes", "Profiles"]) {
+  for (const name of ["Containers", "Images", "Volumes", "Networks", "Kubernetes", "Profiles"]) {
     await nav(page, name).click();
     await page.waitForTimeout(250);
     await page.screenshot({ path: `/tmp/layout-${name}-${w}.png` });
@@ -31,7 +31,7 @@ for (const [w, h] of [[1100, 680], [800, 600]]) {
   }
 
   await nav(page, "Containers").click();
-  await page.locator("table button.link").first().click();
+  await page.locator("table.list button.link-plain").first().click();
   await page.waitForSelector(".logs");
   await page.waitForFunction(() => (document.querySelector(".logs")?.textContent ?? "").length > 500);
   const logs = await page.evaluate(() => { const el = document.querySelector(".logs"); return { scrollable: el.scrollHeight > el.clientHeight }; });
@@ -43,11 +43,11 @@ for (const [w, h] of [[1100, 680], [800, 600]]) {
   await page.screenshot({ path: `/tmp/layout-Logs-${w}.png` });
 
   if (w === 1100) {
-    await page.waitForFunction(() => /CPU/.test(document.querySelector(".side-foot")?.textContent ?? ""));
+    await page.waitForFunction(() => /default/.test(document.querySelector(".side-foot")?.textContent ?? ""));
     (await page.locator(".side-foot select").count()) === 0 ? ok("footer is plain text with one profile") : bad("footer has a picker with one profile");
     const two = await browser.newPage({ viewport: { width: w, height: h } });
     await two.goto(url("?scenario=two"));
-    await two.waitForFunction(() => /CPU/.test(document.querySelector(".side-foot")?.textContent ?? ""), null, { timeout: 4000 }).catch(() => {});
+    await two.waitForFunction(() => /default/.test(document.querySelector(".side-foot")?.textContent ?? ""), null, { timeout: 4000 }).catch(() => {});
     (await two.locator(".side-foot select").count()) === 1 ? ok("footer is a picker with two profiles") : bad("footer has no picker with two profiles");
     await two.close();
   }

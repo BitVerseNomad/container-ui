@@ -85,10 +85,11 @@ export default function Kubernetes({ profile, ctx }: { profile: Profile; ctx: st
 
   return (
     <section className="k8s">
-      <div className="k8s-summary">
-        <Card><b>{ready} node{ready === 1 ? "" : "s"} ready</b><span className="hint">{nodes.error ? "The cluster isn't answering yet" : (nodes.data ?? []).map((n) => n.version).filter(Boolean)[0] ?? ""}</span></Card>
-        <Card><b>{running} pods running</b><span className="hint">of {(pods.data ?? []).length}</span></Card>
-        <Card><b>{sick.length} need attention</b><span className="hint">{sick.length ? "see below" : "all good"}</span></Card>
+      <div className="vm-strip k8s-summary">
+        <span className={`sdot ${nodes.error ? "bad" : ready ? "on" : ""}`} aria-hidden="true" />
+        <b>{ready} node{ready === 1 ? "" : "s"} ready</b>
+        <span className="hint">{nodes.error ? "The cluster isn't answering yet" : (nodes.data ?? []).map((n) => n.version).filter(Boolean)[0] ?? ""}</span>
+        <span className="uses"><span>{running} of {(pods.data ?? []).length} pods running</span>{sick.length > 0 && <span className="plevel bad">{sick.length} need attention</span>}</span>
       </div>
 
       {sick.length > 0 && (

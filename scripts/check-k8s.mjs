@@ -13,7 +13,7 @@ async function open(k8s = "on") {
   p.errors = [];
   p.on("pageerror", (e) => p.errors.push(e.message));
   await p.goto(`file://${root}/preview/index.html?k8s=${k8s}`);
-  await p.waitForSelector(".ov-row");
+  await p.waitForSelector("table.list tbody tr");
   await p.locator(".sidebar").getByRole("button", { name: "Kubernetes", exact: true }).click();
   return p;
 }

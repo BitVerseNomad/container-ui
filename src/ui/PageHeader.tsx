@@ -1,13 +1,10 @@
 import { ReactNode } from "react";
 
-export default function PageHeader({ breadcrumb, title, status }: { breadcrumb: string; title: string; status?: ReactNode }) {
+export default function PageHeader({ title, actions }: { title: string; actions?: ReactNode }) {
   return (
     <header className="page-head">
-      <div>
-        <div className="crumb">{breadcrumb}</div>
-        <h1>{title}</h1>
-      </div>
-      {status}
+      <h1>{title}</h1>
+      {actions}
     </header>
   );
 }

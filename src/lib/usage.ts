@@ -1,4 +1,4 @@
-// Totals for the Overview meters, from `docker stats --no-stream` and `docker system df` rows.
+// Totals for the VM strip, from `docker stats --no-stream` and `docker system df` rows.
 import { parseBytes, parsePercent, parseUsage } from "../containerInfo.ts";
 
 export type StatRow = { CPUPerc: string; MemUsage: string };
