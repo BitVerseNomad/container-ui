@@ -65,7 +65,12 @@ export default function Doctor({ ctx, from: initialFrom, onClose }: Props) {
         }
         probe = parseProbe(await invoke<string>("network_probe", { context: ctx, from, target: to, port: portNum }));
       }
-      setFindings(diagnose({ from: fromFacts, to: toFacts, port: portNum, probe }));
+      // Services print the address they hand out while starting, so the first two minutes of the log are enough.
+      const startedAt = Date.parse(JSON.parse(b)[0]?.State?.StartedAt ?? "");
+      const toLog = toFacts.running && Number.isFinite(startedAt)
+        ? await docker(ctx, ["logs", "--since", String(Math.floor(startedAt / 1000)), "--until", String(Math.floor(startedAt / 1000) + 120), to], true).then((log) => log.slice(0, 200_000)).catch(() => "")
+        : "";
+      setFindings(diagnose({ from: fromFacts, to: toFacts, port: portNum, probe, toLog }));
     } catch (e) {
       setError(String(e));
     } finally {
@@ -123,21 +128,24 @@ export default function Doctor({ ctx, from: initialFrom, onClose }: Props) {
 
       {findings && (
         <ul className="findings">
-          {findings.map((f) => (
+          {findings.map((f) => {
+            const connectFix = f.fix?.kind === "connect" && f.fix.containers.length > 0 ? f.fix : null;
+            return (
             <li key={f.id + f.title} className={`finding ${f.status}`}>
               <Icon name={ICON[f.status]} size={16} />
               <div>
                 <b>{f.title}</b>
                 <div className="hint">{f.detail}</div>
-                {f.fix?.kind === "connect" && f.fix.containers.length > 0 && (
-                  <button className="primary" disabled={busy} onClick={() => connect(f.fix!.kind === "connect" ? f.fix.network : "", f.fix!.kind === "connect" ? f.fix.containers : [])}>
-                    Connect {f.fix.containers.join(" and ")} to {f.fix.network}
+                {connectFix && (
+                  <button className="primary" disabled={busy} onClick={() => connect(connectFix.network, connectFix.containers)}>
+                    Connect {connectFix.containers.join(" and ")} to {connectFix.network}
                   </button>
                 )}
                 {f.fix?.kind === "copy" && <button onClick={() => navigator.clipboard.writeText((f.fix as { text: string }).text)}>{f.fix.label}</button>}
               </div>
             </li>
-          ))}
+            );
+          })}
         </ul>
       )}
       {findings && hub && (

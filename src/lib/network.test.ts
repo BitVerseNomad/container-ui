@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  parseNetworks, parseContainerFacts, sharedNetworks, localhostSettings, parseNslookup, parseProbe, diagnose,
+  parseNetworks, parseContainerFacts, sharedNetworks, localhostSettings, parseNslookup, parseProbe, diagnose, handedBackLocalhost,
   type ContainerFacts,
 } from "./network.ts";
 
@@ -131,4 +131,73 @@ test("localhost settings in the client are warned about even when the network ch
   assert.equal(l.status, "warn");
   assert.deepEqual(l.fix, { kind: "copy", label: "Copy corrected setting", text: "X=kafka:9092" });
   assert.equal(byId(f, "summary"), undefined);
+});
+
+// Real line from apache/kafka:3.9.0 startup on Colima (2026-10-22); the CONTROLLER listener is internal to the broker.
+const KAFKA_STARTUP = "[2026-10-22 17:22:16,001] INFO KafkaConfig values:\n\tadvertised.listeners = PLAINTEXT://localhost:9092,CONTROLLER://localhost:9093\n\tlisteners = PLAINTEXT://:9092,CONTROLLER://:9093\n";
+
+test("given a target whose startup log advertises localhost on the port in use, when scanned, then the setting is named with a corrected value", () => {
+  assert.deepEqual(handedBackLocalhost([], KAFKA_STARTUP, "kafka", [9092]), [
+    { key: "advertised.listeners", value: "PLAINTEXT://localhost:9092,CONTROLLER://localhost:9093", fixed: "PLAINTEXT://kafka:9092,CONTROLLER://localhost:9093", entries: ["localhost:9092"] },
+  ]);
+});
+
+test("given advertise-style env settings, when they point at localhost, then they are flagged whatever the service", () => {
+  const found = handedBackLocalhost(["REDIS_REPLICA_ANNOUNCE_IP=127.0.0.1:6379", "ES_NETWORK_PUBLISH_HOST=localhost:9200", "DB_HOST=localhost:5432"], "", "svc", [6379, 9200, 5432]);
+  assert.deepEqual(found.map((f) => f.key), ["REDIS_REPLICA_ANNOUNCE_IP", "ES_NETWORK_PUBLISH_HOST"]);
+  assert.equal(found[0].fixed, "svc:6379");
+});
+
+test("given an advertised address that is already the container name, when scanned, then nothing is flagged", () => {
+  assert.deepEqual(handedBackLocalhost(["KAFKA_ADVERTISED_LISTENERS=INTERNAL://kafka:29092,EXTERNAL://localhost:9092"], "", "kafka", [29092]), []);
+});
+
+test("given the same setting in env and log, when scanned, then each source is reported", () => {
+  assert.equal(handedBackLocalhost(["KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9092"], KAFKA_STARTUP, "kafka", [9092]).length, 2);
+});
+
+test("given a two-listener Kafka, when the client uses the Mac's port, then the container address is offered, not a rewrite", () => {
+  const [f] = handedBackLocalhost(["KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092"], "", "kafka", [9092]);
+  assert.equal(f.containerAddr, "kafka:29092");
+  const facts = (name: string, env: string[] = []): ContainerFacts => ({ name, running: true, env, ports: [9092], nets: [{ network: "devnet", ip: "", aliases: [] }] });
+  const out = diagnose({ from: facts("kafka-ui"), to: facts("kafka", ["KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092"]), port: 9092, probe: { dns: { ok: true, ip: "x" }, tcp: { ok: true } } });
+  const h = out.find((x) => x.id === "handback")!;
+  assert.equal(h.status, "warn");
+  assert.deepEqual(h.fix, { kind: "copy", label: "Copy container address", text: "kafka:29092" });
+});
+
+test("given a host name that only contains localhost, when scanned, then it is not flagged", () => {
+  assert.deepEqual(handedBackLocalhost(["X_PUBLISH_URL=http://mylocalhost:8080"], "", "web", [8080]), []);
+});
+
+test("given loopback written another way, when scanned, then it is flagged", () => {
+  const found = handedBackLocalhost(["A_ADVERTISED=[::1]:9092", "B_ANNOUNCE=0.0.0.0:6379", "C_PUBLISH_HOST=127.0.0.1"], "cluster-announce-ip 127.0.0.1\n", "svc", [9092, 6379]);
+  assert.deepEqual(found.map((f) => f.fixed), ["svc:9092", "svc:6379", "svc", "svc"]);
+});
+
+test("given a config-style log line, when the key reads like prose, then it is ignored", () => {
+  assert.deepEqual(handedBackLocalhost([], "published 3 topics at localhost:9092\n", "kafka", [9092]), []);
+});
+
+test("given every network check passes but the target advertises localhost, when diagnosed, then it fails with the handed-back address instead of a generic note", () => {
+  const facts = (name: string, env: string[] = []): ContainerFacts => ({ name, running: true, env, ports: [9092], nets: [{ network: "devnet", ip: "", aliases: [] }] });
+  const out = diagnose({ from: facts("kafka-ui"), to: facts("kafka"), port: 9092, probe: { dns: { ok: true, ip: "172.19.0.2" }, tcp: { ok: true } }, toLog: KAFKA_STARTUP });
+  const f = out.find((x) => x.id === "handback")!;
+  assert.equal(f.status, "fail");
+  assert.match(f.title, /kafka tells other containers to use localhost/);
+  assert.ok(!out.some((x) => x.id === "summary"));
+});
+
+test("given a correctly split Kafka (containers on 29092, the Mac on localhost:9092), when the client uses 29092, then nothing is flagged", () => {
+  const facts = (name: string, env: string[] = []): ContainerFacts => ({ name, running: true, env, ports: [9092], nets: [{ network: "devnet", ip: "", aliases: [] }] });
+  const env = ["KAFKA_ADVERTISED_LISTENERS=INTERNAL://kafka:29092,EXTERNAL://localhost:9092"];
+  const log = "\tadvertised.listeners = INTERNAL://kafka:29092,EXTERNAL://localhost:9092\n";
+  const out = diagnose({ from: facts("kafka-ui"), to: facts("kafka", env), port: 29092, probe: { dns: { ok: true, ip: "172.19.0.2" }, tcp: { ok: true } }, toLog: log });
+  assert.ok(!out.some((x) => x.id === "handback"));
+});
+
+test("given the same advertised value in env and log, when diagnosed, then it is reported once", () => {
+  const facts = (name: string, env: string[] = []): ContainerFacts => ({ name, running: true, env, ports: [9092], nets: [{ network: "devnet", ip: "", aliases: [] }] });
+  const out = diagnose({ from: facts("ui"), to: facts("kafka", ["KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9092"]), port: 9092, probe: { dns: { ok: true, ip: "x" }, tcp: { ok: true } }, toLog: "\tadvertised.listeners = PLAINTEXT://localhost:9092\n" });
+  assert.equal(out.filter((x) => x.id === "handback").length, 1);
 });

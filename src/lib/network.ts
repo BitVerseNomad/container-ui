@@ -59,12 +59,63 @@ export function localhostSettings(env: string[], target: string, ports: number[]
     const value = entry.slice(eq + 1);
     if (IGNORED_KEYS.has(key)) continue;
     let hit = false;
-    const fixedValue = value.replace(/(localhost|127\.0\.0\.1):(\d+)/g, (m, _host, port) => {
+    const fixedValue = value.replace(/(?<![\w.-])(localhost|127\.0\.0\.1):(\d+)/g, (m, _host, port) => {
       if (!ports.includes(Number(port))) return m;
       hit = true;
       return `${target}:${port}`;
     });
     if (hit) out.push({ key, value, fixed: `${key}=${fixedValue}` });
+  }
+  return out;
+}
+
+// Some services hand clients a second address after the first connection (Kafka's advertised listeners,
+// Elasticsearch's publish host, Redis and Mongo announce addresses). The setting names share a few words,
+// so one pattern covers them without per-image rules. Reads the target's env ("KEY=value") and its
+// startup log ("key = value", "key: value", or config style "some-key value").
+const HANDBACK_KEY = /(advertis|announce|publish|broadcast)/i;
+const LOG_SETTING = /^\s*([A-Za-z][\w.-]*)\s*[=:]\s*(\S.*?)\s*$/;
+const CONFIG_LINE = /^\s*([a-z]+(?:[-._][a-z]+)+)\s+(\S+)\s*$/;
+const LOOPBACK = /^(localhost|127\.0\.0\.1|\[::1\]|0\.0\.0\.0)$/;
+const HOST_PORT = /(?<![\w.-])(\[[^\]\s]*\]|[A-Za-z0-9_.-]+):(\d+)/g;
+
+export type Handback = { key: string; value: string; fixed: string; entries: string[]; containerAddr?: string };
+
+export function handedBackLocalhost(env: string[], log: string, target: string, ports: number[]): Handback[] {
+  const candidates: [string, string][] = [];
+  for (const entry of env) {
+    const eq = entry.indexOf("=");
+    if (eq > 0) candidates.push([entry.slice(0, eq), entry.slice(eq + 1)]);
+  }
+  for (const line of log.split("\n")) {
+    const m = LOG_SETTING.exec(line) ?? CONFIG_LINE.exec(line);
+    if (m) candidates.push([m[1], m[2]]);
+  }
+  const seen = new Set<string>();
+  const out: Handback[] = [];
+  for (const [key, value] of candidates) {
+    if (!HANDBACK_KEY.test(key) || seen.has(key)) continue;
+    // A bare loopback host with no port (publish_host=127.0.0.1) is the whole problem on its own.
+    if (LOOPBACK.test(value.trim())) {
+      seen.add(key);
+      out.push({ key, value, fixed: target, entries: [value.trim()] });
+      continue;
+    }
+    const entries: string[] = [];
+    let containerAddr: string | undefined;
+    const fixed = value.replace(HOST_PORT, (m, host, port) => {
+      if (!LOOPBACK.test(host)) {
+        containerAddr ??= m;
+        return m;
+      }
+      if (!ports.includes(Number(port))) return m;
+      entries.push(m);
+      return `${target}:${port}`;
+    });
+    if (entries.length) {
+      seen.add(key);
+      out.push({ key, value, fixed, entries, ...(containerAddr ? { containerAddr } : {}) });
+    }
   }
   return out;
 }
@@ -93,10 +144,10 @@ export function parseProbe(out: string): ProbeResult {
 export type Fix =
   | { kind: "connect"; network: string; containers: string[] }
   | { kind: "copy"; label: string; text: string };
-export type Finding = { id: "running" | "network" | "dns" | "port" | "localhost" | "summary"; status: "ok" | "warn" | "fail" | "info"; title: string; detail: string; fix?: Fix };
-export type Facts = { from: ContainerFacts; to: ContainerFacts; port: number; probe: ProbeResult | null };
+export type Finding = { id: "running" | "network" | "dns" | "port" | "localhost" | "handback" | "summary"; status: "ok" | "warn" | "fail" | "info"; title: string; detail: string; fix?: Fix };
+export type Facts = { from: ContainerFacts; to: ContainerFacts; port: number; probe: ProbeResult | null; toLog?: string };
 
-export function diagnose({ from, to, port, probe }: Facts): Finding[] {
+export function diagnose({ from, to, port, probe, toLog = "" }: Facts): Finding[] {
   const out: Finding[] = [];
   const stopped = [from, to].filter((c) => !c.running);
   if (stopped.length) {
@@ -146,6 +197,28 @@ export function diagnose({ from, to, port, probe }: Facts): Finding[] {
       detail: `${s.key}=${s.value}. Inside a container, localhost means the container itself. Use ${to.name} instead.`,
       fix: { kind: "copy", label: "Copy corrected setting", text: s.fixed },
     });
+  }
+
+  // Only the port the client uses matters: a localhost address on another port is often meant for the Mac.
+  const handbacks = handedBackLocalhost(to.env, toLog, to.name, [port]).filter((s, i, all) => all.findIndex((o) => o.entries.join() === s.entries.join()) === i);
+  for (const s of handbacks) {
+    out.push(
+      s.containerAddr
+        ? {
+            id: "handback",
+            status: "warn",
+            title: `${to.name} has a separate address for containers`,
+            detail: `Its setting ${s.key} is ${s.value}. Port ${port} hands back localhost, which suits your Mac but not ${from.name}. Point ${from.name} at ${s.containerAddr} instead.`,
+            fix: { kind: "copy", label: "Copy container address", text: s.containerAddr },
+          }
+        : {
+            id: "handback",
+            status: "fail",
+            title: `${to.name} tells other containers to use localhost`,
+            detail: `Its setting ${s.key} is ${s.value}. ${from.name} reaches ${to.name} first, then is told to reconnect to localhost, which inside ${from.name} is ${from.name} itself. Change it to ${s.fixed} and recreate ${to.name}. To keep reaching it from your Mac too, the service needs a second address for localhost; its setup notes explain how.`,
+            fix: { kind: "copy", label: "Copy corrected value", text: s.fixed },
+          },
+    );
   }
 
   if (out.every((f) => f.status === "ok")) {
