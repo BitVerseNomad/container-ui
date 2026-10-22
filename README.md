@@ -9,14 +9,16 @@ A small Tauri desktop app that manages Colima profiles by shelling out to the `c
 Prereqs: Node 18+, Rust (rustup), Colima.
 
     npm install
-    npx tauri icon path/to/any-1024px.png   # one-time, generates src-tauri/icons
     npm run tauri dev
+
+The app icons are committed in `src-tauri/icons` (made from `app-icon.svg` with `npx tauri icon app-icon.svg`).
 
 ## Build
     npm run tauri build
 
 ## Tabs
-Containers (start, stop, restart, remove, live logs), Images, Volumes, and Colima profiles.
+Containers is the home screen: the VM in one line at the top, then every container in one table with
+status, problems, port links, CPU and memory. Then Images, Volumes, Networks, Kubernetes and Profiles.
 Needs the Docker CLI (`brew install docker`). The app talks to the docker context Colima creates
 for the selected profile (`colima`, or `colima-<profile>`); check with `docker context ls`.
 
@@ -42,6 +44,16 @@ The same UI code runs against a simulated Docker/Colima backend (`preview/mock.t
 
 ## Changelog
 
+### Containers is home, a denser layout, and the "handed-back localhost" check
+- **Containers is the home screen**, like Docker Desktop. The Overview is gone: the VM sits in one line at the top (state, CPU, memory and disk bars, Restart and Stop), then one table. Containers with a problem sort first and show the reason under their status; an **All / Running / Needs attention** filter narrows the table. The Overview's "Recent activity" and "Heaviest right now" were dropped; the CPU and Memory columns and each container's Activity tab cover them.
+- **Port quick links**: every published port shows as a `8080 ↗` button that opens `http://localhost:8080`. A range is one button, at most three show (then "+N"), ports bound to one specific address are skipped, and the full port text is in the tooltip. Rows keep Restart, Stop and Remove.
+- Also dropped with the Overview: the "stopped containers and reclaimable space" nudge.
+- **Fits the default 980x640 window**: smaller type and padding, screen actions in the title row, Kubernetes summary in one line, network members as chips.
+- **Connection doctor finds "handed-back localhost"** for any image, not only Kafka: settings whose names contain advertis, announce, publish or broadcast (Kafka's advertised listeners, Elasticsearch's publish host, Redis announce addresses), read from the target's environment and its startup log, with localhost, 127.0.0.1, [::1] and 0.0.0.0 all counted as loopback. When the same setting also gives a container address (a two-listener Kafka on the Mac's port), the doctor points the client at that address instead of suggesting a rewrite. Mongo replica hosts set by `rs.initiate` are not visible to it. Verified on a real Kafka and Kafka UI pair.
+- **Security**: a Content Security Policy for the release build (and a looser one only for `tauri dev`).
+- **Verified on a real Mac** (Colima 0.10.1, Docker 29.3.1): `cargo test` (24), `npm test` (156, including fixtures captured from real docker output), every browser check, and a release `.dmg` build.
+- Checks need Playwright; if it is not installed in this repo, point `NODE_PATH` at a `node_modules` that has it.
+
 ### Shell, visual system and Overview
 - New fixed-sidebar shell: only the content area scrolls (logs no longer move the page). Icon navigation, active-profile footer, status pill on every page.
 - Sage palette with light and dark modes; contrast is pinned by tests (`src/lib/contrast.test.ts`).
@@ -54,7 +66,7 @@ The same UI code runs against a simulated Docker/Colima backend (`preview/mock.t
 ### Checks
     npm test                                    # TypeScript logic (Node 22.6+)
     cd src-tauri && cargo test                  # Rust (not run in the authoring sandbox)
-    npm run preview && node scripts/check-layout.mjs && node scripts/check-overview.mjs && node scripts/check-restyle.mjs   # needs playwright
+    npm run preview && node scripts/check-layout.mjs && node scripts/check-home.mjs && node scripts/check-restyle.mjs   # needs playwright
 Preview scenarios: `preview/index.html?scenario=running|stopped|failed|missing|partial|nobrew|none|two`.
 
 ### Review fixes (design, accessibility and code review)
