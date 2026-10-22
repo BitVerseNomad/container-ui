@@ -51,7 +51,9 @@ export function problemsFor(s: State): Problem[] {
     out.push({ id: "crashed", level: "bad", title: "Stopped with an error", detail: `${s.name} ${exitCodeMeaning(s.exitCode)} (exit code ${s.exitCode}). The logs usually say why.` });
   }
   if (s.health?.status === "unhealthy") {
-    out.push({ id: "unhealthy", level: "bad", title: "Its health check is failing", detail: `${s.health.streak} checks in a row have failed.${s.health.lastOutput ? ` The last one said: "${s.health.lastOutput.slice(0, 240)}"` : ""}` });
+    const { streak, lastOutput, lastExit } = s.health;
+    const last = lastOutput ? ` The last one said: "${lastOutput.slice(0, 240)}"` : lastExit !== null ? ` The check exited with code ${lastExit} and printed nothing.` : "";
+    out.push({ id: "unhealthy", level: "bad", title: "Its health check is failing", detail: `${streak} checks in a row have failed.${last}` });
   }
   if (s.restartCount >= 3 && (s.running || s.status === "restarting")) {
     out.push({ id: "restarting", level: "warn", title: "It keeps restarting", detail: `${s.name} has restarted ${s.restartCount} times. The logs from its start usually show the error it hits.` });
