@@ -321,6 +321,7 @@ impl FrameSplitter {
     }
 }
 
+#[cfg(test)]
 fn split_frames(bytes: &[u8]) -> Vec<(String, bool)> {
     let mut splitter = FrameSplitter::default();
     let mut out: Vec<(String, bool)> = bytes.iter().filter_map(|b| splitter.push(*b)).collect();
