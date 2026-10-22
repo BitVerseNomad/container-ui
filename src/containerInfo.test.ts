@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { publishedPorts, parsePercent, parseBytes, parseUsage, formatBytes, sparkPoints } from "./containerInfo.ts";
+import { publishedPorts, portLinksFromPs, parsePercent, parseBytes, parseUsage, formatBytes, sparkPoints } from "./containerInfo.ts";
 
 test("publishedPorts returns unique tcp host ports, ignoring unpublished and udp", () => {
   const ports = {
@@ -44,4 +44,21 @@ test("sparkPoints scales values into an svg polyline", () => {
   assert.equal(sparkPoints([0, 50, 100], 100, 20, 100), "0,20 50,10 100,0");
   assert.equal(sparkPoints([5], 100, 20, 10), "");
   assert.equal(sparkPoints([0, 0], 10, 10, 0), "0,10 10,10");
+});
+
+test("given real docker ps Ports text, when read, then each published host port appears once, and unpublished ports are skipped", () => {
+  const labels = (ps: string) => portLinksFromPs(ps).map((l) => `${l.label}>${l.port}`);
+  assert.deepEqual(labels("0.0.0.0:8080->8080/tcp, [::]:8080->8080/tcp"), ["8080>8080"]);
+  assert.deepEqual(labels("127.0.0.1:5432->5432/tcp, 0.0.0.0:9090-9091->9090-9091/tcp"), ["5432>5432", "9090-9091>9090"]);
+  assert.deepEqual(labels("9092/tcp"), []);
+  assert.deepEqual(labels("0.0.0.0:5353->53/udp"), []);
+  assert.deepEqual(labels(""), []);
+});
+
+test("given a huge published range, when links are built, then it is one link, not thousands", () => {
+  assert.equal(portLinksFromPs("0.0.0.0:1-65535->1-65535/tcp").length, 1);
+});
+
+test("given a port bound to one host address, when links are built, then it is skipped (localhost would not reach it)", () => {
+  assert.deepEqual(portLinksFromPs("192.168.5.15:8080->80/tcp"), []);
 });

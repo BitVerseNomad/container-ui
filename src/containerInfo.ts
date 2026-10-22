@@ -15,6 +15,25 @@ export function publishedPorts(ports: PortMap): number[] {
   return [...out].sort((a, b) => a - b);
 }
 
+// `docker ps` Ports text, like "0.0.0.0:8080->8080/tcp, [::]:8080->8080/tcp" -> one link for 8080.
+// Only "host->container" entries are published; a bare "9092/tcp" is not reachable from the Mac.
+// A range is one link to its first port, and a port bound to one specific address is skipped,
+// because http://localhost would not reach it.
+const PUBLISHED_TCP = /(?:^|,\s*)([^,\s]*?):(\d+)(?:-(\d+))?->[\d-]+\/tcp/g;
+const REACHABLE_FROM_LOCALHOST = new Set(["", "0.0.0.0", "[::]", "::", "127.0.0.1", "[::1]", "::1"]);
+
+export type PortLink = { port: number; label: string };
+
+export function portLinksFromPs(ports: string): PortLink[] {
+  const out = new Map<string, PortLink>();
+  for (const [, host, first, last] of ports.matchAll(PUBLISHED_TCP)) {
+    if (!REACHABLE_FROM_LOCALHOST.has(host)) continue;
+    const label = last && last !== first ? `${first}-${last}` : first;
+    out.set(label, { port: Number(first), label });
+  }
+  return [...out.values()].sort((a, b) => a.port - b.port);
+}
+
 export function parsePercent(s: string): number {
   const n = parseFloat(s);
   return Number.isFinite(n) ? n : 0;
