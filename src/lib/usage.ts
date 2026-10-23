@@ -13,10 +13,15 @@ export function sumStats(rows: StatRow[]): { cores: number; memBytes: number } {
 }
 
 // "2.1GB (80%)" -> 2.1e9: only the leading size token counts.
-export function parseDf(rows: DfRow[]): { totalBytes: number; reclaimableBytes: number } {
+// freeableBytes counts only what the Images page cleans up: volumes are user data and stopped containers live elsewhere.
+const FREEABLE = new Set(["Images", "Build Cache"]);
+
+export function parseDf(rows: DfRow[]): { totalBytes: number; reclaimableBytes: number; freeableBytes: number } {
+  const reclaim = (r: DfRow) => parseBytes(r.Reclaimable.split(" ")[0] ?? "");
   return {
     totalBytes: rows.reduce((n, r) => n + parseBytes(r.Size), 0),
-    reclaimableBytes: rows.reduce((n, r) => n + parseBytes(r.Reclaimable.split(" ")[0] ?? ""), 0),
+    reclaimableBytes: rows.reduce((n, r) => n + reclaim(r), 0),
+    freeableBytes: rows.filter((r) => FREEABLE.has(r.Type)).reduce((n, r) => n + reclaim(r), 0),
   };
 }
 

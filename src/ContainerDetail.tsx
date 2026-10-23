@@ -12,6 +12,7 @@ import StatsTab from "./StatsTab";
 import Doctor from "./Doctor";
 import { ActivityList, HealthPanel } from "./Health";
 import { parseState } from "./lib/health";
+import { isKubeOwned } from "./lib/compose";
 import { eventWindow, parseEvents, timeline } from "./lib/events";
 
 const TABS = ["Logs", "Inspect", "Stats", "Mounts", "Network", "Activity"] as const;
@@ -43,6 +44,8 @@ export default function ContainerDetail({ ctx, id, onBack }: Props) {
   const ports = running ? publishedPortPairs(c?.NetworkSettings.Ports) : [];
   const state = c ? parseState(JSON.stringify([c])) : null;
   const activity = usePoll(async () => timeline(parseEvents(await docker(ctx, ["events", ...eventWindow(Date.now(), 86_400_000), "--filter", `container=${name}`, "--filter", "type=container", "--format", "{{json .}}"])), 50, name), [ctx, name], 10000, !!c && tab === "Activity");
+  // The cluster owns these: stopping or removing one by hand only makes Kubernetes start it again, or breaks the pod.
+  const kube = !!c && (isKubeOwned({ Names: name }) || !!c.Config.Labels?.["io.kubernetes.pod.name"]);
   const ip = Object.values(c?.NetworkSettings.Networks ?? {})[0]?.IPAddress;
 
   return (
@@ -51,7 +54,13 @@ export default function ContainerDetail({ ctx, id, onBack }: Props) {
       <header>
         <h2>{name}</h2>
         <span className={running ? "state on" : "state"}>{status}</span>
-        {c && (
+        {c && kube && (
+          <div className="actions-inline">
+            {running && <button onClick={() => invoke("open_terminal", { kind: "shell", context: ctx, target: name }).catch((e) => setErr(String(e)))}>Open a shell</button>}
+            <span className="hint">Managed by Kubernetes. Restart or remove it from the cluster, not here.</span>
+          </div>
+        )}
+        {c && !kube && (
           <div className="actions-inline">
             {running && (
               <>

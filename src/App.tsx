@@ -16,6 +16,7 @@ import InstallCard from "./InstallCard";
 import Setup, { useSetup } from "./Setup";
 import { blocking, needsAttention } from "./lib/setup";
 import { useEnv } from "./useEnv";
+import { useComposeScan } from "./useComposeScan";
 import { contextNames, kubernetesOn } from "./lib/kubeNav";
 
 // Written out by hand: "its kubernetes" reads wrong.
@@ -35,6 +36,7 @@ export default function App() {
   const [newProfileOnOpen, setNewProfileOnOpen] = useState(false);
   const [vm, setVm] = useState<VmState>({ op: null, failure: null });
   const { env, recheck } = useEnv();
+  const compose = useComposeScan();
   const { data, error, reload } = usePoll(() => invoke<Profile[]>("list_profiles"), []);
   const profiles = data ?? [];
   // Which profiles run Kubernetes. Without kubectl there is no way to ask, so the answer stays "not known".
@@ -107,6 +109,9 @@ export default function App() {
           setDetailId={setDetailId}
           onPull={() => { setPullOnOpen(true); setTab("Images"); }}
           onProfiles={() => { setNewProfileOnOpen(true); setTab("Profiles"); }}
+          compose={compose}
+          onImages={() => setTab("Images")}
+          onKubernetes={kubeOn ? () => setTab("Kubernetes") : undefined}
         />
       )
     ) : tab === "Setup" ? (

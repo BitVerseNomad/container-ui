@@ -10,7 +10,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const hex = (n: number) => Array.from({ length: n }, () => "0123456789abcdef"[Math.floor(Math.random() * 16)]).join("");
 const GB = 1024 ** 3;
 
-type Ctr = { health?: string; healthOut?: string; streak?: number; restarts?: number; exitCode?: number; oom?: boolean; networks: string[]; exposed?: number[]; id: string; name: string; image: string; state: string; ports: [number, number][]; mounts: { Type: string; Name?: string; Source: string; Destination: string; RW: boolean }[]; env: string[]; born: number; cpu: number; mem: number };
+type Ctr = { labels?: string; health?: string; healthOut?: string; streak?: number; restarts?: number; exitCode?: number; oom?: boolean; networks: string[]; exposed?: number[]; id: string; name: string; image: string; state: string; ports: [number, number][]; mounts: { Type: string; Name?: string; Source: string; Destination: string; RW: boolean }[]; env: string[]; born: number; cpu: number; mem: number };
 const now = Date.now();
 const db = {
   profiles: [{ name: "default", status: "Running", arch: "aarch64", cpus: 4, memory: 8 * GB, disk: 100 * GB, runtime: "docker", address: "192.168.5.2" }],
@@ -64,6 +64,14 @@ const setup = scenario === "desktop"
   ? { plugins: [deadLink("docker-buildx"), deadLink("docker-compose"), deadLink("docker-scout")], brew_plugin_dir: BREW_PLUGINS, brew_plugins: ["docker-compose"], extra_dirs: [] as string[], creds_store: "desktop" as string | null, creds_helper_found: false, contexts: [{ name: "colima", current: false }, { name: "desktop-linux", current: true }], autostart: "none", testcontainers_host: "unix:///Users/me/.docker/run/docker.sock" as string | null, docker_desktop_installed: false }
   : { plugins: [] as { name: string; target: string; broken: boolean }[], brew_plugin_dir: BREW_PLUGINS, brew_plugins: ["docker-buildx", "docker-compose"], extra_dirs: [BREW_PLUGINS], creds_store: null as string | null, creds_helper_found: true, contexts: [{ name: "colima", current: true }], autostart: "started", testcontainers_host: null as string | null, docker_desktop_installed: false };
 if (scenario === "mismatch") setup.contexts = [{ name: "colima", current: false }, { name: "colima-work", current: true }];
+// Kubernetes on the docker runtime: each pod shows up as k8s_ containers that the cluster owns.
+if (scenario === "k8spods") {
+  const podLabels = "io.kubernetes.pod.name=coredns-6799fbcd5-xk2p8,io.kubernetes.pod.namespace=kube-system";
+  db.ctrs.push(
+    { labels: podLabels, networks: [], id: hex(64), name: "k8s_coredns_coredns-6799fbcd5-xk2p8_kube-system_0", image: "rancher/mirrored-coredns-coredns:1.11.3", state: "running", ports: [], mounts: [], env: [], born: now - 36e5, cpu: 0.1, mem: 20e6 },
+    { labels: podLabels, networks: [], id: hex(64), name: "k8s_POD_coredns-6799fbcd5-xk2p8_kube-system_0", image: "rancher/mirrored-pause:3.6", state: "running", ports: [], mounts: [], env: [], born: now - 36e5, cpu: 0, mem: 1e6 },
+  );
+}
 if (scenario === "nonet") { db.networks = ["bridge", "host", "none"]; db.ctrs.forEach((c) => { c.networks = ["bridge"]; }); }
 if (["stopped", "failed", "stuck"].includes(scenario)) db.profiles[0].status = "Stopped";
 if (["none", "missing", "partial", "nobrew"].includes(scenario)) db.profiles = [];
@@ -95,7 +103,7 @@ function dfLines(): string {
 function dockerCmd(args: string[]): string {
   const [cmd, sub] = args;
   switch (cmd) {
-    case "ps": { if (args.includes("-q")) return db.ctrs.map((c) => c.id.slice(0, 12)).join("\n"); const f = args.find((a) => a.startsWith("network="))?.slice(8); return lines(db.ctrs.filter((c) => !f || c.networks.includes(f)).map((c) => ({ ID: c.id.slice(0, 12), Names: c.name, Image: c.image, State: c.state, Status: status(c), Ports: fmtPorts(c), Labels: SHOP.has(c.name) ? `com.docker.compose.project=shop,com.docker.compose.project.working_dir=/Users/me/code/shop,com.docker.compose.service=${c.name}` : "" }))) }
+    case "ps": { if (args.includes("-q")) return db.ctrs.map((c) => c.id.slice(0, 12)).join("\n"); const f = args.find((a) => a.startsWith("network="))?.slice(8); return lines(db.ctrs.filter((c) => !f || c.networks.includes(f)).map((c) => ({ ID: c.id.slice(0, 12), Names: c.name, Image: c.image, State: c.state, Status: status(c), Ports: fmtPorts(c), Labels: c.labels ?? (SHOP.has(c.name) ? `com.docker.compose.project=shop,com.docker.compose.project.working_dir=/Users/me/code/shop,com.docker.compose.service=${c.name}` : "") }))) }
     case "images": return lines(db.images);
     case "events": {
       const t = Math.floor(Date.now() / 1000);
@@ -143,7 +151,7 @@ function dockerCmd(args: string[]): string {
     case "stats": {
       if (args[args.length - 1] === "--no-stream") return lines(db.ctrs.filter((c) => c.state === "running").map((c) => ({ Name: c.name, CPUPerc: `${c.cpu.toFixed(2)}%`, MemUsage: `${(c.mem / 2 ** 20).toFixed(1)}MiB / 7.7GiB` }))); const c = find(args[args.length - 1])!; c.cpu = Math.max(0.1, c.cpu + (Math.random() - 0.45)); return lines([{ CPUPerc: `${c.cpu.toFixed(2)}%`, MemUsage: `${(c.mem / 2 ** 20).toFixed(1)}MiB / 7.7GiB`, NetIO: "1.2kB / 648B", BlockIO: "0B / 4.1kB", PIDs: "29" }]); }
     case "start": case "stop": case "restart": case "pause": case "unpause": { const cs = args.slice(1).map((x) => find(x)!); for (const c of cs) c.state = cmd === "stop" ? "exited" : cmd === "pause" ? "paused" : "running"; return cs.map((c) => c.id).join("\n"); }
-    case "rm": db.ctrs = db.ctrs.filter((c) => c !== find(args[args.length - 1])); return args[args.length - 1];
+    case "rm": { const gone = args.slice(1).filter((a) => !a.startsWith("-")).map((x) => find(x)); db.ctrs = db.ctrs.filter((c) => !gone.includes(c)); return args.slice(1).filter((a) => !a.startsWith("-")).join("\n"); }
     case "run": {
       const name = args[args.indexOf("--name") + 1]; const image = args[args.length - 1];
       const net = args[args.indexOf("--network") + 1]; if (args.includes("--network") && !db.networks.includes(net)) throw `docker: Error response from daemon: network ${net} not found`;
@@ -166,7 +174,12 @@ export async function invoke<T>(cmd: string, a: Record<string, any> = {}): Promi
     case "list_profiles": return db.profiles.map((p) => ({ ...p })) as T; // fresh objects per call, like the real IPC
     case "docker": { const args: string[] = a.args.filter((x: string) => x !== "--format" && x !== "{{json .}}"); const i = a.args.indexOf("--format"); return dockerCmd(i > 0 && a.args[0] === "image" ? a.args : args) as T; }
     case "docker_pull": {
-      const [repo, tag = "latest"] = a.image.split(":");
+      if (a.image === "ghcr.io/acme/private:1") {
+        await progress("pull-progress", [["1: Pulling from acme/private", 200]]);
+        throw `Error response from daemon: Head "https://ghcr.io/v2/acme/private/manifests/1": unauthorized`;
+      }
+      const cut = a.image.lastIndexOf(":");
+      const [repo, tag] = cut > a.image.lastIndexOf("/") ? [a.image.slice(0, cut), a.image.slice(cut + 1)] : [a.image, "latest"];
       await progress("pull-progress", [[`Using default tag: ${tag}`, 150], [`${tag}: Pulling from library/${repo}`, 400], ["a2318d6c47ec: Pulling fs layer", 200], ["a2318d6c47ec: Download complete", 700], ["a2318d6c47ec: Pull complete", 300], [`Status: Downloaded newer image for ${repo}:${tag}`, 200]]);
       if (!db.images.some((i) => i.Repository === repo && i.Tag === tag)) db.images.unshift({ Repository: repo, Tag: tag, Size: "142MB", ID: hex(12), CreatedSince: "2 days ago" });
       return undefined as T;
@@ -252,6 +265,8 @@ export async function invoke<T>(cmd: string, a: Record<string, any> = {}): Promi
       return undefined as T;
     }
     case "cancel_vm_op": return true as T;
+    case "find_compose_files": await sleep(150); return (scenario === "nocompose" ? [] : ["/Users/me/code/blog/docker-compose.yml", "/Users/me/code/shop/compose.yaml", "/Users/me/My Apps/orders-api/compose.yaml"]) as T;
+    case "reveal_compose": ((window as any).__revealed ??= []).push(a.path); return undefined as T;
     case "pick_folder": return "/Users/you/code/app" as T; // the native chooser; null means cancelled
     case "force_stop_profile": { await progress("colima-progress", [['level=info msg="stopping colima (forced)"', 300]]); db.profiles.find((x) => x.name === a.name)!.status = "Stopped"; return undefined as T; }
     case "force_restart_profile": { await progress("colima-progress", [['level=info msg="stopping colima (forced)"', 300], ['level=info msg="done"', 300]]); db.profiles.find((x) => x.name === a.name)!.status = "Running"; return undefined as T; }

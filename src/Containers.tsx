@@ -1,5 +1,5 @@
 // The home screen: the VM in one line, then every container in one table (like Docker Desktop).
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Profile, docker, dockerJson } from "./api";
 import { usePoll } from "./hooks";
@@ -9,12 +9,14 @@ import { Banner, EmptyState, useConfirm } from "./ui";
 import Card from "./ui/Card";
 import IconButton from "./ui/IconButton";
 import PortLinks from "./ui/PortLinks";
-import { groupByProject } from "./lib/compose";
+import { Group, groupByProject, isKubeOwned, kubeName } from "./lib/compose";
 import { Icon } from "./ui/icons";
 import VmStrip from "./VmStrip";
 import { useHostSize } from "./useHostSize";
 import RunPicker from "./RunPicker";
 import RunPanel from "./RunPanel";
+import ComposeProjects from "./ComposeProjects";
+import { ComposeScan } from "./useComposeScan";
 import ContainerDetail from "./ContainerDetail";
 import { HealthBadge, stripHealth } from "./Health";
 import { Problem, healthFromStatus, parseState, problemsFor } from "./lib/health";
@@ -22,6 +24,9 @@ import { Problem, healthFromStatus, parseState, problemsFor } from "./lib/health
 type VmOp = { op: "starting" | "stopping"; cmd: string; args: Record<string, unknown> };
 // `last` lives here, not in this screen, so Retry still repeats the right command after the screen remounts.
 export type VmState = { op: "starting" | "stopping" | null; failure: string | null; last?: VmOp };
+// Below this, freeing space is not worth a line on the home screen.
+const FREEABLE_NUDGE = 1024 ** 3;
+const KUBE_KEY = "\u0000kubernetes";
 type C = { ID: string; Names: string; Image: string; State: string; Status: string; Ports: string; Labels?: string };
 type Stat = StatRow & { Name: string };
 
@@ -35,9 +40,13 @@ type Props = {
   setDetailId: (id: string | null) => void;
   onPull: () => void;
   onProfiles: () => void;
+  compose: ComposeScan;
+  onImages: () => void;
+  // Set only while the profile shows its Kubernetes tab.
+  onKubernetes?: () => void;
 };
 
-export default function Containers({ profile, ctx, vm, onVm, reload, detailId, setDetailId, onPull, onProfiles }: Props) {
+export default function Containers({ profile, ctx, vm, onVm, reload, detailId, setDetailId, onPull, onProfiles, compose, onImages, onKubernetes }: Props) {
   const confirm = useConfirm();
   const running = !!ctx;
   const containers = usePoll<C[]>(async () => (ctx ? dockerJson<C>(ctx, ["ps", "-a"]) : []), [ctx], 3000);
@@ -52,10 +61,14 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
   const [q, setQ] = useState("");
   const [only, setOnly] = useState<"all" | "running" | "attention">("all");
   const [picking, setPicking] = useState(false);
+  const [composeOpen, setComposeOpen] = useState(false);
   const [runImage, setRunImage] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [closed, setClosed] = useState<Set<string>>(new Set());
-  const toggle = (p: string | null) => p && setClosed((s) => { const n = new Set(s); n.has(p) ? n.delete(p) : n.add(p); return n; });
+  // Kubernetes pods start folded: there are many of them and they are managed from the Kubernetes tab.
+  const [closed, setClosed] = useState<Set<string>>(new Set([KUBE_KEY]));
+  const toggle = (k: string | null) => k && setClosed((s) => { const n = new Set(s); n.has(k) ? n.delete(k) : n.add(k); return n; });
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const allBox = useRef<HTMLInputElement>(null);
   async function vmAct(op: "starting" | "stopping", cmd: string, args: Record<string, unknown>) {
     const last = { op, cmd, args };
     onVm({ op, failure: null, last });
@@ -102,6 +115,21 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
     [all, q, view, problems],
   );
   const busy = vm.op !== null;
+  const groups = groupByProject(rows);
+  const groupKey = (g: Group<C>) => (g.kind === "kubernetes" ? KUBE_KEY : g.project);
+  // Only rows on screen count: not filtered out, not gone, and not inside a folded group.
+  const selectable = groups.filter((g) => !closed.has(groupKey(g) ?? "")).flatMap((g) => g.rows).filter((c) => !isKubeOwned(c));
+  const chosen = selectable.filter((c) => picked.has(c.ID));
+  const pick = (ids: string[], on: boolean) => setPicked((s) => { const n = new Set(s); ids.forEach((id) => (on ? n.add(id) : n.delete(id))); return n; });
+  async function bulk(args: string[], list: C[]) {
+    if (!list.length) return;
+    await act([...args, ...list.map((c) => c.ID)]);
+    setPicked(new Set());
+  }
+  // A partly ticked header box says "some, not all"; React has no prop for it.
+  useEffect(() => {
+    if (allBox.current) allBox.current.indeterminate = chosen.length > 0 && chosen.length < selectable.length;
+  });
 
   if (detailId && ctx) return <ContainerDetail ctx={ctx} id={detailId} onBack={() => setDetailId(null)} />;
 
@@ -119,19 +147,36 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
     );
   }
 
-  const groups = groupByProject(rows);
-  const grouped = groups.some((g) => g.project !== null);
+  const grouped = groups.some((g) => g.kind !== "loose");
+  const allPicked = selectable.length > 0 && chosen.length === selectable.length;
+  const live = chosen.filter((c) => c.State === "running");
+  const stopped = chosen.filter((c) => c.State !== "running");
+  // rm -f kills running containers without asking, so the question says so.
+  const removeAsk = () => {
+    const names = chosen.map((c) => c.Names);
+    const list = names.length > 5 ? `${names.slice(0, 5).join(", ")} and ${names.length - 5} more` : names.join(", ");
+    const n = names.length === 1 ? "1 container" : `${names.length} containers`;
+    const who = live.length === chosen.length ? (live.length === 1 ? "It is" : "They are") : live.length === 1 ? "1 of them is" : `${live.length} of them are`;
+    const why = live.length ? ` ${who} running and will be stopped first.` : "";
+    return `${live.length ? "Stop and remove" : "Remove"} ${n}? ${list}.${why} This can't be undone.`;
+  };
+  const groupLabel = (g: Group<C>) => (g.kind === "kubernetes" ? "Kubernetes pods" : g.project ?? "Other containers");
+  const composeCount = compose.paths ? new Set(compose.paths.map((x) => x.slice(0, x.lastIndexOf("/")))).size : null;
   const renderRow = (c: C) => {
                   const up = c.State === "running";
                   const s = up ? byName.get(c.Names) : undefined;
                   const p = problems.get(c.Names)?.[0];
+                  const kube = isKubeOwned(c);
                   return (
-                    <tr key={c.ID}>
+                    <tr key={c.ID} className={picked.has(c.ID) && !kube ? "picked" : undefined}>
+                      <td className="pick">
+                        {!kube && <input type="checkbox" aria-label={`Select ${c.Names}`} checked={picked.has(c.ID)} onChange={(e) => pick([c.ID], e.target.checked)} />}
+                      </td>
                       <td>
                         <div className="name-cell">
                           <span className={up ? "sdot on" : "sdot"} aria-hidden="true" />
                           <button className="link-plain" aria-label={`${c.Names}, image ${c.Image}`} onClick={() => setDetailId(c.ID)}>
-                            <b className="clip">{c.Names}</b>
+                            <b className="clip" title={kube ? c.Names : undefined}>{kube ? kubeName(c) : c.Names}</b>
                             <span className="mono clip sub">{c.Image}</span>
                           </button>
                         </div>
@@ -144,7 +189,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
                       <td className="num mono">{s ? s.CPUPerc : "–"}</td>
                       <td className="num mono">{s ? formatBytes(parseUsage(s.MemUsage).used) : "–"}</td>
                       <td className="row-actions">
-                        {up ? (
+                        {kube ? null : up ? (
                           <>
                             <IconButton label={`Restart ${c.Names}`} icon="restart" onClick={() => act(["restart", c.ID])} />
                             <IconButton label={`Stop ${c.Names}`} icon="stop" onClick={() => act(["stop", c.ID])} />
@@ -152,7 +197,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
                         ) : (
                           <IconButton label={`Start ${c.Names}`} icon="play" onClick={() => act(["start", c.ID])} />
                         )}
-                        <IconButton label={`Remove ${c.Names}`} icon="trash" danger onClick={async () => (await confirm(`Remove container "${c.Names}"?`)) && act(["rm", "-f", c.ID])} />
+                        {!kube && <IconButton label={`Remove ${c.Names}`} icon="trash" danger onClick={async () => (await confirm(`Remove container "${c.Names}"?`)) && act(["rm", "-f", c.ID])} />}
                       </td>
                     </tr>
                   );
@@ -197,6 +242,9 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
               )}
             </div>
             <span className="toolbar-actions">
+              <button title="Compose projects on this Mac" onClick={() => setComposeOpen(true)} aria-label={`Compose projects${composeCount !== null ? `, ${composeCount} found` : ""}`}>
+                <Icon name="folder" size={13} /> Compose
+              </button>
               <button onClick={onPull}><Icon name="download" size={13} /> Pull image</button>
               <button className="primary" onClick={() => setPicking(true)}><Icon name="play" size={13} /> Run image</button>
             </span>
@@ -208,6 +256,9 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
             <table className="list">
               <thead>
                 <tr>
+                  <th scope="col" className="pick">
+                    <input ref={allBox} type="checkbox" aria-label="Select all shown containers" disabled={!selectable.length} checked={allPicked} onChange={(e) => pick(selectable.map((c) => c.ID), e.target.checked)} />
+                  </th>
                   <th scope="col">Name</th>
                   <th scope="col">Status</th>
                   <th scope="col">Ports</th>
@@ -217,19 +268,26 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
                 </tr>
               </thead>
               {groups.map((g) => {
-                const shut = g.project !== null && closed.has(g.project);
+                const key = groupKey(g);
+                const shut = key !== null && closed.has(key);
                 const up = g.rows.filter((c) => c.State === "running");
                 return (
-                  <tbody key={g.project ?? "-"}>
+                  <tbody key={key ?? "-"}>
                     {grouped && (
                       <tr className="group-row">
-                        <th colSpan={6} scope="rowgroup">
+                        <th colSpan={7} scope="rowgroup">
                           <span className="group-head">
-                            <button className="link-plain group-toggle" aria-expanded={!shut} onClick={() => toggle(g.project)}>
-                              <span aria-hidden="true">{shut ? "▸" : "▾"}</span> <b>{g.project ?? "Other containers"}</b>
+                            <button className="link-plain group-toggle" aria-expanded={!shut} onClick={() => toggle(key)}>
+                              <span aria-hidden="true">{shut ? "▸" : "▾"}</span> <b>{groupLabel(g)}</b>
                             </button>
-                            <span className="hint">{up.length} of {g.rows.length} running{g.dir ? ` · ${g.dir.replace(/^\/Users\/[^/]+/, "~")}` : ""}</span>
-                            {g.project && (
+                            {g.kind === "kubernetes" ? (
+                              <span className="hint">
+                                {g.rows.length} containers. The cluster restarts them, so manage them {onKubernetes ? <>in the <button className="link-plain inline-link" onClick={onKubernetes}>Kubernetes tab</button></> : "with kubectl"}.
+                              </span>
+                            ) : (
+                              <span className="hint">{up.length} of {g.rows.length} running{g.dir ? ` · ${g.dir.replace(/^\/Users\/[^/]+/, "~")}` : ""}</span>
+                            )}
+                            {g.kind === "compose" && (
                               <span className="row-actions">
                                 {up.length < g.rows.length && <IconButton label={`Start all in ${g.project}`} icon="play" onClick={() => act(["start", ...g.rows.filter((c) => c.State !== "running").map((c) => c.ID)])} />}
                                 {up.length > 0 && <IconButton label={`Restart all in ${g.project}`} icon="restart" onClick={() => act(["restart", ...up.map((c) => c.ID)])} />}
@@ -247,9 +305,29 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
             </table>
           )}
           {all.length > 0 && rows.length === 0 && <p className="hint pad">No container matches.</p>}
+          {chosen.length > 0 && (
+            <div className="bulk-bar" role="region" aria-label="Selected containers">
+              <b>{chosen.length} selected</b>
+              <button disabled={!stopped.length} onClick={() => bulk(["start"], stopped)}><Icon name="play" size={13} /> Start</button>
+              <button disabled={!live.length} onClick={() => bulk(["restart"], live)}><Icon name="restart" size={13} /> Restart</button>
+              <button disabled={!live.length} onClick={() => bulk(["stop"], live)}><Icon name="stop" size={13} /> Stop</button>
+              <button className="danger" onClick={async () => (await confirm(removeAsk(), live.length ? "Stop and remove" : "Remove")) && bulk(["rm", "-f"], chosen)}>
+                <Icon name="trash" size={13} /> Remove
+              </button>
+              <button className="link-plain bulk-clear" onClick={() => setPicked(new Set())}>Clear</button>
+            </div>
+          )}
+          {disk.freeableBytes >= FREEABLE_NUDGE && (
+            <div className="nudge">
+              <Icon name="info" size={14} />
+              <span>About {formatBytes(disk.freeableBytes)} inside the VM can be freed from unused images and build cache.</span>
+              <button className="link-plain nudge-go" onClick={onImages}>Review</button>
+            </div>
+          )}
         </>
       )}
 
+      {composeOpen && ctx && <ComposeProjects ctx={ctx} scan={compose} containers={all} onClose={() => setComposeOpen(false)} />}
       {picking && ctx && (
         <RunPicker ctx={ctx} onClose={() => setPicking(false)} onPick={(ref) => { setPicking(false); setRunImage(ref); }} />
       )}

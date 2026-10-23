@@ -31,7 +31,7 @@ test("parseDf sums sizes and reclaimable, ignoring the percentage", () => {
 });
 
 test("parseDf of nothing is zero", () => {
-  assert.deepEqual(parseDf([]), { totalBytes: 0, reclaimableBytes: 0 });
+  assert.deepEqual(parseDf([]), { totalBytes: 0, reclaimableBytes: 0, freeableBytes: 0 });
 });
 
 test("fraction clamps to 0..1 and treats a zero total as 0", () => {
@@ -39,4 +39,14 @@ test("fraction clamps to 0..1 and treats a zero total as 0", () => {
   assert.equal(fraction(15, 10), 1);
   assert.equal(fraction(-1, 10), 0);
   assert.equal(fraction(5, 10), 0.5);
+});
+
+test("given volumes and stopped containers that could be freed, when counting what Images can free, then only images and build cache count", () => {
+  const d = parseDf([
+    { Type: "Images", Size: "3GB", Reclaimable: "1GB (33%)" },
+    { Type: "Containers", Size: "1GB", Reclaimable: "1GB (100%)" },
+    { Type: "Local Volumes", Size: "2GB", Reclaimable: "2GB (100%)" },
+    { Type: "Build Cache", Size: "500MB", Reclaimable: "500MB" },
+  ]);
+  assert.equal(Math.round(d.freeableBytes), 1.5e9);
 });
