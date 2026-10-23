@@ -1,8 +1,10 @@
-import { ReactNode, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { openUrl } from "./api";
+import { ReactNode, useEffect, useState } from "react";
 import { docker, dockerJson } from "./api";
 import { ImageInfo, Link, checkImage, docsLinks, hostArch, nameWarning, parseImageInfo, peers, portWarnings, suggestVolumes, usedHostPorts } from "./lib/guided";
-import { PortRow, VolRow, buildRunArgs, defaultName, hintFor, presetEnv, repoName, shouldCleanup } from "./runArgs";
+import { PortRow, VolRow, buildRunArgs, defaultName, folderProblem, hintFor, isHostFolder, presetEnv, repoName, shouldCleanup } from "./runArgs";
+import { rememberWritable, wasWritable } from "./lib/folderMemory";
 import { Banner } from "./ui";
 import Drawer from "./ui/Drawer";
 import { Icon } from "./ui/icons";
@@ -20,7 +22,7 @@ const shellQuote = (a: string) => (/[^\w@%+=:,./-]/.test(a) ? `'${a.replace(/'/g
 // Links open in the user's browser, after a click, and always show where they go.
 function Ext({ link, children }: { link: Link; children: ReactNode }) {
   return (
-    <button className="link ext" onClick={() => invoke("open_url", { url: link.url }).catch(() => {})}>
+    <button className="link ext" onClick={() => openUrl(link.url)}>
       {children} <span className="host">({link.host})</span>
     </button>
   );
@@ -101,6 +103,16 @@ export default function RunPanel({ ctx, image, arch, onClose, onRan }: Props) {
   const setPort = (i: number, patch: Partial<PortRow>) => setPorts((rows) => rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
   const setVol = (i: number, patch: Partial<VolRow>) => setVolumes((rows) => rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
   const others = peers(onNetwork);
+  // A folder the user let containers change before stays that way; any other folder starts read-only.
+  const setSource = (i: number, source: string) => setVol(i, { source, writable: isHostFolder(source) && !folderProblem(source) ? wasWritable(source.trim()) : false });
+  async function chooseFolder(i: number) {
+    try {
+      const picked = await invoke<string | null>("pick_folder");
+      if (picked) setSource(i, picked);
+    } catch (e) {
+      setErrors([`Couldn't open the folder chooser: ${e}`]);
+    }
+  }
 
   return (
     <Drawer label={`Run ${image}`} title={<>Run {image}</>} onClose={onClose} closeDisabled={busy}>
@@ -132,6 +144,7 @@ export default function RunPanel({ ctx, image, arch, onClose, onRan }: Props) {
             {others.map((p) => (
               <span key={p.name} className="peer">
                 <b>{p.name}</b>
+                {p.ports.length === 0 && <span className="hint">no ports</span>}
                 {p.ports.slice(0, 3).map((port) => (
                   <button key={port} className="chip" onClick={() => navigator.clipboard.writeText(`${p.name}:${port}`)} title={`Copy ${p.name}:${port}`}>
                     <Icon name="copy" size={12} /> {p.name}:{port}
@@ -174,14 +187,35 @@ export default function RunPanel({ ctx, image, arch, onClose, onRan }: Props) {
           <Ext link={STORAGE_DOCS}>Learn more</Ext>
         </p>
         <datalist id="volume-names">{volumeNames.map((v) => <option key={v} value={v} />)}</datalist>
-        {volumes.map((v, i) => (
-          <div className="pair" key={i}>
-            <input aria-label="Volume source" list="volume-names" placeholder="name or /path" value={v.source} disabled={busy} onChange={(e) => setVol(i, { source: e.target.value })} />
-            <span className="arrow">:</span>
-            <input aria-label="Path in container" placeholder="/data" value={v.target} disabled={busy} onChange={(e) => setVol(i, { target: e.target.value })} />
-            <button aria-label="Remove volume" disabled={busy} onClick={() => setVolumes((r) => r.filter((_, j) => j !== i))}>×</button>
-          </div>
-        ))}
+        {volumes.map((v, i) => {
+          const problem = folderProblem(v.source);
+          return (
+            <div className="vol" key={i}>
+              <div className="pair with-pick">
+                <input aria-label="Volume source" list="volume-names" placeholder="name or /path" value={v.source} disabled={busy} onChange={(e) => setSource(i, e.target.value)} />
+                <button aria-label={`Choose folder for volume ${i + 1}`} disabled={busy} onClick={() => chooseFolder(i)}>Choose folder…</button>
+                <span className="arrow">:</span>
+                <input aria-label="Path in container" placeholder="/data" value={v.target} disabled={busy} onChange={(e) => setVol(i, { target: e.target.value })} />
+                <button aria-label="Remove volume" disabled={busy} onClick={() => setVolumes((r) => r.filter((_, j) => j !== i))}>×</button>
+              </div>
+              {problem && <p className="hint err">{problem}</p>}
+              {isHostFolder(v.source) && !problem && (
+                <label className="check">
+                  <input
+                    type="checkbox"
+                    checked={!!v.writable}
+                    disabled={busy}
+                    onChange={(e) => {
+                      setVol(i, { writable: e.target.checked });
+                      rememberWritable(v.source.trim(), e.target.checked);
+                    }}
+                  />
+                  Let the container change files here
+                </label>
+              )}
+            </div>
+          );
+        })}
         <button disabled={busy} onClick={() => setVolumes((r) => [...r, { source: "", target: "" }])}>Add volume</button>
       </div>
 

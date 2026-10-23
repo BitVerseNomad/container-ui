@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { formatBytes, parseBytes } from "./containerInfo";
 import Drawer from "./ui/Drawer";
 import { dockerJson } from "./api";
 import { usePoll } from "./hooks";
@@ -26,7 +27,7 @@ export default function RunPicker({ ctx, onPick, onClose }: { ctx: string; onPic
             <li key={i.ID + ref(i)}>
               <button className="hit" onClick={() => onPick(ref(i))}>
                 <span className="hit-name">{ref(i)}</span>
-                <span className="hit-meta">{i.Size}</span>
+                <span className="hit-meta">{parseBytes(i.Size) ? formatBytes(parseBytes(i.Size)) : i.Size}</span>
               </button>
             </li>
           ))}

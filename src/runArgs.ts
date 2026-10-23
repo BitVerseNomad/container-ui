@@ -1,7 +1,8 @@
 // Pure helpers for the "Run image" panel: validate form input and build `docker run` arguments.
 
 export type PortRow = { host: string; container: string };
-export type VolRow = { source: string; target: string };
+// `writable` only matters for a host folder; it defaults to read-only.
+export type VolRow = { source: string; target: string; writable?: boolean };
 export type RunSpec = { image: string; name: string; ports: PortRow[]; volumes: VolRow[]; env: string; exposeAll?: boolean; network?: string };
 export type RunResult = { ok: true; args: string[] } | { ok: false; errors: string[] };
 
@@ -56,6 +57,19 @@ export const presetEnv = (image: string) => ENV_PRESETS[repoName(image)] ?? "";
 
 export const defaultName = (image: string, suffix: string) => `${repoName(image)}-${suffix}`;
 
+export const isHostFolder = (source: string) => source.trim().startsWith("/");
+
+// A host folder that holds passwords or login items: anything in ~/Library, or any hidden folder on the path.
+// null when the source is fine here (or not a folder at all).
+export function folderProblem(source: string): string | null {
+  const s = source.trim();
+  if (!isHostFolder(s)) return null;
+  const parts = s.split("/").slice(1);
+  const inLibrary = parts[0] === "Users" && parts[2]?.toLowerCase() === "library";
+  const hidden = parts.some((c) => c.startsWith("."));
+  return inLibrary || hidden ? "Folders inside Library or hidden folders can't be shared, they hold your passwords and login items." : null;
+}
+
 export function buildRunArgs(spec: RunSpec): RunResult {
   const errors: string[] = [];
   const args = ["run", "-d"];
@@ -95,13 +109,18 @@ export function buildRunArgs(spec: RunSpec): RunResult {
     const source = v.source.trim();
     const target = v.target.trim();
     if (!source && !target) continue;
-    const sourceOk = NAME.test(source) || (source.startsWith("/") && !source.includes(":"));
-    if (!sourceOk) {
-      errors.push(`Volume source "${source}" must be a volume name or an absolute path.`);
+    const parts = source.split("/").slice(1);
+    // Colima only shares the Mac home folder; hidden folders (~/.ssh, ~/.aws) and ~/Library stay out. The backend checks the same.
+    const folderOk = source.startsWith("/Users/") && parts.length >= 3 && !folderProblem(source) && parts.every((c) => c) && !source.includes(":");
+    if (!NAME.test(source) && !folderOk) {
+      errors.push(folderProblem(source) ?? (source.startsWith("/")
+        ? `Folder "${source}" can't be shared. Use a folder inside your home, like ~/code/app.`
+        : `Volume source "${source}" must be a volume name or a folder path.`));
     } else if (!target.startsWith("/") || target.includes(":")) {
       errors.push(`Volume path "${target}" inside the container must be absolute, like /data.`);
     } else {
-      args.push("-v", `${source}:${target}`);
+      // A host folder is read-only unless the user said the container may change it. A named volume is the container's own storage.
+      args.push("-v", isHostFolder(source) && !v.writable ? `${source}:${target}:ro` : `${source}:${target}`);
     }
   }
 

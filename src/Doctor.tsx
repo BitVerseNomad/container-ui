@@ -1,3 +1,4 @@
+import { openUrl } from "./api";
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { docker, dockerJson } from "./api";
@@ -10,7 +11,7 @@ import OutputLog from "./ui/OutputLog";
 
 type Ctr = { Names: string; State: string };
 type Props = { ctx: string; from?: string; onClose: () => void };
-const HELPER = "nicolaka/netshoot";
+const HELPER = "nicolaka/netshoot:v0.16";
 const ICON = { ok: "check", warn: "alert", fail: "close", info: "info" } as const;
 
 export default function Doctor({ ctx, from: initialFrom, onClose }: Props) {
@@ -150,7 +151,7 @@ export default function Doctor({ ctx, from: initialFrom, onClose }: Props) {
       )}
       {findings && hub && (
         <p className="hint">Setup notes for {image}:{" "}
-          <button className="link ext" onClick={() => invoke("open_url", { url: hub.url }).catch(() => {})}>Docker Hub page <span className="host">({hub.host})</span></button>
+          <button className="link ext" onClick={() => openUrl(hub.url)}>Docker Hub page <span className="host">({hub.host})</span></button>
         </p>
       )}
     </Drawer>

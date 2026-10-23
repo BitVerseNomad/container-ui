@@ -55,8 +55,25 @@ export default function PullPanel({ ctx, onClose, onPulled, onRun }: Props) {
   return (
     <Drawer label="Pull image" title={<>Pull image</>} onClose={onClose} closeDisabled={pulling}>
       <div className="group">
-        <h4>1. Find an image <span className="optional">(optional)</span></h4>
-        <p className="hint">Searching only lists what's on Docker Hub. Nothing is downloaded.</p>
+        <h4>Image</h4>
+        <span className="inline">
+          <input aria-label="Image to pull" value={image} placeholder="nginx or postgres:16" disabled={pulling} onChange={(e) => setImage(e.target.value)} onKeyDown={(e) => e.key === "Enter" && name && !pulling && pull()} />
+          <button className="primary" disabled={!name || pulling} onClick={pull}>
+            {pulling ? "Pulling…" : name ? `Pull ${name}` : "Pull"}
+          </button>
+        </span>
+        <p className="hint">Add a version after a colon, like <code>nginx:1.27</code>; with none you get <code>latest</code>.</p>
+        <div className="chips">
+          <span className="hint">Or try one:</span>
+          {["hello-world", "nginx", "mysql", "postgres", "redis"].map((n) => (
+            <button key={n} className="chip" disabled={pulling} onClick={() => setImage(n)}>{n}</button>
+          ))}
+        </div>
+      </div>
+
+      <div className="group">
+        <h4>Not sure of the name? Search Docker Hub</h4>
+        <p className="hint">Searching only lists images. Nothing is downloaded.</p>
         <span className="inline">
           <input
             aria-label="Search Docker Hub"
@@ -73,7 +90,7 @@ export default function PullPanel({ ctx, onClose, onPulled, onRun }: Props) {
         {hits && hits.length > 0 && (
           <>
             <div className="sortbar">
-              <span className="hint">{hits.length} result{hits.length > 1 ? "s" : ""}. Choose one to fill in step 2.</span>
+              <span className="hint">{hits.length} result{hits.length > 1 ? "s" : ""}. Choose one to fill in the image above.</span>
               <label className="sort">
                 Sort by
                 <select aria-label="Sort by" value={sort} onChange={(e) => setSort(e.target.value as SortKey)}>
@@ -99,23 +116,6 @@ export default function PullPanel({ ctx, onClose, onPulled, onRun }: Props) {
             </ul>
           </>
         )}
-      </div>
-
-      <div className="group">
-        <h4>2. Pull</h4>
-        <p className="hint">Downloads the image named here. Add a version after a colon, like <code>nginx:1.27</code>; with none you get <code>latest</code>.</p>
-        <input aria-label="Image to pull" value={image} placeholder="nginx or postgres:16" disabled={pulling} onChange={(e) => setImage(e.target.value)} />
-        <div className="chips">
-          <span className="hint">Or try one:</span>
-          {["hello-world", "nginx", "mysql", "postgres", "redis"].map((n) => (
-            <button key={n} className="chip" disabled={pulling} onClick={() => setImage(n)}>{n}</button>
-          ))}
-        </div>
-        <div className="actions">
-          <button className="primary" disabled={!name || pulling} onClick={pull}>
-            {pulling ? "Pulling…" : name ? `Pull ${name}` : "Pull"}
-          </button>
-        </div>
       </div>
 
       <Banner error={error} />
