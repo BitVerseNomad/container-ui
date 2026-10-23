@@ -5,7 +5,9 @@ import { docker, dockerJson } from "./api";
 import { usePoll } from "./hooks";
 import { Banner, Empty } from "./ui";
 import PullPanel from "./PullPanel";
+import { formatBytes, parseBytes } from "./containerInfo";
 import RunPanel from "./RunPanel";
+import DiskCard from "./DiskCard";
 
 type I = { ID: string; Repository: string; Tag: string; Size: string; CreatedSince: string };
 
@@ -38,6 +40,7 @@ export default function Images({ ctx, onRan, startPull = false, arch }: { ctx: s
         </button>
       </header>
       <Banner error={error ?? err} onClose={() => setErr(null)} />
+      <DiskCard ctx={ctx} onChanged={reload} />
       {data && data.length === 0 && (
         <Empty title="No images">Use <strong>Pull image</strong> to download one from Docker Hub.</Empty>
       )}
@@ -54,7 +57,7 @@ export default function Images({ ctx, onRan, startPull = false, arch }: { ctx: s
                   <td>{i.Repository}</td>
                   <td className="mono">{i.Tag}</td>
                   <td className="mono">{i.ID}</td>
-                  <td className="mono">{i.Size}</td>
+                  <td className="mono">{parseBytes(i.Size) ? formatBytes(parseBytes(i.Size)) : i.Size}</td>
                   <td>{i.CreatedSince}</td>
                   <td className="row-actions">
                     <IconButton label={`Run ${ref}`} icon="play" onClick={() => setRunning(ref)} />
