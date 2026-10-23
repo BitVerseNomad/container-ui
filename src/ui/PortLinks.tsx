@@ -1,9 +1,41 @@
-import { invoke } from "@tauri-apps/api/core";
+import { useState } from "react";
+import { openUrl } from "../api";
 import { portLinksFromPs } from "../containerInfo";
+import { isWebPort } from "../lib/webPort";
 
 const SHOWN = 3;
 
-// One click opens a published port in the browser, like Docker Desktop. Stopped containers show nothing to click.
+// A port that is not a web page (a database, a broker): a muted chip that copies "localhost:3306" on click.
+export function CopyPort({ label }: { label: string }) {
+  const [copied, setCopied] = useState(false);
+  const text = `localhost:${label}`;
+  return (
+    <button
+      className="port-link muted mono"
+      aria-label={`Copy ${text}`}
+      title={`Copy ${text}`}
+      onClick={() => {
+        navigator.clipboard.writeText(text).then(() => {
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1200);
+        }, () => {});
+      }}
+    >
+      {copied ? "Copied" : text}
+    </button>
+  );
+}
+
+export function WebPort({ port, label, name }: { port: number; label: string; name: string }) {
+  return (
+    <button className="port-link mono" aria-label={`Open ${name} at localhost:${port} in your browser`} title={`http://localhost:${port}`} onClick={() => openUrl(`http://localhost:${port}`)}>
+      {label} <span aria-hidden="true">↗</span>
+    </button>
+  );
+}
+
+// One click opens a published web port in the browser, like Docker Desktop. Other ports (databases and the like)
+// copy their address instead, because a browser tab would only show an error. Stopped containers show nothing to click.
 // The full docker port text stays in the tooltip, so UDP and unpublished ports are still visible on hover.
 export default function PortLinks({ ports, running, name }: { ports: string; running: boolean; name: string }) {
   const links = running ? portLinksFromPs(ports) : [];
@@ -11,11 +43,9 @@ export default function PortLinks({ ports, running, name }: { ports: string; run
   const extra = links.length - SHOWN;
   return (
     <span className="port-links" title={ports}>
-      {links.slice(0, SHOWN).map((l) => (
-        <button key={l.label} className="port-link mono" aria-label={`Open ${name} at localhost:${l.port} in your browser`} title={`http://localhost:${l.port}`} onClick={() => invoke("open_url", { url: `http://localhost:${l.port}` }).catch(() => {})}>
-          {l.label} <span aria-hidden="true">↗</span>
-        </button>
-      ))}
+      {links.slice(0, SHOWN).map((l) =>
+        isWebPort(l.containerPort, l.port) ? <WebPort key={l.label} port={l.port} label={l.label} name={name} /> : <CopyPort key={l.label} label={l.label} />,
+      )}
       {extra > 0 && <span className="hint">+{extra}</span>}
     </span>
   );

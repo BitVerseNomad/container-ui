@@ -9,8 +9,10 @@ import { Banner, EmptyState, useConfirm } from "./ui";
 import Card from "./ui/Card";
 import IconButton from "./ui/IconButton";
 import PortLinks from "./ui/PortLinks";
+import { groupByProject } from "./lib/compose";
 import { Icon } from "./ui/icons";
 import VmStrip from "./VmStrip";
+import { useHostSize } from "./useHostSize";
 import RunPicker from "./RunPicker";
 import RunPanel from "./RunPanel";
 import ContainerDetail from "./ContainerDetail";
@@ -20,7 +22,7 @@ import { Problem, healthFromStatus, parseState, problemsFor } from "./lib/health
 type VmOp = { op: "starting" | "stopping"; cmd: string; args: Record<string, unknown> };
 // `last` lives here, not in this screen, so Retry still repeats the right command after the screen remounts.
 export type VmState = { op: "starting" | "stopping" | null; failure: string | null; last?: VmOp };
-type C = { ID: string; Names: string; Image: string; State: string; Status: string; Ports: string };
+type C = { ID: string; Names: string; Image: string; State: string; Status: string; Ports: string; Labels?: string };
 type Stat = StatRow & { Name: string };
 
 type Props = {
@@ -52,6 +54,8 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
   const [picking, setPicking] = useState(false);
   const [runImage, setRunImage] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [closed, setClosed] = useState<Set<string>>(new Set());
+  const toggle = (p: string | null) => p && setClosed((s) => { const n = new Set(s); n.has(p) ? n.delete(p) : n.add(p); return n; });
   async function vmAct(op: "starting" | "stopping", cmd: string, args: Record<string, unknown>) {
     const last = { op, cmd, args };
     onVm({ op, failure: null, last });
@@ -63,7 +67,9 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
     }
     reload();
   }
-  const start = () => vmAct("starting", "start_profile", { opts: { name: profile?.name ?? "default" } });
+  const size = useHostSize();
+  // An existing profile keeps its saved size; only the very first VM is sized from the Mac.
+  const start = () => vmAct("starting", "start_profile", { opts: profile ? { name: profile.name } : { name: "default", ...size } });
 
   async function act(args: string[]) {
     try {
@@ -105,7 +111,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
         <h2>Start your first VM</h2>
         <p className="hint">Colima needs a small Linux VM to run containers. The defaults work for most people.</p>
         <div className="actions-inline">
-          <button className="primary" disabled={busy} onClick={start}>{busy ? "Starting…" : "Start Colima"}</button>
+          <button className="primary" disabled={busy} onClick={start}>{busy ? "Starting…" : size ? `Start Colima (${size.cpus} CPUs, ${size.memory} GiB)` : "Start Colima"}</button>
           <button onClick={onProfiles}>Customize first</button>
         </div>
         {vm.failure && <Banner error={vm.failure} />}
@@ -113,57 +119,9 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
     );
   }
 
-  return (
-    <div className="home">
-      <VmStrip
-        profile={profile}
-        totals={running ? { cores: sums.cores, memBytes: sums.memBytes, diskBytes: disk.totalBytes } : null}
-        op={vm.op}
-        failure={vm.failure}
-        onStart={start}
-        onRetry={() => (vm.last ? vmAct(vm.last.op, vm.last.cmd, vm.last.args) : start())}
-        onStop={() => vmAct("stopping", "stop_profile", { name: profile.name })}
-        onRestart={() => vmAct("starting", "restart_profile", { name: profile.name })}
-      />
-
-      {running && (
-        <>
-          <div className="toolbar">
-            <label className="search-field">
-              <Icon name="search" size={14} />
-              <input placeholder="Search containers" aria-label="Search containers" value={q} onChange={(e) => setQ(e.target.value)} />
-            </label>
-            <div className="seg" role="group" aria-label="Show">
-              <button aria-pressed={view === "all"} onClick={() => setOnly("all")}>All {all.length}</button>
-              <button aria-pressed={view === "running"} onClick={() => setOnly("running")}>Running {all.filter((c) => c.State === "running").length}</button>
-              {problems.size > 0 && (
-                <button className="needs" aria-pressed={view === "attention"} onClick={() => setOnly("attention")}>
-                  <Icon name="alert" size={13} /> Needs attention {problems.size}
-                </button>
-              )}
-            </div>
-            <span className="toolbar-actions">
-              <button onClick={onPull}><Icon name="download" size={13} /> Pull</button>
-              <button className="primary" onClick={() => setPicking(true)}><Icon name="play" size={13} /> Run image</button>
-            </span>
-          </div>
-          <Banner error={containers.error ?? err} onClose={() => setErr(null)} />
-          {containers.data && all.length === 0 ? (
-            <EmptyState title="No containers yet">Press Run image to start your first one.</EmptyState>
-          ) : (
-            <table className="list">
-              <thead>
-                <tr>
-                  <th scope="col">Name</th>
-                  <th scope="col">Status</th>
-                  <th scope="col">Ports</th>
-                  <th scope="col" className="num">CPU</th>
-                  <th scope="col" className="num">Memory</th>
-                  <th scope="col"><span className="sr-only">Actions</span></th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((c) => {
+  const groups = groupByProject(rows);
+  const grouped = groups.some((g) => g.project !== null);
+  const renderRow = (c: C) => {
                   const up = c.State === "running";
                   const s = up ? byName.get(c.Names) : undefined;
                   const p = problems.get(c.Names)?.[0];
@@ -172,7 +130,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
                       <td>
                         <div className="name-cell">
                           <span className={up ? "sdot on" : "sdot"} aria-hidden="true" />
-                          <button className="link-plain" onClick={() => setDetailId(c.ID)}>
+                          <button className="link-plain" aria-label={`${c.Names}, image ${c.Image}`} onClick={() => setDetailId(c.ID)}>
                             <b className="clip">{c.Names}</b>
                             <span className="mono clip sub">{c.Image}</span>
                           </button>
@@ -198,8 +156,94 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
                       </td>
                     </tr>
                   );
-                })}
-              </tbody>
+  };
+  return (
+    <div className="home">
+      <VmStrip
+        profile={profile}
+        totals={running ? { cores: sums.cores, memBytes: sums.memBytes, diskBytes: disk.totalBytes } : null}
+        op={vm.op}
+        failure={vm.failure}
+        failedOp={vm.last?.op}
+        onStart={start}
+        onRetry={() => (vm.last ? vmAct(vm.last.op, vm.last.cmd, vm.last.args) : start())}
+        onStop={() => vmAct("stopping", "stop_profile", { name: profile.name })}
+        onRestart={() => vmAct("starting", "restart_profile", { name: profile.name })}
+        onForce={() => vmAct("starting", "force_restart_profile", { name: profile.name })}
+        onForceStop={() => vmAct("stopping", "force_stop_profile", { name: profile.name })}
+      />
+
+      {!running && !vm.op && !vm.failure && (
+        <Card className="stopped-card">
+          <h2>{profile.name} is stopped</h2>
+          <p className="hint">Your containers, images and volumes are kept inside it. Start it to see them.</p>
+        </Card>
+      )}
+
+      {running && (
+        <>
+          <div className="toolbar">
+            <label className="search-field">
+              <Icon name="search" size={14} />
+              <input placeholder="Search containers" aria-label="Search containers" value={q} onChange={(e) => setQ(e.target.value)} />
+            </label>
+            <div className="seg" role="group" aria-label="Show">
+              <button aria-pressed={view === "all"} onClick={() => setOnly("all")}>All {all.length}</button>
+              <button aria-pressed={view === "running"} onClick={() => setOnly("running")}>Running {all.filter((c) => c.State === "running").length}</button>
+              {problems.size > 0 && (
+                <button className="needs" aria-pressed={view === "attention"} onClick={() => setOnly("attention")}>
+                  <Icon name="alert" size={13} /> Needs attention {problems.size}
+                </button>
+              )}
+            </div>
+            <span className="toolbar-actions">
+              <button onClick={onPull}><Icon name="download" size={13} /> Pull image</button>
+              <button className="primary" onClick={() => setPicking(true)}><Icon name="play" size={13} /> Run image</button>
+            </span>
+          </div>
+          <Banner error={containers.error ?? err} onClose={() => setErr(null)} />
+          {containers.data && all.length === 0 ? (
+            <EmptyState title="No containers yet">Press Run image to start your first one.</EmptyState>
+          ) : (
+            <table className="list">
+              <thead>
+                <tr>
+                  <th scope="col">Name</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Ports</th>
+                  <th scope="col" className="num">CPU</th>
+                  <th scope="col" className="num">Memory</th>
+                  <th scope="col"><span className="sr-only">Actions</span></th>
+                </tr>
+              </thead>
+              {groups.map((g) => {
+                const shut = g.project !== null && closed.has(g.project);
+                const up = g.rows.filter((c) => c.State === "running");
+                return (
+                  <tbody key={g.project ?? "-"}>
+                    {grouped && (
+                      <tr className="group-row">
+                        <th colSpan={6} scope="rowgroup">
+                          <span className="group-head">
+                            <button className="link-plain group-toggle" aria-expanded={!shut} onClick={() => toggle(g.project)}>
+                              <span aria-hidden="true">{shut ? "▸" : "▾"}</span> <b>{g.project ?? "Other containers"}</b>
+                            </button>
+                            <span className="hint">{up.length} of {g.rows.length} running{g.dir ? ` · ${g.dir.replace(/^\/Users\/[^/]+/, "~")}` : ""}</span>
+                            {g.project && (
+                              <span className="row-actions">
+                                {up.length < g.rows.length && <IconButton label={`Start all in ${g.project}`} icon="play" onClick={() => act(["start", ...g.rows.filter((c) => c.State !== "running").map((c) => c.ID)])} />}
+                                {up.length > 0 && <IconButton label={`Restart all in ${g.project}`} icon="restart" onClick={() => act(["restart", ...up.map((c) => c.ID)])} />}
+                                {up.length > 0 && <IconButton label={`Stop all in ${g.project}`} icon="stop" onClick={() => act(["stop", ...up.map((c) => c.ID)])} />}
+                              </span>
+                            )}
+                          </span>
+                        </th>
+                      </tr>
+                    )}
+                    {!shut && g.rows.map(renderRow)}
+                  </tbody>
+                );
+              })}
             </table>
           )}
           {all.length > 0 && rows.length === 0 && <p className="hint pad">No container matches.</p>}

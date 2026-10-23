@@ -26,7 +26,7 @@ export function ActivityList({ lines, empty }: { lines: Line[]; empty: string })
 }
 
 // Health, restarts and anything wrong with a container, in plain words.
-export function HealthPanel({ state, onLogs }: { state: State; onLogs: () => void }): ReactNode {
+export function HealthPanel({ state, onLogs }: { state: State; onLogs?: () => void }): ReactNode {
   const problems: Problem[] = problemsFor(state);
   return (
     <div className="health-panel panel">
@@ -44,13 +44,13 @@ export function HealthPanel({ state, onLogs }: { state: State; onLogs: () => voi
       <div className="hp-row">
         <b>Restarts</b>
         <span>{state.restartCount}</span>
-        <span className="hint">{state.running ? (state.startedAt ? `Up since ${new Date(state.startedAt).toLocaleString()}` : "Running") : `Exited with code ${state.exitCode}`}</span>
+        <span className="hint">{state.running ? (state.startedAt ? `Started ${ago(Date.parse(state.startedAt), Date.now())}` : "Running") : `Exited with code ${state.exitCode}`}</span>
       </div>
       {problems.map((p) => (
         <div key={p.id} className={`problem-line ${p.level}`}>
           <b>{p.title}</b>
           <div className="hint">{p.detail}</div>
-          <button onClick={onLogs}>Open the logs</button>
+          {onLogs && <button onClick={onLogs}>Open the logs</button>}
         </div>
       ))}
     </div>

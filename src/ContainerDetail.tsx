@@ -2,7 +2,9 @@ import { useState } from "react";
 import { useConfirm } from "./ui";
 import { invoke } from "@tauri-apps/api/core";
 import { docker } from "./api";
-import { Inspect, publishedPorts } from "./containerInfo";
+import { Inspect, publishedPortPairs } from "./containerInfo";
+import { isWebPort } from "./lib/webPort";
+import { CopyPort } from "./ui/PortLinks";
 import { usePoll } from "./hooks";
 import { Banner } from "./ui";
 import Logs from "./Logs";
@@ -38,7 +40,7 @@ export default function ContainerDetail({ ctx, id, onBack }: Props) {
   const paused = !!c?.State.Paused;
   const running = !!c?.State.Running && !paused;
   const status = paused ? "paused" : c?.State.Status ?? "";
-  const ports = running ? publishedPorts(c?.NetworkSettings.Ports) : [];
+  const ports = running ? publishedPortPairs(c?.NetworkSettings.Ports) : [];
   const state = c ? parseState(JSON.stringify([c])) : null;
   const activity = usePoll(async () => timeline(parseEvents(await docker(ctx, ["events", ...eventWindow(Date.now(), 86_400_000), "--filter", `container=${name}`, "--filter", "type=container", "--format", "{{json .}}"])), 50, name), [ctx, name], 10000, !!c && tab === "Activity");
   const ip = Object.values(c?.NetworkSettings.Networks ?? {})[0]?.IPAddress;
@@ -53,9 +55,10 @@ export default function ContainerDetail({ ctx, id, onBack }: Props) {
           <div className="actions-inline">
             {running && (
               <>
-                <button onClick={() => act(["stop", id])}>Stop</button>
+                <button onClick={() => invoke("open_terminal", { kind: "shell", context: ctx, target: name }).catch((e) => setErr(String(e)))}>Open a shell</button>
                 <button onClick={() => act(["restart", id])}>Restart</button>
-                <button onClick={() => act(["pause", id])}>Pause</button>
+                <button onClick={() => act(["stop", id])}>Stop</button>
+                <button className="quiet" onClick={() => act(["pause", id])}>Pause</button>
               </>
             )}
             {paused && (
@@ -77,15 +80,19 @@ export default function ContainerDetail({ ctx, id, onBack }: Props) {
       {ports.length > 0 && (
         <p className="ports">
           Published on{" "}
-          {ports.map((p) => (
-            <button key={p} className="link mono" onClick={() => invoke("open_url", { url: `http://localhost:${p}` }).catch((e) => setErr(String(e)))}>
-              localhost:{p}
-            </button>
-          ))}
+          {ports.map((p) =>
+            isWebPort(p.container, p.host) ? (
+              <button key={p.host} className="link mono" onClick={() => invoke("open_url", { url: `http://localhost:${p.host}` }).catch((e) => setErr(String(e)))}>
+                localhost:{p.host}
+              </button>
+            ) : (
+              <CopyPort key={p.host} label={String(p.host)} />
+            ),
+          )}
         </p>
       )}
 
-      {state && <HealthPanel state={state} onLogs={() => setTab("Logs")} />}
+      {state && <HealthPanel state={state} onLogs={tab === "Logs" ? undefined : () => setTab("Logs")} />}
 
       <div className="tabs" role="tablist">
         {TABS.map((t) => (

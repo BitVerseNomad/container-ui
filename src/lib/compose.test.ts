@@ -1,0 +1,32 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { parseLabels, groupByProject } from "./compose.ts";
+
+test("given a label value with commas, when parsed, then the commas stay in that value", () => {
+  const l = parseLabels("com.docker.compose.project=shop,com.docker.compose.project.config_files=/a/compose.yml,/a/override.yml,com.docker.compose.service=web");
+  assert.equal(l.get("com.docker.compose.project"), "shop");
+  assert.equal(l.get("com.docker.compose.project.config_files"), "/a/compose.yml,/a/override.yml");
+  assert.equal(l.get("com.docker.compose.service"), "web");
+});
+
+test("given no labels, when parsed, then the map is empty", () => {
+  assert.equal(parseLabels("").size, 0);
+});
+
+const c = (Names: string, Labels = "") => ({ Names, Labels });
+
+test("given containers from two projects and loose ones, when grouped, then projects come first by name and loose ones last", () => {
+  const g = groupByProject([c("solo"), c("shop-web-1", "com.docker.compose.project=shop"), c("blog-db-1", "com.docker.compose.project=blog"), c("shop-db-1", "com.docker.compose.project=shop")]);
+  assert.deepEqual(g.map((x) => [x.project, x.rows.map((r) => r.Names)]), [["blog", ["blog-db-1"]], ["shop", ["shop-web-1", "shop-db-1"]], [null, ["solo"]]]);
+});
+
+test("given no compose containers, when grouped, then there is one ungrouped group", () => {
+  const g = groupByProject([c("a"), c("b")]);
+  assert.equal(g.length, 1);
+  assert.equal(g[0].project, null);
+});
+
+test("given a compose container, when grouped, then its working dir is kept for display", () => {
+  const g = groupByProject([c("shop-web-1", "com.docker.compose.project=shop,com.docker.compose.project.working_dir=/Users/me/shop")]);
+  assert.equal(g[0].dir, "/Users/me/shop");
+});

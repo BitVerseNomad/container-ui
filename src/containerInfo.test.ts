@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { publishedPorts, portLinksFromPs, parsePercent, parseBytes, parseUsage, formatBytes, sparkPoints } from "./containerInfo.ts";
+import { publishedPortPairs, publishedPorts, portLinksFromPs, parsePercent, parseBytes, parseUsage, formatBytes, sparkPoints } from "./containerInfo.ts";
 
 test("publishedPorts returns unique tcp host ports, ignoring unpublished and udp", () => {
   const ports = {
@@ -61,4 +61,14 @@ test("given a huge published range, when links are built, then it is one link, n
 
 test("given a port bound to one host address, when links are built, then it is skipped (localhost would not reach it)", () => {
   assert.deepEqual(portLinksFromPs("192.168.5.15:8080->80/tcp"), []);
+});
+
+test("given docker ps Ports text, when links are built, then each carries the port inside the container", () => {
+  const pairs = (ps: string) => portLinksFromPs(ps).map((l) => `${l.port}:${l.containerPort}`);
+  assert.deepEqual(pairs("0.0.0.0:3307->3306/tcp, [::]:3307->3306/tcp"), ["3307:3306"]);
+  assert.deepEqual(pairs("0.0.0.0:8080->80/tcp"), ["8080:80"]);
+});
+
+test("given inspect ports, when paired, then each host port knows its container port", () => {
+  assert.deepEqual(publishedPortPairs({ "80/tcp": [{ HostIp: "0.0.0.0", HostPort: "8080" }], "3306/tcp": [{ HostPort: "3306" }, { HostPort: "3306" }], "53/udp": [{ HostPort: "53" }] }), [{ host: 3306, container: 3306 }, { host: 8080, container: 80 }]);
 });
