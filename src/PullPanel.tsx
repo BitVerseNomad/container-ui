@@ -1,15 +1,24 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { dockerJson } from "./api";
 import { Hit, SortKey, isOfficial, sortHits } from "./lib/hub";
+import { PRESETS, checkRef, isAuthError, loginCommand, needsLogin, presetFor } from "./lib/registry";
 import { Banner } from "./ui";
 import Drawer from "./ui/Drawer";
+import { Icon } from "./ui/icons";
 import OutputLog from "./ui/OutputLog";
 
-type Props = { ctx: string; onClose: () => void; onPulled: () => void; onRun: (image: string) => void };
+// `searchFor` opens the panel already searching Docker Hub, for a name the user typed elsewhere.
+type Props = { ctx: string; onClose: () => void; onPulled: () => void; onRun: (image: string) => void; searchFor?: string };
 
-export default function PullPanel({ ctx, onClose, onPulled, onRun }: Props) {
-  const [term, setTerm] = useState("");
+type Mode = "hub" | "private";
+
+export default function PullPanel({ ctx, onClose, onPulled, onRun, searchFor }: Props) {
+  const [mode, setMode] = useState<Mode>("hub");
+  const [host, setHost] = useState("");
+  const [path, setPath] = useState("");
+  const [tag, setTag] = useState("latest");
+  const [term, setTerm] = useState(searchFor ?? "");
   const [image, setImage] = useState("");
   const [hits, setHits] = useState<Hit[] | null>(null);
   const [sort, setSort] = useState<SortKey>("stars");
@@ -20,6 +29,17 @@ export default function PullPanel({ ctx, onClose, onPulled, onRun }: Props) {
   const [failure, setFailure] = useState<string | null>(null);
   const name = image.trim();
   const query = term.trim();
+  const priv = mode === "private";
+  const refCheck = checkRef({ host, path, tag });
+  const preset = presetFor(host);
+  const login = loginCommand(host);
+  const authHint = priv && failure !== null && isAuthError(failure);
+  const target = priv ? (refCheck.ok ? refCheck.ref : "") : name;
+
+  useEffect(() => {
+    if (searchFor?.trim()) void search();
+    // Once, on open: later edits search when the user asks.
+  }, []);
 
   async function search() {
     if (!query || query.startsWith("-")) return;
@@ -34,14 +54,22 @@ export default function PullPanel({ ctx, onClose, onPulled, onRun }: Props) {
     }
   }
 
+  function switchMode(m: Mode) {
+    setMode(m);
+    setDone(null);
+    setError(null);
+    setFailure(null);
+  }
+
   async function pull() {
+    if (!target) return;
     setPulling(true);
     setDone(null);
     setError(null);
     setFailure(null);
     try {
-      await invoke("docker_pull", { context: ctx, image: name });
-      setDone(name);
+      await invoke("docker_pull", { context: ctx, image: target });
+      setDone(target);
       onPulled();
     } catch (e) {
       setFailure(String(e));
@@ -54,6 +82,61 @@ export default function PullPanel({ ctx, onClose, onPulled, onRun }: Props) {
 
   return (
     <Drawer label="Pull image" title={<>Pull image</>} onClose={onClose} closeDisabled={pulling}>
+      <div className="seg" role="group" aria-label="Where to pull from">
+        <button aria-pressed={!priv} disabled={pulling} onClick={() => switchMode("hub")}>Docker Hub</button>
+        <button aria-pressed={priv} disabled={pulling} onClick={() => switchMode("private")}>Other registry</button>
+      </div>
+
+      {priv && (
+        <div className="group">
+          <div className="chips">
+            <span className="hint">Registry:</span>
+            {PRESETS.map((p) => (
+              <button key={p.id} className="chip" aria-pressed={preset?.id === p.id} disabled={pulling} onClick={() => setHost(p.host)}>{p.label}</button>
+            ))}
+          </div>
+          <label className="reg-field">
+            Registry host
+            <input aria-label="Registry host" value={host} placeholder="ghcr.io, or your own like harbor.example.com" disabled={pulling} onChange={(e) => setHost(e.target.value)} />
+          </label>
+          <label className="reg-field">
+            Image path
+            <input aria-label="Image path" value={path} placeholder={preset?.pathExample ?? "acme/api"} disabled={pulling} onChange={(e) => setPath(e.target.value)} onKeyDown={(e) => e.key === "Enter" && target && !pulling && pull()} />
+          </label>
+          <label className="reg-field">
+            Tag
+            <input aria-label="Tag" value={tag} placeholder="latest" disabled={pulling} onChange={(e) => setTag(e.target.value)} onKeyDown={(e) => e.key === "Enter" && target && !pulling && pull()} />
+          </label>
+          {refCheck.ok ? (
+            <p className="hint">Will pull <code>{refCheck.ref}</code></p>
+          ) : (
+            (host.trim() || path.trim()) && <p className="hint">{refCheck.reason}</p>
+          )}
+          {!authHint && needsLogin(host) && (
+            <div className="login-hint">
+              <p className="hint">Private images need you to sign in first. Run this in Terminal:</p>
+              <pre className="cmd">{login ?? "docker login <registry>"}</pre>
+              <button disabled={!login} onClick={() => login && navigator.clipboard.writeText(login)}><Icon name="copy" size={14} /> Copy command</button>
+            </div>
+          )}
+          <button className="primary" disabled={!target || pulling} onClick={pull}>
+            {pulling ? "Pulling…" : target ? `Pull ${target}` : "Pull"}
+          </button>
+        </div>
+      )}
+
+      {authHint && (
+        <div className="problem-line bad start-why" role="alert">
+          <b><Icon name="alert" size={14} /> Sign in to {host.trim()} first</b>
+          <span className="hint">The registry refused the pull. Run this in Terminal, then try again:</span>
+          <pre className="cmd">{login ?? `docker login ${host.trim()}`}</pre>
+          <span className="actions-inline">
+            <button disabled={!login} onClick={() => login && navigator.clipboard.writeText(login)}><Icon name="copy" size={14} /> Copy command</button>
+          </span>
+        </div>
+      )}
+
+      {!priv && (<>
       <div className="group">
         <h4>Image</h4>
         <span className="inline">
@@ -118,6 +201,8 @@ export default function PullPanel({ ctx, onClose, onPulled, onRun }: Props) {
         )}
       </div>
 
+      </>)}
+
       <Banner error={error} />
       {done && (
         <>
@@ -125,7 +210,7 @@ export default function PullPanel({ ctx, onClose, onPulled, onRun }: Props) {
           <button className="primary" onClick={() => onRun(done)}>Run {done}</button>
         </>
       )}
-      <OutputLog event="pull-progress" active={pulling} failure={failure} />
+      <OutputLog event="pull-progress" active={pulling} failure={authHint ? null : failure} collapsed={authHint} />
     </Drawer>
   );
 }
