@@ -15,8 +15,8 @@ export type Profile = {
 export type StartOpts = {
   name: string;
   cpus?: number;
-  memory?: number; // GB
-  disk?: number; // GB
+  memory?: number; // GiB
+  disk?: number; // GiB
   runtime?: string;
   kubernetes?: boolean;
 };
@@ -35,4 +35,12 @@ export async function dockerJson<T>(ctx: string, args: string[]): Promise<T[]> {
     .split("\n")
     .filter((l) => l.trim())
     .map((l) => JSON.parse(l) as T);
+}
+
+// Opens a link in the browser. A failure would otherwise be a click that does nothing, so it reaches
+// the app-wide banner instead.
+export function openUrl(url: string): Promise<void> {
+  return invoke<void>("open_url", { url }).catch((e) => {
+    window.dispatchEvent(new CustomEvent("app-error", { detail: `Couldn't open ${url}: ${e}` }));
+  });
 }

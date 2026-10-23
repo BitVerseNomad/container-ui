@@ -50,11 +50,12 @@ export function Banner({ error, onClose }: { error: string | null; onClose?: () 
 }
 
 export { Empty as EmptyState };
-export function Empty({ title, children }: { title: string; children?: ReactNode }) {
+export function Empty({ title, children, action }: { title: string; children?: ReactNode; action?: ReactNode }) {
   return (
     <div className="empty">
       <h2>{title}</h2>
-      <p>{children}</p>
+      <p className="hint">{children}</p>
+      {action}
     </div>
   );
 }
