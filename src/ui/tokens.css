@@ -24,4 +24,7 @@
     --danger: #e07a6d;
     --warn: #e3c26b;
   }
+  /* on a dark page a drawer needs its own surface; a shadow alone doesn't show */
+  .drawer { background: var(--card); }
+  .scrim { background: rgb(0 0 0 / .5); }
 }

@@ -1,5 +1,5 @@
+import { openUrl } from "./api";
 import { useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { docker, dockerJson } from "./api";
 import { usePoll } from "./hooks";
 import { NetInfo, parseNetworks } from "./lib/network";
@@ -38,15 +38,15 @@ export default function Networks({ ctx }: { ctx: string }) {
   return (
     <section>
       <header>
-        <button className="primary" onClick={() => setDoctor(true)}>Why can't one container reach another?</button>
+        <button onClick={() => setDoctor(true)}>Troubleshoot a connection…</button>
       </header>
       <p className="hint lead">
         Containers on the same network reach each other by name, like <code>http://db:5432</code>. The built-in <b>bridge</b> network doesn't do name lookup, so put containers that talk to each other on a network of your own.{" "}
-        <button className="link ext" onClick={() => invoke("open_url", { url: BRIDGE_DOCS }).catch(() => {})}>Learn more <span className="host">(docs.docker.com)</span></button>
+        <button className="link ext" onClick={() => openUrl(BRIDGE_DOCS)}>Learn more <span className="host">(docs.docker.com)</span></button>
       </p>
       <div className="inline newnet">
         <input aria-label="New network name" placeholder="New network name, like devnet" value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && valid && act(["network", "create", newName.trim()]).then(() => setNewName(""))} />
-        <button disabled={!valid} onClick={async () => { await act(["network", "create", newName.trim()]); setNewName(""); }}>Create network</button>
+        <button className="primary" disabled={!valid} onClick={async () => { await act(["network", "create", newName.trim()]); setNewName(""); }}>Create network</button>
       </div>
       <Banner error={nets.error ?? err} onClose={() => setErr(null)} />
       {nets.data && nets.data.length === 0 && <Empty title="No networks">Docker creates a few built-in ones when it starts.</Empty>}
@@ -86,7 +86,7 @@ export default function Networks({ ctx }: { ctx: string }) {
                     )}
                   </td>
                   <td className="row-actions">
-                    <IconButton label={n.members.length ? `Remove network ${n.name} (still has containers)` : `Remove network ${n.name}`} icon="trash" danger disabled={builtin || n.members.length > 0} onClick={async () => (await confirm(`Remove network ${n.name}?`)) && act(["network", "rm", n.name])} />
+                    {!builtin && <IconButton label={n.members.length ? `Remove network ${n.name} (still has containers)` : `Remove network ${n.name}`} icon="trash" danger disabled={n.members.length > 0} onClick={async () => (await confirm(`Remove network ${n.name}?`)) && act(["network", "rm", n.name])} />}
                   </td>
                 </tr>
               );

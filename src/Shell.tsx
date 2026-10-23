@@ -2,7 +2,7 @@ import { ReactNode } from "react";
 import { Profile } from "./api";
 import { Icon, IconName } from "./ui/icons";
 
-export type Tab = "Containers" | "Images" | "Volumes" | "Networks" | "Kubernetes" | "Profiles";
+export type Tab = "Containers" | "Images" | "Volumes" | "Networks" | "Kubernetes" | "Profiles" | "Setup";
 
 const NAV: { tab: Tab; icon: IconName }[] = [
   { tab: "Containers", icon: "box" },
@@ -10,6 +10,7 @@ const NAV: { tab: Tab; icon: IconName }[] = [
   { tab: "Volumes", icon: "database" },
   { tab: "Networks", icon: "network" },
   { tab: "Kubernetes", icon: "cluster" },
+  { tab: "Setup", icon: "check" },
   { tab: "Profiles", icon: "sliders" },
 ];
 
@@ -20,9 +21,13 @@ type Props = {
   active: string | null;
   onSelect: (name: string) => void;
   children: ReactNode;
+  // a count shown next to a nav item, e.g. setup problems left
+  badges?: Partial<Record<Tab, number>>;
+  // nav items left out for now, e.g. Kubernetes while the active profile has it turned off
+  hidden?: Tab[];
 };
 
-export default function Shell({ nav, onNav, profiles, active, onSelect, children }: Props) {
+export default function Shell({ nav, onNav, profiles, active, onSelect, children, badges = {}, hidden = [] }: Props) {
   const current = profiles.find((p) => p.name === active);
   return (
     <div className="shell">
@@ -32,10 +37,11 @@ export default function Shell({ nav, onNav, profiles, active, onSelect, children
           <b>Colima</b>
         </div>
         <nav aria-label="Main">
-          {NAV.map(({ tab, icon }) => (
+          {NAV.filter(({ tab }) => !hidden.includes(tab)).map(({ tab, icon }) => (
             <button key={tab} className={tab === nav ? "nav-item active" : "nav-item"} aria-label={tab} title={tab} aria-current={tab === nav ? "page" : undefined} onClick={() => onNav(tab)}>
               <Icon name={icon} />
               <span className="nav-label">{tab}</span>
+              {!!badges[tab] && <span className="nav-badge" aria-hidden="true">{badges[tab]}</span>}
             </button>
           ))}
         </nav>

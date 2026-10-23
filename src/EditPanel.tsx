@@ -50,8 +50,8 @@ export default function EditPanel({ profile, onClose, onApplied }: Props) {
     <Drawer label={`Edit profile ${profile.name}`} title={<>Edit profile: {profile.name}</>} onClose={onClose} closeDisabled={busy}>
 
         {field("cpus", "CPUs", cpus, setCpus, was.cpus, "", 1)}
-        {field("memory", "Memory (GB)", memory, setMemory, was.memory, " GB", 1)}
-        {field("disk", "Disk (GB)", disk, setDisk, was.disk, " GB", was.disk)}
+        {field("memory", "Memory (GiB)", memory, setMemory, was.memory, " GiB", 1)}
+        {field("disk", "Disk (GiB)", disk, setDisk, was.disk, " GiB", was.disk)}
         <p className="hint">Disk can only grow. CPU and memory can go up or down.</p>
 
         <p className="note">

@@ -1,4 +1,5 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useHostSize } from "./useHostSize";
 import { useConfirm } from "./ui";
 import { invoke } from "@tauri-apps/api/core";
 import { Profile, StartOpts, gbOf } from "./api";
@@ -7,29 +8,52 @@ import { Empty } from "./ui";
 import IconButton from "./ui/IconButton";
 import OutputLog from "./ui/OutputLog";
 
-const gb = (bytes: number) => `${gbOf(bytes)} GB`;
+const gb = (bytes: number) => `${gbOf(bytes)} GiB`;
 
-export default function Profiles({ profiles, reload }: { profiles: Profile[]; reload: () => void }) {
+type Props = {
+  profiles: Profile[];
+  reload: () => void;
+  openNew?: boolean;
+  // whether a profile runs Kubernetes; null while that is not known yet
+  kubeOn?: (name: string) => boolean | null;
+  onKubeAsked?: (name: string) => void;
+};
+
+export default function Profiles({ profiles, reload, openNew = false, kubeOn = () => null, onKubeAsked }: Props) {
+  const size = useHostSize();
   const confirm = useConfirm();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<Profile | null>(null);
   const dialog = useRef<HTMLDialogElement>(null);
+  // "Customize first" on the first-run card lands here with the form already open.
+  useEffect(() => {
+    if (openNew) dialog.current?.showModal();
+  }, [openNew]);
   const [newName, setNewName] = useState("default");
   const taken = profiles.some((p) => p.name === newName.trim());
 
 
-  async function act(name: string, label: string, cmd: string, args: Record<string, unknown>) {
+  async function act(name: string, label: string, cmd: string, args: Record<string, unknown>): Promise<boolean> {
     setBusy(`${name}: ${label}`);
     setError(null);
     try {
       await invoke(cmd, args);
+      return true;
     } catch (e) {
       setError(String(e));
+      return false;
     } finally {
       setBusy(null);
       reload();
     }
+  }
+
+  // The same action the Kubernetes page offers: start the VM with Kubernetes on (a running VM restarts first).
+  async function turnOnKubernetes(p: Profile) {
+    const warn = p.status === "Running" ? " The VM restarts, so running containers stop for a minute and start again." : "";
+    if (!(await confirm(`Turn on Kubernetes for "${p.name}"?${warn}`, "Turn on"))) return;
+    if (await act(p.name, "turning on Kubernetes", "apply_resources", { opts: { name: p.name, kubernetes: true } as StartOpts, restart: p.status === "Running" })) onKubeAsked?.(p.name);
   }
 
   return (
@@ -52,7 +76,7 @@ export default function Profiles({ profiles, reload }: { profiles: Profile[]; re
       {profiles.length > 0 && (
         <table>
           <thead>
-            <tr><th scope="col">Profile</th><th scope="col">Status</th><th scope="col">CPUs</th><th scope="col">Memory</th><th scope="col">Disk</th><th scope="col">Runtime</th><th scope="col"><span className="sr-only">Actions</span></th></tr>
+            <tr><th scope="col">Profile</th><th scope="col">Status</th><th scope="col">CPUs</th><th scope="col">Memory</th><th scope="col">Disk</th><th scope="col">Runtime</th><th scope="col">Kubernetes</th><th scope="col"><span className="sr-only">Actions</span></th></tr>
           </thead>
           <tbody>
             {profiles.map((p) => {
@@ -65,6 +89,9 @@ export default function Profiles({ profiles, reload }: { profiles: Profile[]; re
                   <td className="mono">{gb(p.memory)}</td>
                   <td className="mono">{gb(p.disk)}</td>
                   <td>{p.runtime}</td>
+                  <td>
+                    {kubeOn(p.name) === true ? <span className="badge on">On</span> : kubeOn(p.name) === false ? <button disabled={!!busy} onClick={() => turnOnKubernetes(p)}>Turn on Kubernetes</button> : <span className="hint">–</span>}
+                  </td>
                   <td className="row-actions">
                     {up ? (
                       <>
@@ -114,9 +141,9 @@ export default function Profiles({ profiles, reload }: { profiles: Profile[]; re
           <h3>New profile</h3>
           <label>Name<input name="name" value={newName} onChange={(e) => setNewName(e.target.value)} required pattern="[a-zA-Z0-9_-]+" /></label>
           {taken && <p className="hint err">A profile named "{newName}" already exists. Use Edit on it instead.</p>}
-          <label>CPUs<input name="cpus" type="number" min={1} defaultValue={2} /></label>
-          <label>Memory (GB)<input name="memory" type="number" min={1} defaultValue={4} /></label>
-          <label>Disk (GB)<input name="disk" type="number" min={10} defaultValue={60} /></label>
+          <label>CPUs<input key={size?.cpus} name="cpus" type="number" min={1} defaultValue={size?.cpus ?? 2} /></label>
+          <label>Memory (GiB)<input key={size?.memory} name="memory" type="number" min={1} defaultValue={size?.memory ?? 4} /></label>
+          <label>Disk (GiB)<input name="disk" type="number" min={10} defaultValue={60} /></label>
           <label>Runtime
             <select name="runtime" defaultValue="docker">
               <option>docker</option>

@@ -101,7 +101,7 @@ export default function Kubernetes({ profile, ctx }: { profile: Profile; ctx: st
                 <div>
                   <b>{p.name}</b> <span className="hint">{p.namespace}</span> <span className={`plevel ${problems[0].level}`}>{problems[0].title}</span>
                 </div>
-                <button onClick={() => setOpen(p)}>Open {p.name}</button>
+                <button aria-label={`Open ${p.name}`} onClick={() => setOpen(p)}>Open</button>
               </li>
             ))}
           </ul>
@@ -140,7 +140,7 @@ export default function Kubernetes({ profile, ctx }: { profile: Profile; ctx: st
               .sort((a, b) => Number(podProblems(b, 0).length > 0) - Number(podProblems(a, 0).length > 0) || a.name.localeCompare(b.name))
               .map((p) => (
                 <tr key={`${p.namespace}/${p.name}`}>
-                  <td><button className="link" onClick={() => setOpen(p)}>{p.name}</button></td>
+                  <td><button className="link-plain" onClick={() => setOpen(p)}><b>{p.name}</b></button></td>
                   <td>{p.namespace}</td>
                   <td className="mono">{p.ready}</td>
                   <td><span className={`hbadge ${badge(p.status)}`}>{p.status}</span></td>

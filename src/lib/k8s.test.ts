@@ -61,9 +61,12 @@ test("image pull failures point at the image name and registry access", () => {
 test("an out-of-memory kill is recognised from the current or the previous termination", () => {
   const now = podProblems(first({ phase: "Failed", containerStatuses: [{ name: "app", ready: false, restartCount: 0, state: { terminated: { reason: "OOMKilled", exitCode: 137 } } }] }), NOW);
   assert.equal(now[0].id, "oom");
+  assert.equal(now[0].level, "bad");
   const prev = podProblems(first({ phase: "Running", containerStatuses: [{ name: "app", ready: true, restartCount: 2, state: { running: {} }, lastState: { terminated: { reason: "OOMKilled", exitCode: 137 } } }] }), NOW);
   assert.equal(prev[0].id, "oom");
   assert.match(prev[0].detail, /memory limit/i);
+  assert.equal(prev[0].level, "warn");
+  assert.match(prev[0].title, /^Restarted after/);
 });
 
 test("an unschedulable pod explains where to look", () => {

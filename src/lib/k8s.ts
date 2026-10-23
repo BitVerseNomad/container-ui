@@ -48,7 +48,15 @@ export function podProblems(p: Pod, now: number): K8sProblem[] {
   const out: K8sProblem[] = [];
   const oom = p.terminated?.reason === "OOMKilled" || p.lastTerminated?.reason === "OOMKilled";
   if (oom) {
-    out.push({ id: "oom", level: "bad", title: "Ran out of memory", detail: "It used more memory than its memory limit and was killed. Raise the memory limit in the deployment, or reduce what the app uses." });
+    // Killed now is red; killed earlier and running again is a warning in the past tense, so it can't
+    // contradict a green "Running 1/1" in the table.
+    const now = p.terminated?.reason === "OOMKilled";
+    out.push({
+      id: "oom",
+      level: now ? "bad" : "warn",
+      title: now ? "Ran out of memory" : "Restarted after running out of memory",
+      detail: `It used more memory than its memory limit and was killed${now ? "" : ", then restarted"}. Raise the memory limit in the deployment, or reduce what the app uses.`,
+    });
   }
   if (p.waiting === "CrashLoopBackOff") {
     const why = p.lastTerminated && !oom ? ` Its last exit was ${p.lastTerminated.reason || "an error"} (exit code ${p.lastTerminated.exitCode}).` : "";
@@ -61,7 +69,7 @@ export function podProblems(p: Pod, now: number): K8sProblem[] {
     out.push({ id: "config", level: "bad", title: "Couldn't create the container", detail: "Something it refers to is missing or wrong, such as a ConfigMap or Secret. The pod's events say which." });
   }
   if (p.unschedulable !== null) {
-    out.push({ id: "unschedulable", level: "bad", title: "Can't be placed on a node", detail: `${p.unschedulable} Check the node's free CPU and memory, and any taints or node selectors.`.trim() });
+    out.push({ id: "unschedulable", level: "warn", title: "Can't be placed on a node", detail: `${p.unschedulable} Check the node's free CPU and memory, and any taints or node selectors.`.trim() });
   }
   if (["ContainerCreating", "PodInitializing"].includes(p.waiting) && p.ageMs > FIVE_MIN) {
     out.push({ id: "stuck", level: "warn", title: "Stuck starting", detail: `It has been "${p.waiting}" for over 5 minutes. The pod's events usually say what it is waiting for.` });
