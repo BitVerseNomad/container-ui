@@ -1,15 +1,17 @@
 # Verifying on your Mac (about 15 minutes)
 
-Everything so far was tested against a simulated Docker/Colima/kubectl in a browser, plus unit tests. The Rust side has never been compiled by the author. This list is the quickest way to find out what really works. Tick what passes, note what doesn't, and send the notes back.
+The UI was tested against a simulated Docker/Colima/kubectl in a browser (`npm run check`), plus unit tests in TypeScript and Rust. The real CLIs' behaviour is what this list checks. This list is the quickest way to find out what really works. Tick what passes, note what doesn't, and send the notes back.
 
 ## 0. Build
-- [ ] `npm install` then `npx tauri icon icon.png` (one time) then `cd src-tauri && cargo test` — all Rust tests pass?
-- [ ] `npm run tauri dev` — the window opens, no blank screen?
+- [ ] `npm install`, then `cd src-tauri && cargo test`: all Rust tests pass?
+- [ ] `npm run tauri dev`: the window opens, no blank screen?
 
 ## 1. Core (needs Colima running)
-- [ ] Overview shows the VM as running, with meters and your containers.
+- [ ] Containers (home) shows the VM as running, with meters, and your containers; compose projects are grouped.
 - [ ] Run an image (try `nginx`): Run panel opens, ports prefilled, **Run** works, the container page opens.
-- [ ] Stop and Restart the VM from the Overview; the output log reads cleanly (no escape codes).
+- [ ] Stop and Restart the VM from the top strip; the output reads cleanly (no escape codes). Press Cancel during a restart: it stops.
+- [ ] Open a container, press Open a shell: Terminal opens a shell inside it (macOS may ask permission once).
+- [ ] Setup tab: every row matches what you know about your machine; nothing changes until you click a fix.
 - [ ] Delete an image and a volume: a confirmation appears and it works.
 
 ## 2. Networking

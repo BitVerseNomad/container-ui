@@ -1,6 +1,6 @@
 # Spec: what is left to do
 
-Status date: 2026-10-11. Read `docs/SUMMARY.md` first for what exists. Work on branch `integration`. Effort: S under a day, M a few days, L a week or more.
+Status date: 2026-10-23 (backend facts below; the backlog items keep their original wording). Read `README.md` for what exists today and `docs/SUMMARY.md` for the Oct 11 snapshot. Work on branch `integration`. Effort: S under a day, M a few days, L a week or more.
 
 ## 1. Product
 **One line:** a Colima/Docker desktop app that explains what is wrong in plain words and fixes the common mistakes, instead of only listing containers.
@@ -21,10 +21,10 @@ Status date: 2026-10-11. Read `docs/SUMMARY.md` first for what exists. Work on b
 
 ## 2. Architecture (current)
 - **UI**: React 18 + TypeScript, built by Vite. Screens in `src/`, shared components and tokens in `src/ui/`, pure logic in `src/lib/` (each file has a `*.test.ts`). Polling through `usePoll` (latest-answer-wins, pauses while the window is hidden, optional `enabled`).
-- **Backend (Rust)**, commands the UI may call: `list_profiles`, `start_profile`, `apply_resources`, `stop_profile`, `restart_profile`, `delete_profile`, `docker` (allowlisted subcommands, Colima contexts only), `docker_pull` (streams), `env_check`, `install_tools` (brew, allowlisted names), `network_probe` (helper container in the client's network namespace, target and port as positional parameters), `kubectl` (read-only, JSON only, Colima contexts only), `open_terminal` (k9s only), `open_url` (localhost and plain https). Output is streamed as frames (`\r` prefix means "replace last line") on `colima-progress`, `pull-progress`, `brew-progress`.
+- **Backend (Rust)**, commands the UI may call: `list_profiles`, `start_profile`, `apply_resources`, `stop_profile`, `restart_profile`, `delete_profile`, `docker` (allowlisted subcommands, Colima contexts only), `docker_pull` (streams), `env_check`, `install_tools` (brew, allowlisted names), `network_probe` (helper container in the client's network namespace, target and port as positional parameters), `kubectl` (read-only, JSON only, Colima contexts only), `open_terminal` (k9s, or a shell in one container), `setup_report` and `setup_fix` (Setup tab), `cancel_vm_op`, `force_stop_profile`, `open_url` (localhost and plain https). Output is streamed as frames (`\r` prefix means "replace last line") on `colima-progress`, `pull-progress`, `brew-progress`.
 - **Preview**: `scripts/build-preview.mjs` bundles the real UI with `preview/mock.ts` (simulated Docker, Colima, kubectl) into one HTML file; scenarios by URL (`?scenario=`, `?k8s=`).
-- **Tests**: `npm test` (Node, pure logic), `cargo test` (Rust, unrun so far), `scripts/check-*.mjs` (Playwright against the preview: layout, overview, restyle, volumes, a11y, guided, pull, network, observe, k8s).
-- **Security model**: the page can only reach allowlisted commands; docker `run` refuses privileged flags, the Docker socket and host networking; kubectl is get/logs/config only; the Docker config edit may only add one `credHelpers` entry (with backup); links open only after a click and only https/localhost.
+- **Tests**: `npm test` (Node, pure logic), `cargo test` (Rust), `scripts/check-*.mjs` (Playwright against the preview: layout, overview, restyle, volumes, a11y, guided, pull, network, observe, k8s).
+- **Security model**: the page can only reach allowlisted commands; docker `run` refuses privileged flags, the Docker socket and host networking; kubectl is get/logs/config only; Setup fixes may remove dead Docker Desktop plugin links, remove `credsStore`, add Homebrew's plugin folder to `cliPluginsExtraDirs`, switch the docker context and start the login service, each shown first and run on a click, with a backup of `~/.docker/config.json`; links open only after a click and only https/localhost.
 
 ## 3. Branch and integration state
 `integration` = `feat/kubernetes` + docs and contains everything except the AWS registries tab. `feat/registries` (off `feat/guided-run`) holds that tab. A trial merge hit conflicts in four files and was aborted cleanly; the resolution is mechanical:
@@ -37,9 +37,9 @@ Status date: 2026-10-11. Read `docs/SUMMARY.md` first for what exists. Work on b
 
 ### P0: do first
 **W1. Real-machine verification and Rust compile (S, needs the owner's Mac)**
-- Run `cargo test`; fix compile or test failures (24 tests on `integration`, 23 more on `feat/registries`).
+- Done: `cargo test` runs and passes on `integration`; `feat/registries` still to check.
 - Walk `docs/VERIFY-ON-YOUR-MAC.md`; capture the real outputs it asks for (helper container `nslookup`/`nc`, `docker events` JSON, `docker system df -v --format json`, Colima Kubernetes context names, `docker ps` health text).
-- Acceptance: app launches; Overview, Run, delete, Networks, doctor, Activity, Volumes sizes, Kubernetes behave on a real VM; parsers adjusted to the real output; list of fixes closed.
+- Acceptance: app launches; Containers home, Setup, Run, delete, Networks, doctor, Activity, Volumes sizes, Kubernetes behave on a real VM; parsers adjusted to the real output; list of fixes closed.
 
 **W2. Merge the registries branch and finish it (M)**
 - Resolve as in section 3; then add the AWS scenarios to `preview/mock.ts` that `scripts/check-registries.mjs` expects: `?aws=ready|expired|noaws|noconfig|nohelper`; mock `aws` (`configure list-profiles`, `configure get sso_session|sso_start_url|role_arn|region`, `sts get-caller-identity`, `ecr describe-repositories`, `ecr describe-images`), `docker_config_read/write`, `env_check` with `aws` and `ecr_helper`, `install_tools` for `awscli` and `docker-credential-helper-ecr`.
@@ -85,7 +85,7 @@ Status date: 2026-10-11. Read `docs/SUMMARY.md` first for what exists. Work on b
 
 ### P2: later
 - **W11 Packaging and release (M)**: icons, `npm run tauri build` (.dmg), universal binary, code signing and notarization (Apple Developer account needed; Tauri documents this), GitHub Releases through `tauri-action`, Homebrew tap/cask depending on `colima` and `docker`, updater plugin.
-- **W12 Strict CSP and hardening (S)**: set `csp` and `devCsp` in `tauri.conf.json` and test the app still loads; replace the generic `docker` passthrough with typed commands over time.
+- **W12 Hardening (S)**: `csp` and `devCsp` are set and `docker` calls go through per-command flag allowlists; left: confirm the release build loads under the CSP on a real Mac, and move to typed commands over time.
 - **W13** Image build and push; more registries (GHCR, Docker Hub private) through credential helpers; "Open in lazydocker" (research first); in-app terminal (pty plus xterm); remote hosts; Linux; onboarding tour; localization.
 - **W14** Extend the doctor: HTTP probes, link from health-check output that says "connection refused", "connect all to a network".
 
@@ -99,7 +99,6 @@ Status date: 2026-10-11. Read `docs/SUMMARY.md` first for what exists. Work on b
 ## 6. Known issues and unverified assumptions
 | Item | How to verify |
 |---|---|
-| Rust never compiled; all Rust tests unrun | `cd src-tauri && cargo test` |
 | Helper container output (`nslookup`, `nc -zv -w 3`) and exit markers | Command in `docs/VERIFY-ON-YOUR-MAC.md` section 2 |
 | `docker events --format '{{json .}}'` fields | Command in section 3 |
 | `docker system df -v --format json` shape (volume sizes show a dash if unreadable) | Command in section 3 |
@@ -108,7 +107,7 @@ Status date: 2026-10-11. Read `docs/SUMMARY.md` first for what exists. Work on b
 | `docker ps` health text "(healthy)" | `docker ps` with a health-checked container |
 | Real SSO behaviour with the ECR credential helper | W2, real AWS account |
 | Podman Desktop sees Colima's engine; ColimaStack build steps | Evaluation kit |
-| No Content-Security-Policy set | W12 |
+| Release build under the strict CSP not yet opened on a real Mac | `npm run tauri build`, open the .app |
 | Prune suggestions need app-side tracking (Docker has no last-used time) | W4 design |
 | First-use image downloads (`nicolaka/netshoot`) | W1 |
 

@@ -4,7 +4,7 @@ Goal: find out which tool actually helps you most, on the same problems, in abou
 
 ## 1. Create the same problems for every tool
 ```
-cd ~/Downloads/colima-ui
+cd ~/Desktop/colima-ui
 bash scripts/eval-setup.sh        # creates eval-* containers, volumes, a network, and (optional) Kubernetes pods
 ```
 It only touches things named `eval-*`. Remove everything afterwards with `bash scripts/eval-teardown.sh`.

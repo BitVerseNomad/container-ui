@@ -1,5 +1,7 @@
 # What we built and learned (summary)
 
+> Snapshot from 2026-10-11, kept as a record. Several lines are out of date (the Rust now compiles and its tests pass; the Overview was replaced by the Containers home). For today's state read `README.md` and `CHANGELOG.md`.
+
 Status date: 2026-10-11. Branch to use: `integration` (everything except the AWS registries tab). Nothing is merged into `main`.
 
 ## 1. What this is
