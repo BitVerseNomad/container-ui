@@ -8,17 +8,29 @@ import { Icon } from "./ui/icons";
 const BOOTSTRAP = '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"';
 
 export default function InstallCard({ env, onDone }: { env: EnvReport; onDone: () => Promise<void> }) {
-  const missing = (["colima", "docker"] as const).filter((n) => !env[n]);
+  // Homebrew's docker formula is only the CLI; compose and buildx came with Docker Desktop, so add them too.
+  const missing = [...(["colima", "docker"] as const).filter((n) => !env[n]), ...(env.docker ? [] : ["docker-compose", "docker-buildx"])];
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
   const command = `brew install ${missing.join(" ")}`;
 
   async function install() {
     setBusy(true);
     setFailure(null);
+    setNote(null);
     try {
       await invoke("install_tools", { names: missing });
+      // Point docker at Homebrew's plugin folder so `docker compose` works straight away.
+      if (missing.includes("docker-compose")) {
+        try {
+          await invoke("setup_fix", { id: "plugins" });
+          setNote("Linked docker compose and docker buildx so the docker command can find them.");
+        } catch (e) {
+          setFailure(`Installed, but linking the plugins failed. Open Setup to try again.\n${String(e)}`);
+        }
+      }
       setDone(true);
       await onDone();
     } catch (e) {
@@ -30,7 +42,7 @@ export default function InstallCard({ env, onDone }: { env: EnvReport; onDone: (
 
   return (
     <Card className={done ? "install-card done" : "install-card"}>
-      <h2>{missing.map((n) => n[0].toUpperCase() + n.slice(1)).join(" and ")} {missing.length > 1 ? "aren't" : "isn't"} installed yet</h2>
+      <h2>{missing.length === 1 ? `${missing[0][0].toUpperCase() + missing[0].slice(1)} isn't installed yet` : `${missing.length} tools are missing: ${missing.join(", ")}`}</h2>
       <p className="hint">Colima runs your containers in a small Linux VM, and Docker is the tool that talks to it. Both come from Homebrew.</p>
       {env.brew ? (
         <>
@@ -52,6 +64,7 @@ export default function InstallCard({ env, onDone }: { env: EnvReport; onDone: (
           </div>
         </>
       )}
+      {note && <p className="hint">{note}</p>}
       <OutputLog event="brew-progress" active={busy} failure={failure} />
     </Card>
   );

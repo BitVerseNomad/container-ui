@@ -1,0 +1,170 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { fixAllPlan, needsAttention, setupFindings, type SetupReport } from "./setup.ts";
+
+const BREW = "/opt/homebrew/lib/docker/cli-plugins";
+const dead = (name: string) => ({ name, target: `/Applications/Docker.app/Contents/Resources/cli-plugins/${name}`, broken: true });
+
+// What a Mac looks like right after Docker Desktop is removed (captured on a real one, 2026-10-23).
+const AFTER_DESKTOP: SetupReport = {
+  plugins: [dead("docker-buildx"), dead("docker-compose"), dead("docker-scout"), { name: "docker-mcp", target: "/Users/me/.docker/modules/cli-plugins/docker-mcp", broken: false }],
+  brew_plugin_dir: BREW,
+  brew_plugins: ["docker-compose"],
+  extra_dirs: [],
+  creds_store: null,
+  creds_helper_found: true,
+  contexts: [{ name: "colima", current: true }, { name: "desktop-linux", current: false }],
+  autostart: "none",
+  testcontainers_host: null,
+  docker_desktop_installed: false,
+};
+const HEALTHY: SetupReport = { ...AFTER_DESKTOP, plugins: [], brew_plugins: ["docker-buildx", "docker-compose"], extra_dirs: [BREW], autostart: "started", contexts: [{ name: "colima", current: true }] };
+const vm = { cpus: 4, memory: 8 * 1024 ** 3 };
+const byId = (r: SetupReport, v = vm) => new Map(setupFindings(r, v).map((f) => [f.id, f]));
+
+test("given compose installed by Homebrew but hidden by a dead Docker Desktop link, when checked, then compose fails with the plugin fix", () => {
+  const f = byId(AFTER_DESKTOP).get("compose")!;
+  assert.equal(f.status, "fail");
+  assert.match(f.title, /docker compose doesn't work/);
+  assert.deepEqual(f.fix, { kind: "fix", id: "plugins", label: "Fix plugin links" });
+});
+
+test("given buildx is not installed, when checked, then the fix installs it and then links plugins", () => {
+  const f = byId(AFTER_DESKTOP).get("buildx")!;
+  assert.equal(f.status, "fail");
+  assert.deepEqual(f.fix, { kind: "install", names: ["docker-buildx"], label: "Install docker-buildx", then: "plugins" });
+});
+
+test("given the commands shown before a fix, when the plugin fix is offered, then it names exactly the links it removes", () => {
+  const f = byId(AFTER_DESKTOP).get("compose")!;
+  assert.match(f.command!, /rm ~\/\.docker\/cli-plugins\/docker-buildx ~\/\.docker\/cli-plugins\/docker-compose ~\/\.docker\/cli-plugins\/docker-scout/);
+  assert.doesNotMatch(f.command!, /cliPluginsExtraDirs/);
+  assert.match(f.steps!.join("\n"), /cliPluginsExtraDirs/);
+  assert.doesNotMatch(f.command!, /docker-mcp/);
+});
+
+test("given a healthy machine, when checked, then every check passes", () => {
+  const out = setupFindings(HEALTHY, vm);
+  assert.deepEqual(out.filter((f) => f.status !== "ok").map((f) => f.id), []);
+  assert.ok(out.length >= 5);
+});
+
+test("given a leftover desktop credsStore with no helper, when checked, then pulls are said to fail and the fix removes it", () => {
+  const f = byId({ ...HEALTHY, creds_store: "desktop", creds_helper_found: false }).get("creds")!;
+  assert.equal(f.status, "fail");
+  assert.deepEqual(f.fix, { kind: "fix", id: "creds_store", label: "Remove the setting" });
+});
+
+test("given the docker CLI still points at Docker Desktop, when checked, then it fails with the context fix", () => {
+  const f = byId({ ...HEALTHY, contexts: [{ name: "colima", current: false }, { name: "desktop-linux", current: true }] }).get("context")!;
+  assert.equal(f.status, "fail");
+  assert.match(f.detail, /desktop-linux/);
+  assert.deepEqual(f.fix, { kind: "fix", id: "use_colima_context", label: "Use colima" });
+});
+
+test("given the work profile and its own context, when checked, then the context passes", () => {
+  assert.equal(new Map(setupFindings({ ...HEALTHY, contexts: [{ name: "colima-work", current: true }] }, vm, "work").map((f) => [f.id, f])).get("context")!.status, "ok");
+});
+
+test("given Colima does not start at login, when checked, then it is a suggestion, not a failure", () => {
+  const f = byId(AFTER_DESKTOP).get("autostart")!;
+  assert.equal(f.status, "info");
+  assert.deepEqual(f.fix, { kind: "fix", id: "autostart_on", label: "Start at login" });
+});
+
+test("given the default 2 CPU, 2 GiB VM, when checked, then it warns and points at Profiles", () => {
+  const f = byId(HEALTHY, { cpus: 2, memory: 2 * 1024 ** 3 }).get("resources")!;
+  assert.equal(f.status, "warn");
+  assert.match(f.title, /2 CPUs and 2 GiB/);
+  assert.deepEqual(f.fix, { kind: "profiles", label: "Change in Profiles" });
+});
+
+test("given Testcontainers is pinned to Docker Desktop's socket, when checked, then it warns with the Colima socket", () => {
+  const f = byId({ ...HEALTHY, testcontainers_host: "unix:///Users/me/.docker/run/docker.sock" }).get("testcontainers")!;
+  assert.equal(f.status, "warn");
+  assert.equal(f.fix?.kind, "copy");
+});
+
+test("given no VM yet, when checked, then the resource check is skipped", () => {
+  assert.equal(new Map(setupFindings(HEALTHY, null).map((f) => [f.id, f])).has("resources"), false);
+});
+
+test("given the app shows the work profile but the terminal uses default's colima, when checked, then it says which VM each one sees", () => {
+  const f = setupFindings(HEALTHY, vm, "work").find((x) => x.id === "context")!;
+  assert.equal(f.status, "warn");
+  assert.match(f.detail, /colima-work/);
+  assert.equal(f.command, "docker context use colima-work");
+});
+
+test("given a non-default profile, when the Testcontainers fix is offered, then it uses that profile's socket", () => {
+  const f = setupFindings({ ...HEALTHY, testcontainers_host: "unix:///x.sock" }, vm, "work").find((x) => x.id === "testcontainers")!;
+  assert.match(f.command!, /\.colima\/work\/docker\.sock/);
+});
+
+test("given several leftovers, when planning Fix all, then each fix runs once and installs come before the link fix", () => {
+  const plan = fixAllPlan(setupFindings({ ...AFTER_DESKTOP, creds_store: "desktop", creds_helper_found: false }, vm));
+  assert.deepEqual(plan.map((s) => (s.kind === "install" ? `install ${s.names.join(" ")}` : s.id)), ["install docker-buildx", "plugins", "creds_store"]);
+});
+
+test("given fails, a warning and an info when counting attention then fails and warnings count, info does not", () => {
+  const f = [{ status: "fail" }, { status: "warn" }, { status: "info" }, { status: "ok" }] as Parameters<typeof needsAttention>[0];
+  assert.equal(needsAttention(f), 2);
+});
+
+test("given Colima does not start at login, when planning Fix all, then the info row is left alone", () => {
+  const findings = setupFindings(AFTER_DESKTOP, vm);
+  assert.equal(findings.find((f) => f.id === "autostart")!.status, "info");
+  assert.ok(!fixAllPlan(findings).some((s) => s.kind === "fix" && (s.id === "autostart_on" || s.id === "autostart_restart")));
+});
+
+test("given the login service failed, when checked, then the fix restarts it and Fix all runs it", () => {
+  const findings = setupFindings({ ...HEALTHY, autostart: "error" }, vm);
+  const f = findings.find((x) => x.id === "autostart")!;
+  assert.equal(f.status, "warn");
+  assert.equal(f.command, "brew services restart colima");
+  assert.deepEqual(f.fix, { kind: "fix", id: "autostart_restart", label: "Restart the service" });
+  assert.deepEqual(fixAllPlan(findings), [{ kind: "fix", id: "autostart_restart" }]);
+});
+
+test("given config edits are needed, when commands are shown, then boxes hold only shell commands and the edits are steps", () => {
+  const out = setupFindings({ ...AFTER_DESKTOP, creds_store: "desktop", creds_helper_found: false }, vm);
+  for (const f of out) assert.doesNotMatch(f.command ?? "", /backup is kept|^(add|remove) /im, f.id);
+  const creds = out.find((f) => f.id === "creds")!;
+  assert.equal(creds.command, undefined);
+  assert.match(creds.steps!.join("\n"), /Remove "credsStore" from ~\/\.docker\/config\.json \(a backup is kept\)/);
+});
+
+test("given compose and buildx need the same plugin fix, when checked, then the steps show once and the second card points to them", () => {
+  const out = byId(AFTER_DESKTOP);
+  const compose = out.get("compose")!;
+  const buildx = out.get("buildx")!;
+  assert.match(compose.command!, /^rm /);
+  assert.match(compose.steps!.join("\n"), /cliPluginsExtraDirs/);
+  assert.equal(buildx.command, "brew install docker-buildx");
+  assert.deepEqual(buildx.steps, ["Then the same link fix as above."]);
+});
+
+test("given Docker Desktop's context is still listed, when checked, then an info note explains its volumes stay behind", () => {
+  const findings = setupFindings({ ...HEALTHY, contexts: [{ name: "colima", current: true }, { name: "desktop-linux", current: false }] }, vm);
+  const f = findings.find((x) => x.id === "desktop_data")!;
+  assert.equal(f.status, "info");
+  assert.equal(f.title, "Your Docker Desktop images and volumes stay behind");
+  assert.match(f.detail, /Colima starts empty/);
+  assert.equal(f.command, 'docker run --rm -v VOLUME:/data -v "$PWD":/backup alpine tar czf /backup/VOLUME.tgz -C /data .');
+  assert.deepEqual(f.fix, { kind: "copy", text: f.command, label: "Copy the export command" });
+  assert.equal(needsAttention(findings), 0);
+  assert.deepEqual(fixAllPlan(findings), []);
+});
+
+test("given no Docker Desktop context, when checked, then there is no volumes note", () => {
+  assert.equal(byId(HEALTHY).has("desktop_data"), false);
+});
+
+test("given Testcontainers points elsewhere, when the fix is offered, then it sets real environment variables with no unexpanded text", () => {
+  const f = byId({ ...HEALTHY, testcontainers_host: "unix:///x.sock" }).get("testcontainers")!;
+  assert.doesNotMatch(f.command!, /\$\{HOME\}/);
+  assert.match(f.command!, /^export DOCKER_HOST="unix:\/\/\$HOME\/\.colima\/default\/docker\.sock"$/m);
+  assert.match(f.command!, /^export TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=\/var\/run\/docker\.sock$/m);
+  assert.deepEqual(f.fix, { kind: "copy", text: f.command!, label: "Copy the two lines" });
+  assert.match(f.steps!.join("\n"), /shell profile/);
+});
