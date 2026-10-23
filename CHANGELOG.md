@@ -2,6 +2,15 @@
 
 Newest first. Older entries record what was true when they were written; later entries supersede them (the Overview, for example, was replaced by the Containers home screen).
 
+## Review round 6: a calmer Containers screen
+- **One line per container.** Name and image sit side by side. The row's checkbox and its Restart, Stop and Remove show only on hover or keyboard focus; once one row is picked, every checkbox shows. On touch screens everything stays visible.
+- **The dot shows health, not just running.** Red when the health check fails or the container ran out of memory, amber when it keeps restarting, green when fine. The problem replaces the status text ("Ran out of memory"); the status moves to the tooltip.
+- **One New menu** replaces the Run, Pull and Compose buttons: Run image, Pull image, Compose projects (with "3 on this Mac"). Arrow keys move through it, Escape closes it and returns focus.
+- **The sidebar folds to icons** and remembers it. Icons keep their names as tooltips.
+- **Quieter VM line**: no box, thin meters, the profile name lined up with the meter labels.
+- **Smaller fixes**: the status column is wider so problem text is not cut; port chips never wrap; while rows are picked the row tools hide, so the bottom bar is the only place to act; Images' Pull button has the same icon style as New, and image sizes use the same number style as the Containers table.
+- **Kept on purpose**: the bulk bar keeps disabled buttons in place so it never jumps; the space card on Images stays in GB to match `docker system df`.
+
 ## Review round 5: ideas from an earlier prototype, and Compose projects on your Mac
 - **Kubernetes pods are protected.** With Kubernetes on the docker runtime, each pod shows up as `k8s_` containers. They now sit in their own folded "Kubernetes pods" group, named by container, pod and namespace (coredns · coredns-6799… · kube-system), with no checkbox and no stop, restart or remove, on the list or on the container page. The group links to the Kubernetes tab.
 - **Pick several containers** with the new checkboxes, then Start, Restart, Stop or Remove them together. Remove asks once, names them, and says when running ones will be stopped first. Only rows you can see are acted on: filtered out, gone, or inside a folded group means left alone. The bar sits at the bottom so ticking a box never moves the rows; picked rows are tinted and the header box shows "some picked".
