@@ -14,8 +14,8 @@ Prereqs: Node 22.6+, Rust (rustup), Colima and the Docker CLI (`brew install col
 The app talks to the docker context Colima creates for the selected profile (`colima`, or `colima-<profile>`).
 
 ## What it does
-- **Containers** (home): the VM in one line (state, CPU, memory, disk, Restart, Stop), then every container with status, problems, port links, CPU and memory. Compose projects are grouped. A container page has logs, inspect, stats, mounts, health, activity, network checks and Open a shell.
-- **Images**: pull (Docker Hub search, or type a name), guided Run that reads what the image declares, and what takes space inside the VM, with one cleanup per kind (never your volumes).
+- **Containers** (home): the VM in one line (state, CPU, memory, disk, Restart, Stop), then every container with status, problems, port links, CPU and memory. Compose projects are grouped; Kubernetes pod containers sit in their own folded group and can't be stopped or removed here. Pick several rows to start, stop or remove them together (only rows you can see: folded groups are left out). The Compose button lists the Compose projects on your Mac (found with Spotlight when the app opens), with the command to start each in the profile on screen. A container page has logs, inspect, stats, mounts, health, activity, network checks and Open a shell.
+- **Images**: search your images, pull (Docker Hub search, a name, or a private registry such as GHCR, ECR or Google Artifact Registry), guided Run that reads what the image declares, and what takes space inside the VM, with one cleanup per kind (never your volumes).
 - **Volumes**: sizes and which containers use them; in-use volumes can't be removed.
 - **Networks**: create, connect, and the connection doctor ("why can't A reach B?").
 - **Kubernetes** (shown when the profile has it): Colima's K3s cluster, read-only, with plain-words pod problems and Open in k9s.
@@ -25,7 +25,8 @@ The app talks to the docker context Colima creates for the selected profile (`co
 When a start or stop fails, the app says why and offers the next step.
 
 ## Tests and checks
-    npm test                                   # TypeScript logic (node --test)
+    npm test                                   # TypeScript logic (node --test), then the screens in jsdom (vitest)
+    npm run test:ui                            # only the screens
     cd src-tauri && cargo test                 # Rust: allowlists, deadlines, process groups
     npm run check                              # builds the browser preview, runs every browser check (needs Playwright)
 
@@ -34,7 +35,7 @@ If Playwright isn't installed in this repo, point `NODE_PATH` at a `node_modules
 ## Browser preview (no Tauri or Rust needed)
     npm run preview                            # writes preview/index.html
 
-The same UI runs against a simulated backend (`preview/mock.ts`). Pick a scenario with `?scenario=`: running, stopped, failed, stuck, stopfail, missing, partial, nobrew, none, two, nonet, desktop, mismatch. Add `&k8s=on` for Kubernetes.
+The same UI runs against a simulated backend (`preview/mock.ts`). Pick a scenario with `?scenario=`: running, stopped, failed, stuck, stopfail, missing, partial, nobrew, none, two, nonet, desktop, mismatch, k8spods, nocompose. Add `&k8s=on` for Kubernetes.
 
 ## Safety
-The page can only ask the backend for allowlisted commands: per-command flag lists for `docker`, a shape check for `docker run` (detached only, named volumes or folders under your home outside `~/Library` and hidden folders, no host network), read-only `kubectl`, and Colima contexts and profile names only. Publishing ports on 127.0.0.1 and mounting your folders read-only are the Run panel's defaults, not rules the backend enforces. Every command has a deadline. A strict Content Security Policy is set for release builds.
+The page can only ask the backend for allowlisted commands: per-command flag lists for `docker`, a shape check for `docker run` (detached only, named volumes or folders under your home outside `~/Library` and hidden folders, no host network), read-only `kubectl`, a fixed Spotlight query for Compose files (paths only, no file is read), and Colima contexts and profile names only. Publishing ports on 127.0.0.1 and mounting your folders read-only are the Run panel's defaults, not rules the backend enforces. Every command has a deadline. A strict Content Security Policy is set for release builds.
