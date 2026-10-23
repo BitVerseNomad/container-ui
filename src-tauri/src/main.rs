@@ -919,11 +919,80 @@ async fn setup_fix(id: String, profile: Option<String>) -> Result<String, String
     tauri::async_runtime::spawn_blocking(move || setup::fix(&id, &profile)).await.map_err(|e| e.to_string())?
 }
 
+// ---- Compose projects on the Mac: ask Spotlight, never crawl the disk ----
+// Spotlight already indexes the home folder, so this costs well under a second and reads no file contents.
+const COMPOSE_NAMES: [&str; 4] = ["compose.yaml", "compose.yml", "docker-compose.yaml", "docker-compose.yml"];
+const COMPOSE_SCAN_DEADLINE: std::time::Duration = std::time::Duration::from_secs(10);
+const COMPOSE_MAX: usize = 300;
+
+fn compose_query() -> String {
+    COMPOSE_NAMES.iter().map(|n| format!("kMDItemFSName == \"{n}\"")).collect::<Vec<_>>().join(" || ")
+}
+
+// Dependency and package-cache folders ship sample Compose files nobody wants listed as their projects.
+// Go keeps its module cache in .../pkg/mod, matched as a pair so a project folder called "mod" still shows.
+const COMPOSE_SKIP_DIRS: [&str; 6] = ["node_modules", "vendor", "bower_components", "Pods", "site-packages", "venv"];
+
+// Keeps Compose files in ordinary folders under the home: absolute, not hidden, not ~/Library, not a dependency folder.
+// `mdfind -0` ends each path with NUL, because a folder name may itself contain a newline.
+// One more than COMPOSE_MAX is kept, so the screen can say the list was cut.
+fn compose_paths(out: &str, home: &str) -> Vec<String> {
+    let mut v: Vec<String> = out
+        .split('\0')
+        .filter(|p| {
+            let Some((dir, file)) = p.rsplit_once('/') else { return false };
+            dir.starts_with('/') && COMPOSE_NAMES.contains(&file) && run_source_ok(dir, home) && !dir.split('/').any(|c| COMPOSE_SKIP_DIRS.contains(&c)) && !format!("{dir}/").contains("/pkg/mod/")
+        })
+        .map(String::from)
+        .collect();
+    v.sort();
+    v.dedup();
+    v.truncate(COMPOSE_MAX + 1);
+    v
+}
+
+#[tauri::command]
+async fn find_compose_files() -> Result<Vec<String>, String> {
+    if !cfg!(target_os = "macos") {
+        return Err("Finding Compose projects needs Spotlight, which is only on macOS".into());
+    }
+    let home = std::env::var("HOME").unwrap_or_default();
+    if home.is_empty() {
+        return Err("Could not find your home folder".into());
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut cmd = Command::new("/usr/bin/mdfind");
+        cmd.args(["-0", "-onlyin", &home, &compose_query()]);
+        let (ok, out, err) = output_with_deadline(cmd, COMPOSE_SCAN_DEADLINE).map_err(|e| format!("Spotlight search failed: {e}"))?;
+        if !ok {
+            let err = String::from_utf8_lossy(&err);
+            // The shared deadline message blames Docker; here the slow party is Spotlight.
+            if err.contains("Stopped after") {
+                return Err(format!("Spotlight did not answer within {}s. It may still be indexing your Mac; try Scan again in a minute.", COMPOSE_SCAN_DEADLINE.as_secs()));
+            }
+            return Err(format!("Spotlight search failed: {}", err.trim()));
+        }
+        Ok(compose_paths(&String::from_utf8_lossy(&out), &home))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+// Shows one Compose file in Finder. Only a file the scan would list is accepted.
+#[tauri::command]
+fn reveal_compose(path: String) -> Result<(), String> {
+    let home = std::env::var("HOME").unwrap_or_default();
+    if compose_paths(&path, &home) != [path.as_str()] {
+        return Err("Only a Compose file in your home folder can be shown".into());
+    }
+    Command::new("/usr/bin/open").args(["-R", &path]).spawn().map(|_| ()).map_err(|e| e.to_string())
+}
+
 fn main() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             list_profiles, docker, docker_pull, env_check, install_tools, network_probe, kubectl, open_terminal, start_profile, apply_resources,
-            stop_profile, force_stop_profile, restart_profile, force_restart_profile, delete_profile, cancel_vm_op, host_resources, vm_log_tail, open_url, pick_folder, setup_report, setup_fix
+            stop_profile, force_stop_profile, restart_profile, force_restart_profile, delete_profile, cancel_vm_op, host_resources, vm_log_tail, open_url, pick_folder, setup_report, setup_fix, find_compose_files, reveal_compose
         ])
         .run(tauri::generate_context!())
         .expect("error while running Colima UI");
@@ -931,6 +1000,38 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn given_spotlight_output_when_filtered_then_only_compose_files_in_ordinary_home_folders_stay() {
+        let out = "/Users/me/code/shop/compose.yaml\0/Users/me/code/shop/compose.yaml\0/Users/me/.config/x/docker-compose.yml\0/Users/me/Library/App/compose.yml\0/Users/me/library/App/compose.yml\0/Users/me/code/app/node_modules/pkg/docker-compose.yml\0/Users/me/go/pkg/mod/github.com/x/compose.yml\0/Users/me/code/blog/docker-compose.yml\0/Users/me/code/blog/compose.override.yml\0/Users/other/code/compose.yml\0/Users/me/compose.yml\0";
+        assert_eq!(super::compose_paths(out, "/Users/me"), vec!["/Users/me/code/blog/docker-compose.yml", "/Users/me/code/shop/compose.yaml"]);
+    }
+
+    #[test]
+    fn given_one_path_when_revealed_then_it_must_be_a_listed_compose_file() {
+        assert_eq!(super::compose_paths("/Users/me/code/shop/compose.yaml", "/Users/me").len(), 1);
+        assert!(super::compose_paths("/Users/me/code/shop/secrets.txt", "/Users/me").is_empty());
+        // Relative paths would resolve against the app's working folder, which is / when opened from Finder.
+        assert!(super::compose_paths("tmp/compose.yml", "/Users/me").is_empty());
+        assert!(super::compose_paths("Users/me/x/compose.yml", "/Users/me").is_empty());
+    }
+
+    #[test]
+    fn given_a_folder_name_with_a_newline_when_spotlight_lists_it_then_it_stays_one_path() {
+        let odd = "/Users/me/code/we\nird/compose.yml";
+        assert_eq!(super::compose_paths(&format!("{odd}\0"), "/Users/me"), vec![odd]);
+    }
+
+    #[test]
+    fn given_more_files_than_the_cap_when_filtered_then_one_extra_is_kept_to_signal_the_cut() {
+        let out: String = (0..400).map(|i| format!("/Users/me/p{i:03}/compose.yml\0")).collect();
+        assert_eq!(super::compose_paths(&out, "/Users/me").len(), super::COMPOSE_MAX + 1);
+    }
+
+    #[test]
+    fn given_the_compose_names_when_queried_then_each_is_an_exact_name_match() {
+        assert_eq!(super::compose_query().matches("kMDItemFSName ==").count(), 4);
+    }
     #[test]
     fn given_the_run_panel_shape_when_checked_then_it_is_accepted() {
         let a = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
