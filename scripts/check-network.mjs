@@ -13,14 +13,14 @@ async function open(tab) {
   p.errors = [];
   p.on("pageerror", (e) => p.errors.push(e.message));
   await p.goto(`file://${root}/preview/index.html`);
-  await p.waitForSelector("table.list tbody tr");
+  await p.waitForSelector("table.list tbody tr:not(.group-row)");
   await p.locator(".sidebar").getByRole("button", { name: tab, exact: true }).click();
   return p;
 }
 
 // 1. the Networks tab
 let p = await open("Networks");
-await p.waitForSelector("tbody tr");
+await p.waitForSelector("tbody tr:not(.group-row)");
 await p.waitForFunction(() => /devnet/.test(document.querySelector("tbody")?.textContent ?? ""), null, { timeout: 4000 });
 let t = await p.locator("tbody").innerText();
 check(/devnet/.test(t) && /db\s+172\.18\.0\.\d+/.test(t) && /kafka\b/.test(t), "networks: lists devnet with its containers and their addresses");
@@ -46,8 +46,8 @@ await p.close();
 
 // 2. the doctor, from the Kafka-style pair: UI on the default bridge, broker on devnet
 p = await open("Networks");
-await p.waitForSelector("tbody tr");
-await p.getByRole("button", { name: /Why can't one container reach another/ }).click();
+await p.waitForSelector("tbody tr:not(.group-row)");
+await p.getByRole("button", { name: /Troubleshoot a connection/ }).click();
 await p.waitForSelector(".drawer");
 await p.getByLabel("From container").selectOption("kafka-ui");
 await p.getByLabel("To container").selectOption("kafka");
@@ -77,7 +77,7 @@ await p.close();
 
 // 3. the container page
 p = await open("Containers");
-await p.waitForSelector("tbody tr");
+await p.waitForSelector("tbody tr:not(.group-row)");
 await p.locator("table.list button.link-plain", { hasText: "kafka-ui" }).click();
 await p.waitForSelector(".detail");
 await p.getByRole("tab", { name: "Network" }).click();

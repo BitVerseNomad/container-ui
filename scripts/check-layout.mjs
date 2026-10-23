@@ -23,7 +23,10 @@ for (const [w, h] of [[1100, 680], [800, 600]]) {
   if (!(await page.$(".content"))) { bad(`.content missing at ${w}x${h}`); await page.close(); continue; }
   ok(`.content present ${w}x${h}`);
 
-  for (const name of ["Containers", "Images", "Volumes", "Networks", "Kubernetes", "Profiles"]) {
+  await nav(page, "Kubernetes").waitFor({ timeout: 6000 }).catch(() => {});
+  const labels = await page.locator(".sidebar nav .nav-item").evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")));
+  JSON.stringify(labels) === JSON.stringify(["Containers", "Images", "Volumes", "Networks", "Kubernetes", "Setup", "Profiles"]) ? ok(`nav order puts Profiles after Setup ${w}x${h}`) : bad(`nav order is ${labels.join(", ")}`);
+  for (const name of labels) {
     await nav(page, name).click();
     await page.waitForTimeout(250);
     await page.screenshot({ path: `/tmp/layout-${name}-${w}.png` });
@@ -31,7 +34,7 @@ for (const [w, h] of [[1100, 680], [800, 600]]) {
   }
 
   await nav(page, "Containers").click();
-  await page.locator("table.list button.link-plain").first().click();
+  await page.locator("table.list tbody tr:not(.group-row) button.link-plain").first().click();
   await page.waitForSelector(".logs");
   await page.waitForFunction(() => (document.querySelector(".logs")?.textContent ?? "").length > 500);
   const logs = await page.evaluate(() => { const el = document.querySelector(".logs"); return { scrollable: el.scrollHeight > el.clientHeight }; });
@@ -50,6 +53,20 @@ for (const [w, h] of [[1100, 680], [800, 600]]) {
     await two.waitForFunction(() => /default/.test(document.querySelector(".side-foot")?.textContent ?? ""), null, { timeout: 4000 }).catch(() => {});
     (await two.locator(".side-foot select").count()) === 1 ? ok("footer is a picker with two profiles") : bad("footer has no picker with two profiles");
     await two.close();
+  }
+  if (w === 1100) {
+    const off = await browser.newPage({ viewport: { width: w, height: h } });
+    await off.goto(url("?k8s=off"));
+    await off.waitForSelector(".content");
+    await off.waitForTimeout(800);
+    const offLabels = await off.locator(".sidebar nav .nav-item").evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")));
+    JSON.stringify(offLabels) === JSON.stringify(["Containers", "Images", "Volumes", "Networks", "Setup", "Profiles"]) ? ok("without Kubernetes the nav has no Kubernetes item") : bad(`nav without Kubernetes is ${offLabels.join(", ")}`);
+    for (const name of offLabels) {
+      await nav(off, name).click();
+      await off.waitForTimeout(250);
+      (await windowScrolls(off)) ? bad(`${name} (k8s off): the window scrolls`) : ok(`${name} (k8s off): window does not scroll`);
+    }
+    await off.close();
   }
   errors.length ? bad(`page errors: ${errors.join(" | ")}`) : ok(`no page errors ${w}x${h}`);
   await page.close();

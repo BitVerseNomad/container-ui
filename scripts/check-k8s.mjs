@@ -13,13 +13,24 @@ async function open(k8s = "on") {
   p.errors = [];
   p.on("pageerror", (e) => p.errors.push(e.message));
   await p.goto(`file://${root}/preview/index.html?k8s=${k8s}`);
-  await p.waitForSelector("table.list tbody tr");
-  await p.locator(".sidebar").getByRole("button", { name: "Kubernetes", exact: true }).click();
+  await p.waitForSelector("table.list tbody tr:not(.group-row)");
+  // The nav item only exists once the profile has Kubernetes; give the cluster check a moment.
+  if (k8s === "on") await p.locator(".sidebar").getByRole("button", { name: "Kubernetes", exact: true }).waitFor({ timeout: 6000 });
   return p;
+}
+const kubeNav = (p) => p.locator(".sidebar").getByRole("button", { name: "Kubernetes", exact: true });
+// Off (or no kubectl): turn it on from Profiles, the way a user would, then open the new nav item.
+async function turnOnFromProfiles(p) {
+  await p.locator(".sidebar").getByRole("button", { name: "Profiles", exact: true }).click();
+  await p.getByRole("button", { name: "Turn on Kubernetes" }).click();
+  await p.getByRole("button", { name: "Turn on", exact: true }).click();
+  await kubeNav(p).waitFor({ timeout: 12000 });
+  await kubeNav(p).click();
 }
 
 // healthy cluster with four sick pods
 let p = await open("on");
+await kubeNav(p).click();
 await p.waitForSelector(".k8s-summary", { timeout: 8000 }).catch(() => {});
 let t = await p.locator(".content").innerText();
 check(/1 node ready/i.test(t), "k8s: summary shows the node is ready");
@@ -28,19 +39,19 @@ t = await p.locator(".k8s-problems").innerText().catch(() => "");
 check(/api/.test(t) && /keeps crashing/i.test(t), "k8s: a crash-looping pod is called out in plain words");
 check(/worker/.test(t) && /download its image/i.test(t), "k8s: an image pull failure is called out");
 check(/report/.test(t) && /placed on a node/i.test(t), "k8s: an unschedulable pod is called out");
-check(/cache/.test(t) && /ran out of memory/i.test(t), "k8s: an out-of-memory pod is called out");
+check(/cache/.test(t) && /out of memory/i.test(t), "k8s: an out-of-memory pod is called out");
 check(!/\bweb-/.test(t), "k8s: a healthy pod is not listed as a problem");
 await p.screenshot({ path: "/tmp/k8s-overview.png" });
 
 await p.getByLabel("Namespace").selectOption("kube-system");
 await p.waitForTimeout(300);
-check(await p.locator("tbody tr").count() >= 1 && !/api-/.test(await p.locator("tbody").innerText()), "k8s: the namespace filter narrows the pods");
+check(await p.locator("tbody tr:not(.group-row)").count() >= 1 && !/api-/.test(await p.locator("tbody").innerText()), "k8s: the namespace filter narrows the pods");
 await p.getByLabel("Namespace").selectOption("shop");
-await p.waitForSelector("tbody tr");
+await p.waitForSelector("tbody tr:not(.group-row)");
 t = await p.locator("tbody").innerText();
 check(/CrashLoopBackOff/.test(t) && /ImagePullBackOff/.test(t) && /Pending/.test(t), "k8s: the pods table shows each pod's status");
 
-await p.locator("tbody tr", { hasText: "api-" }).locator("button.link").click();
+await p.locator("tbody tr:not(.group-row)", { hasText: "api-" }).locator("button.link-plain").click();
 await p.waitForSelector(".drawer");
 await p.waitForFunction(() => /Back-off|Error/.test(document.querySelector(".drawer")?.textContent ?? ""), null, { timeout: 6000 }).catch(() => {});
 t = await p.locator(".drawer").innerText();
@@ -50,11 +61,11 @@ check(await p.getByRole("button", { name: /Copy kubectl logs command/ }).count()
 await p.keyboard.press("Escape");
 
 await p.getByRole("tab", { name: "Deployments" }).click();
-await p.waitForSelector("tbody tr");
-t = await p.locator("tbody tr", { hasText: "api" }).first().innerText();
+await p.waitForSelector("tbody tr:not(.group-row)");
+t = await p.locator("tbody tr:not(.group-row)", { hasText: "api" }).first().innerText();
 check(/0\/1/.test(t), "k8s: deployments show ready over desired");
 await p.getByRole("tab", { name: "Services" }).click();
-await p.waitForSelector("tbody tr");
+await p.waitForSelector("tbody tr:not(.group-row)");
 check(/80→8080\/TCP/.test(await p.locator("tbody").innerText()), "k8s: services show their ports");
 
 await p.getByRole("button", { name: /Open in k9s/ }).click();
@@ -66,17 +77,26 @@ await p.close();
 
 // Kubernetes not turned on yet: explain, then turn it on
 p = await open("off");
-await p.waitForSelector("text=Kubernetes isn't turned on", { timeout: 6000 }).catch(() => {});
-t = await p.locator(".content").innerText();
-check(/Kubernetes isn't turned on/.test(t) && /restart/i.test(t), "k8s off: says it isn't on and that turning it on restarts the VM");
+await p.waitForTimeout(800);
+check(await kubeNav(p).count() === 0, "k8s off: the Kubernetes nav item is hidden");
+await p.locator(".sidebar").getByRole("button", { name: "Profiles", exact: true }).click();
+check(await p.getByRole("button", { name: "Turn on Kubernetes" }).count() === 1, "k8s off: Profiles offers Turn on Kubernetes");
 await p.screenshot({ path: "/tmp/k8s-off.png" });
-await p.getByRole("button", { name: /Turn on Kubernetes/ }).click();
+await p.getByRole("button", { name: "Turn on Kubernetes" }).click();
+check(/restart/i.test(await p.locator(".modal").innerText().catch(() => "")), "k8s off: asks first and says the VM restarts");
+await p.getByRole("button", { name: "Turn on", exact: true }).click();
+await kubeNav(p).waitFor({ timeout: 12000 }).catch(() => {});
+check(await kubeNav(p).count() === 1, "k8s off: after turning it on, the Kubernetes nav item appears");
+await kubeNav(p).click();
 await p.waitForSelector(".k8s-summary", { timeout: 12000 }).catch(() => {});
 check(await p.locator(".k8s-summary").count() === 1, "k8s off: after turning it on, the cluster appears");
 await p.close();
 
 // kubectl missing: exact install command
 p = await open("nokubectl");
+await p.waitForTimeout(800);
+check(await kubeNav(p).count() === 0, "nokubectl: no way to tell, so the nav item stays hidden");
+await turnOnFromProfiles(p);
 await p.waitForSelector("text=brew install kubectl", { timeout: 6000 }).catch(() => {});
 check(/brew install kubectl/.test(await p.locator(".content").innerText()), "nokubectl: shows the exact install command");
 await p.close();

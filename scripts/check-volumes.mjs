@@ -12,7 +12,7 @@ const p = await browser.newPage({ viewport: { width: 1100, height: 680 } });
 await p.goto(`file://${root}/preview/index.html`);
 await p.waitForSelector(".content");
 await p.locator(".sidebar").getByRole("button", { name: "Volumes", exact: true }).click();
-await p.waitForSelector("tbody tr");
+await p.waitForSelector("tbody tr:not(.group-row)");
 await p.waitForFunction(() => /In use by/.test(document.querySelector("tbody")?.textContent ?? ""), null, { timeout: 5000 }).catch(() => {});
 const row = (name) => p.locator("tr", { hasText: name }).first();
 check(/In use by 1 container/.test(await row("mysql-data").innerText()) && /db/.test(await row("mysql-data").innerText()), "volumes: mysql-data shows it is in use by db");

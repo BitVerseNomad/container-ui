@@ -21,6 +21,7 @@ const db = {
     { Repository: "redis", Tag: "7", Size: "117MB", ID: hex(12), CreatedSince: "5 weeks ago" },
     { Repository: "postgres", Tag: "16", Size: "456MB", ID: hex(12), CreatedSince: "6 weeks ago" },
   ],
+  cacheMB: 3400,
   volumes: ["mysql-data", "redis-data", "pgdata-old", "a".repeat(64), "c".repeat(64)],
   networks: ["bridge", "host", "none", "devnet"],
   ctrs: [
@@ -54,8 +55,17 @@ const env: Record<string, any> = {
   colima: ["missing", "partial", "nobrew"].includes(scenario) ? null : { path: "/opt/homebrew/bin/colima", version: "0.8.1" },
   docker: ["missing", "nobrew"].includes(scenario) ? null : { path: "/opt/homebrew/bin/docker", version: "27.3.1" },
 };
+// Containers started by `docker compose up` in ~/code/shop; kafka and kafka-ui were run by hand.
+const SHOP = new Set(["api", "worker", "report-job", "web", "db", "queue", "cache"]);
+// Setup check: healthy by default; "desktop" is what a Mac looks like right after Docker Desktop is removed.
+const BREW_PLUGINS = "/opt/homebrew/lib/docker/cli-plugins";
+const deadLink = (name: string) => ({ name, target: `/Applications/Docker.app/Contents/Resources/cli-plugins/${name}`, broken: true });
+const setup = scenario === "desktop"
+  ? { plugins: [deadLink("docker-buildx"), deadLink("docker-compose"), deadLink("docker-scout")], brew_plugin_dir: BREW_PLUGINS, brew_plugins: ["docker-compose"], extra_dirs: [] as string[], creds_store: "desktop" as string | null, creds_helper_found: false, contexts: [{ name: "colima", current: false }, { name: "desktop-linux", current: true }], autostart: "none", testcontainers_host: "unix:///Users/me/.docker/run/docker.sock" as string | null, docker_desktop_installed: false }
+  : { plugins: [] as { name: string; target: string; broken: boolean }[], brew_plugin_dir: BREW_PLUGINS, brew_plugins: ["docker-buildx", "docker-compose"], extra_dirs: [BREW_PLUGINS], creds_store: null as string | null, creds_helper_found: true, contexts: [{ name: "colima", current: true }], autostart: "started", testcontainers_host: null as string | null, docker_desktop_installed: false };
+if (scenario === "mismatch") setup.contexts = [{ name: "colima", current: false }, { name: "colima-work", current: true }];
 if (scenario === "nonet") { db.networks = ["bridge", "host", "none"]; db.ctrs.forEach((c) => { c.networks = ["bridge"]; }); }
-if (["stopped", "failed"].includes(scenario)) db.profiles[0].status = "Stopped";
+if (["stopped", "failed", "stuck"].includes(scenario)) db.profiles[0].status = "Stopped";
 if (["none", "missing", "partial", "nobrew"].includes(scenario)) db.profiles = [];
 const ipOf = (c: Ctr, net: string) => `172.${net === "bridge" ? 17 : 18 + Math.max(0, db.networks.indexOf(net) - 3)}.0.${2 + db.ctrs.indexOf(c)}`;
 const find = (id: string) => db.ctrs.find((c) => c.id.startsWith(id) || c.name === id);
@@ -66,10 +76,26 @@ const logLines = (c: Ctr) => c.image.startsWith("mysql")
   ? ["[Server] /usr/sbin/mysqld (mysqld 8.4.3) starting as process 1", "[Server] InnoDB initialization has started", "[Server] InnoDB initialization has ended", "[Server] X Plugin ready for connections. Bind-address: '::' port: 33060", "[Server] ready for connections. Version: '8.4.3'  port: 3306"]
   : ["/docker-entrypoint.sh: Configuration complete; ready for start up", `${c.image}: listening on 0.0.0.0:${c.ports[0]?.[1] ?? 80}`, "GET / 200 612 \"curl/8.4.0\"", "GET /favicon.ico 404 153 \"Mozilla/5.0\""];
 
+// `docker system df` rows, computed from the mock state so prune commands lower the numbers.
+function dfLines(): string {
+  const mb = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}GB` : `${Math.round(n)}MB`);
+  const imgMB = (i: { Size: string }) => parseFloat(i.Size);
+  const inUse = (i: { Repository: string }) => db.ctrs.some((c) => c.image.startsWith(i.Repository));
+  const total = db.images.reduce((n, i) => n + imgMB(i), 0);
+  const free = db.images.filter((i) => !inUse(i)).reduce((n, i) => n + imgMB(i), 0);
+  const stopped = db.ctrs.filter((c) => c.state === "exited").length;
+  return lines([
+    { Type: "Images", TotalCount: String(db.images.length), Active: String(db.images.filter(inUse).length), Size: mb(total), Reclaimable: `${mb(free)} (${Math.round((free / (total || 1)) * 100)}%)` },
+    { Type: "Containers", TotalCount: String(db.ctrs.length), Active: String(db.ctrs.length - stopped), Size: `${stopped * 12 + 40}MB`, Reclaimable: `${stopped * 12}MB (${Math.round((stopped / (db.ctrs.length || 1)) * 100)}%)` },
+    { Type: "Local Volumes", TotalCount: String(db.volumes.length), Active: "1", Size: "1.6GB", Reclaimable: "1.2GB (75%)" },
+    { Type: "Build Cache", TotalCount: db.cacheMB ? "87" : "0", Active: "0", Size: mb(db.cacheMB), Reclaimable: mb(db.cacheMB) },
+  ]);
+}
+
 function dockerCmd(args: string[]): string {
   const [cmd, sub] = args;
   switch (cmd) {
-    case "ps": { if (args.includes("-q")) return db.ctrs.map((c) => c.id.slice(0, 12)).join("\n"); const f = args.find((a) => a.startsWith("network="))?.slice(8); return lines(db.ctrs.filter((c) => !f || c.networks.includes(f)).map((c) => ({ ID: c.id.slice(0, 12), Names: c.name, Image: c.image, State: c.state, Status: status(c), Ports: fmtPorts(c) }))) }
+    case "ps": { if (args.includes("-q")) return db.ctrs.map((c) => c.id.slice(0, 12)).join("\n"); const f = args.find((a) => a.startsWith("network="))?.slice(8); return lines(db.ctrs.filter((c) => !f || c.networks.includes(f)).map((c) => ({ ID: c.id.slice(0, 12), Names: c.name, Image: c.image, State: c.state, Status: status(c), Ports: fmtPorts(c), Labels: SHOP.has(c.name) ? `com.docker.compose.project=shop,com.docker.compose.project.working_dir=/Users/me/code/shop,com.docker.compose.service=${c.name}` : "" }))) }
     case "images": return lines(db.images);
     case "events": {
       const t = Math.floor(Date.now() / 1000);
@@ -90,6 +116,8 @@ function dockerCmd(args: string[]): string {
       if (sub === "ls") return lines(db.volumes.map((Name) => ({ Name, Driver: "local" })));
       if (sub === "rm") { db.volumes = db.volumes.filter((v) => !args.slice(2).includes(v)); return args.slice(2).join("\n"); }
       db.volumes = db.volumes.filter((v) => db.ctrs.some((c) => c.mounts.some((m) => m.Name === v))); return "Total reclaimed space: 0B";
+    case "builder": db.cacheMB = 0; return "Total:\t3.4GB";
+    case "container": db.ctrs = db.ctrs.filter((c) => c.state !== "exited"); return "Total reclaimed space: 12MB";
     case "search": return lines(HUB.filter((h) => h[0].includes(args[args.length - 4] ?? "") || h[0].includes(args[3] ?? "")).map(([Name, Description, s, o]) => ({ Name, Description, StarCount: String(s), IsOfficial: o ? "[OK]" : "" })));
     case "image":
       if (sub === "inspect" && !args.includes("--format")) {
@@ -109,23 +137,19 @@ function dockerCmd(args: string[]): string {
       if (user) throw `Error response from daemon: conflict: unable to remove repository reference "${args[1]}" (must force) - container ${user.id.slice(0, 12)} is using its referenced image`;
       db.images = db.images.filter((i) => i !== img); return `Untagged: ${args[1]}`;
     }
-    case "logs": { const c = find(args[args.length - 1])!; const t = new Date().toISOString(); const base = logLines(c); return Array.from({ length: 160 }, (_, i) => `${t.slice(0, 17)}${String(i % 60).padStart(2, "0")}Z ${base[i % base.length]}`).join("\n") + "\n"; }
+    case "logs": { if (args.includes("--since") && !args.includes("--until")) return "" as T; const c = find(args[args.length - 1])!; const t = new Date().toISOString(); const base = logLines(c); return Array.from({ length: 160 }, (_, i) => `${t.slice(0, 17)}${String(i % 60).padStart(2, "0")}Z ${base[i % base.length]}`).join("\n") + "\n"; }
     case "inspect": { const many = args.slice(1).map((i) => find(i)!).filter(Boolean); return JSON.stringify(many.map((c) => ({ Id: c.id, Name: `/${c.name}`, Created: new Date(c.born).toISOString(), Path: c.image.startsWith("mysql") ? "docker-entrypoint.sh" : "/docker-entrypoint.sh", Args: ["mysqld"], State: { Status: c.state, Running: c.state !== "exited", Paused: c.state === "paused", ExitCode: c.exitCode ?? 0, OOMKilled: !!c.oom, StartedAt: new Date(c.born).toISOString(), ...(c.health ? { Health: { Status: c.health, FailingStreak: c.streak ?? 0, Log: c.healthOut ? [{ ExitCode: 1, Output: c.healthOut }] : [] } } : {}) }, RestartCount: c.restarts ?? 0, Config: { Image: c.image, Env: c.env, ExposedPorts: Object.fromEntries([...c.ports.map(([, p]) => p), ...(c.exposed ?? [])].map((p) => [`${p}/tcp`, {}])) }, HostConfig: { RestartPolicy: { Name: "no" } }, NetworkSettings: { Ports: Object.fromEntries(c.ports.map(([h, p]) => [`${p}/tcp`, [{ HostIp: "0.0.0.0", HostPort: String(h) }]])), Networks: Object.fromEntries(c.networks.map((n) => [n, { IPAddress: ipOf(c, n), Aliases: n === "bridge" ? null : [c.name, c.id.slice(0, 12)] }])) }, Mounts: c.mounts }))); }
-    case "system": if (args.includes("-v")) { const sz: Record<string, string> = { "mysql-data": "412MB", "redis-data": "18MB", "pgdata-old": "1.2GB" }; return JSON.stringify({ Images: [], Containers: [], BuildCache: [], Volumes: db.volumes.map((Name) => ({ Name, Links: db.ctrs.filter((c) => c.mounts.some((x) => x.Name === Name)).length, Size: sz[Name] ?? (Name.startsWith("a") ? "36B" : "4kB") })) }); } return lines([
-      { Type: "Images", TotalCount: "4", Active: "2", Size: "1.3GB", Reclaimable: "2.1GB (80%)" },
-      { Type: "Containers", TotalCount: "3", Active: "2", Size: "12MB", Reclaimable: "0B" },
-      { Type: "Local Volumes", TotalCount: "3", Active: "1", Size: "380MB", Reclaimable: "20MB (5%)" },
-      { Type: "Build Cache", TotalCount: "0", Active: "0", Size: "0B", Reclaimable: "0B" }]);
+    case "system": if (args.includes("-v")) { const sz: Record<string, string> = { "mysql-data": "412MB", "redis-data": "18MB", "pgdata-old": "1.2GB" }; return JSON.stringify({ Images: [], Containers: [], BuildCache: [], Volumes: db.volumes.map((Name) => ({ Name, Links: db.ctrs.filter((c) => c.mounts.some((x) => x.Name === Name)).length, Size: sz[Name] ?? (Name.startsWith("a") ? "36B" : "4kB") })) }); } return dfLines();
     case "stats": {
       if (args[args.length - 1] === "--no-stream") return lines(db.ctrs.filter((c) => c.state === "running").map((c) => ({ Name: c.name, CPUPerc: `${c.cpu.toFixed(2)}%`, MemUsage: `${(c.mem / 2 ** 20).toFixed(1)}MiB / 7.7GiB` }))); const c = find(args[args.length - 1])!; c.cpu = Math.max(0.1, c.cpu + (Math.random() - 0.45)); return lines([{ CPUPerc: `${c.cpu.toFixed(2)}%`, MemUsage: `${(c.mem / 2 ** 20).toFixed(1)}MiB / 7.7GiB`, NetIO: "1.2kB / 648B", BlockIO: "0B / 4.1kB", PIDs: "29" }]); }
-    case "start": case "stop": case "restart": case "pause": case "unpause": { const c = find(args[1])!; c.state = cmd === "stop" ? "exited" : cmd === "pause" ? "paused" : "running"; return c.id; }
+    case "start": case "stop": case "restart": case "pause": case "unpause": { const cs = args.slice(1).map((x) => find(x)!); for (const c of cs) c.state = cmd === "stop" ? "exited" : cmd === "pause" ? "paused" : "running"; return cs.map((c) => c.id).join("\n"); }
     case "rm": db.ctrs = db.ctrs.filter((c) => c !== find(args[args.length - 1])); return args[args.length - 1];
     case "run": {
       const name = args[args.indexOf("--name") + 1]; const image = args[args.length - 1];
       const net = args[args.indexOf("--network") + 1]; if (args.includes("--network") && !db.networks.includes(net)) throw `docker: Error response from daemon: network ${net} not found`;
       const ports = args.flatMap((a, i) => (args[i - 1] === "-p" ? [a] : [])).map((p) => { const parts = p.split(":"); const cp = Number(parts.pop()); const hp = parts.length ? Number(parts.pop()) : undefined; return [hp ?? NaN, cp]; }) as number[][];
       for (const [h] of ports) if (ports.length && db.ctrs.some((c) => c.state === "running" && c.ports.some(([x]) => x === h))) throw `docker: Error response from daemon: driver failed programming external connectivity: Bind for 0.0.0.0:${h} failed: port is already allocated`;
-      const c: Ctr = { networks: args.includes("--network") ? [net] : ["bridge"], id: hex(64), name, image: image.includes(":") ? image : `${image}:latest`, state: "running", ports: ports.filter(([h]) => !Number.isNaN(h)).map(([h, p]) => [h, p]), mounts: args.flatMap((a, i) => (args[i - 1] === "-v" ? [{ Type: "bind", Source: a.split(":")[0], Destination: a.split(":")[1], RW: true }] : [])), env: args.flatMap((a, i) => (args[i - 1] === "-e" ? [a] : [])), born: Date.now(), cpu: 0.5, mem: 24e6 };
+      const c: Ctr = { networks: args.includes("--network") ? [net] : ["bridge"], id: hex(64), name, image: image.includes(":") ? image : `${image}:latest`, state: "running", ports: ports.filter(([h]) => !Number.isNaN(h)).map(([h, p]) => [h, p]), mounts: args.flatMap((a, i) => (args[i - 1] === "-v" ? [{ Type: "bind", Source: a.split(":")[0], Destination: a.split(":")[1], RW: a.split(":")[2] !== "ro" }] : [])), env: args.flatMap((a, i) => (args[i - 1] === "-e" ? [a] : [])), born: Date.now(), cpu: 0.5, mem: 24e6 };
       db.ctrs.push(c); return c.id + "\n";
     }
   }
@@ -156,7 +180,7 @@ export async function invoke<T>(cmd: string, a: Record<string, any> = {}): Promi
       const tcp = shared && declared.includes(a.port) ? `Connection to ${a.target} (${ipOf(to!, "devnet")}) ${a.port} port [tcp/*] succeeded!\n` : `nc: connect to ${a.target} port ${a.port} (tcp) failed: Connection refused\n`;
       return `${dns}::dns-exit=${shared ? 0 : 1}\n${tcp}::tcp-exit=${shared && declared.includes(a.port) ? 0 : 1}\n` as T;
     }
-    case "open_terminal": ((window as any).__terminal ??= []).push({ kind: a.kind, context: a.context }); return undefined as T;
+    case "open_terminal": ((window as any).__terminal ??= []).push({ kind: a.kind, context: a.context, target: a.target }); return undefined as T;
     case "kubectl": {
       const args: string[] = a.args;
       if (args[0] === "config") return (k8sOn ? "colima\n" : "") as T;
@@ -191,17 +215,31 @@ export async function invoke<T>(cmd: string, a: Record<string, any> = {}): Promi
       ]);
       throw `mock: unsupported kubectl command ${args.join(" ")}`;
     }
+    case "host_resources": return { cpus: 12, memory: 32 * GB } as T;
+    case "vm_log_tail": return (scenario === "stuck" ? 'level=info msg="hostagent starting"\nlevel=fatal msg="instance \\"colima\\" is already running (hostagent pid 812)"' : scenario === "failed" ? 'level=info msg="booting"\nlevel=error msg="vz: the virtual machine stopped unexpectedly"\nlevel=info msg="cleanup"' : "") as T;
+    case "setup_report": return structuredClone(setup) as T;
+    case "setup_fix": {
+      await new Promise((r) => setTimeout(r, 300));
+      if (a.id === "plugins") { setup.plugins = setup.plugins.filter((p) => !p.broken); if (!setup.extra_dirs.includes(BREW_PLUGINS)) setup.extra_dirs.push(BREW_PLUGINS); }
+      else if (a.id === "creds_store") setup.creds_store = null;
+      else if (a.id === "use_colima_context") { const want = !a.profile || a.profile === "default" ? "colima" : `colima-${a.profile}`; setup.contexts = setup.contexts.map((c) => ({ ...c, current: c.name === want })); }
+      else if (a.id === "autostart_on" || a.id === "autostart_restart") setup.autostart = "started";
+      else if (a.id === "autostart_off") setup.autostart = "none";
+      else throw `unknown fix ${a.id}`;
+      return undefined as T;
+    }
     case "env_check": return { ...env } as T; // a fresh object per call, like the real IPC
     case "install_tools": {
       for (const n of a.names as string[]) {
         await progress("brew-progress", [[`==> Fetching ${n}`, 200], [(env as any)[n] ? `Warning: ${n} is already installed and up-to-date.` : `==> Pouring ${n}--1.0.arm64.bottle.tar.gz`, 400]]);
         (env as any)[n] = { path: `/opt/homebrew/bin/${n}`, version: "1.0.0" };
+        if (n.startsWith("docker-") && !setup.brew_plugins.includes(n)) setup.brew_plugins.push(n);
       }
       await progress("brew-progress", [["==> Summary", 150]]);
       return undefined as T;
     }
     case "start_profile": case "apply_resources": {
-      if (scenario === "failed") {
+      if (scenario === "failed" || scenario === "stuck") {
         await progress("colima-progress", [['time="2026-10-04T12:00:00Z" level=info msg="starting colima"', 200], ["INFO[0002] provisioning ...   context=docker", 400]]);
         throw 'time="2026-10-04T12:00:00Z" level=info msg="starting colima"\nINFO[0002] provisioning ...   context=docker\nFATA[0009] error starting vm: exit status 1';
       }
@@ -213,6 +251,10 @@ export async function invoke<T>(cmd: string, a: Record<string, any> = {}): Promi
       else db.profiles.push({ name: o.name, status: "Running", arch: "aarch64", cpus: o.cpus ?? 2, memory: (o.memory ?? 2) * GB, disk: (o.disk ?? 100) * GB, runtime: o.runtime ?? "docker", address: "" });
       return undefined as T;
     }
+    case "cancel_vm_op": return true as T;
+    case "pick_folder": return "/Users/you/code/app" as T; // the native chooser; null means cancelled
+    case "force_stop_profile": { await progress("colima-progress", [['level=info msg="stopping colima (forced)"', 300]]); db.profiles.find((x) => x.name === a.name)!.status = "Stopped"; return undefined as T; }
+    case "force_restart_profile": { await progress("colima-progress", [['level=info msg="stopping colima (forced)"', 300], ['level=info msg="done"', 300]]); db.profiles.find((x) => x.name === a.name)!.status = "Running"; return undefined as T; }
     case "stop_profile": case "restart_profile": {
       if (scenario === "stopfail" && cmd === "stop_profile") throw "FATA[0003] could not stop the VM: timeout"; await progress("colima-progress", [[`level=info msg="stopping colima"`, 300], ['level=info msg="done"', 500]]); db.profiles.find((x) => x.name === a.name)!.status = cmd === "stop_profile" ? "Stopped" : "Running"; return undefined as T; }
     case "delete_profile": db.profiles = db.profiles.filter((x) => x.name !== a.name); return undefined as T;

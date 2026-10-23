@@ -13,7 +13,7 @@ async function open(tab) {
   p.errors = [];
   p.on("pageerror", (e) => p.errors.push(e.message));
   await p.goto(`file://${root}/preview/index.html`);
-  await p.waitForSelector("table.list tbody tr");
+  await p.waitForSelector("table.list tbody tr:not(.group-row)");
   if (tab !== "Containers") await p.locator(".sidebar").getByRole("button", { name: tab, exact: true }).click();
   return p;
 }
@@ -21,7 +21,7 @@ async function open(tab) {
 // Home: problems in plain words under each container's status
 let p = await open("Containers");
 await p.waitForSelector("table.list .plevel", { timeout: 8000 }).catch(() => {});
-const row = (name) => p.locator("table.list tbody tr", { has: p.locator("b", { hasText: new RegExp(`^${name}$`) }) }).first().innerText().catch(() => "");
+const row = (name) => p.locator("table.list tbody tr:not(.group-row)", { has: p.locator("b", { hasText: new RegExp(`^${name}$`) }) }).first().innerText().catch(() => "");
 check(/health check is failing/i.test(await row("api")), "home: an unhealthy container shows a plain reason");
 check(/too much memory|ran out of memory/i.test(await row("report-job")), "home: an out-of-memory stop is called out");
 check(/keeps restarting/i.test(await row("worker")), "home: a container that keeps restarting is called out");
@@ -36,6 +36,15 @@ await p.waitForSelector(".health-panel", { timeout: 4000 }).catch(() => {});
 let t = await p.locator(".health-panel").innerText().catch(() => "");
 check(/unhealthy/i.test(t) && /Connection refused/.test(t) && /5 checks in a row/.test(t), "container page: shows what the failing health check said");
 check(/Restarts/.test(t), "container page: shows restarts");
+check(/Started .*ago|just now/.test(t) && !/Up since/.test(t), "container page: start time is relative, like the list");
+check(await p.getByRole("button", { name: "Open the logs" }).count() === 0, "container page: no 'Open the logs' while the Logs tab is already open");
+await p.getByRole("button", { name: "Open a shell" }).click();
+await p.waitForFunction(() => (window.__terminal ?? []).length > 0, null, { timeout: 3000 }).catch(() => {});
+const term = await p.evaluate(() => window.__terminal ?? []);
+check(term.length === 1 && term[0].kind === "shell" && /^[a-z]/.test(term[0].target ?? ""), "container page: Open a shell asks for a Terminal shell in that container");
+await p.waitForFunction(() => /\d\d:\d\d:\d\d  /.test(document.querySelector(".logs")?.textContent ?? ""), null, { timeout: 5000 }).catch(() => {});
+check(/\d\d:\d\d:\d\d  /.test(await p.locator(".logs").innerText()), "container page: log lines carry a time");
+check(await p.getByRole("button", { name: /Following new lines/ }).getAttribute("aria-pressed") === "true", "container page: Following is a real toggle");
 await p.screenshot({ path: "/tmp/obs-container.png" });
 await p.close();
 
@@ -55,7 +64,7 @@ await p.close();
 
 // volumes: sizes
 p = await open("Volumes");
-await p.waitForSelector("tbody tr");
+await p.waitForSelector("tbody tr:not(.group-row)");
 await p.waitForFunction(() => /GiB|MiB/.test(document.querySelector("tbody")?.textContent ?? ""), null, { timeout: 6000 }).catch(() => {});
 t = await p.locator("tr", { hasText: "pgdata-old" }).innerText();
 check(/\d+(\.\d)? (GiB|MiB)/.test(t), `volumes: a size is shown (${t.replace(/\s+/g, " ")})`);

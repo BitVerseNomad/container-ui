@@ -16,7 +16,9 @@ for (const [w, h] of [[1100, 680], [800, 600]]) {
   const page = await browser.newPage({ viewport: { width: w, height: h } });
   await page.goto(`file://${root}/preview/index.html`);
   await page.waitForSelector(".content");
-  for (const name of ["Containers", "Images", "Volumes", "Networks", "Kubernetes", "Profiles"]) {
+  // The Kubernetes item appears once the app has seen the profile's kubectl context.
+  await nav(page, "Kubernetes").waitFor({ timeout: 6000 }).catch(() => {});
+  for (const name of ["Containers", "Images", "Volumes", "Networks", "Kubernetes", "Setup", "Profiles"]) {
     await nav(page, name).click();
     await page.waitForTimeout(400);
     const over = await page.evaluate(() => { const c = document.querySelector(".content"); return c.scrollWidth - c.clientWidth; });
@@ -24,15 +26,15 @@ for (const [w, h] of [[1100, 680], [800, 600]]) {
   }
   if (w === 1100) {
     await nav(page, "Containers").click();
-    await page.waitForSelector("tbody tr");
-    check(await page.locator("tbody tr").first().getByRole("button", { name: /Stop|Start|Logs/ }).count() > 0, "containers: row actions are labelled icon buttons");
-    check(await page.locator("tbody tr .icon-btn").count() >= 3, "containers: rows use IconButton");
+    await page.waitForSelector("tbody tr:not(.group-row)");
+    check(await page.locator("tbody tr:not(.group-row)").first().getByRole("button", { name: /Stop|Start|Logs/ }).count() > 0, "containers: row actions are labelled icon buttons");
+    check(await page.locator("tbody tr:not(.group-row) .icon-btn").count() >= 3, "containers: rows use IconButton");
     await nav(page, "Images").click();
-    await page.waitForSelector("tbody tr");
-    check(await page.locator("tbody tr .icon-btn").count() >= 2, "images: rows use IconButton");
+    await page.waitForSelector("tbody tr:not(.group-row)");
+    check(await page.locator("tbody tr:not(.group-row) .icon-btn").count() >= 2, "images: rows use IconButton");
     await nav(page, "Volumes").click();
-    await page.waitForSelector("tbody tr");
-    check(await page.locator("tbody tr .icon-btn").count() >= 1, "volumes: rows use IconButton");
+    await page.waitForSelector("tbody tr:not(.group-row)");
+    check(await page.locator("tbody tr:not(.group-row) .icon-btn").count() >= 1, "volumes: rows use IconButton");
     await nav(page, "Profiles").click();
     check(/separate Colima VM/i.test(await page.locator(".content").innerText()), "profiles: explains what a profile is");
     await page.getByRole("button", { name: /^Stop default/ }).click();

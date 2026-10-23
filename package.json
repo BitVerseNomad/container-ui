@@ -8,7 +8,8 @@
     "build": "tsc && vite build",
     "tauri": "tauri",
     "test": "node --experimental-strip-types --no-warnings --test \"src/**/*.test.ts\"",
-    "preview": "node scripts/build-preview.mjs"
+    "preview": "node scripts/build-preview.mjs",
+    "check": "node scripts/build-preview.mjs && sh scripts/check-all.sh"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",

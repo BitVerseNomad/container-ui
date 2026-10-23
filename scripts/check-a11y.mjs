@@ -10,10 +10,12 @@ const check = (c, m) => { console.log(c ? "ok" : "FAIL", m); if (!c) failed++; }
 const browser = await chromium.launch();
 const p = await browser.newPage({ viewport: { width: 1100, height: 680 } });
 await p.goto(`file://${root}/preview/index.html`);
-await p.waitForSelector("table.list tbody tr");
+await p.waitForSelector("table.list tbody tr:not(.group-row)");
 const nav = (n) => p.locator(".sidebar").getByRole("button", { name: n, exact: true }).click();
 
-for (const page of ["Containers", "Images", "Volumes", "Networks", "Kubernetes", "Profiles"]) {
+await p.locator(".sidebar").getByRole("button", { name: "Kubernetes", exact: true }).waitFor({ timeout: 6000 }).catch(() => {});
+const PAGES = ["Containers", "Images", "Volumes", "Networks", "Kubernetes", "Setup", "Profiles"];
+for (const page of PAGES) {
   await nav(page);
   await p.waitForTimeout(400);
   const r = await p.evaluate(() => ({
@@ -26,9 +28,34 @@ for (const page of ["Containers", "Images", "Volumes", "Networks", "Kubernetes",
   check(r.unnamed === 0, `${page}: every button has a name`);
 }
 
+// Without Kubernetes the nav drops that item and every other page keeps its landmarks and names
+{
+  const off = await browser.newPage({ viewport: { width: 1100, height: 680 } });
+  await off.goto(`file://${root}/preview/index.html?k8s=off`);
+  await off.waitForSelector("table.list tbody tr:not(.group-row)");
+  await off.waitForTimeout(800);
+  check(await off.locator(".sidebar").getByRole("button", { name: "Kubernetes", exact: true }).count() === 0, "k8s off: no Kubernetes nav item");
+  for (const name of PAGES.filter((n) => n !== "Kubernetes")) {
+    await off.locator(".sidebar").getByRole("button", { name, exact: true }).click();
+    await off.waitForTimeout(300);
+    const r = await off.evaluate(() => ({ mains: document.querySelectorAll("main, [role=main]").length, unnamed: [...document.querySelectorAll("button, a, [role=button]")].filter((e) => e.offsetParent && !(e.getAttribute("aria-label") || e.textContent).trim()).length }));
+    check(r.mains === 1 && r.unnamed === 0, `k8s off ${name}: one main landmark, every button named`);
+  }
+  await off.close();
+}
+
+// Names that read right: the container button says its image apart from its name; the group toggle hides its arrow glyph
+{
+  await nav("Containers");
+  await p.waitForSelector("table.list tbody tr:not(.group-row)");
+  const r = await p.evaluate(() => ({ row: document.querySelector("table.list tbody tr:not(.group-row) button.link-plain")?.getAttribute("aria-label") ?? "", glyph: !!document.querySelector(".group-toggle > [aria-hidden=true]") }));
+  check(/^[^,]+, image .+/.test(r.row), `container button name has a separator (${r.row})`);
+  check(r.glyph, "group toggle: the arrow glyph is aria-hidden");
+}
+
 // Side panel: modal semantics, focus in, focus trapped, Escape closes, focus returns
 await nav("Images");
-await p.waitForSelector("tbody tr");
+await p.waitForSelector("tbody tr:not(.group-row)");
 const opener = p.getByRole("button", { name: "Pull image" });
 await opener.click();
 await p.waitForSelector(".drawer");
@@ -49,8 +76,9 @@ check(await p.evaluate(() => document.activeElement?.tagName === "BUTTON" && doc
 for (const scheme of ["light", "dark"]) {
   const page = await browser.newPage({ viewport: { width: 1100, height: 680 }, colorScheme: scheme });
   await page.goto(`file://${root}/preview/index.html`);
-  await page.waitForSelector("table.list tbody tr");
-  for (const name of ["Containers", "Images", "Volumes", "Networks", "Kubernetes", "Profiles"]) {
+  await page.waitForSelector("table.list tbody tr:not(.group-row)");
+  await page.locator(".sidebar").getByRole("button", { name: "Kubernetes", exact: true }).waitFor({ timeout: 6000 }).catch(() => {});
+  for (const name of PAGES) {
     await page.locator(".sidebar").getByRole("button", { name, exact: true }).click();
     await page.waitForTimeout(350);
     const bad = await page.evaluate(() => {
