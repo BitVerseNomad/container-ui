@@ -26,6 +26,8 @@ check(/health check is failing/i.test(await row("api")), "home: an unhealthy con
 check(/too much memory|ran out of memory/i.test(await row("report-job")), "home: an out-of-memory stop is called out");
 check(/keeps restarting/i.test(await row("worker")), "home: a container that keeps restarting is called out");
 check(!/failing|memory|restarting/i.test(await row("web")), "home: healthy containers carry no problem line");
+const dot = (name) => p.locator("table.list tbody tr:not(.group-row)", { has: p.locator("b", { hasText: new RegExp(`^${name}$`) }) }).first().locator(".sdot").getAttribute("class").catch(() => "");
+check(/\bbad\b/.test(await dot("api")) && /\bwarn\b/.test(await dot("worker")) && /\bon\b/.test(await dot("web")), "home: the dot follows health (red failing, amber restarting, green fine)");
 check(await p.locator(".content .primary:visible").count() === 1, "home: still exactly one primary button");
 await p.screenshot({ path: "/tmp/obs-home.png" });
 await p.locator("table.list button.link-plain", { hasText: "api" }).first().click();
@@ -55,7 +57,7 @@ check(/healthy/.test(await p.locator("tr", { hasText: "web" }).first().innerText
 await p.locator("table.list button.link-plain", { hasText: "report-job" }).click();
 await p.waitForSelector(".detail");
 t = await p.locator(".health-panel").innerText();
-check(/too much memory/i.test(t) && /No health check/i.test(t), "container page: out-of-memory is explained, and a missing health check is said plainly");
+check(/ran out of memory/i.test(t) && /more memory than it was allowed/.test(t) && /No health check/i.test(t), "container page: out-of-memory is explained, and a missing health check is said plainly");
 await p.getByRole("tab", { name: "Activity" }).click();
 await p.waitForSelector(".activity li", { timeout: 4000 }).catch(() => {});
 t = await p.locator(".tabpane").innerText();

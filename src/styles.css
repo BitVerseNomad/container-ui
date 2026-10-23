@@ -423,3 +423,64 @@ button.quiet:hover { border-color: var(--border); color: var(--ink); }
 .nudge .nudge-go { margin-left: auto; color: var(--primary); font-weight: 600; }
 .image-search { max-width: 280px; margin: 12px 0 8px; }
 .link-plain.inline-link { display: inline; color: var(--primary); font-weight: 600; }
+
+/* Round 6, calm: one-line rows; row tools and checkboxes appear on hover, focus, or once something is picked. */
+.shell { transition: grid-template-columns .15s ease; }
+.fold-btn { margin-left: auto; border-color: transparent; color: var(--muted); }
+.fold-btn:hover { color: var(--ink); }
+.shell.folded { grid-template-columns: 56px minmax(0, 1fr); }
+.shell.folded .sidebar { align-items: center; }
+.shell.folded .brand { flex-direction: column; padding: 0 0 4px; }
+.shell.folded .brand b, .shell.folded .nav-label, .shell.folded .side-foot { display: none; }
+.shell.folded .fold-btn { margin: 4px 0 0; }
+.shell.folded .nav-item { justify-content: center; padding: 8px; }
+.shell.folded .nav-badge { position: absolute; top: 1px; right: 2px; margin: 0; }
+
+table.list td { padding-top: 7px; padding-bottom: 7px; }
+.link-plain.one-line { display: flex; align-items: baseline; gap: 8px; min-width: 0; max-width: 100%; }
+.link-plain.one-line b { flex: none; max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.link-plain.one-line .sub { display: inline; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+table.list .status-text { display: block; }
+table.list .pick input, thead th.pick input { opacity: 0; transition: opacity .1s; }
+table.list tr:hover .pick input, table.list tr:focus-within .pick input, table.list.picking .pick input, table.list .pick input:focus-visible, table.list:hover thead .pick input { opacity: 1; }
+table.list td.row-actions > *, .group-head .row-actions { opacity: 0; transition: opacity .1s; }
+table.list tr:hover td.row-actions > *, table.list tr:focus-within td.row-actions > *, .group-row:hover .group-head .row-actions, .group-row:focus-within .group-head .row-actions { opacity: 1; }
+.group-row .icon-btn { border-color: transparent; }
+.group-row th { background: transparent; padding-top: 12px; }
+@media (hover: none) { table.list .pick input, table.list td.row-actions > *, .group-head .row-actions { opacity: 1; } }
+
+.vm-strip { border-color: transparent; background: transparent; padding-left: 0; min-height: 32px; }
+.vm-strip .use { max-width: 150px; }
+.vm-strip .bar.thin { height: 3px; margin-top: 2px; }
+.vm-strip .vm-actions .icon-btn { border-color: transparent; color: var(--muted); }
+
+.menu { position: relative; display: inline-flex; }
+.menu > button { display: inline-flex; align-items: center; gap: 5px; }
+.menu-pop { position: absolute; right: 0; top: calc(100% + 4px); z-index: 5; min-width: 220px; padding: 4px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); box-shadow: 0 8px 24px rgb(0 0 0 / 14%); display: flex; flex-direction: column; }
+.menu-pop [role=menuitem] { display: flex; align-items: center; gap: 8px; width: 100%; border: 0; background: transparent; text-align: left; padding: 6px 8px; border-radius: 6px; color: var(--ink); }
+.menu-pop [role=menuitem]:hover, .menu-pop [role=menuitem]:focus-visible { background: color-mix(in srgb, var(--primary) 14%, transparent); outline: none; }
+.menu-hint { margin-left: auto; font-size: 11px; }
+table.list .link-plain.one-line { flex: 1 1 auto; flex-direction: row; align-items: baseline; }
+table.list .link-plain.one-line b { display: inline; flex: 0 1 auto; min-width: 0; max-width: 70%; }
+table.list .link-plain.one-line .sub { display: inline; flex: 1 1 0; }
+table.list td { vertical-align: middle; }
+table.list .status-text, table.list .plevel { line-height: 18px; }
+table.list td { padding-top: 6px; padding-bottom: 6px; }
+table.list td.row-actions .icon-btn { width: 24px; height: 24px; }
+
+/* Round 6 review: give the problem text room, keep the menu on one line, line the VM name up with the meter labels. */
+table.list th:nth-child(3) { width: 29%; }
+table.list th:nth-child(4) { width: 13%; }
+table.list th:nth-child(7) { width: 88px; }
+.menu-pop { min-width: 250px; }
+.menu-pop [role=menuitem] { white-space: nowrap; }
+.menu-hint { padding-left: 16px; color: var(--muted); }
+.vm-strip { align-items: baseline; }
+.vm-strip .sdot { align-self: center; }
+.vm-strip .vm-actions { align-self: center; }
+.shell.folded .fold-btn { margin-bottom: 6px; }
+.shell.folded .brand { border-bottom: 1px solid var(--border); margin-bottom: 4px; }
+button.icon-label { display: inline-flex; align-items: center; gap: 5px; }
+table.list.picking tr td.row-actions > * { opacity: 0; }
+table.list.picking tr td.row-actions > :focus-visible { opacity: 1; }
+table.list td:nth-child(4) > *, table.list td:nth-child(4) button { white-space: nowrap; flex-wrap: nowrap; }

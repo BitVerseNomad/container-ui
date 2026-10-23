@@ -11,6 +11,7 @@ import IconButton from "./ui/IconButton";
 import PortLinks from "./ui/PortLinks";
 import { Group, groupByProject, isKubeOwned, kubeName } from "./lib/compose";
 import { Icon } from "./ui/icons";
+import Menu from "./ui/Menu";
 import VmStrip from "./VmStrip";
 import { useHostSize } from "./useHostSize";
 import RunPicker from "./RunPicker";
@@ -174,16 +175,19 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
                       </td>
                       <td>
                         <div className="name-cell">
-                          <span className={up ? "sdot on" : "sdot"} aria-hidden="true" />
-                          <button className="link-plain" aria-label={`${c.Names}, image ${c.Image}`} onClick={() => setDetailId(c.ID)}>
-                            <b className="clip" title={kube ? c.Names : undefined}>{kube ? kubeName(c) : c.Names}</b>
-                            <span className="mono clip sub">{c.Image}</span>
+                          <span className={p ? `sdot ${p.level}` : up ? "sdot on" : "sdot"} aria-hidden="true" />
+                          <button className="link-plain one-line" aria-label={`${c.Names}, image ${c.Image}`} title={kube ? c.Names : `${c.Names} · ${c.Image}`} onClick={() => setDetailId(c.ID)}>
+                            <b>{kube ? kubeName(c) : c.Names}</b>
+                            <span className="mono sub">{c.Image}</span>
                           </button>
                         </div>
                       </td>
                       <td>
-                        <span className="clip status-text">{stripHealth(c.Status)} <HealthBadge status={healthFromStatus(c.Status)} /></span>
-                        {p && <span className={`plevel ${p.level} clip sub`} title={p.detail}>{p.title}</span>}
+                        {p ? (
+                          <span className={`plevel ${p.level} clip status-text`} title={`${stripHealth(c.Status)}. ${p.detail}`}>{p.title}</span>
+                        ) : (
+                          <span className="clip status-text">{stripHealth(c.Status)} <HealthBadge status={healthFromStatus(c.Status)} /></span>
+                        )}
                       </td>
                       <td><PortLinks ports={c.Ports} running={up} name={c.Names} /></td>
                       <td className="num mono">{s ? s.CPUPerc : "–"}</td>
@@ -242,18 +246,24 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
               )}
             </div>
             <span className="toolbar-actions">
-              <button title="Compose projects on this Mac" onClick={() => setComposeOpen(true)} aria-label={`Compose projects${composeCount !== null ? `, ${composeCount} found` : ""}`}>
-                <Icon name="folder" size={13} /> Compose
-              </button>
-              <button onClick={onPull}><Icon name="download" size={13} /> Pull image</button>
-              <button className="primary" onClick={() => setPicking(true)}><Icon name="play" size={13} /> Run image</button>
+              <Menu
+                label="New"
+                primary
+                items={[
+                  { label: "Run image", icon: <Icon name="play" size={13} />, onSelect: () => setPicking(true) },
+                  { label: "Pull image", icon: <Icon name="download" size={13} />, onSelect: onPull },
+                  { label: "Compose projects", icon: <Icon name="folder" size={13} />, hint: composeCount ? `${composeCount} on this Mac` : undefined, onSelect: () => setComposeOpen(true) },
+                ]}
+              >
+                <Icon name="plus" size={13} /> New <Icon name="chevron" size={12} />
+              </Menu>
             </span>
           </div>
           <Banner error={containers.error ?? err} onClose={() => setErr(null)} />
           {containers.data && all.length === 0 ? (
             <EmptyState title="No containers yet">Press Run image to start your first one.</EmptyState>
           ) : (
-            <table className="list">
+            <table className={chosen.length ? "list picking" : "list"}>
               <thead>
                 <tr>
                   <th scope="col" className="pick">

@@ -35,7 +35,7 @@ export default function Images({ ctx, onRan, startPull = false, arch }: { ctx: s
   return (
     <section>
       <header>
-        <button className="primary" onClick={() => { setHubTerm(undefined); setPulling(true); }}>Pull image</button>
+        <button className="primary icon-label" onClick={() => { setHubTerm(undefined); setPulling(true); }}><Icon name="download" size={13} /> Pull image</button>
       </header>
       <Banner error={error ?? err} onClose={() => setErr(null)} />
       <DiskCard ctx={ctx} onChanged={reload} />
@@ -56,7 +56,7 @@ export default function Images({ ctx, onRan, startPull = false, arch }: { ctx: s
       {shown.length > 0 && (
         <table>
           <thead>
-            <tr><th scope="col">Repository</th><th scope="col">Tag</th><th scope="col">ID</th><th scope="col">Size</th><th scope="col">Created</th><th scope="col"><span className="sr-only">Actions</span></th></tr>
+            <tr><th scope="col">Repository</th><th scope="col">Tag</th><th scope="col">ID</th><th scope="col" className="num">Size</th><th scope="col">Created</th><th scope="col"><span className="sr-only">Actions</span></th></tr>
           </thead>
           <tbody>
             {shown.map((i) => {
@@ -66,7 +66,7 @@ export default function Images({ ctx, onRan, startPull = false, arch }: { ctx: s
                   <td>{i.Repository}</td>
                   <td className="mono">{i.Tag}</td>
                   <td className="mono">{i.ID}</td>
-                  <td className="mono">{parseBytes(i.Size) ? formatBytes(parseBytes(i.Size)) : i.Size}</td>
+                  <td className="num">{parseBytes(i.Size) ? formatBytes(parseBytes(i.Size)) : i.Size}</td>
                   <td>{i.CreatedSince}</td>
                   <td className="row-actions">
                     <IconButton label={`Run ${ref}`} icon="play" onClick={() => setRunning(ref)} />

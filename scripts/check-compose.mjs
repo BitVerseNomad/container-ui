@@ -20,9 +20,9 @@ async function open(scenario) {
 }
 
 let p = await open("running");
-const btn = p.getByRole("button", { name: /^Compose projects/ });
-await p.waitForFunction(() => [...document.querySelectorAll("button")].some((b) => /Compose projects, \d+ found/.test(b.getAttribute("aria-label") ?? "")), null, { timeout: 3000 }).catch(() => {});
-check(/3 found/.test(await btn.getAttribute("aria-label")), "running: the scan ran on open and found 3 projects");
+await p.getByRole("button", { name: "New" }).click();
+const btn = p.getByRole("menuitem", { name: /^Compose projects/ });
+check(/3 on this Mac/.test(await btn.innerText()), "running: the scan ran on open and found 3 projects");
 await btn.click();
 const drawer = p.getByRole("dialog", { name: "Compose projects" });
 await drawer.waitFor({ timeout: 2000 }).catch(() => {});
@@ -46,7 +46,8 @@ check(await drawer.count() === 0, "running: Escape closes the panel");
 check(p.errors.length === 0, `running: no page errors${p.errors.length ? ": " + p.errors.join("; ") : ""}`);
 
 p = await open("nocompose");
-await p.getByRole("button", { name: /^Compose projects/ }).click();
+await p.getByRole("button", { name: "New" }).click();
+await p.getByRole("menuitem", { name: /^Compose projects/ }).click();
 await p.waitForTimeout(400);
 check(/No Compose files found/.test(await p.getByRole("dialog", { name: "Compose projects" }).innerText()), "nocompose: an empty scan explains what Spotlight skips");
 await browser.close();

@@ -46,7 +46,7 @@ export function parseState(json: string): State | null {
 export function problemsFor(s: State): Problem[] {
   const out: Problem[] = [];
   if (!s.running && s.oomKilled) {
-    out.push({ id: "oom", level: "bad", title: "Stopped for using too much memory", detail: `${s.name} used more memory than it was allowed. Give the VM more memory (Profiles, Edit) or lower the app's memory use, then start it again.` });
+    out.push({ id: "oom", level: "bad", title: "Ran out of memory", detail: `${s.name} used more memory than it was allowed. Give the VM more memory (Profiles, Edit) or lower the app's memory use, then start it again.` });
   } else if (!s.running && s.exitCode !== 0 && s.exitCode !== 143) {
     out.push({ id: "crashed", level: "bad", title: "Stopped with an error", detail: `${s.name} ${exitCodeMeaning(s.exitCode)} (exit code ${s.exitCode}). The logs usually say why.` });
   }

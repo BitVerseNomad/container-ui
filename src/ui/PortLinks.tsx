@@ -41,7 +41,7 @@ export function WebPort({ port, label, name }: { port: number; label: string; na
 // The full docker port text stays in the tooltip, so UDP and unpublished ports are still visible on hover.
 export default function PortLinks({ ports, running, name }: { ports: string; running: boolean; name: string }) {
   const links = running ? portLinksFromPs(ports) : [];
-  if (!links.length) return <span className="hint" title={ports || undefined}>{ports && !running ? "stopped" : "–"}</span>;
+  if (!links.length) return <span className="hint" title={ports || undefined}>{ports && !running ? "stopped" : ""}</span>;
   const extra = links.length - SHOWN;
   return (
     <span className="port-links" title={ports}>

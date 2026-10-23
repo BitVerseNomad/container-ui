@@ -1,4 +1,4 @@
-import { ReactNode } from "react";
+import { ReactNode, useState } from "react";
 import { Profile } from "./api";
 import { Icon, IconName } from "./ui/icons";
 
@@ -27,14 +27,24 @@ type Props = {
   hidden?: Tab[];
 };
 
+const FOLD_KEY = "colima-ui:sidebar-folded";
+// Storage can be blocked; the sidebar then simply starts open.
+const readFolded = () => { try { return localStorage.getItem(FOLD_KEY) === "1"; } catch { return false; } };
+const saveFolded = (v: boolean) => { try { localStorage.setItem(FOLD_KEY, v ? "1" : "0"); } catch { /* not remembered */ } };
+
 export default function Shell({ nav, onNav, profiles, active, onSelect, children, badges = {}, hidden = [] }: Props) {
   const current = profiles.find((p) => p.name === active);
+  const [folded, setFolded] = useState(readFolded);
+  const fold = () => setFolded((f) => { saveFolded(!f); return !f; });
   return (
-    <div className="shell">
+    <div className={folded ? "shell folded" : "shell"}>
       <div className="sidebar">
         <div className="brand">
           <span className="logo"><Icon name="box" size={18} /></span>
           <b>Colima</b>
+          <button className="icon-btn fold-btn" aria-label={folded ? "Show the sidebar" : "Hide the sidebar"} title={folded ? "Show the sidebar" : "Hide the sidebar"} aria-expanded={!folded} onClick={fold}>
+            <Icon name="sidebar" size={15} />
+          </button>
         </div>
         <nav aria-label="Main">
           {NAV.filter(({ tab }) => !hidden.includes(tab)).map(({ tab, icon }) => (
