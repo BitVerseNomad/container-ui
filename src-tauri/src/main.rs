@@ -2,8 +2,14 @@
 
 use serde::{Deserialize, Serialize};
 use std::io::{BufReader, Read};
+use std::os::unix::process::CommandExt;
 use std::process::{Command, Stdio};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Arc, Mutex, TryLockError};
+use std::time::{Duration, Instant};
 use tauri::Emitter;
+
+mod setup;
 
 #[derive(Serialize, Deserialize)]
 struct Profile {
@@ -71,29 +77,145 @@ fn docker_args_allowed(args: &[String]) -> Result<(), String> {
         "volume" => matches!(second, "ls" | "rm"),
         "image" => matches!(second, "inspect" | "prune"),
         "system" => second == "df",
+        "builder" => second == "prune",
         "network" => matches!(second, "ls" | "create" | "inspect" | "connect" | "disconnect" | "rm"),
         "events" => events_args_ok(args),
         other => DOCKER_SUBCOMMANDS.contains(&other),
     };
-    if !ok {
+    if !ok || (first != "run" && first != "events" && !flags_ok(args)) {
         return Err(format!("\"docker {}\" is not available from the app", args.join(" ")));
     }
     if first == "run" {
-        for (i, a) in args.iter().enumerate() {
-            let flag = a.split('=').next().unwrap_or("");
-            let risky = matches!(flag, "--privileged" | "--cap-add" | "--pid" | "--ipc" | "--uts" | "--userns" | "--security-opt" | "--device");
-            let host_net = (flag == "--network" || flag == "--net") && (a.ends_with("=host") || args.get(i + 1).map(String::as_str) == Some("host"));
-            if risky || host_net || a.contains("docker.sock") {
-                return Err(format!("\"{a}\" is not allowed when running a container from the app"));
+        let home = std::env::var("HOME").unwrap_or_default();
+        run_args_ok(args, &home)?;
+    }
+    Ok(())
+}
+
+// Each subcommand gets exactly the flags the app sends: (switches, flags that take a value). So no
+// `logs -f` or bare `stats` holding a process open, and no `network create -d macvlan -o parent=eth0`.
+fn allowed_flags(cmd: &str) -> (&'static [&'static str], &'static [&'static str]) {
+    const FMT: &[&str] = &["--format"];
+    match cmd {
+        "ps" => (&["-a", "-q"], &["--filter", "--format"]),
+        "images" | "inspect" | "volume ls" | "image inspect" | "network ls" | "network inspect" => (&[], FMT),
+        "search" => (&[], &["--limit", "--format"]),
+        "logs" => (&["--timestamps"], &["--tail", "--since", "--until"]),
+        "stats" => (&["--no-stream"], FMT),
+        "rm" => (&["-f"], &[]),
+        "image prune" => (&["-a", "-f"], &[]),
+        "builder prune" => (&["-f"], &[]),
+        "system df" => (&["-v"], FMT),
+        _ => (&[], &[]),
+    }
+}
+
+fn flags_ok(args: &[String]) -> bool {
+    let grouped = matches!(args[0].as_str(), "volume" | "image" | "system" | "network" | "builder");
+    let (cmd, rest) = if grouped { (format!("{} {}", args[0], args[1]), &args[2..]) } else { (args[0].clone(), &args[1..]) };
+    let (switches, valued) = allowed_flags(&cmd);
+    if cmd == "stats" && !rest.iter().any(|a| a == "--no-stream") {
+        return false;
+    }
+    let mut i = 0;
+    while i < rest.len() {
+        let a = rest[i].as_str();
+        if a.starts_with('-') {
+            let name = a.split('=').next().unwrap_or(a);
+            if switches.contains(&a) {
+            } else if valued.contains(&name) {
+                if !a.contains('=') {
+                    i += 1;
+                    if i >= rest.len() {
+                        return false;
+                    }
+                }
+            } else {
+                return false;
             }
+        }
+        i += 1;
+    }
+    true
+}
+
+// `docker run` is accepted only in the exact shape the Run panel builds (src/runArgs.ts). A blocklist of
+// risky flags always misses one (--mount, --env-file, --cidfile, -v /:/host), so this is an allowlist.
+fn run_args_ok(args: &[String], home: &str) -> Result<(), String> {
+    let deny = |a: &str| Err(format!("\"{a}\" is not allowed when running a container from the app"));
+    if args.len() < 3 || args[0] != "run" || args[1] != "-d" {
+        return deny(args.get(1).map(String::as_str).unwrap_or("run"));
+    }
+    let (image, opts) = (&args[args.len() - 1], &args[2..args.len() - 1]);
+    let image_ok = !image.starts_with('-') && image.chars().all(|c| c.is_ascii_alphanumeric() || "._/:@-".contains(c));
+    if !image_ok {
+        return deny(image);
+    }
+    if opts.len() % 2 != 0 {
+        return deny(opts.last().map(String::as_str).unwrap_or(""));
+    }
+    for pair in opts.chunks(2) {
+        let (flag, val) = (pair[0].as_str(), pair[1].as_str());
+        let ok = match flag {
+            "--name" => run_name_ok(val),
+            "--network" => run_name_ok(val) && val != "host" && val != "none",
+            "-p" => run_port_ok(val),
+            "-v" => run_mount_ok(val, home),
+            "-e" => val.split_once('=').map_or(false, |(k, _)| {
+                k.chars().next().map_or(false, |c| c.is_ascii_alphabetic() || c == '_') && k.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+            }),
+            _ => false,
+        };
+        if !ok {
+            return deny(&format!("{flag} {val}"));
         }
     }
     Ok(())
 }
 
+// SRC:DST or SRC:DST:ro. No other option suffix (:rw, :z, :Z, :delegated...) is accepted.
+fn run_mount_ok(val: &str, home: &str) -> bool {
+    let spec = val.strip_suffix(":ro").unwrap_or(val);
+    spec.split_once(':').map_or(false, |(src, dst)| run_source_ok(src, home) && dst.starts_with('/') && !dst.contains(':'))
+}
+
+fn run_name_ok(s: &str) -> bool {
+    s.chars().next().map_or(false, |c| c.is_ascii_alphanumeric()) && s.chars().all(|c| c.is_ascii_alphanumeric() || "_.-".contains(c))
+}
+
+// "C", "H:C", "127.0.0.1:H:C" or "127.0.0.1::C", ports 1-65535.
+fn run_port_ok(s: &str) -> bool {
+    let port = |p: &str| p.parse::<u32>().map_or(false, |n| (1..=65535).contains(&n) && !p.starts_with('0'));
+    match s.strip_prefix("127.0.0.1:") {
+        Some(rest) => match rest.split_once(':') {
+            Some(("", c)) => port(c),
+            Some((h, c)) => port(h) && port(c),
+            None => false,
+        },
+        None => match s.split_once(':') {
+            Some((h, c)) => port(h) && port(c),
+            None => port(s),
+        },
+    }
+}
+
+// A named volume, or a folder inside the Mac home that Colima shares. Never the home itself, never a
+// hidden path (~/.ssh, ~/.aws, ~/.zshrc), never ~/Library (keychains, app data), never the VM's own root or /var/run.
+fn run_source_ok(src: &str, home: &str) -> bool {
+    if !src.starts_with('/') {
+        return run_name_ok(src);
+    }
+    let Some(rest) = src.strip_prefix(home).and_then(|r| r.strip_prefix('/')) else { return false };
+    // macOS folders are case-insensitive by default, so ~/library is ~/Library.
+    let in_library = rest.split('/').next().map_or(false, |first| first.eq_ignore_ascii_case("library"));
+    !home.is_empty() && !rest.is_empty() && !in_library && rest.split('/').all(|c| !c.is_empty() && !c.starts_with('.'))
+}
+
 // ---- Connection doctor: probe from inside the client container's network namespace ----
 // A throwaway helper container shares the client's network, so no tools are needed in the user's own image.
 // The target and port are positional parameters ($1, $2), never part of the script text.
+// Pinned to a tag so the helper cannot change under the app (src/Doctor.tsx HELPER must match).
+const NETSHOOT_IMAGE: &str = "nicolaka/netshoot:v0.16";
 const PROBE_SCRIPT: &str = r#"nslookup "$1" 2>&1; echo "::dns-exit=$?"; nc -zv -w 3 "$1" "$2" 2>&1; echo "::tcp-exit=$?""#;
 
 fn container_name_ok(n: &str) -> bool {
@@ -114,7 +236,7 @@ fn probe_inputs_ok(context: &str, from: &str, target: &str, port: u16) -> Result
 }
 
 fn probe_args(context: &str, from: &str, target: &str, port: u16) -> Vec<String> {
-    ["--context", context, "run", "--rm", "--network", &format!("container:{from}"), "nicolaka/netshoot", "sh", "-c", PROBE_SCRIPT, "sh", target, &port.to_string()]
+    ["--context", context, "run", "--rm", "--network", &format!("container:{from}"), NETSHOOT_IMAGE, "sh", "-c", PROBE_SCRIPT, "sh", target, &port.to_string()]
         .iter()
         .map(|s| s.to_string())
         .collect()
@@ -209,18 +331,14 @@ fn terminal_script(command: &str) -> Option<String> {
     plain.then(|| format!("tell application \"Terminal\" to do script \"{command}\""))
 }
 
+// Opens Terminal.app on one fixed command: k9s for a cluster, or a shell inside a running container.
 #[tauri::command]
-fn open_terminal(kind: String, context: String) -> Result<(), String> {
-    if kind != "k9s" {
-        return Err("Only k9s can be opened from the app".into());
-    }
-    if !context_ok(&context) {
-        return Err(format!("Unknown context \"{context}\""));
-    }
+fn open_terminal(kind: String, context: String, target: Option<String>) -> Result<(), String> {
+    let command = terminal_command(&kind, &context, target.as_deref())?;
     if !cfg!(target_os = "macos") {
         return Err("Opening Terminal is only supported on macOS".into());
     }
-    let script = terminal_script(&format!("{} --context {}", find_bin("k9s"), context)).ok_or("That command isn't safe to open")?;
+    let script = terminal_script(&command).ok_or("That command isn't safe to open")?;
     Command::new("osascript")
         .args(["-e", &script, "-e", "tell application \"Terminal\" to activate"])
         .spawn()
@@ -228,9 +346,21 @@ fn open_terminal(kind: String, context: String) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
+fn terminal_command(kind: &str, context: &str, target: Option<&str>) -> Result<String, String> {
+    if !context_ok(context) {
+        return Err(format!("Unknown context \"{context}\""));
+    }
+    match (kind, target) {
+        ("k9s", None) => Ok(format!("{} --context {}", find_bin("k9s"), context)),
+        ("shell", Some(name)) if run_name_ok(name) => Ok(format!("{} --context {} exec -it {} sh", find_bin("docker"), context, name)),
+        _ => Err("Only k9s or a container shell can be opened from the app".into()),
+    }
+}
+
 // Colima registers "colima" (default profile) and "colima-<profile>" contexts; nothing else is used.
+// The suffix follows the profile-name rule, so a context can never smuggle a space or a flag into k9s.
 fn context_ok(c: &str) -> bool {
-    c == "colima" || c.strip_prefix("colima-").map_or(false, |rest| !rest.is_empty() && !rest.starts_with('-'))
+    c == "colima" || c.strip_prefix("colima-").map_or(false, profile_name_ok)
 }
 
 // GUI apps on macOS don't inherit the shell PATH, so look in the usual Homebrew spots.
@@ -246,26 +376,81 @@ fn path_env() -> String {
     format!("/opt/homebrew/bin:/usr/local/bin:{}", std::env::var("PATH").unwrap_or_default())
 }
 
+// Reads finish in well under a second; `docker run` may pull first. Past this, the child is killed so a hung
+// docker socket (common after the Mac sleeps) can't leave processes piling up.
+const EXEC_DEADLINE: std::time::Duration = std::time::Duration::from_secs(60);
+const OUTPUT_CAP: usize = 8 << 20;
+
+fn read_capped(mut r: impl std::io::Read + Send + 'static) -> std::thread::JoinHandle<Vec<u8>> {
+    std::thread::spawn(move || {
+        let mut buf = Vec::new();
+        let _ = std::io::Read::take(&mut r, OUTPUT_CAP as u64).read_to_end(&mut buf);
+        // drain the rest so the child never blocks on a full pipe
+        let _ = std::io::copy(&mut r, &mut std::io::sink());
+        buf
+    })
+}
+
+// After a kill the child should be gone at once. If it is stuck (a process in uninterruptible I/O can ignore
+// SIGKILL), give up after `limit` instead of waiting forever.
+const KILL_WAIT: Duration = Duration::from_secs(5);
+
+fn wait_bounded(child: &mut std::process::Child, limit: Duration) -> Option<std::process::ExitStatus> {
+    let start = Instant::now();
+    loop {
+        match child.try_wait() {
+            Ok(Some(s)) => return Some(s),
+            Ok(None) if start.elapsed() < limit => std::thread::sleep(Duration::from_millis(20)),
+            _ => return None,
+        }
+    }
+}
+
+pub(crate) fn output_with_deadline(mut cmd: Command, deadline: std::time::Duration) -> std::io::Result<(bool, Vec<u8>, Vec<u8>)> {
+    use std::process::Stdio;
+    // Own process group, so the kill below also reaches limactl or a credential helper holding the pipes.
+    let mut child = cmd.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).process_group(0).spawn()?;
+    let out = read_capped(child.stdout.take().expect("piped stdout"));
+    let err = read_capped(child.stderr.take().expect("piped stderr"));
+    let start = std::time::Instant::now();
+    let status = loop {
+        if let Some(s) = child.try_wait()? {
+            break Some(s);
+        }
+        if start.elapsed() > deadline {
+            kill_group(child.id());
+            let _ = child.kill();
+            let _ = wait_bounded(&mut child, KILL_WAIT);
+            break None;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    };
+    let (o, mut e) = (out.join().unwrap_or_default(), err.join().unwrap_or_default());
+    if status.is_none() {
+        e.extend_from_slice(format!("\nStopped after {}s with no answer. Docker or Colima may be stuck; try restarting the VM.", deadline.as_secs()).as_bytes());
+    }
+    Ok((status.map_or(false, |s| s.success()), o, e))
+}
+
 async fn exec(bin: &'static str, args: Vec<String>, merge_stderr: bool) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let missing = |e: std::io::Error| format!("Could not run {bin}: {e}. Is it installed?");
-        let out = if merge_stderr {
+        let mut cmd = if merge_stderr {
             // Interleave stdout and stderr in the order the program wrote them (needed for logs).
-            Command::new("sh")
-                .args(["-c", "exec \"$@\" 2>&1", "sh", &find_bin(bin)])
-                .args(&args)
-                .env("PATH", path_env())
-                .output()
-                .map_err(missing)?
+            let mut c = Command::new("sh");
+            c.args(["-c", "exec \"$@\" 2>&1", "sh", &find_bin(bin)]);
+            c
         } else {
-            Command::new(find_bin(bin)).args(&args).env("PATH", path_env()).output().map_err(missing)?
+            Command::new(find_bin(bin))
         };
-        if out.status.success() {
-            Ok(String::from_utf8_lossy(&out.stdout).into_owned())
+        cmd.args(&args).env("PATH", path_env());
+        let (ok, stdout, stderr) = output_with_deadline(cmd, EXEC_DEADLINE).map_err(missing)?;
+        if ok {
+            Ok(String::from_utf8_lossy(&stdout).into_owned())
         } else if merge_stderr {
-            Err(String::from_utf8_lossy(&out.stdout).into_owned())
+            Err(format!("{}{}", String::from_utf8_lossy(&stdout), String::from_utf8_lossy(&stderr)))
         } else {
-            Err(String::from_utf8_lossy(&out.stderr).into_owned())
+            Err(String::from_utf8_lossy(&stderr).into_owned())
         }
     })
     .await
@@ -301,8 +486,11 @@ impl FrameSplitter {
             let frame = self.take();
             self.replace = byte == b'\r';
             frame
-        } else {
+        } else if self.buf.len() < 16 << 10 {
+            // A line past 16 KB (a progress bar that never ends) is cut, not kept growing forever.
             self.buf.push(byte);
+            None
+        } else {
             None
         }
     }
@@ -345,18 +533,68 @@ fn emit_frame(app: &tauri::AppHandle, event: &str, tail: &mut Vec<String>, frame
 
 // Runs a command and emits each output line as an event, so slow work (pulls, VM starts) is visible.
 // On failure the last lines are returned as the error.
+fn kill_group(pid: u32) {
+    let _ = Command::new("/bin/kill").args(["-KILL", "--", &format!("-{pid}")]).status();
+}
+
+// A start can sit quiet while the VM boots, but never this long; past it the command is stuck (common after sleep).
+const STREAM_SILENCE: Duration = Duration::from_secs(600);
+// The VM operation in progress, so Cancel can stop it.
+static VM_OP_PID: Mutex<Option<u32>> = Mutex::new(None);
+// One VM operation at a time: a delete must never land in the middle of a start.
+static VM_LOCK: Mutex<()> = Mutex::new(());
+// Set by Cancel while an operation runs, so a stop-then-start does not go on to start after a cancelled stop.
+static VM_CANCELLED: AtomicBool = AtomicBool::new(false);
+
+// Runs the steps in order, stopping at the first failure or once Cancel was pressed.
+fn run_steps(steps: &[Vec<String>], cancelled: &AtomicBool, mut step: impl FnMut(&[String]) -> Result<(), String>) -> Result<(), String> {
+    for args in steps {
+        if cancelled.load(Ordering::SeqCst) {
+            return Err("Cancelled.".to_string());
+        }
+        step(args)?;
+    }
+    Ok(())
+}
+
 fn stream(app: &tauri::AppHandle, event: &str, bin: &str, args: &[String]) -> Result<(), String> {
+    stream_with(app, event, bin, args, STREAM_SILENCE, |_| {})
+}
+
+fn stream_with(app: &tauri::AppHandle, event: &str, bin: &str, args: &[String], silence: Duration, on_spawn: impl Fn(Option<u32>)) -> Result<(), String> {
     let mut child = Command::new("sh")
         .args(["-c", "exec \"$@\" 2>&1", "sh", &find_bin(bin)])
         .args(args)
         .env("PATH", path_env())
+        .stdin(Stdio::null())
         .stdout(Stdio::piped())
+        .process_group(0)
         .spawn()
         .map_err(|e| format!("Could not run {bin}: {e}. Is it installed?"))?;
+    let pid = child.id();
+    on_spawn(Some(pid));
+    let started = Instant::now();
+    let last = Arc::new(AtomicU64::new(0));
+    let (done, timed_out) = (Arc::new(AtomicBool::new(false)), Arc::new(AtomicBool::new(false)));
+    let watchdog = {
+        let (last, done, timed_out) = (last.clone(), done.clone(), timed_out.clone());
+        std::thread::spawn(move || {
+            while !done.load(Ordering::Relaxed) {
+                std::thread::sleep(Duration::from_millis(500));
+                let quiet = started.elapsed().saturating_sub(Duration::from_millis(last.load(Ordering::Relaxed)));
+                if quiet > silence {
+                    timed_out.store(true, Ordering::Relaxed);
+                    kill_group(pid);
+                    return;
+                }
+            }
+        })
+    };
     let mut tail: Vec<String> = Vec::new();
     if let Some(out) = child.stdout.take() {
         let mut splitter = FrameSplitter::default();
         for byte in BufReader::new(out).bytes().map_while(Result::ok) {
+            last.store(started.elapsed().as_millis() as u64, Ordering::Relaxed);
             if let Some(frame) = splitter.push(byte) {
                 emit_frame(app, event, &mut tail, frame);
             }
@@ -365,19 +603,44 @@ fn stream(app: &tauri::AppHandle, event: &str, bin: &str, args: &[String]) -> Re
             emit_frame(app, event, &mut tail, frame);
         }
     }
-    let status = child.wait().map_err(|e| e.to_string())?;
-    if status.success() { Ok(()) } else { Err(tail.join("\n")) }
+    // A killed child must not hold the VM lock for ever, so after a timeout the wait is bounded.
+    let stuck = timed_out.load(Ordering::Relaxed);
+    let status = if stuck { Ok(wait_bounded(&mut child, KILL_WAIT)) } else { child.wait().map(Some).map_err(|e| e.to_string()) };
+    done.store(true, Ordering::Relaxed);
+    let _ = watchdog.join();
+    on_spawn(None);
+    if stuck {
+        tail.push(format!("Stopped: no output for {} minutes, so it looked stuck. Try Force stop, then start.", silence.as_secs() / 60));
+        return Err(tail.join("\n"));
+    }
+    if status?.map_or(false, |s| s.success()) { Ok(()) } else { Err(tail.join("\n")) }
 }
 
 async fn colima_stream(app: tauri::AppHandle, steps: Vec<Vec<String>>) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
-        for args in &steps {
-            stream(&app, "colima-progress", "colima", args)?;
-        }
-        Ok(())
+        let _guard = match VM_LOCK.try_lock() {
+            Ok(g) => g,
+            Err(TryLockError::Poisoned(p)) => p.into_inner(),
+            Err(TryLockError::WouldBlock) => return Err("Another VM operation is still running. Wait for it to finish, or cancel it.".to_string()),
+        };
+        VM_CANCELLED.store(false, Ordering::SeqCst);
+        let track = |pid| *VM_OP_PID.lock().unwrap_or_else(|p| p.into_inner()) = pid;
+        run_steps(&steps, &VM_CANCELLED, |args| stream_with(&app, "colima-progress", "colima", args, STREAM_SILENCE, track))
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+// Stops the start/stop/delete in progress. Colima may leave a half-started VM; Force stop cleans that up.
+#[tauri::command]
+fn cancel_vm_op() -> bool {
+    // Between two steps there is no process to kill, but the next step must still not run.
+    let busy = matches!(VM_LOCK.try_lock(), Err(TryLockError::WouldBlock));
+    if busy {
+        VM_CANCELLED.store(true, Ordering::SeqCst);
+    }
+    let pid = *VM_OP_PID.lock().unwrap_or_else(|p| p.into_inner());
+    pid.map(kill_group).is_some() || busy
 }
 
 #[tauri::command]
@@ -421,21 +684,20 @@ fn locate(bin: &str) -> Option<String> {
     if std::path::Path::new(&known).is_absolute() && std::path::Path::new(&known).exists() {
         return Some(known);
     }
-    let out = Command::new("sh")
-        .args(["-c", "command -v \"$0\"", bin])
-        .env("PATH", path_env())
-        .output()
-        .ok()?;
-    let found = String::from_utf8_lossy(&out.stdout).trim().to_string();
-    if out.status.success() && !found.is_empty() { Some(found) } else { None }
+    let mut cmd = Command::new("sh");
+    cmd.args(["-c", "command -v \"$0\"", bin]).env("PATH", path_env());
+    let (ok, out, _) = output_with_deadline(cmd, Duration::from_secs(10)).ok()?;
+    let found = String::from_utf8_lossy(&out).trim().to_string();
+    if ok && !found.is_empty() { Some(found) } else { None }
 }
 
 fn tool(bin: &str) -> Option<Tool> {
     let path = locate(bin)?;
-    let out = Command::new(&path).arg("--version").env("PATH", path_env()).output().ok()?;
-    let version = parse_version(&String::from_utf8_lossy(&out.stdout))
-        .or_else(|| parse_version(&String::from_utf8_lossy(&out.stderr)))
-        .unwrap_or_default();
+    // A hung `brew --version` (it auto-updates) must not hold the first screen; the tool still counts as found.
+    let mut cmd = Command::new(&path);
+    cmd.arg("--version").env("PATH", path_env());
+    let (_, out, err) = output_with_deadline(cmd, Duration::from_secs(10)).unwrap_or_default();
+    let version = parse_version(&String::from_utf8_lossy(&out)).or_else(|| parse_version(&String::from_utf8_lossy(&err))).unwrap_or_default();
     Some(Tool { path, version })
 }
 
@@ -450,7 +712,7 @@ fn validate_install(names: &[String]) -> Result<(), String> {
     if names.is_empty() {
         return Err("Nothing to install".into());
     }
-    match names.iter().find(|n| !matches!(n.as_str(), "colima" | "docker" | "kubectl" | "k9s")) {
+    match names.iter().find(|n| !matches!(n.as_str(), "colima" | "docker" | "kubectl" | "k9s" | "docker-compose" | "docker-buildx")) {
         Some(bad) => Err(format!("Cannot install \"{bad}\" from the app")),
         None => Ok(()),
     }
@@ -478,7 +740,7 @@ async fn list_profiles() -> Result<Vec<Profile>, String> {
 
 #[tauri::command]
 async fn start_profile(app: tauri::AppHandle, opts: StartOpts) -> Result<(), String> {
-    safe(&opts.name)?;
+    profile(&opts.name)?;
     colima_stream(app, vec![start_args(&opts)]).await
 }
 
@@ -486,7 +748,7 @@ async fn start_profile(app: tauri::AppHandle, opts: StartOpts) -> Result<(), Str
 // If the stop fails, nothing has changed. If the start fails, the profile is left stopped.
 #[tauri::command]
 async fn apply_resources(app: tauri::AppHandle, opts: StartOpts, restart: bool) -> Result<(), String> {
-    safe(&opts.name)?;
+    profile(&opts.name)?;
     let mut steps = Vec::new();
     if restart {
         steps.push(vec!["stop".to_string(), opts.name.clone()]);
@@ -497,19 +759,87 @@ async fn apply_resources(app: tauri::AppHandle, opts: StartOpts, restart: bool) 
 
 #[tauri::command]
 async fn stop_profile(app: tauri::AppHandle, name: String) -> Result<(), String> {
-    safe(&name)?;
+    profile(&name)?;
     colima_stream(app, vec![vec!["stop".into(), name]]).await
+}
+
+// For a stop that timed out: shuts the VM down without waiting for it to answer.
+#[tauri::command]
+async fn force_stop_profile(app: tauri::AppHandle, name: String) -> Result<(), String> {
+    profile(&name)?;
+    colima_stream(app, vec![vec!["stop".into(), "--force".into(), name]]).await
 }
 
 #[tauri::command]
 async fn restart_profile(app: tauri::AppHandle, name: String) -> Result<(), String> {
-    safe(&name)?;
+    profile(&name)?;
     colima_stream(app, vec![vec!["restart".into(), name]]).await
+}
+
+// A VM left half-running after sleep keeps lock files that block `start`; a forced stop clears them.
+#[tauri::command]
+async fn force_restart_profile(app: tauri::AppHandle, name: String) -> Result<(), String> {
+    profile(&name)?;
+    colima_stream(app, vec![vec!["stop".into(), "--force".into(), name.clone()], vec!["start".into(), name]]).await
+}
+
+// The Mac's cores and memory, so the first VM can be sized from the machine instead of Colima's 2 CPU, 2 GiB.
+#[derive(serde::Serialize)]
+struct Host {
+    cpus: u32,
+    memory: u64,
+}
+
+fn sysctl(key: &str) -> Option<u64> {
+    let out = std::process::Command::new("/usr/sbin/sysctl").args(["-n", key]).output().ok()?;
+    String::from_utf8_lossy(&out.stdout).trim().parse().ok()
+}
+
+#[tauri::command]
+fn host_resources() -> Host {
+    Host { cpus: sysctl("hw.ncpu").unwrap_or(4) as u32, memory: sysctl("hw.memsize").unwrap_or(8 << 30) }
+}
+
+// Colima profile names are plain words; anything with a slash or dots could walk out of ~/.colima.
+pub(crate) fn profile_name_ok(name: &str) -> bool {
+    !name.is_empty() && !name.starts_with(['-', '.']) && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+}
+
+fn profile(name: &str) -> Result<(), String> {
+    profile_name_ok(name).then_some(()).ok_or_else(|| format!("Invalid profile name: \"{name}\""))
+}
+
+// Lima names the instance "colima" for the default profile and "colima-<name>" for others.
+fn lima_dir(profile: &str) -> std::path::PathBuf {
+    let inst = if profile == "default" { "colima".to_string() } else { format!("colima-{profile}") };
+    std::path::PathBuf::from(std::env::var("HOME").unwrap_or_default()).join(".colima/_lima").join(inst)
+}
+
+// The last lines of the VM's own log: `colima start` often only says "exit status 1" and the reason is here.
+fn tail_bytes(path: &std::path::Path, max: u64) -> String {
+    use std::io::{Seek, SeekFrom};
+    let Ok(mut f) = std::fs::File::open(path) else { return String::new() };
+    let len = f.metadata().map(|m| m.len()).unwrap_or(0);
+    let _ = f.seek(SeekFrom::Start(len.saturating_sub(max)));
+    let mut buf = Vec::new();
+    let _ = f.read_to_end(&mut buf);
+    String::from_utf8_lossy(&buf).into_owned()
+}
+
+#[tauri::command]
+fn vm_log_tail(name: String) -> Result<String, String> {
+    if !profile_name_ok(&name) {
+        return Err(format!("Invalid profile name: \"{name}\""));
+    }
+    // The log only grows; read its last 64 KB, never the whole file.
+    let text = tail_bytes(&lima_dir(&name).join("ha.stderr.log"), 64 << 10);
+    let lines: Vec<&str> = text.lines().collect();
+    Ok(lines[lines.len().saturating_sub(60)..].join("\n"))
 }
 
 #[tauri::command]
 async fn delete_profile(app: tauri::AppHandle, name: String) -> Result<(), String> {
-    safe(&name)?;
+    profile(&name)?;
     colima_stream(app, vec![vec!["delete".into(), "--force".into(), name]]).await
 }
 
@@ -545,11 +875,55 @@ fn open_url(url: String) -> Result<(), String> {
     Command::new(opener).arg(&url).spawn().map(|_| ()).map_err(|e| e.to_string())
 }
 
+// The native macOS folder chooser, so the Run panel never asks for a typed path. Ok(None) means the user cancelled.
+const PICK_FOLDER_SCRIPT: &str = r#"POSIX path of (choose folder with prompt "Choose a folder to share with the container")"#;
+const PICK_FOLDER_DEADLINE: Duration = Duration::from_secs(300);
+
+fn parse_pick_folder(ok: bool, stdout: &[u8], stderr: &[u8]) -> Result<Option<String>, String> {
+    let err = String::from_utf8_lossy(stderr);
+    if ok {
+        let path = String::from_utf8_lossy(stdout);
+        let path = path.trim().trim_end_matches('/');
+        return Ok(Some(if path.is_empty() { "/".to_string() } else { path.to_string() }));
+    }
+    // AppleScript error -128 is the Cancel button.
+    if err.contains("User canceled") || err.contains("(-128)") {
+        return Ok(None);
+    }
+    Err(err.trim().to_string())
+}
+
+#[tauri::command]
+async fn pick_folder() -> Result<Option<String>, String> {
+    if !cfg!(target_os = "macos") {
+        return Err("Choosing a folder is only supported on macOS".into());
+    }
+    tauri::async_runtime::spawn_blocking(|| {
+        let mut cmd = Command::new("/usr/bin/osascript");
+        cmd.args(["-e", PICK_FOLDER_SCRIPT]);
+        let (ok, out, err) = output_with_deadline(cmd, PICK_FOLDER_DEADLINE).map_err(|e| format!("Could not open the folder chooser: {e}"))?;
+        parse_pick_folder(ok, &out, &err)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn setup_report() -> Result<setup::SetupReport, String> {
+    tauri::async_runtime::spawn_blocking(setup::report).await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn setup_fix(id: String, profile: Option<String>) -> Result<String, String> {
+    let profile = profile.unwrap_or_else(|| "default".into());
+    tauri::async_runtime::spawn_blocking(move || setup::fix(&id, &profile)).await.map_err(|e| e.to_string())?
+}
+
 fn main() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             list_profiles, docker, docker_pull, env_check, install_tools, network_probe, kubectl, open_terminal, start_profile, apply_resources,
-            stop_profile, restart_profile, delete_profile, open_url
+            stop_profile, force_stop_profile, restart_profile, force_restart_profile, delete_profile, cancel_vm_op, host_resources, vm_log_tail, open_url, pick_folder, setup_report, setup_fix
         ])
         .run(tauri::generate_context!())
         .expect("error while running Colima UI");
@@ -557,6 +931,87 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn given_the_run_panel_shape_when_checked_then_it_is_accepted() {
+        let a = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        let h = "/Users/me";
+        assert!(super::run_args_ok(&a(&["run", "-d", "nginx"]), h).is_ok());
+        assert!(super::run_args_ok(&a(&["run", "-d", "--name", "web-1", "--network", "devnet", "-p", "127.0.0.1:8080:80", "-p", "127.0.0.1::5432", "-p", "9000:9000", "-v", "pgdata:/var/lib/postgresql/data", "-v", "/Users/me/code/app:/app", "-e", "POSTGRES_PASSWORD=a=b c", "postgres:16"]), h).is_ok());
+    }
+
+    #[test]
+    fn given_a_host_escape_when_run_is_checked_then_it_is_refused() {
+        let a = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        let h = "/Users/me";
+        for bad in [
+            vec!["run", "-d", "-v", "/:/host", "alpine"],
+            vec!["run", "-d", "-v", "/var/run:/r", "alpine"],
+            vec!["run", "-d", "-v", "/Users/me:/h", "alpine"],
+            vec!["run", "-d", "-v", "/Users/me/.ssh:/k", "alpine"],
+            vec!["run", "-d", "-v", "/Users/me/code/../.zshrc:/z", "alpine"],
+            vec!["run", "-d", "-v", "/Users/meother/x:/x", "alpine"],
+            vec!["run", "-d", "--mount", "type=bind,src=/,dst=/h", "alpine"],
+            vec!["run", "-d", "--env-file", "/Users/me/.aws/credentials", "alpine"],
+            vec!["run", "-d", "--cidfile", "/Users/me/x", "alpine"],
+            vec!["run", "-d", "--volumes-from", "db", "alpine"],
+            vec!["run", "-d", "--privileged", "alpine"],
+            vec!["run", "-d", "--network", "host", "alpine"],
+            vec!["run", "-d", "-p", "0.0.0.0:80:80", "alpine"],
+            vec!["run", "-d", "alpine", "sh"],
+            vec!["run", "-d", "--rm"],
+            vec!["run", "--privileged", "alpine"],
+        ] {
+            assert!(super::run_args_ok(&a(&bad), h).is_err(), "{bad:?} should be refused");
+        }
+    }
+
+    #[test]
+    fn given_a_command_that_hangs_when_run_with_a_deadline_then_it_is_killed_and_says_so() {
+        let mut c = std::process::Command::new("/bin/sleep");
+        c.arg("5");
+        let t = std::time::Instant::now();
+        let (ok, _, err) = super::output_with_deadline(c, std::time::Duration::from_millis(300)).unwrap();
+        assert!(!ok);
+        assert!(t.elapsed() < std::time::Duration::from_secs(2));
+        assert!(String::from_utf8_lossy(&err).contains("Stopped after"));
+    }
+
+    #[test]
+    fn given_a_child_that_forks_when_the_deadline_hits_then_the_whole_group_dies() {
+        // The grandchild holds stdout open; killing only sh would leave the readers waiting forever.
+        let mut c = std::process::Command::new("/bin/sh");
+        c.args(["-c", "sleep 30 & wait"]);
+        let t = std::time::Instant::now();
+        let (ok, _, _) = super::output_with_deadline(c, std::time::Duration::from_millis(300)).unwrap();
+        assert!(!ok);
+        assert!(t.elapsed() < std::time::Duration::from_secs(3), "took {:?}", t.elapsed());
+    }
+
+    #[test]
+    fn given_a_quick_command_when_run_with_a_deadline_then_its_output_comes_back() {
+        let mut c = std::process::Command::new("/bin/echo");
+        c.arg("hi");
+        let (ok, out, _) = super::output_with_deadline(c, std::time::Duration::from_secs(5)).unwrap();
+        assert!(ok);
+        assert_eq!(String::from_utf8_lossy(&out).trim(), "hi");
+    }
+
+    #[test]
+    fn given_a_path_like_profile_name_when_checked_then_it_is_refused() {
+        assert!(super::profile_name_ok("default"));
+        assert!(super::profile_name_ok("work_2"));
+        assert!(!super::profile_name_ok("../etc"));
+        assert!(!super::profile_name_ok("a/b"));
+        assert!(!super::profile_name_ok(".hidden"));
+        assert!(!super::profile_name_ok(""));
+    }
+
+    #[test]
+    fn given_the_default_profile_when_locating_its_lima_dir_then_it_is_named_colima() {
+        assert!(super::lima_dir("default").ends_with(".colima/_lima/colima"));
+        assert!(super::lima_dir("dev").ends_with(".colima/_lima/colima-dev"));
+    }
+
     use super::*;
 
     fn opts(name: &str) -> StartOpts {
@@ -684,7 +1139,7 @@ mod tests {
     fn the_probe_runs_in_the_clients_network_with_values_passed_as_arguments() {
         let a = probe_args("colima", "kafka-ui", "kafka", 9092);
         assert!(a.contains(&"container:kafka-ui".to_string()));
-        assert!(a.contains(&"nicolaka/netshoot".to_string()));
+        assert!(a.contains(&NETSHOOT_IMAGE.to_string()));
         // the target and port are positional parameters, never part of the script text
         assert_eq!(&a[a.len() - 2..], &["kafka".to_string(), "9092".to_string()]);
         assert!(!PROBE_SCRIPT.contains("kafka"));
@@ -716,11 +1171,67 @@ mod tests {
     }
 
     #[test]
+    fn given_the_app_s_own_docker_calls_when_checked_then_they_pass() {
+        for ok in [
+            vec!["ps", "-a", "--format", "{{json .}}"],
+            vec!["ps", "--filter", "network=devnet", "--format", "{{json .}}"],
+            vec!["ps", "-a", "-q"],
+            vec!["stats", "--no-stream", "--format", "{{json .}}"],
+            vec!["stats", "--no-stream", "abc", "--format", "{{json .}}"],
+            vec!["logs", "--tail", "1000", "abc"],
+            vec!["logs", "--timestamps", "--since", "1700000000.5", "abc"],
+            vec!["logs", "--since", "100", "--until", "220", "web"],
+            vec!["search", "--limit", "25", "redis", "--format", "{{json .}}"],
+            vec!["system", "df", "-v", "--format", "json"],
+            vec!["image", "prune", "-a", "-f"],
+            vec!["network", "create", "devnet"],
+            vec!["network", "connect", "devnet", "web"],
+            vec!["rm", "-f", "web"],
+            vec!["rmi", "redis:7"],
+            vec!["volume", "rm", "a", "b"],
+            vec!["inspect", "a", "b"],
+        ] {
+            assert!(docker_args_allowed(&args(&ok)).is_ok(), "{ok:?} should pass");
+        }
+    }
+
+    #[test]
+    fn given_a_flag_the_app_never_sends_when_checked_then_it_is_refused() {
+        for bad in [
+            vec!["logs", "-f", "abc"],
+            vec!["logs", "--follow", "abc"],
+            vec!["stats"],
+            vec!["stats", "abc"],
+            vec!["network", "create", "-d", "macvlan", "-o", "parent=eth0", "lan"],
+            vec!["rmi", "-f", "x"],
+            vec!["volume", "rm", "-f", "x"],
+            vec!["image", "prune", "--filter", "until=1h"],
+            vec!["ps", "--size"],
+            vec!["logs", "--tail"],
+            vec!["inspect", "--type", "container", "x"],
+        ] {
+            assert!(docker_args_allowed(&args(&bad)).is_err(), "{bad:?} should be refused");
+        }
+    }
+
+    #[test]
+    fn given_a_container_name_when_a_shell_is_asked_then_only_a_plain_exec_is_built() {
+        let ok = super::terminal_command("shell", "colima", Some("shop-api-1")).unwrap();
+        assert!(ok.ends_with("--context colima exec -it shop-api-1 sh"));
+        assert!(super::terminal_command("shell", "colima", Some("x --privileged")).is_err());
+        assert!(super::terminal_command("shell", "colima", Some("-u root")).is_err());
+        assert!(super::terminal_command("shell", "colima", None).is_err());
+        assert!(super::terminal_command("k9s", "colima", Some("x")).is_err());
+        assert!(super::terminal_command("bash", "colima", Some("x")).is_err());
+        assert!(super::terminal_command("shell", "default", Some("x")).is_err());
+    }
+
+    #[test]
     fn docker_run_refuses_host_networking() {
         assert!(docker_args_allowed(&args(&["run", "--network", "host", "x"])).is_err());
         assert!(docker_args_allowed(&args(&["run", "--network=host", "x"])).is_err());
         assert!(docker_args_allowed(&args(&["run", "--net=host", "x"])).is_err());
-        assert!(docker_args_allowed(&args(&["run", "--network", "devnet", "x"])).is_ok());
+        assert!(docker_args_allowed(&args(&["run", "-d", "--network", "devnet", "x"])).is_ok());
     }
 
     #[test]
@@ -792,6 +1303,127 @@ mod tests {
         assert!(!context_ok("desktop-linux"));
         assert!(!context_ok("colima-"));
         assert!(!context_ok("--host"));
+        assert!(!context_ok("colima-x --readonly=false"));
+        assert!(!context_ok("colima-a/b"));
+        assert!(!context_ok("colima-.."));
+    }
+
+
+    #[test]
+    fn given_a_folder_in_the_mac_library_when_run_is_checked_then_it_is_refused() {
+        let h = "/Users/me";
+        assert!(!run_source_ok("/Users/me/Library", h));
+        assert!(!run_source_ok("/Users/me/Library/Application Support/x", h));
+        assert!(!run_source_ok("/Users/me/Library/Keychains", h));
+        assert!(!run_source_ok("/Users/me/library/LaunchAgents", h));
+        assert!(!run_source_ok("/Users/me/LIBRARY", h));
+        assert!(run_source_ok("/Users/me/Libraryx/a", h));
+        assert!(run_source_ok("/Users/me/code/Library", h));
+        assert!(run_args_ok(&args(&["run", "-d", "-v", "/Users/me/Library/x:/x", "alpine"]), h).is_err());
+    }
+
+    #[test]
+    fn given_a_ro_suffix_when_a_mount_is_checked_then_only_ro_is_accepted() {
+        let h = "/Users/me";
+        let run = |v: &str| run_args_ok(&args(&["run", "-d", "-v", v, "alpine"]), h);
+        assert!(run("/Users/me/code:/app:ro").is_ok());
+        assert!(run("pgdata:/data:ro").is_ok());
+        assert!(run("/Users/me/code:/app").is_ok());
+        for bad in ["/Users/me/code:/app:rw", "/Users/me/code:/app:z", "/Users/me/code:/app:ro:z", "/Users/me/code:/app:ro:ro", "/Users/me/code:ro", "/Users/me/.ssh:/k:ro", "/Users/me/Library/x:/k:ro", "/:/h:ro"] {
+            assert!(run(bad).is_err(), "{bad} should be refused");
+        }
+    }
+
+    #[test]
+    fn given_a_chosen_folder_when_osascript_answers_then_the_slash_and_newline_are_trimmed() {
+        assert_eq!(parse_pick_folder(true, b"/Users/me/code/app/\n", b""), Ok(Some("/Users/me/code/app".to_string())));
+        assert_eq!(parse_pick_folder(true, b"/Users/me/code\n", b""), Ok(Some("/Users/me/code".to_string())));
+    }
+
+    #[test]
+    fn given_the_user_cancels_the_folder_chooser_then_the_answer_is_none() {
+        let err = b"0:62: execution error: User canceled. (-128)\n";
+        assert_eq!(parse_pick_folder(false, b"", err), Ok(None));
+    }
+
+    #[test]
+    fn given_osascript_fails_for_another_reason_then_the_message_is_returned() {
+        let r = parse_pick_folder(false, b"", b"Stopped after 300s with no answer.");
+        assert!(r.unwrap_err().contains("Stopped after"));
+    }
+
+    #[test]
+    fn the_doctor_helper_image_is_pinned_to_a_tag() {
+        assert_eq!(NETSHOOT_IMAGE, "nicolaka/netshoot:v0.16");
+        let a = probe_args("colima", "kafka-ui", "kafka", 9092);
+        assert!(a.contains(&NETSHOOT_IMAGE.to_string()));
+        assert!(!a.contains(&"nicolaka/netshoot".to_string()));
+    }
+
+    #[test]
+    fn given_builder_prune_when_checked_then_only_the_forced_form_is_allowed() {
+        assert!(docker_args_allowed(&args(&["builder", "prune", "-f"])).is_ok());
+        assert!(docker_args_allowed(&args(&["builder", "prune"])).is_ok());
+        for bad in [&["builder", "prune", "-a"][..], &["builder", "prune", "--all"], &["builder", "build", "."], &["builder", "prune", "--filter", "until=1h"], &["builder"]] {
+            assert!(docker_args_allowed(&args(bad)).is_err(), "{bad:?}");
+        }
+    }
+
+    #[test]
+    fn given_system_df_with_a_format_when_checked_then_it_is_allowed() {
+        assert!(docker_args_allowed(&args(&["system", "df", "--format", "{{json .}}"])).is_ok());
+        assert!(docker_args_allowed(&args(&["system", "df", "--format", "json"])).is_ok());
+        assert!(docker_args_allowed(&args(&["system", "df", "-v", "--format", "json"])).is_ok());
+        assert!(docker_args_allowed(&args(&["system", "df", "--bogus"])).is_err());
+    }
+
+    #[test]
+    fn given_a_child_that_ignores_the_wait_when_bounded_then_it_gives_up() {
+        let mut child = Command::new("/bin/sleep").arg("30").spawn().unwrap();
+        let t = Instant::now();
+        assert!(wait_bounded(&mut child, Duration::from_millis(300)).is_none());
+        assert!(t.elapsed() < Duration::from_secs(2));
+        let _ = child.kill();
+        let _ = child.wait();
+    }
+
+    #[test]
+    fn given_a_child_that_exits_when_bounded_then_its_status_comes_back() {
+        let mut child = Command::new("/usr/bin/true").spawn().unwrap();
+        assert!(wait_bounded(&mut child, Duration::from_secs(5)).unwrap().success());
+    }
+
+    #[test]
+    fn given_cancel_during_the_stop_when_the_steps_run_then_the_start_never_runs() {
+        let cancelled = AtomicBool::new(false);
+        let mut ran: Vec<String> = Vec::new();
+        let steps = vec![args(&["stop", "dev"]), args(&["start", "dev"])];
+        let r = run_steps(&steps, &cancelled, |a| {
+            ran.push(a[0].clone());
+            cancelled.store(true, Ordering::SeqCst);
+            Ok(())
+        });
+        assert!(r.is_err());
+        assert_eq!(ran, ["stop"]);
+    }
+
+    #[test]
+    fn given_no_cancel_when_the_steps_run_then_all_run_in_order() {
+        let cancelled = AtomicBool::new(false);
+        let mut ran: Vec<String> = Vec::new();
+        let steps = vec![args(&["stop", "dev"]), args(&["start", "dev"])];
+        assert!(run_steps(&steps, &cancelled, |a| { ran.push(a[0].clone()); Ok(()) }).is_ok());
+        assert_eq!(ran, ["stop", "start"]);
+    }
+
+    #[test]
+    fn given_a_step_that_fails_when_the_steps_run_then_the_next_one_is_skipped() {
+        let cancelled = AtomicBool::new(false);
+        let mut ran = 0;
+        let steps = vec![args(&["stop", "dev"]), args(&["start", "dev"])];
+        let r = run_steps(&steps, &cancelled, |_| { ran += 1; Err("boom".to_string()) });
+        assert_eq!(r, Err("boom".to_string()));
+        assert_eq!(ran, 1);
     }
 
     #[test]
