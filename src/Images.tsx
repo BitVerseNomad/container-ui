@@ -8,6 +8,7 @@ import PullPanel from "./PullPanel";
 import { formatBytes, parseBytes } from "./containerInfo";
 import RunPanel from "./RunPanel";
 import DiskCard from "./DiskCard";
+import { Icon } from "./ui/icons";
 
 type I = { ID: string; Repository: string; Tag: string; Size: string; CreatedSince: string };
 
@@ -16,7 +17,10 @@ export default function Images({ ctx, onRan, startPull = false, arch }: { ctx: s
   const { data, error, reload } = usePoll(() => dockerJson<I>(ctx, ["images"]), [ctx], 5000);
   const [err, setErr] = useState<string | null>(null);
   const [pulling, setPulling] = useState(startPull);
+  const [hubTerm, setHubTerm] = useState<string | undefined>(undefined);
   const [running, setRunning] = useState<string | null>(null);
+  const [q, setQ] = useState("");
+  const shown = (data ?? []).filter((i) => `${i.Repository}:${i.Tag}`.toLowerCase().includes(q.trim().toLowerCase()));
 
   async function act(args: string[]) {
     try {
@@ -31,13 +35,7 @@ export default function Images({ ctx, onRan, startPull = false, arch }: { ctx: s
   return (
     <section>
       <header>
-        <button className="primary" onClick={() => setPulling(true)}>Pull image</button>
-        <button
-          className="danger"
-          onClick={async () => (await confirm("Remove all images not used by a container?")) && act(["image", "prune", "-a", "-f"])}
-        >
-          Remove unused
-        </button>
+        <button className="primary" onClick={() => { setHubTerm(undefined); setPulling(true); }}>Pull image</button>
       </header>
       <Banner error={error ?? err} onClose={() => setErr(null)} />
       <DiskCard ctx={ctx} onChanged={reload} />
@@ -45,12 +43,23 @@ export default function Images({ ctx, onRan, startPull = false, arch }: { ctx: s
         <Empty title="No images">Use <strong>Pull image</strong> to download one from Docker Hub.</Empty>
       )}
       {data && data.length > 0 && (
+        <label className="search-field image-search">
+          <Icon name="search" size={14} />
+          <input placeholder="Search your images" aria-label="Search your images" value={q} onChange={(e) => setQ(e.target.value)} />
+        </label>
+      )}
+      {data && data.length > 0 && shown.length === 0 && (
+        <p className="hint pad">
+          No image here matches "{q.trim()}". <button className="link-plain inline-link" onClick={() => { setHubTerm(q.trim()); setPulling(true); }}>Find it on Docker Hub</button>
+        </p>
+      )}
+      {shown.length > 0 && (
         <table>
           <thead>
             <tr><th scope="col">Repository</th><th scope="col">Tag</th><th scope="col">ID</th><th scope="col">Size</th><th scope="col">Created</th><th scope="col"><span className="sr-only">Actions</span></th></tr>
           </thead>
           <tbody>
-            {data.map((i) => {
+            {shown.map((i) => {
               const ref = i.Repository === "<none>" ? i.ID : `${i.Repository}:${i.Tag}`;
               return (
                 <tr key={i.ID + ref}>
@@ -72,6 +81,7 @@ export default function Images({ ctx, onRan, startPull = false, arch }: { ctx: s
       {pulling && (
         <PullPanel
           ctx={ctx}
+          searchFor={hubTerm}
           onClose={() => setPulling(false)}
           onPulled={reload}
           onRun={(image) => {

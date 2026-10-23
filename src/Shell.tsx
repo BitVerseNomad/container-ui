@@ -56,6 +56,7 @@ export default function Shell({ nav, onNav, profiles, active, onSelect, children
           ) : (
             <b>{current?.name ?? "none"}</b>
           )}
+          {current && <span className="foot-sub hint">{current.runtime} · {current.cpus} CPU · {Math.round(current.memory / 1024 ** 3)} GiB</span>}
         </div>
       </div>
       <main className="content">{children}</main>

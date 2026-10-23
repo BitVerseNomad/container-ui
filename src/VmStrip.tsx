@@ -59,9 +59,9 @@ export default function VmStrip({ profile, totals, op, failure, failedOp, onStar
         <span className="hint vm-state">{state}</span>
         {running && !busy && (
           <span className="uses">
-            <Use label="CPU" value={`${t.cores.toFixed(1)}/${profile.cpus}`} part={fraction(t.cores, profile.cpus)} />
-            <Use label="Mem" value={`${formatBytes(t.memBytes)}/${gbOf(profile.memory)} GiB`} part={fraction(t.memBytes, profile.memory)} />
-            <Use label="Disk" value={`${formatBytes(t.diskBytes)}/${gbOf(profile.disk)} GiB`} part={fraction(t.diskBytes, profile.disk)} />
+            <Use label="CPU" value={`${t.cores.toFixed(1)} of ${profile.cpus} cores`} part={fraction(t.cores, profile.cpus)} />
+            <Use label="Memory" value={`${formatBytes(t.memBytes)} of ${gbOf(profile.memory)} GiB`} part={fraction(t.memBytes, profile.memory)} />
+            <Use label="Disk" value={`${formatBytes(t.diskBytes)} of ${gbOf(profile.disk)} GiB`} part={fraction(t.diskBytes, profile.disk)} />
           </span>
         )}
         <span className="vm-actions">

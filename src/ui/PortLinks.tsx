@@ -2,10 +2,12 @@ import { useState } from "react";
 import { openUrl } from "../api";
 import { portLinksFromPs } from "../containerInfo";
 import { isWebPort } from "../lib/webPort";
+import { Icon } from "./icons";
 
 const SHOWN = 3;
 
 // A port that is not a web page (a database, a broker): a muted chip that copies "localhost:3306" on click.
+// It shows only the port, like the web chips, so it fits the Ports column.
 export function CopyPort({ label }: { label: string }) {
   const [copied, setCopied] = useState(false);
   const text = `localhost:${label}`;
@@ -21,7 +23,7 @@ export function CopyPort({ label }: { label: string }) {
         }, () => {});
       }}
     >
-      {copied ? "Copied" : text}
+      {copied ? "Copied" : <>{label} <Icon name="copy" size={11} /></>}
     </button>
   );
 }
