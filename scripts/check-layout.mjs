@@ -46,13 +46,62 @@ for (const [w, h] of [[1100, 680], [800, 600]]) {
   await page.screenshot({ path: `/tmp/layout-Logs-${w}.png` });
 
   if (w === 1100) {
-    await page.waitForFunction(() => /default/.test(document.querySelector(".side-foot")?.textContent ?? ""));
-    (await page.locator(".side-foot select").count()) === 0 ? ok("footer is plain text with one profile") : bad("footer has a picker with one profile");
+    // The profile switcher sits at the top of the sidebar, works with one profile, and switches with two.
+    const sw = (pg) => pg.getByRole("button", { name: "Switch profile" });
+    await page.waitForFunction(() => /default/.test(document.querySelector(".profile-switch")?.textContent ?? ""));
+    const swBox = await sw(page).boundingBox();
+    const navBox = await nav(page, "Containers").boundingBox();
+    swBox && navBox && swBox.y < navBox.y ? ok("switcher sits above the nav") : bad("switcher is not above the nav");
+    /Running/.test(await sw(page).innerText()) ? ok("switcher shows the VM's state") : bad("switcher hides the VM's state");
+    const setupBox = await nav(page, "Setup").boundingBox(), k8sBox = await nav(page, "Kubernetes").boundingBox();
+    setupBox && k8sBox && setupBox.y - k8sBox.y > 150 ? ok("Setup and Profiles sit at the bottom of the sidebar") : bad("Setup is not at the bottom of the sidebar");
+    (await page.locator(".side-foot").count()) === 0 ? ok("no profile footer left at the bottom") : bad("profile footer still at the bottom");
+    await sw(page).click();
+    const radios = page.getByRole("menuitemradio");
+    (await radios.count()) === 1 && (await radios.first().getAttribute("aria-checked")) === "true" ? ok("one profile: listed and ticked") : bad("one profile: not listed or not ticked");
+    (await page.getByRole("menuitem", { name: "New profile" }).count()) === 1 ? ok("one profile: New profile is offered") : bad("one profile: no New profile");
+    (await page.evaluate(() => document.activeElement?.getAttribute("aria-checked"))) === "true" ? ok("menu opens on the current profile") : bad("menu focus is not on the current profile");
+    await page.keyboard.press("Escape");
+    (await page.getByRole("menu").count()) === 0 && (await page.evaluate(() => document.activeElement?.getAttribute("aria-label"))) === "Switch profile" ? ok("Escape closes it and returns focus") : bad("Escape left the menu open or lost focus");
     const two = await browser.newPage({ viewport: { width: w, height: h } });
     await two.goto(url("?scenario=two"));
-    await two.waitForFunction(() => /default/.test(document.querySelector(".side-foot")?.textContent ?? ""), null, { timeout: 4000 }).catch(() => {});
-    (await two.locator(".side-foot select").count()) === 1 ? ok("footer is a picker with two profiles") : bad("footer has no picker with two profiles");
+    await two.waitForFunction(() => /default/.test(document.querySelector(".profile-switch")?.textContent ?? ""), null, { timeout: 4000 }).catch(() => {});
+    await sw(two).click();
+    (await two.getByRole("menuitemradio").count()) === 2 ? ok("two profiles: both listed") : bad("two profiles: not both listed");
+    /Stopped/.test(await two.getByRole("menuitemradio", { name: /dev/ }).innerText()) ? ok("two profiles: each shows its state") : bad("two profiles: state missing");
+    await two.getByRole("menuitemradio", { name: /dev/ }).click();
+    await two.waitForFunction(() => /dev/.test(document.querySelector(".profile-switch")?.textContent ?? ""), null, { timeout: 3000 }).catch(() => {});
+    /dev/.test(await sw(two).innerText()) && /dev is stopped/.test(await two.locator(".content").innerText()) ? ok("two profiles: picking one switches the whole app") : bad("two profiles: switching did not take");
+    await sw(two).click();
+    (await two.getByRole("menuitem", { name: "Stop default" }).count()) === 1 && (await two.getByRole("menuitem", { name: "Start dev" }).count()) === 1 ? ok("switcher: each profile row has Start or Stop") : bad("switcher: Start/Stop missing on profile rows");
+    await two.getByRole("menuitem", { name: "Start dev" }).click();
+    /Starting…/.test(await sw(two).innerText()) ? ok("switcher Start: the switcher says Starting… while it runs") : bad("switcher Start: switcher shows a stale state while starting");
+    (await nav(two, "Containers").getAttribute("aria-current")) === "page" && /dev/.test(await sw(two).innerText()) ? ok("switcher Start: switches to dev and shows Containers") : bad("switcher Start: did not switch or open Containers");
+    await two.waitForFunction(() => /Running/.test(document.querySelector(".profile-switch")?.textContent ?? ""), null, { timeout: 6000 }).catch(() => {});
+    /Running/.test(await sw(two).innerText()) ? ok("switcher Start: dev comes up Running") : bad("switcher Start: dev never reached Running");
+    await sw(two).click();
+    await two.getByRole("menuitem", { name: "New profile" }).click();
+    (await nav(two, "Profiles").getAttribute("aria-current")) === "page" ? ok("New profile opens Profiles") : bad("New profile did not open Profiles");
+    await two.waitForSelector("dialog[open]", { timeout: 3000 }).catch(() => {});
+    (await two.locator("dialog[open] .err").count()) === 0 ? ok("New profile opens on a free name, no error showing") : bad("New profile opens with an error already showing");
     await two.close();
+  }
+  {
+    // Row tools have their own column: on hover they never cover Memory.
+    await page.goto(url());
+    await page.waitForSelector("tbody tr:not(.group-row)");
+    const row = page.locator("tr", { hasText: "web" }).first();
+    await row.hover();
+    const mem = await row.locator("td").nth(5).boundingBox(), tools = await row.locator(".row-tools").boundingBox();
+    mem && tools && tools.x >= mem.x + mem.width - 1 ? ok(`row tools ${w}: beside Memory, not over it`) : bad(`row tools ${w}: cover the Memory value`);
+  }
+  if (w === 1100) {
+    const narrow = await browser.newPage({ viewport: { width: 600, height: 700 } });
+    await narrow.goto(url());
+    await narrow.waitForSelector("tbody tr:not(.group-row)");
+    (await narrow.evaluate(() => { const s = document.querySelector(".sidebar"); return s.scrollWidth <= s.clientWidth; })) ? ok("600: the top bar fits, nothing scrolls sideways") : bad("600: the top bar scrolls sideways");
+    (await narrow.locator("tr", { hasText: "web" }).first().innerText()).includes("8080") ? ok("600: Ports stay visible (one click to open the app)") : bad("600: Ports hidden");
+    await narrow.close();
   }
   if (w === 1100) {
     const off = await browser.newPage({ viewport: { width: w, height: h } });

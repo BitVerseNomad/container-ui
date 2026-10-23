@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import Status from "./ui/Status";
 import { useHostSize } from "./useHostSize";
 import { useConfirm } from "./ui";
 import { invoke } from "@tauri-apps/api/core";
@@ -28,9 +29,14 @@ export default function Profiles({ profiles, reload, openNew = false, kubeOn = (
   const dialog = useRef<HTMLDialogElement>(null);
   // "Customize first" on the first-run card lands here with the form already open.
   useEffect(() => {
-    if (openNew) dialog.current?.showModal();
-  }, [openNew]);
+    if (openNew) openForm();
+  }, [openNew]); // eslint-disable-line react-hooks/exhaustive-deps
   const [newName, setNewName] = useState("default");
+  // The form opens on a name that is free, so it never starts with an error showing.
+  function openForm() {
+    setNewName(["default", "dev", "work", "test"].find((n) => !profiles.some((p) => p.name === n)) ?? "profile2");
+    dialog.current?.showModal();
+  }
   const taken = profiles.some((p) => p.name === newName.trim());
 
 
@@ -61,10 +67,7 @@ export default function Profiles({ profiles, reload, openNew = false, kubeOn = (
       <header>
         <button
           className="primary"
-          onClick={() => {
-            setNewName(["default", "dev", "work", "test"].find((n) => !profiles.some((p) => p.name === n)) ?? "profile2");
-            dialog.current?.showModal();
-          }}
+          onClick={openForm}
         >
           New profile
         </button>
@@ -84,13 +87,13 @@ export default function Profiles({ profiles, reload, openNew = false, kubeOn = (
               return (
                 <tr key={p.name}>
                   <td>{p.name}</td>
-                  <td><span className={up ? "badge on" : "badge"}>{p.status}</span></td>
+                  <td><Status level={up ? "on" : "off"}>{p.status}</Status></td>
                   <td className="mono">{p.cpus}</td>
                   <td className="mono">{gb(p.memory)}</td>
                   <td className="mono">{gb(p.disk)}</td>
                   <td>{p.runtime}</td>
                   <td>
-                    {kubeOn(p.name) === true ? <span className="badge on">On</span> : kubeOn(p.name) === false ? <button disabled={!!busy} onClick={() => turnOnKubernetes(p)}>Turn on Kubernetes</button> : <span className="hint">–</span>}
+                    {kubeOn(p.name) === true ? <Status level="on">On</Status> : kubeOn(p.name) === false ? <button disabled={!!busy} onClick={() => turnOnKubernetes(p)}>Turn on Kubernetes</button> : <span className="hint">–</span>}
                   </td>
                   <td className="row-actions">
                     {up ? (

@@ -37,9 +37,6 @@ export default function Networks({ ctx }: { ctx: string }) {
 
   return (
     <section>
-      <header>
-        <button onClick={() => setDoctor(true)}>Troubleshoot a connection…</button>
-      </header>
       <p className="hint lead">
         Containers on the same network reach each other by name, like <code>http://db:5432</code>. The built-in <b>bridge</b> network doesn't do name lookup, so put containers that talk to each other on a network of your own.{" "}
         <button className="link ext" onClick={() => openUrl(BRIDGE_DOCS)}>Learn more <span className="host">(docs.docker.com)</span></button>
@@ -47,6 +44,7 @@ export default function Networks({ ctx }: { ctx: string }) {
       <div className="inline newnet">
         <input aria-label="New network name" placeholder="New network name, like devnet" value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && valid && act(["network", "create", newName.trim()]).then(() => setNewName(""))} />
         <button className="primary" disabled={!valid} onClick={async () => { await act(["network", "create", newName.trim()]); setNewName(""); }}>Create network</button>
+        <button className="push-right" onClick={() => setDoctor(true)}>Troubleshoot a connection…</button>
       </div>
       <Banner error={nets.error ?? err} onClose={() => setErr(null)} />
       {nets.data && nets.data.length === 0 && <Empty title="No networks">Docker creates a few built-in ones when it starts.</Empty>}

@@ -30,6 +30,7 @@ await p.waitForSelector("table.list tbody tr:not(.group-row)", { timeout: 4000 }
 check(await p.locator(".home .vm-strip").count() === 1, "running: VM strip shown");
 check(await p.getByRole("button", { name: /Restart the .* VM/ }).count() === 1 && await p.getByRole("button", { name: /Stop the .* VM/ }).count() === 1, "running: Restart and Stop offered");
 check(await p.locator(".vm-strip").getByRole("meter").count() === 3, "running: three meters (CPU, memory, disk)");
+check(/Stop VM/.test(await text(p, ".vm-strip")) && !/\bdefault\b/.test(await text(p, ".vm-strip")), "running: the VM line says Stop VM in words and leaves the name to the sidebar switcher");
 check(/web/.test(await text(p, "table.list")) && /db/.test(await text(p, "table.list")), "running: containers listed");
 check(await primaries(p) === 1, "running: exactly one primary button");
 check(await p.getByRole("button", { name: "New" }).evaluate((b) => b.classList.contains("primary")).catch(() => false), "running: New is the primary");
@@ -75,7 +76,8 @@ await p.close();
 // stopped: exactly one primary and it is Start
 p = await open("stopped");
 await p.waitForSelector(".vm-strip", { timeout: 4000 }).catch(() => {});
-check(await primaries(p) === 1 && /^Start$/.test((await p.locator(".content .primary:visible").first().innerText()).trim()), "stopped: the only primary is Start");
+check(await primaries(p) === 1 && /^Start default$/.test((await p.locator(".content .primary:visible").first().innerText()).trim()), "stopped: the only primary is Start, inside the stopped card");
+check((await p.locator(".stopped-card .primary").count()) === 1 && (await p.locator(".vm-strip .primary").count()) === 0, "stopped: Start sits in the card, not also in the strip");
 check(await p.getByRole("button", { name: "New" }).count() === 0, "stopped: no New menu while the VM is off");
 await p.screenshot({ path: "/tmp/home-stopped.png" });
 await p.close();
@@ -83,7 +85,7 @@ await p.close();
 // starting: output log visible, strip says Starting
 p = await open("stopped");
 await p.waitForSelector(".vm-strip", { timeout: 4000 }).catch(() => {});
-await p.getByRole("button", { name: "Start", exact: true }).click();
+await p.getByRole("button", { name: /^Start default$/ }).click();
 await p.waitForSelector(".out-log", { timeout: 4000 }).catch(() => {});
 check(await p.locator(".out-log").count() === 1, "starting: output log shown");
 check(/Starting/.test(await text(p, ".vm-state")), "starting: strip says Starting");
@@ -121,7 +123,7 @@ await p.close();
 // failed: one card with the reason and a retry
 p = await open("failed");
 await p.waitForSelector(".vm-strip", { timeout: 4000 }).catch(() => {});
-await p.getByRole("button", { name: "Start", exact: true }).click();
+await p.getByRole("button", { name: /^Start default$/ }).click();
 await p.waitForSelector(".start-why", { timeout: 9000 }).catch(() => {});
 check(await p.locator(".out-fail").count() === 0 && await p.locator(".out").count() === 0, "failed: the error shows once, in the card, not again below it");
 check(await p.getByRole("button", { name: "Try starting again", exact: true }).count() === 1, "failed: Try starting again offered");
@@ -134,7 +136,7 @@ await p.close();
 // stuck: the VM log names a stale instance, so force stop is the one fix
 p = await open("stuck");
 await p.waitForSelector(".vm-strip", { timeout: 4000 }).catch(() => {});
-await p.getByRole("button", { name: "Start", exact: true }).click();
+await p.getByRole("button", { name: /^Start default$/ }).click();
 await p.waitForSelector(".start-why", { timeout: 4000 }).catch(() => {});
 check(/stuck from an earlier run/.test(await text(p, ".start-why")), "stuck: says the VM is stuck from an earlier run");
 await p.getByRole("button", { name: "Force stop, then start" }).click();
@@ -198,7 +200,7 @@ await p.close();
 // a stale failure clears once the VM is running again (started elsewhere)
 p = await open("failed");
 await p.waitForSelector(".vm-strip", { timeout: 4000 }).catch(() => {});
-await p.getByRole("button", { name: "Start", exact: true }).click();
+await p.getByRole("button", { name: /^Start default$/ }).click();
 await p.waitForSelector(".start-why", { timeout: 9000 }).catch(() => {});
 await p.evaluate(() => window.__mock.setStatus("Running"));
 await p.waitForSelector(".start-why", { state: "detached", timeout: 6000 }).catch(() => {});

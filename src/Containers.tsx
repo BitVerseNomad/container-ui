@@ -193,6 +193,9 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
                       <td className="num mono">{s ? s.CPUPerc : "–"}</td>
                       <td className="num mono">{s ? formatBytes(parseUsage(s.MemUsage).used) : "–"}</td>
                       <td className="row-actions">
+                        <span className="row-tools">
+                        <IconButton label={`Logs for ${c.Names}`} icon="logs" onClick={() => setDetailId(c.ID)} />
+                        {up && !kube && <IconButton label={`Open a shell in ${c.Names}`} icon="terminal" onClick={() => invoke("open_terminal", { kind: "shell", context: ctx, target: c.Names }).catch((e) => setErr(String(e)))} />}
                         {kube ? null : up ? (
                           <>
                             <IconButton label={`Restart ${c.Names}`} icon="restart" onClick={() => act(["restart", c.ID])} />
@@ -202,6 +205,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
                           <IconButton label={`Start ${c.Names}`} icon="play" onClick={() => act(["start", c.ID])} />
                         )}
                         {!kube && <IconButton label={`Remove ${c.Names}`} icon="trash" danger onClick={async () => (await confirm(`Remove container "${c.Names}"?`)) && act(["rm", "-f", c.ID])} />}
+                        </span>
                       </td>
                     </tr>
                   );
@@ -210,6 +214,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
     <div className="home">
       <VmStrip
         profile={profile}
+        startInCard={!running && !vm.op && !vm.failure}
         totals={running ? { cores: sums.cores, memBytes: sums.memBytes, diskBytes: disk.totalBytes } : null}
         op={vm.op}
         failure={vm.failure}
@@ -226,6 +231,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
         <Card className="stopped-card">
           <h2>{profile.name} is stopped</h2>
           <p className="hint">Your containers, images and volumes are kept inside it. Start it to see them.</p>
+          <div><button className="primary" onClick={start}>{`Start ${profile.name}`}</button></div>
         </Card>
       )}
 
@@ -245,7 +251,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
                 </button>
               )}
             </div>
-            <span className="toolbar-actions">
+            <span className="toolbar-actions page-action">
               <Menu
                 label="New"
                 primary
@@ -263,7 +269,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
           {containers.data && all.length === 0 ? (
             <EmptyState title="No containers yet">Press Run image to start your first one.</EmptyState>
           ) : (
-            <table className={chosen.length ? "list picking" : "list"}>
+            <table className={chosen.length ? "list ctr picking" : "list ctr"}>
               <thead>
                 <tr>
                   <th scope="col" className="pick">
@@ -331,7 +337,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
             <div className="nudge">
               <Icon name="info" size={14} />
               <span>About {formatBytes(disk.freeableBytes)} inside the VM can be freed from unused images and build cache.</span>
-              <button className="link-plain nudge-go" onClick={onImages}>Review</button>
+              <button className="link-plain nudge-go" onClick={onImages}>Free up space</button>
             </div>
           )}
         </>

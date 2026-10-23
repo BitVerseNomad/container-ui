@@ -1,4 +1,5 @@
 import { useState } from "react";
+import Status from "./ui/Status";
 import { useConfirm } from "./ui";
 import { invoke } from "@tauri-apps/api/core";
 import { docker } from "./api";
@@ -11,7 +12,10 @@ import Logs from "./Logs";
 import StatsTab from "./StatsTab";
 import Doctor from "./Doctor";
 import { ActivityList, HealthPanel } from "./Health";
-import { parseState } from "./lib/health";
+import { Problem, parseState, problemsFor } from "./lib/health";
+
+// Next to the state word, so a red dot beside "Running" says why.
+const SHORT: Record<Problem["id"], string> = { unhealthy: "Unhealthy", restarting: "Keeps restarting", oom: "Out of memory", crashed: "Stopped with an error" };
 import { isKubeOwned } from "./lib/compose";
 import { eventWindow, parseEvents, timeline } from "./lib/events";
 
@@ -40,9 +44,11 @@ export default function ContainerDetail({ ctx, id, onBack }: Props) {
   const name = c?.Name.replace(/^\//, "") ?? "Container";
   const paused = !!c?.State.Paused;
   const running = !!c?.State.Running && !paused;
-  const status = paused ? "paused" : c?.State.Status ?? "";
+  const raw = paused ? "paused" : c?.State.Status ?? "";
+  const status = raw.charAt(0).toUpperCase() + raw.slice(1);
   const ports = running ? publishedPortPairs(c?.NetworkSettings.Ports) : [];
   const state = c ? parseState(JSON.stringify([c])) : null;
+  const problem = state ? problemsFor(state)[0] : undefined;
   const activity = usePoll(async () => timeline(parseEvents(await docker(ctx, ["events", ...eventWindow(Date.now(), 86_400_000), "--filter", `container=${name}`, "--filter", "type=container", "--format", "{{json .}}"])), 50, name), [ctx, name], 10000, !!c && tab === "Activity");
   // The cluster owns these: stopping or removing one by hand only makes Kubernetes start it again, or breaks the pod.
   const kube = !!c && (isKubeOwned({ Names: name }) || !!c.Config.Labels?.["io.kubernetes.pod.name"]);
@@ -53,7 +59,7 @@ export default function ContainerDetail({ ctx, id, onBack }: Props) {
       <button className="back" onClick={onBack}>← Containers</button>
       <header>
         <h2>{name}</h2>
-        <span className={running ? "state on" : "state"}>{status}</span>
+        <Status level={problem?.level ?? (running ? "on" : paused ? "warn" : "off")}>{problem ? `${status} · ${SHORT[problem.id]}` : status}</Status>
         {c && kube && (
           <div className="actions-inline">
             {running && <button onClick={() => invoke("open_terminal", { kind: "shell", context: ctx, target: name }).catch((e) => setErr(String(e)))}>Open a shell</button>}
@@ -67,7 +73,7 @@ export default function ContainerDetail({ ctx, id, onBack }: Props) {
                 <button onClick={() => invoke("open_terminal", { kind: "shell", context: ctx, target: name }).catch((e) => setErr(String(e)))}>Open a shell</button>
                 <button onClick={() => act(["restart", id])}>Restart</button>
                 <button onClick={() => act(["stop", id])}>Stop</button>
-                <button className="quiet" onClick={() => act(["pause", id])}>Pause</button>
+                <button onClick={() => act(["pause", id])}>Pause</button>
               </>
             )}
             {paused && (

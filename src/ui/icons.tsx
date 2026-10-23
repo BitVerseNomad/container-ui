@@ -2,7 +2,7 @@ import { ReactNode } from "react";
 
 export type IconName =
   | "gauge" | "box" | "image" | "database" | "sliders" | "play" | "stop" | "restart"
-  | "cluster" | "check" | "alert" | "network" | "logs" | "trash" | "search" | "download" | "close" | "info" | "copy" | "folder" | "sidebar" | "plus" | "chevron";
+  | "cluster" | "check" | "alert" | "network" | "logs" | "trash" | "search" | "download" | "close" | "info" | "copy" | "folder" | "sidebar" | "plus" | "chevron" | "tick" | "terminal";
 
 const PATHS: Record<IconName, ReactNode> = {
   gauge: <><path d="M12 14l4-4" /><path d="M3.3 17a9 9 0 1 1 17.4 0" /></>,
@@ -27,6 +27,8 @@ const PATHS: Record<IconName, ReactNode> = {
   sidebar: <><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M9 4v16" /></>,
   plus: <path d="M12 5v14M5 12h14" />,
   chevron: <path d="M7 10l5 5 5-5" />,
+  terminal: <><rect x="3" y="4.5" width="18" height="15" rx="2" /><path d="M7 10l3 2.5L7 15M12.5 15H17" /></>,
+  tick: <path d="M5 12.5l4.5 4.5L19 7.5" />,
   copy: <><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V6a2 2 0 0 1 2-2h9" /></>,
 };
 

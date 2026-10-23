@@ -38,6 +38,12 @@ await p.waitForSelector(".health-panel", { timeout: 4000 }).catch(() => {});
 let t = await p.locator(".health-panel").innerText().catch(() => "");
 check(/unhealthy/i.test(t) && /Connection refused/.test(t) && /5 checks in a row/.test(t), "container page: shows what the failing health check said");
 check(/Restarts/.test(t), "container page: shows restarts");
+check((t.match(/checks in a row have failed/g) ?? []).length === 1, "container page: the failed-checks line shows once");
+await p.locator(".tab", { hasText: "Stats" }).hover();
+const lines = await p.evaluate(() => [...document.querySelectorAll(".tab")].filter((el) => getComputedStyle(el).borderBottomColor !== "rgba(0, 0, 0, 0)").length);
+check(lines === 1, `container page: only the open tab is underlined, even with another hovered (${lines})`);
+check(/^Running · Unhealthy$/.test((await p.locator(".detail header .status").first().innerText().catch(() => "")).trim()), "container page: a red dot reads Running · Unhealthy, not a bare Running");
+check((await p.locator(".detail header .status .sdot").count()) === 1, "container page: state has the same dot as the list");
 check(/Started .*ago|just now/.test(t) && !/Up since/.test(t), "container page: start time is relative, like the list");
 check(await p.getByRole("button", { name: "Open the logs" }).count() === 0, "container page: no 'Open the logs' while the Logs tab is already open");
 await p.getByRole("button", { name: "Open a shell" }).click();
@@ -52,7 +58,8 @@ await p.close();
 
 // containers list: health badges
 p = await open("Containers");
-check(/unhealthy/.test(await p.locator("tr", { hasText: "api" }).first().innerText()), "containers: an unhealthy badge on api");
+await p.waitForFunction(() => /health check is failing/.test(document.querySelector("tbody")?.textContent ?? ""), null, { timeout: 4000 }).catch(() => {});
+check(/Its health check is failing/.test(await p.locator("tr", { hasText: "api" }).first().innerText()), "containers: api says in words that its health check is failing");
 check(/healthy/.test(await p.locator("tr", { hasText: "web" }).first().innerText()), "containers: a healthy badge on web");
 await p.locator("table.list button.link-plain", { hasText: "report-job" }).click();
 await p.waitForSelector(".detail");
@@ -62,6 +69,21 @@ await p.getByRole("tab", { name: "Activity" }).click();
 await p.waitForSelector(".activity li", { timeout: 4000 }).catch(() => {});
 t = await p.locator(".tabpane").innerText();
 check(/report-job ran out of memory/.test(t) && !/api became/.test(t), "container page: the Activity tab shows only this container's events");
+await p.close();
+
+// container rows: Logs and Shell are one click away
+p = await open("Containers");
+await p.waitForSelector("tbody tr:not(.group-row)");
+await p.getByRole("button", { name: "Open a shell in web" }).click();
+await p.waitForFunction(() => (window.__terminal ?? []).length > 0, null, { timeout: 3000 }).catch(() => {});
+t = JSON.stringify(await p.evaluate(() => window.__terminal ?? []));
+check(/"kind":"shell".*"target":"web"/.test(t), `row Shell: opens a shell in that container (${t})`);
+check((await p.getByRole("button", { name: "Open a shell in cache" }).count()) === 0, "row Shell: not offered on a stopped container");
+await p.getByRole("button", { name: "Logs for cache" }).click();
+await p.waitForSelector(".tabs [aria-selected=true]", { timeout: 3000 }).catch(() => {});
+const selTab = await p.locator(".tabs [aria-selected=true]").innerText().catch((e) => String(e));
+await p.waitForFunction(() => /cache/.test(document.querySelector(".content")?.textContent ?? ""), null, { timeout: 3000 }).catch(() => {});
+check(selTab.trim() === "Logs" && /cache/.test(await p.locator(".content").innerText()), "row Logs: opens that container on its Logs tab");
 await p.close();
 
 // volumes: sizes

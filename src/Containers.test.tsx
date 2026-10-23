@@ -111,19 +111,19 @@ describe("Containers", () => {
   it("given over 1 GiB that can be freed, when the list loads, then a quiet note links to Images", async () => {
     const user = userEvent.setup();
     const { onImages } = show("3.4GB");
-    await user.click(await screen.findByRole("button", { name: "Review" }));
+    await user.click(await screen.findByRole("button", { name: "Free up space" }));
     expect(onImages).toHaveBeenCalledOnce();
   });
 
   it("given lots of unused volumes but little else, when the list loads, then no cleanup note counts the volumes", async () => {
     show("10MB", rows, "5GB");
     await screen.findByRole("checkbox", { name: "Select web" });
-    expect(screen.queryByRole("button", { name: "Review" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Free up space" })).not.toBeInTheDocument();
   });
 
   it("given little to free, when the list loads, then there is no cleanup note", async () => {
     show("10MB");
     await screen.findByRole("checkbox", { name: "Select web" });
-    expect(screen.queryByRole("button", { name: "Review" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Free up space" })).not.toBeInTheDocument();
   });
 });

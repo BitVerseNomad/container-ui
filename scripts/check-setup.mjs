@@ -34,6 +34,7 @@ await p.getByRole("button", { name: "Setup", exact: true }).click();
 await p.waitForSelector(".setup .finding", { timeout: 3000 }).catch(() => {});
 check((await statuses(p)).every((s) => s === "ok"), "healthy: every check passes");
 check(/Everything Docker Desktop used to handle/.test(await p.locator(".setup").innerText()), "healthy: says all is in place");
+check(!/until you click/.test(await p.locator(".setup").innerText()), "healthy: no talk of clicking when there is nothing to click");
 check(p.errors.length === 0, `healthy: no page errors ${p.errors.join("; ")}`);
 await p.close();
 

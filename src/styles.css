@@ -484,3 +484,92 @@ button.icon-label { display: inline-flex; align-items: center; gap: 5px; }
 table.list.picking tr td.row-actions > * { opacity: 0; }
 table.list.picking tr td.row-actions > :focus-visible { opacity: 1; }
 table.list td:nth-child(4) > *, table.list td:nth-child(4) button { white-space: nowrap; flex-wrap: nowrap; }
+
+/* Profile switcher at the top of the sidebar (replaces the "Active profile" footer). */
+.brand .menu { flex: 1; min-width: 0; }
+.profile-switch { display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0; padding: 4px 6px; border: 0; border-radius: 8px; background: transparent; text-align: left; color: var(--ink); }
+.profile-switch:hover, .profile-switch[aria-expanded=true] { background: color-mix(in srgb, var(--ink) 7%, transparent); }
+.profile-switch .logo { position: relative; flex: none; }
+.profile-switch .logo .sdot { position: absolute; right: -3px; bottom: -3px; width: 9px; height: 9px; box-shadow: 0 0 0 2px var(--sidebar); background: var(--sidebar); }
+.profile-switch .logo .sdot.on { background: var(--primary); }
+.switch-text { display: flex; flex-direction: column; min-width: 0; flex: 1; line-height: 1.25; }
+.switch-text b, .switch-text .hint { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.switch-text .hint { font-size: 11px; }
+.switch-chev { flex: none; color: var(--muted); display: inline-flex; }
+.brand .fold-btn { margin-left: 0; flex: none; }
+.menu-pop.left { left: 0; right: auto; }
+.menu-pop [role^=menuitem] { display: flex; align-items: center; gap: 8px; width: 100%; border: 0; background: transparent; text-align: left; padding: 6px 8px; border-radius: 6px; color: var(--ink); white-space: nowrap; }
+.menu-pop [role^=menuitem]:hover, .menu-pop [role^=menuitem]:focus-visible { background: color-mix(in srgb, var(--primary) 14%, transparent); outline: none; }
+.menu-pop .menu-divider { margin-top: 5px; position: relative; }
+.menu-pop .menu-divider::before { content: ""; position: absolute; left: 4px; right: 4px; top: -3px; border-top: 1px solid var(--border); }
+.menu-check { flex: none; width: 13px; display: inline-flex; color: var(--primary); }
+.shell.folded .switch-text, .shell.folded .switch-chev { display: none; }
+.shell.folded .profile-switch { justify-content: center; padding: 6px; }
+.shell.folded .brand .menu { flex: none; }
+/* A hovered tab must not look selected: only the active tab gets the underline. */
+.tab:hover:not(:disabled):not(.active) { border-bottom-color: transparent; color: var(--ink); }
+
+/* Round 7: a second, smaller action on a menu row (Start or Stop next to a profile). */
+.menu-row { display: flex; align-items: center; gap: 4px; }
+.menu-row > [role^=menuitem]:first-child { flex: 1; min-width: 0; }
+.menu-pop .menu-side { flex: none; width: auto; padding: 3px 9px; font-size: 12px; color: var(--muted); border: 1px solid var(--border); }
+.menu-pop .menu-side:hover:not(:disabled), .menu-pop .menu-side:focus-visible { color: var(--ink); }
+.menu-pop .menu-side:disabled { opacity: .45; cursor: default; }
+
+
+
+/* Setup and Profiles drop to the bottom of the sidebar, under a thin line. Not in the phone-width top bar. */
+@media (min-width: 701px) {
+  .sidebar nav > .nav-bottom { margin-top: auto; }
+  .sidebar nav > .nav-bottom::before { content: ""; position: absolute; left: 6px; right: 6px; top: -6px; border-top: 1px solid var(--border); }
+}
+
+/* Between 701 and 900 px the sidebar is icons only, so it takes the folded look; the fold button has nothing to do there. */
+@media (min-width: 701px) and (max-width: 900px) {
+  .brand { flex-direction: column; border-bottom: 1px solid var(--border); margin-bottom: 4px; }
+  .switch-text, .switch-chev { display: none; }
+  .profile-switch { justify-content: center; padding: 6px; }
+  .brand .menu { flex: none; }
+  .fold-btn { display: none; }
+  .nav-badge { position: absolute; top: 1px; right: 2px; margin: 0; }
+}
+
+/* The green primary button lives on the title row on every screen, the same spot as Pull image and New profile. */
+.toolbar-actions.page-action { position: absolute; top: 14px; right: 20px; margin: 0; }
+.status { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; color: var(--ink); }
+/* The title-row button follows the content padding at each width. */
+@media (min-width: 701px) and (max-width: 900px) { section:not(.detail) > header, .toolbar-actions.page-action { top: 20px; } }
+@media (max-width: 700px) { section:not(.detail) > header, .toolbar-actions.page-action { top: 18px; right: 14px; } }
+
+/* Review round 7, blind pass. */
+/* Container rows carry up to five tools in their own column, so they never cover a value. */
+table.list.ctr th:nth-child(7) { width: 150px; }
+table.list.ctr th:nth-child(2) { width: 26%; }
+table.list.ctr th:nth-child(3) { width: 24%; }
+.row-tools { display: inline-flex; align-items: center; gap: 2px; }
+.row-tools .icon-btn { margin: 0 !important; }
+/* Labels, not links: neutral ink, so they do not look clickable. */
+.tag { color: var(--muted); border-color: var(--border); }
+.finding b { color: var(--ink); }
+/* A warning strip is amber; red is kept for things that break docker. */
+.setup-strip.warn { border-color: color-mix(in srgb, var(--warn) 45%, var(--border)); background: color-mix(in srgb, var(--warn) 9%, var(--page)); }
+.setup-strip.warn svg { color: var(--warn); }
+/* Page cleanup and troubleshoot actions sit next to their table, not in the title-row slot. */
+.table-tools { display: flex; justify-content: flex-end; margin-bottom: 10px; }
+.newnet .push-right { margin-left: auto; }
+.stopped-card > div { margin-top: 10px; }
+.nudge-go { white-space: nowrap; }
+td.mono { white-space: nowrap; }
+@media (max-width: 760px) {
+  /* Narrow: keep Ports (one click to open the app), drop CPU and Memory instead. */
+  table.list.ctr th:nth-child(4), table.list.ctr td:nth-child(4) { display: table-cell; }
+  table.list.ctr th:nth-child(5), table.list.ctr td:nth-child(5), table.list.ctr th:nth-child(6), table.list.ctr td:nth-child(6) { display: none; }
+}
+@media (max-width: 700px) {
+  /* The top bar is icons only, so every screen fits without sideways scrolling; names stay as tooltips. */
+  .nav-label, .switch-text, .switch-chev, .fold-btn { display: none; }
+  .nav-badge { position: absolute; top: 1px; right: 2px; margin: 0; }
+  .sidebar nav { gap: 0; }
+  .brand { flex: none; }
+}
+td.in-use { font-weight: inherit; color: var(--ink); }

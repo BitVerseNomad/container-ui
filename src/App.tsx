@@ -19,6 +19,9 @@ import { useEnv } from "./useEnv";
 import { useComposeScan } from "./useComposeScan";
 import { contextNames, kubernetesOn } from "./lib/kubeNav";
 
+// The profile a VM operation runs on: start takes { opts: { name } }, the others { name }.
+const opName = (vm: VmState) => { const a = vm.last?.args as { name?: string; opts?: { name?: string } } | undefined; return a?.opts?.name ?? a?.name; };
+
 // Written out by hand: "its kubernetes" reads wrong.
 const NOUN: Record<string, string> = { Images: "images", Volumes: "volumes", Networks: "networks", Kubernetes: "cluster" };
 
@@ -78,20 +81,28 @@ export default function App() {
   const ctxMismatch = setup.findings?.find((f) => f.id === "context" && f.status === "warn");
   const toolsMissing = !!env && (!env.colima || !env.docker);
 
-  // Starts the VM from any tab and shows its progress on Containers, where the VM strip lives.
-  async function startFromAnywhere() {
+  // Starts or stops a VM from any tab (Empty states, the sidebar switcher). It switches to that profile and
+  // shows the progress on Containers, where the VM strip lives.
+  async function vmFromAnywhere(name: string, op: "starting" | "stopping") {
+    setActive(name);
+    setDetailId(null);
     setTab("Containers");
-    if (!current) return;
-    const last = { op: "starting" as const, cmd: "start_profile", args: { opts: { name: current.name } } };
-    setVm({ op: "starting", failure: null, last });
+    const last = op === "starting" ? { op, cmd: "start_profile", args: { opts: { name } } } : { op, cmd: "stop_profile", args: { name } };
+    setVm({ op, failure: null, last });
     try {
-      await invoke("start_profile", last.args);
+      await invoke(last.cmd, last.args);
       setVm({ op: null, failure: null, last });
     } catch (e) {
       setVm({ op: null, failure: String(e), last });
     }
     reload();
   }
+  const startFromAnywhere = () => (current ? vmFromAnywhere(current.name, "starting") : setTab("Containers"));
+  // A failure card belongs to the profile it happened on; switching away clears it (unless an operation is still running).
+  const switchTo = (name: string) => {
+    if (name !== active && vm.op === null) setVm({ op: null, failure: null });
+    setActive(name);
+  };
 
   const page =
     tab === "Containers" ? (
@@ -163,7 +174,7 @@ export default function App() {
     );
 
   return (
-    <Shell badges={{ Setup: setupTodo }} hidden={kubeOn ? [] : ["Kubernetes"]} nav={tab} onNav={(t) => { setDetailId(null); setPullOnOpen(false); setNewProfileOnOpen(false); setTab(t); }} profiles={profiles} active={active} onSelect={setActive}>
+    <Shell badges={{ Setup: setupTodo }} hidden={kubeOn ? [] : ["Kubernetes"]} nav={tab} onNav={(t) => { setDetailId(null); setPullOnOpen(false); setNewProfileOnOpen(false); setTab(t); }} profiles={profiles} active={active} onSelect={switchTo} onVm={vmFromAnywhere} vmBusy={vm.op !== null} vmOp={vm.op && opName(vm) ? { name: opName(vm)!, op: vm.op } : null} onNewProfile={() => { setDetailId(null); setNewProfileOnOpen(true); setTab("Profiles"); }}>
       {!(tab === "Containers" && detailId) && <PageHeader title={tab} />}
       <Banner error={error} />
       <Banner error={appError} onClose={() => setAppError(null)} />
@@ -173,7 +184,7 @@ export default function App() {
         </button>
       )}
       {tab !== "Setup" && !toolsMissing && setupFails === 0 && ctxMismatch && (
-        <button className="setup-strip" onClick={() => setTab("Setup")}>
+        <button className="setup-strip warn" onClick={() => setTab("Setup")}>
           <Icon name="alert" size={14} /> {ctxMismatch.detail} Review in Setup
         </button>
       )}

@@ -39,7 +39,10 @@ await p.close();
 // Selection and bulk actions
 p = await open("running");
 check(await p.getByRole("region", { name: "Selected containers" }).count() === 0, "running: no selection bar until something is picked");
-const tops = await p.locator(".toolbar > *").evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().top + e.getBoundingClientRect().height / 2)));
+const titleMid = await p.locator(".page-head h1").evaluate((e) => { const r = e.getBoundingClientRect(); return r.top + r.height / 2; });
+const newMid = await p.locator(".page-action").evaluate((e) => { const r = e.getBoundingClientRect(); return r.top + r.height / 2; });
+check(Math.abs(titleMid - newMid) <= 4, `running: New sits on the title row like Pull image and New profile (${Math.round(titleMid)}, ${Math.round(newMid)})`);
+const tops = await p.locator(".toolbar > :not(.page-action)").evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().top + e.getBoundingClientRect().height / 2)));
 check(Math.max(...tops) - Math.min(...tops) <= 2, `running: the toolbar fits on one line at 980px (${tops.join(", ")})`);
 const secondRow = p.locator("table.list tbody tr:not(.group-row)").nth(1);
 const y0 = (await secondRow.boundingBox()).y;

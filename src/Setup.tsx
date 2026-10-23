@@ -85,7 +85,7 @@ export default function Setup({ findings, error, reload, profile, onProfiles }: 
     <div className="setup">
       <p className="hint">
         {todo === 0 ? "Everything Docker Desktop used to handle is in place." : `${todo} thing${todo === 1 ? "" : "s"} need${todo === 1 ? "s" : ""} attention before your terminal and tests work like they did with Docker Desktop.`}{" "}
-        Nothing changes until you click, and ~/.docker/config.json is backed up first.
+        {todo > 0 && "Nothing changes until you click a fix, and ~/.docker/config.json is backed up first."}
       </p>
       {plan.length > 1 && (
         <div className="fix-all">

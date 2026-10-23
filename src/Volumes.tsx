@@ -37,7 +37,7 @@ export default function Volumes({ ctx }: { ctx: string }) {
 
   return (
     <section>
-      <header>
+      <div className="table-tools">
         <button
           className="danger"
           disabled={loose.length === 0}
@@ -50,7 +50,7 @@ export default function Volumes({ ctx }: { ctx: string }) {
         >
           Remove unused anonymous ({loose.length})
         </button>
-      </header>
+      </div>
       <Banner error={error ?? usage.error ?? err} onClose={() => setErr(null)} />
       {data && data.length === 0 && <Empty title="No volumes">Volumes created by your containers will show up here.</Empty>}
       {data && data.length > 0 && (

@@ -4,7 +4,6 @@ import { invoke } from "@tauri-apps/api/core";
 import { Profile, gbOf } from "./api";
 import { formatBytes } from "./containerInfo";
 import { fraction } from "./lib/usage";
-import IconButton from "./ui/IconButton";
 import OutputLog from "./ui/OutputLog";
 import { explainStartFailure } from "./lib/startFailure";
 import { Icon } from "./ui/icons";
@@ -18,6 +17,8 @@ type Props = {
   // which operation produced `failure`; a failed stop needs different words and a different fix
   failedOp?: "starting" | "stopping";
   onStart: () => void;
+  // the stopped card below has the Start button, so the strip leaves it out
+  startInCard?: boolean;
   onRetry: () => void;
   onStop: () => void;
   onRestart: () => void;
@@ -35,7 +36,7 @@ function Use({ label, value, part }: { label: string; value: string; part: numbe
   );
 }
 
-export default function VmStrip({ profile, totals, op, failure, failedOp, onStart, onRetry, onStop, onRestart, onForce, onForceStop }: Props) {
+export default function VmStrip({ profile, totals, op, failure, failedOp, onStart, startInCard, onRetry, onStop, onRestart, onForce, onForceStop }: Props) {
   const running = profile.status === "Running";
   const t = totals ?? { cores: 0, memBytes: 0, diskBytes: 0 };
   const busy = op !== null;
@@ -55,7 +56,6 @@ export default function VmStrip({ profile, totals, op, failure, failedOp, onStar
     <div className="vm-strip-wrap">
       <div className="vm-strip">
         <span className={`sdot ${dot}`} aria-hidden="true" />
-        <b>{profile.name}</b>
         <span className="hint vm-state">{state}</span>
         {running && !busy && (
           <span className="uses">
@@ -69,10 +69,10 @@ export default function VmStrip({ profile, totals, op, failure, failedOp, onStar
             <button onClick={() => invoke("cancel_vm_op").catch(() => {})}>Cancel</button>
           ) : running && !failure ? (
             <>
-              <IconButton label={`Restart the ${profile.name} VM`} icon="restart" disabled={busy} onClick={onRestart} />
-              <IconButton label={`Stop the ${profile.name} VM`} icon="stop" disabled={busy} onClick={onStop} />
+              <button className="quiet" aria-label={`Restart the ${profile.name} VM`} title={`Restart the ${profile.name} VM`} disabled={busy} onClick={onRestart}>Restart</button>
+              <button className="quiet" aria-label={`Stop the ${profile.name} VM`} title={`Stop the ${profile.name} VM`} disabled={busy} onClick={onStop}>Stop VM</button>
             </>
-          ) : failure ? null : (
+          ) : failure || startInCard ? null : (
             <button className="primary" disabled={busy} onClick={onStart}>Start</button>
           )}
         </span>

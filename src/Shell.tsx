@@ -1,9 +1,12 @@
 import { ReactNode, useState } from "react";
 import { Profile } from "./api";
 import { Icon, IconName } from "./ui/icons";
+import Menu from "./ui/Menu";
 
 export type Tab = "Containers" | "Images" | "Volumes" | "Networks" | "Kubernetes" | "Profiles" | "Setup";
 
+// Setup and Profiles are set-and-forget, so they sit at the bottom; daily work stays at the top.
+const BOTTOM: Tab = "Setup";
 const NAV: { tab: Tab; icon: IconName }[] = [
   { tab: "Containers", icon: "box" },
   { tab: "Images", icon: "image" },
@@ -20,6 +23,12 @@ type Props = {
   profiles: Profile[];
   active: string | null;
   onSelect: (name: string) => void;
+  onNewProfile: () => void;
+  // Start or stop a profile from the switcher; the app switches to it first. Off while a VM operation runs.
+  onVm: (name: string, op: "starting" | "stopping") => void;
+  vmBusy: boolean;
+  // the VM operation in flight, so the switcher says "Starting…" instead of the last known state
+  vmOp?: { name: string; op: "starting" | "stopping" } | null;
   children: ReactNode;
   // a count shown next to a nav item, e.g. setup problems left
   badges?: Partial<Record<Tab, number>>;
@@ -32,42 +41,53 @@ const FOLD_KEY = "colima-ui:sidebar-folded";
 const readFolded = () => { try { return localStorage.getItem(FOLD_KEY) === "1"; } catch { return false; } };
 const saveFolded = (v: boolean) => { try { localStorage.setItem(FOLD_KEY, v ? "1" : "0"); } catch { /* not remembered */ } };
 
-export default function Shell({ nav, onNav, profiles, active, onSelect, children, badges = {}, hidden = [] }: Props) {
+export default function Shell({ nav, onNav, profiles, active, onSelect, onNewProfile, onVm, vmBusy, vmOp, children, badges = {}, hidden = [] }: Props) {
   const current = profiles.find((p) => p.name === active);
   const [folded, setFolded] = useState(readFolded);
   const fold = () => setFolded((f) => { saveFolded(!f); return !f; });
+  // While a start or stop runs, say so instead of the last state Colima reported.
+  const shown = (p: Profile) => (vmOp?.name === p.name ? (vmOp.op === "starting" ? "Starting…" : "Stopping…") : p.status);
   return (
     <div className={folded ? "shell folded" : "shell"}>
       <div className="sidebar">
         <div className="brand">
-          <span className="logo"><Icon name="box" size={18} /></span>
-          <b>Colima</b>
+          <Menu
+            label="Switch profile"
+            title={current ? `${current.name}, ${shown(current)}. Switch profile` : "Switch profile"}
+            className="profile-switch"
+            align="left"
+            items={[
+              ...profiles.map((p) => ({ label: p.name, hint: shown(p), checked: p.name === active, icon: <span className={p.status === "Running" ? "sdot on" : "sdot"} aria-hidden="true" />, onSelect: () => onSelect(p.name),
+                side: p.status === "Running"
+                  ? { label: "Stop", ariaLabel: `Stop ${p.name}`, disabled: vmBusy, onSelect: () => onVm(p.name, "stopping") }
+                  : { label: "Start", ariaLabel: `Start ${p.name}`, disabled: vmBusy, onSelect: () => onVm(p.name, "starting") } })),
+              { label: "New profile", icon: <Icon name="plus" size={13} />, divider: profiles.length > 0, onSelect: onNewProfile },
+              { label: "Manage profiles", icon: <Icon name="sliders" size={13} />, onSelect: () => onNav("Profiles") },
+            ]}
+          >
+            <span className="logo">
+              <Icon name="box" size={18} />
+              {current && <span className={current.status === "Running" ? "sdot on" : "sdot"} aria-hidden="true" />}
+            </span>
+            <span className="switch-text">
+              <b>{current?.name ?? "No VM yet"}</b>
+              {current && <span className="hint">{shown(current)}</span>}
+            </span>
+            <span className="switch-chev"><Icon name="chevron" size={13} /></span>
+          </Menu>
           <button className="icon-btn fold-btn" aria-label={folded ? "Show the sidebar" : "Hide the sidebar"} title={folded ? "Show the sidebar" : "Hide the sidebar"} aria-expanded={!folded} onClick={fold}>
             <Icon name="sidebar" size={15} />
           </button>
         </div>
         <nav aria-label="Main">
           {NAV.filter(({ tab }) => !hidden.includes(tab)).map(({ tab, icon }) => (
-            <button key={tab} className={tab === nav ? "nav-item active" : "nav-item"} aria-label={tab} title={tab} aria-current={tab === nav ? "page" : undefined} onClick={() => onNav(tab)}>
+            <button key={tab} className={`nav-item${tab === nav ? " active" : ""}${tab === BOTTOM ? " nav-bottom" : ""}`} aria-label={tab} title={tab} aria-current={tab === nav ? "page" : undefined} onClick={() => onNav(tab)}>
               <Icon name={icon} />
               <span className="nav-label">{tab}</span>
               {!!badges[tab] && <span className="nav-badge" aria-hidden="true">{badges[tab]}</span>}
             </button>
           ))}
         </nav>
-        <div className="side-foot">
-          <span className="foot-label">Active profile</span>
-          {profiles.length >= 2 ? (
-            <select aria-label="Active profile" value={active ?? ""} onChange={(e) => onSelect(e.target.value)}>
-              {profiles.map((p) => (
-                <option key={p.name}>{p.name}</option>
-              ))}
-            </select>
-          ) : (
-            <b>{current?.name ?? "none"}</b>
-          )}
-          {current && <span className="foot-sub hint">{current.runtime} · {current.cpus} CPU · {Math.round(current.memory / 1024 ** 3)} GiB</span>}
-        </div>
       </div>
       <main className="content">{children}</main>
     </div>

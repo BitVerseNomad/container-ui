@@ -35,7 +35,7 @@ export function HealthPanel({ state, onLogs }: { state: State; onLogs?: () => vo
         {state.health ? (
           <>
             <HealthBadge status={state.health.status} />
-            {state.health.streak > 0 && <span className="hint">{state.health.streak} checks in a row have failed</span>}
+            {state.health.streak > 0 && !problems.some((p) => p.id === "unhealthy") && <span className="hint">{state.health.streak} checks in a row have failed</span>}
           </>
         ) : (
           <span className="hint">No health check is defined for this image. Without one, Docker can tell a container is running but not whether it is working.</span>
