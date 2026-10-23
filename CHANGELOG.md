@@ -2,6 +2,19 @@
 
 Newest first. Older entries record what was true when they were written; later entries supersede them (the Overview, for example, was replaced by the Containers home screen).
 
+## Review round 7: controls where a daily user looks first
+- **Switch profile at the top of the sidebar.** The switcher shows the current profile and its state. Its menu lists every profile with a tick on the current one, New profile, and Manage profiles. Each profile row has its own Start or Stop: it switches to that profile and shows the progress on Containers. A failure card stays with the profile it happened on.
+- **Logs and Shell on every container row.** Hover a row for Logs (opens the container on its Logs tab) and Shell (a running container, not a Kubernetes pod). The tools have their own column, so they never cover the Memory value.
+- **Setup and Profiles sit at the bottom of the sidebar**, under a thin line; daily screens stay at the top. A failing setup check still shows the strip on every screen.
+- **One status style everywhere**: a dot and a word. The container page, Profiles (Status and Kubernetes columns) and Kubernetes pods now match Containers. Pods keep Kubernetes' own words (CrashLoopBackOff) with a red, amber or green dot.
+- **The green button is on the title row on every screen.** Containers' New moved up next to the title, the same spot as Pull image and New profile, lined up at every window width.
+- **A stopped VM has one Start**, inside the "is stopped" card (Start default), like Start on the other tabs. While a start or stop runs, the switcher says Starting… or Stopping….
+- **The container page agrees with its dot**: a red dot reads "Running · Unhealthy", and the failed-checks line shows once.
+- **Title-row slot is for the page's main action only.** Volumes' cleanup button and Networks' Troubleshoot moved next to their table.
+- **Narrow windows**: below 700 px the top bar is icons only and never scrolls sideways; Ports stay visible and CPU and Memory go instead.
+- **Smaller fixes**: New profile from the switcher opens on a free name instead of an error; "Built in" tags, Setup titles and "In use by" read as labels, not links; the docker-context warning strip is amber, not red; between 701 and 900 px the icon-only sidebar no longer spills the switcher text or overlaps the page title; the stale "unhealthy badge" check now tests the plain-words status.
+- **Left as they are on purpose**: quiet Restart and Stop VM, checkboxes on hover, the bulk bar at the bottom (round 5 and 6 decisions), and Kubernetes' own words for pod states.
+
 ## Review round 6: a calmer Containers screen
 - **One line per container.** Name and image sit side by side. The row's checkbox and its Restart, Stop and Remove show only on hover or keyboard focus; once one row is picked, every checkbox shows. On touch screens everything stays visible.
 - **The dot shows health, not just running.** Red when the health check fails or the container ran out of memory, amber when it keeps restarting, green when fine. The problem replaces the status text ("Ran out of memory"); the status moves to the tooltip.
