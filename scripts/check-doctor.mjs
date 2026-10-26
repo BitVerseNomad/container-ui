@@ -15,21 +15,35 @@ p.errors = [];
 p.on("pageerror", (e) => p.errors.push(e.message));
 await p.goto(`file://${root}/preview/index.html?scenario=doctor`);
 await p.waitForSelector(".content", { timeout: 4000 }).catch(() => {});
-// The Doctor panel on the Containers list: same count as the badge, three lines, one button each, asks first
-await p.waitForSelector(".doctor-panel", { timeout: 4000 }).catch(() => {});
-const panel = p.locator(".doctor-panel");
-const badge0 = await p.locator(".nav-badge").innerText().catch(() => "");
-check(new RegExp(`^${badge0} things? needs? action`).test(await panel.innerText().catch(() => "")), "panel: counts the same as the badge");
-check(await panel.locator(".finding").count() === 3 && await panel.locator(".finding button").count() === 3, "panel: three lines, one button each");
-check(/more in Doctor/.test(await panel.innerText()), "panel: says how many more are in Doctor");
-const fixBtn = panel.getByRole("button", { name: /^(Fix|Fix both|Connect)$/ }).first();
-check(await fixBtn.count() === 1, "panel: offers a one-click fix");
-await fixBtn.click();
-check(await p.getByRole("alertdialog").count() === 1, "panel: the fix asks before changing anything");
+// The Containers list: no panel on top; each broken row has one always-visible button in its Fix column
+await p.waitForSelector("td.row-fix button", { timeout: 4000 }).catch(() => {});
+check(await p.locator(".doctor-panel").count() === 0, "rows: nothing about problems sits above the table");
+const rowOf = (name) => p.locator("table.list tbody tr").filter({ has: p.locator(`button[aria-label^="${name},"]`) });
+const btn = async (name) => (await rowOf(name).locator("td.row-fix button").allInnerTexts()).join("|");
+check(await btn("orders") === "Fix…", `rows: the localhost problem offers Fix… (${await btn("orders")})`);
+check(await btn("billing") === "Connect…", `rows: the name problem offers Connect… (${await btn("billing")})`);
+check(await btn("pg") === "Logs", `rows: a crash with no one-click fix offers Logs (${await btn("pg")})`);
+check(await btn("db") === "", "rows: a healthy row has no button");
+const widths = await p.locator("table.list thead th").evaluateAll((l) => l.map((e) => Math.round(e.getBoundingClientRect().width)));
+check(widths[6] >= 80 && widths[7] >= 130, `rows: at 980 wide the Fix and tools columns keep their room (${widths.join(",")})`);
+check(await rowOf("orders").locator("td.row-actions .row-tools").evaluate((e) => e.scrollWidth <= e.parentElement.clientWidth + 1), "rows: the row tools are not clipped");
+check(await rowOf("orders").locator("td.row-fix button").evaluate((b) => getComputedStyle(b).opacity) === "1", "rows: the Fix button shows without hovering");
+await rowOf("orders").locator("td.row-fix button").click();
+check(/orders/.test(await p.getByRole("alertdialog").innerText().catch(() => "")), "rows: Fix… asks before changing anything");
 await p.getByRole("alertdialog").getByRole("button", { name: "Cancel" }).click();
-if (shots) await p.screenshot({ path: `${shots}/doctor-panel.png` });
+// The fix itself, from the row: Fixing… then Fixed in the same row, with Done to clear it
+await rowOf("orders").locator("td.row-fix button").click();
+await p.getByRole("alertdialog").getByRole("button", { name: "Fix" }).click();
+await p.waitForFunction(() => [...document.querySelectorAll("table.list tbody tr")].some((tr) => /orders/.test(tr.textContent) && /Fixed\./.test(tr.textContent)), null, { timeout: 30000 }).catch(() => {});
+check(/Fixed\./.test(await rowOf("orders").innerText().catch(() => "")) && await btn("orders") === "Done", `rows: after the fix the row says Fixed, with Done (${await btn("orders")})`);
+await rowOf("orders").locator("td.row-fix button").click();
+check(await btn("orders") === "", "rows: Done puts the row back to normal");
+await rowOf("pg").locator("td.row-fix button").click();
+await p.waitForTimeout(300);
+check(/pg/.test(await p.locator(".content h2, .content h1").first().innerText().catch(() => "")), "rows: Logs opens the container page");
+if (shots) await p.screenshot({ path: `${shots}/doctor-rows.png` });
 
-await panel.getByRole("button", { name: "Open Doctor" }).click();
+await p.getByRole("button", { name: "Doctor", exact: true }).click();
 await p.waitForSelector(".doctor section", { timeout: 4000 }).catch(() => {});
 await p.waitForTimeout(400);
 const text = () => p.locator(".doctor").innerText();
@@ -77,10 +91,10 @@ await p.waitForTimeout(200);
 check(await action.count() === before, "Show it again brings it back");
 
 // Open a container from a finding
-await item("orders looks for db").getByRole("button", { name: "Open orders" }).click();
+await item("pg stopped, probably").getByRole("button", { name: "Open pg" }).click();
 await p.waitForTimeout(500);
-check(/orders/.test(await p.locator(".content h2, .content h1").first().innerText().catch(() => "")), "Open orders goes to its container page");
-check(/orders looks for db at localhost/.test(await p.locator(".content").innerText()), "the container page shows the same finding");
+check(/pg/.test(await p.locator(".content h2, .content h1").first().innerText().catch(() => "")), "Open pg goes to its container page");
+check(/pg stopped, probably because it has no POSTGRES_PASSWORD/.test(await p.locator(".content").innerText()), "the container page shows the same finding");
 
 // Test a connection opens the network tester
 await p.getByRole("button", { name: "Doctor", exact: true }).click();

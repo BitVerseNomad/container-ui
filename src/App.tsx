@@ -14,7 +14,7 @@ import Kubernetes from "./Kubernetes";
 import Profiles from "./Profiles";
 import InstallCard from "./InstallCard";
 import { useSetup } from "./Setup";
-import Doctor, { DoctorPanel, groups, useDoctor, useMuted } from "./Doctor";
+import Doctor, { TerminalNote, groups, useDoctor, useMuted } from "./Doctor";
 import { blocking, needsAttention } from "./lib/setup";
 import { useEnv } from "./useEnv";
 import { useComposeScan } from "./useComposeScan";
@@ -84,7 +84,8 @@ export default function App() {
   // Not blocking, but it's the "my terminal shows other containers" confusion, so it earns the strip too.
   const ctxMismatch = setup.findings?.find((f) => f.id === "context" && f.status === "warn");
   const toolsMissing = !!env && (!env.colima || !env.docker);
-  const onList = tab === "Containers" && !detailId;
+  // The Containers list says it in its VM row; with no VM yet there is no row, so the strip stays.
+  const onList = tab === "Containers" && !detailId && !!current;
 
   // Starts or stops a VM from any tab (Empty states, the sidebar switcher). It switches to that profile and
   // shows the progress on Containers, where the VM strip lives.
@@ -128,6 +129,7 @@ export default function App() {
           compose={compose}
           onImages={() => setTab("Images")}
           onKubernetes={kubeOn ? () => setTab("Kubernetes") : undefined}
+          terminal={<TerminalNote setup={setup} onProfiles={() => setTab("Profiles")} onDoctor={() => setTab("Doctor")} />}
         />
       )
     ) : tab === "Doctor" ? (
@@ -183,10 +185,7 @@ export default function App() {
       {!(tab === "Containers" && detailId) && <PageHeader title={tab} />}
       <Banner error={error} />
       <Banner error={appError} onClose={() => setAppError(null)} />
-      {/* The Containers list carries the Doctor panel; other pages keep a one-line strip. */}
-      {onList && !toolsMissing && env && (
-        <DoctorPanel ctx={ctx} setup={setup} doc={doc} onProfiles={() => setTab("Profiles")} onGo={(page) => setTab(page)} onOpen={(name) => setDetailId(name)} onDoctor={() => setTab("Doctor")} />
-      )}
+      {/* The Containers list says it in its VM row and on each container's row; other pages keep a one-line strip. */}
       {tab !== "Doctor" && !onList && !toolsMissing && setupFails > 0 && (
         <button className="setup-strip" onClick={() => setTab("Doctor")}>
           <Icon name="alert" size={14} /> {setupTodo} setup problem{setupTodo === 1 ? "" : "s"} will break docker in your terminal. Review in Doctor

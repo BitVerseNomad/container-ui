@@ -17,7 +17,7 @@ type Fix = NonNullable<Problem["fix"]>;
 type Confirm = ReturnType<typeof useConfirm>;
 type Runs = ReturnType<typeof useFixRuns>;
 
-// The one-click part of a fix (Replace or Connect), shared by the full Fix and the Doctor panel's button.
+// The one-click part of a fix (Replace or Connect), shared by the full Fix and the Containers row's button.
 // Null when the app can't run it, so the caller offers the commands instead.
 export function fixAction(fix: Fix, ctx: string | undefined, confirm: Confirm, runs: Runs, onFixed?: (name: string) => void) {
   if (!ctx) return null;

@@ -543,9 +543,14 @@ table.list td:nth-child(4) > *, table.list td:nth-child(4) button { white-space:
 
 /* Review round 7, blind pass. */
 /* Container rows carry up to five tools in their own column, so they never cover a value. */
-table.list.ctr th:nth-child(7) { width: 150px; }
-table.list.ctr th:nth-child(2) { width: 26%; }
-table.list.ctr th:nth-child(3) { width: 24%; }
+/* Fix (7) and the tools (8) are fixed; Status (3) takes what is left, so the buttons never clip. */
+table.list.ctr th:nth-child(2) { width: 22%; }
+table.list.ctr th:nth-child(3) { width: auto; }
+table.list.ctr th:nth-child(4) { width: 12%; }
+table.list.ctr th:nth-child(5) { width: 7%; }
+table.list.ctr th:nth-child(6) { width: 9%; }
+table.list.ctr th:nth-child(7) { width: 92px; }
+table.list.ctr th:nth-child(8) { width: 140px; }
 .row-tools { display: inline-flex; align-items: center; gap: 2px; }
 .row-tools .icon-btn { margin: 0 !important; }
 /* Labels, not links: neutral ink, so they do not look clickable. */
@@ -589,15 +594,19 @@ td.in-use { font-weight: inherit; color: var(--ink); }
 .doctor-group { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted, inherit); margin: 14px 0 8px; }
 .doctor-links { gap: 12px; font-size: 12px; }
 
-/* Doctor panel on the Containers list: the worst few problems, one button each. */
-.doctor-panel { margin-bottom: 12px; padding: 8px 12px 6px; border: 1px solid color-mix(in srgb, var(--danger) 35%, var(--border)); border-radius: 8px; background: color-mix(in srgb, var(--danger) 5%, var(--page)); }
-.doctor-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 4px; }
-.doctor-panel .findings { margin: 0; gap: 0; }
-.doctor-panel .finding { align-items: center; padding: 4px 0; border: 0; border-top: 1px solid color-mix(in srgb, var(--danger) 15%, var(--border)); border-radius: 0; background: none; }
-.doctor-panel .finding > .doctor-line { flex: 1; flex-direction: row; align-items: center; justify-content: space-between; gap: 12px; }
-.doctor-panel .finding svg { margin-top: 0; }
-.doctor-line > b { font-weight: 500; overflow-wrap: anywhere; }
-.doctor-line > button { flex: none; }
-.doctor-more { margin: 2px 0 2px 24px; }
+/* The Fix column: always visible, one button per broken row. The Status text can clip; the button can't. */
+table.list td.row-fix { width: 1%; white-space: nowrap; text-align: right; padding-right: 4px; }
+table.list td.row-fix button { padding: 2px 8px; font-size: 12px; }
+.status-text svg { vertical-align: -1px; }
+.status-text.fixing { color: var(--muted); }
+.status-text.fixed { color: var(--primary); }
+td .status-text.fixing, td .status-text.fixed, td .fix-failed { white-space: normal; text-overflow: clip; }
+.fix-failed { color: var(--danger); text-align: left; }
+/* The terminal note in the VM row. */
+.vm-note { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 6px; padding: 5px 0 0; border-top: 1px solid var(--line); font-size: 13px; }
+.vm-note > svg { color: var(--warn); flex: none; }
+.vm-note.bad > svg { color: var(--danger); }
+.vm-note button:not(.link) { padding: 2px 10px; font-size: 12px; }
+.vm-note .out-log { flex-basis: 100%; }
 /* Confirm messages may list steps and commands, one per line. */
 .modal p { white-space: pre-line; }

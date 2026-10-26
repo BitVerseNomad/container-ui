@@ -267,7 +267,7 @@ function composeFix(a: App, env: Env): { label: string; text: string } {
 
 // The fix and its last sentence, by who owns the container. `before` are replacements that must happen first.
 const confirmText = (names: string[], loses: string[]) =>
-  `Replace ${names.join(" and then ")}? ${names.length > 1 ? "Each is" : "It is"} stopped and started again with the fixed settings.${loses.length ? ` ${loses.join(" and ")} will start with no topics.` : ""} If a new one doesn't stay up, the old one is put back.`;
+  `Replace ${names.join(" and then ")}? ${names.length > 1 ? "Each is" : "It is"} stopped and started again with the fixed settings.${loses.length ? ` ${loses.join(" and ")} will start with no topics.` : ""} If a new one doesn't stay up, the old one is put back. Files saved inside the container, not in a volume, don't carry over.`;
 
 export function fixFor(ctx: string, a: App, net: string | null, env: Env, changed: Env, before: Replace[] | null = [], loses: string[] = [], createAs = "kafka"): { tail: string; fix?: Problem["fix"] } {
   const who = owner(a);

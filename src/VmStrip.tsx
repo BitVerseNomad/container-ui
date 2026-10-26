@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 // The VM in one line: name, state, what containers use of its CPU, memory and disk, and Start/Stop/Restart.
 import { Profile, gbOf } from "./api";
@@ -10,6 +10,8 @@ import { Icon } from "./ui/icons";
 
 export type Totals = { cores: number; memBytes: number; diskBytes: number } | null;
 type Props = {
+  // A line about the Mac side of things (docker in the terminal), shown under the usage.
+  note?: ReactNode;
   profile: Profile;
   totals: Totals;
   op: "starting" | "stopping" | null;
@@ -36,7 +38,7 @@ function Use({ label, value, part }: { label: string; value: string; part: numbe
   );
 }
 
-export default function VmStrip({ profile, totals, op, failure, failedOp, onStart, startInCard, onRetry, onStop, onRestart, onForce, onForceStop }: Props) {
+export default function VmStrip({ profile, totals, op, failure, failedOp, onStart, startInCard, onRetry, onStop, onRestart, onForce, onForceStop, note }: Props) {
   const running = profile.status === "Running";
   const t = totals ?? { cores: 0, memBytes: 0, diskBytes: 0 };
   const busy = op !== null;
@@ -77,6 +79,7 @@ export default function VmStrip({ profile, totals, op, failure, failedOp, onStar
           )}
         </span>
       </div>
+      {!busy && note}
       {why && !busy && (
         <div className="problem-line bad start-why">
           <b><Icon name="alert" size={14} /> {why.title}</b>

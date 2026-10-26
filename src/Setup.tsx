@@ -87,7 +87,7 @@ export function useSetupActions({ reload, profile, onProfiles }: Opts) {
     );
   const log = <OutputLog event="brew-progress" active={installing} failure={failure} />;
 
-  // The Doctor panel's one button per setup problem. The panel doesn't show the command, so a change asks first.
+  // One button per setup problem, for the VM row's note. The note doesn't show the command, so a change asks first.
   const quick = (f: SetupFinding) => {
     const fix = f.fix;
     // A copy fix needs the steps beside it to make sense, so the panel sends you to the Doctor for it.
@@ -95,11 +95,11 @@ export function useSetupActions({ reload, profile, onProfiles }: Opts) {
     const changes = fix.kind === "fix" || fix.kind === "install";
     const what = [f.title, ...(f.steps ?? []), f.command].filter(Boolean).join("\n");
     const go = async () => (!changes || (await confirm(what, fix.label))) && act(f);
-    return <button className="primary" disabled={busy !== null} onClick={go}>{busy === f.id ? "Working…" : copied === f.id ? "Copied" : fix.label}</button>;
+    return <button disabled={busy !== null} onClick={go}>{busy === f.id ? "Working…" : copied === f.id ? "Copied" : fix.label}</button>;
   };
   const quickAll = (plan: PlanStep[], covers: SetupFinding[]) => {
     const go = async () => (await confirm(["Fix all fixes:", ...covers.map((f) => `• ${f.title}`), "", FIX_ALL].join("\n"), "Fix all")) && run("all", plan);
-    return <button className="primary" disabled={busy !== null} onClick={go}>{busy === "all" ? "Fixing…" : "Fix all"}</button>;
+    return <button disabled={busy !== null} onClick={go}>{busy === "all" ? "Fixing…" : "Fix all"}</button>;
   };
   return { row, fixAll, log, quick, quickAll };
 }

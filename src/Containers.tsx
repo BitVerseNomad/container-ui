@@ -1,5 +1,5 @@
 // The home screen: the VM in one line, then every container in one table (like Docker Desktop).
-import { useEffect, useMemo, useRef, useState } from "react";
+import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Profile, docker, dockerJson } from "./api";
 import { usePoll } from "./hooks";
@@ -23,6 +23,11 @@ import { HealthBadge, stripHealth } from "./Health";
 import { healthFromStatus, parseState } from "./lib/health";
 import { doctor } from "./lib/doctor";
 import { useMuted } from "./Doctor";
+import type { Finding } from "./lib/doctor";
+import { fixAction, useFixRuns } from "./FixIt";
+import { describe } from "./lib/fixRun";
+import { dismiss, runFor } from "./lib/fixStore";
+import type { Run } from "./lib/fixStore";
 
 type VmOp = { op: "starting" | "stopping"; cmd: string; args: Record<string, unknown> };
 // `last` lives here, not in this screen, so Retry still repeats the right command after the screen remounts.
@@ -47,9 +52,12 @@ type Props = {
   onImages: () => void;
   // Set only while the profile shows its Kubernetes tab.
   onKubernetes?: () => void;
+  // The note about docker in the terminal, shown in the VM row.
+  terminal?: ReactNode;
 };
 
-export default function Containers({ profile, ctx, vm, onVm, reload, detailId, setDetailId, onPull, onProfiles, compose, onImages, onKubernetes }: Props) {
+export default function Containers({ profile, ctx, vm, onVm, reload, detailId, setDetailId, onPull, onProfiles, compose, onImages, onKubernetes, terminal }: Props) {
+  const runs = useFixRuns();
   const confirm = useConfirm();
   const running = !!ctx;
   const containers = usePoll<C[]>(async () => (ctx ? dockerJson<C>(ctx, ["ps", "-a"]) : []), [ctx], 3000);
@@ -115,15 +123,29 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
     [report],
   );
   const all = containers.data ?? [];
+  // A row with a fix running or just finished stays where it was (and in Needs attention) until it is dismissed.
+  const flagged = (name: string) => problems.has(name) || !!runFor(runs, name);
+  // A good result is shown for half a minute (long enough for a broker to come up), then the row is back to
+  // normal. A failed one stays (the container page shows it in full) until dismissed or retried.
+  // Each good run is scheduled once: the polls make new objects every few seconds and must not restart the clock.
+  const scheduled = useRef(new WeakSet<Run>());
+  useEffect(() => {
+    for (const r of runs) {
+      if (r.result?.ok && !scheduled.current.has(r)) {
+        scheduled.current.add(r);
+        setTimeout(() => dismiss(r.names[0]), 30_000);
+      }
+    }
+  }, [runs]);
   // With nothing left to attend to, the filter button goes away; fall back to All instead of an empty table.
   const view = only === "attention" && problems.size === 0 ? "all" : only;
   const rows = useMemo(
     () =>
       all
         .filter((c) => `${c.Names} ${c.Image}`.toLowerCase().includes(q.toLowerCase()))
-        .filter((c) => view === "all" || (view === "running" ? c.State === "running" : problems.has(c.Names)))
-        .sort((a, b) => Number(problems.has(b.Names)) - Number(problems.has(a.Names)) || Number(b.State === "running") - Number(a.State === "running") || a.Names.localeCompare(b.Names)),
-    [all, q, view, problems],
+        .filter((c) => view === "all" || (view === "running" ? c.State === "running" : flagged(c.Names)))
+        .sort((a, b) => Number(flagged(b.Names)) - Number(flagged(a.Names)) || Number(b.State === "running") - Number(a.State === "running") || a.Names.localeCompare(b.Names)),
+    [all, q, view, problems, runs], // eslint-disable-line react-hooks/exhaustive-deps
   );
   const busy = vm.op !== null;
   const groups = groupByProject(rows);
@@ -176,10 +198,44 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
   };
   const groupLabel = (g: Group<C>) => (g.kind === "kubernetes" ? "Kubernetes pods" : g.project ?? "Other containers");
   const composeCount = compose.paths ? new Set(compose.paths.map((x) => x.slice(0, x.lastIndexOf("/")))).size : null;
+  // The Fix column: one button per broken row, saying where it goes. While a fix runs, and after, the Status
+  // cell says how it went; the row is matched by name, since Replace gives the container a new ID.
+  const fixed = () => { containers.reload(); states.reload(); };
+  const fixCell = (c: C, p: Finding | undefined, run: Run | undefined): { status?: ReactNode; action?: ReactNode } => {
+    const open = (label: string) => <button onClick={() => setDetailId(c.ID)} aria-label={`${label} for ${c.Names}`}>{label}</button>;
+    if (run?.step) return { status: <span className="status-text fixing" role="status">{run.step}</span>, action: <button disabled>Fixing…</button> };
+    const r = run?.result;
+    if (r?.ok) {
+      // A broker needs a little while after a restart, and an app that looks for it shows nothing until then.
+      const slow = /kafka/i.test(c.Image) ? " Kafka needs about 30 s to start." : "";
+      return { status: <span className="fixed status-text" role="status" title={describe(r)}><Icon name="check" size={12} /> Fixed.{slow}</span>, action: <button onClick={() => dismiss(c.Names)}>Done</button> };
+    }
+    const failed = r && (
+      <button className="link-plain fix-failed" role="status" title={describe(r)} onClick={() => setDetailId(c.ID)}><Icon name="close" size={12} /> Fix failed. See why</button>
+    );
+    // Healthy again (fixed some other way): the row reads normally; the container page still has the message.
+    if (!p) return {};
+    const label = `${p.short ?? p.title}, ${c.Names}`;
+    // When this row's own fix replaces containers, a bigger fix that also replaces this one (Kafka UI's "fix both"
+    // includes its broker) wins, so both rows offer the one fix that makes them work together.
+    const own = p.fix?.steps;
+    const shared = own && [...problems.values()].flat().map((f) => f.fix)
+      .filter((f) => (f?.steps?.length ?? 0) > own.length && own.every((s) => f!.steps!.some((x) => x.name === s.name)))
+      .sort((a, b) => b!.steps!.length - a!.steps!.length)[0];
+    const fix = shared ?? p.fix;
+    const one = fix ? fixAction(fix, ctx ?? undefined, confirm, runs, fixed) : null;
+    // A failed run keeps its message in Status and offers the fix again.
+    if (one) return { status: failed || undefined, action: <button aria-label={`${failed ? "Retry" : one.label}: ${label}`} onClick={one.go}>{failed ? "Retry" : one.label}…</button> };
+    if (failed) return { status: failed, action: open("Details") };
+    if (fix?.go === "Images" && onImages) return { action: <button onClick={onImages}>Open Images</button> };
+    return { action: open(fix ? "Show steps" : "Logs") };
+  };
   const renderRow = (c: C) => {
                   const up = c.State === "running";
                   const s = up ? byName.get(c.Names) : undefined;
                   const p = problems.get(c.Names)?.[0];
+                  const run = runFor(runs, c.Names);
+                  const cell = fixCell(c, p, run);
                   const kube = isKubeOwned(c);
                   return (
                     <tr key={c.ID} className={picked.has(c.ID) && !kube ? "picked" : undefined}>
@@ -196,15 +252,18 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
                         </div>
                       </td>
                       <td>
-                        {p ? (
-                          <span className={`plevel ${p.level} clip status-text`} title={p.fix ? `${stripHealth(c.Status)}. ${p.title}. Open it to fix it.` : `${stripHealth(c.Status)}. ${p.short ? `${p.title}. ` : ""}${p.detail}`}>{p.short ?? p.title}</span>
+                        {cell.status ?? (p ? (
+                          <span className={`plevel ${p.level} clip status-text`} title={`${stripHealth(c.Status)}. ${p.short ? `${p.title}. ` : ""}${p.detail}`}>
+                            <Icon name={p.level === "bad" ? "close" : "alert"} size={12} /> {p.short ?? p.title}
+                          </span>
                         ) : (
                           <span className="clip status-text">{stripHealth(c.Status)} <HealthBadge status={healthFromStatus(c.Status)} /></span>
-                        )}
+                        ))}
                       </td>
                       <td><PortLinks ports={c.Ports} running={up} name={c.Names} /></td>
                       <td className="num mono">{s ? s.CPUPerc : "–"}</td>
                       <td className="num mono">{s ? formatBytes(parseUsage(s.MemUsage).used) : "–"}</td>
+                      <td className="row-fix">{cell.action}</td>
                       <td className="row-actions">
                         <span className="row-tools">
                         <IconButton label={`Logs for ${c.Names}`} icon="logs" onClick={() => setDetailId(c.ID)} />
@@ -226,6 +285,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
   return (
     <div className="home">
       <VmStrip
+        note={terminal}
         profile={profile}
         startInCard={!running && !vm.op && !vm.failure}
         totals={running ? { cores: sums.cores, memBytes: sums.memBytes, diskBytes: disk.totalBytes } : null}
@@ -293,6 +353,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
                   <th scope="col">Ports</th>
                   <th scope="col" className="num">CPU</th>
                   <th scope="col" className="num">Memory</th>
+                  <th scope="col"><span className="sr-only">Fix</span></th>
                   <th scope="col"><span className="sr-only">Actions</span></th>
                 </tr>
               </thead>
@@ -304,7 +365,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
                   <tbody key={key ?? "-"}>
                     {grouped && (
                       <tr className="group-row">
-                        <th colSpan={7} scope="rowgroup">
+                        <th colSpan={8} scope="rowgroup">
                           <span className="group-head">
                             <button className="link-plain group-toggle" aria-expanded={!shut} onClick={() => toggle(key)}>
                               <span aria-hidden="true">{shut ? "▸" : "▾"}</span> <b>{groupLabel(g)}</b>

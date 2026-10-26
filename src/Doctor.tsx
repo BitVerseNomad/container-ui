@@ -1,9 +1,9 @@
-import { ReactNode, useMemo, useState, useSyncExternalStore } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import { Profile, docker } from "./api";
 import { usePoll } from "./hooks";
 import { useSetup, useSetupActions } from "./Setup";
 import ConnectionTest from "./ConnectionTest";
-import FixIt, { FixRuns, Go, fixAction, useFixRuns } from "./FixIt";
+import FixIt, { FixRuns, Go } from "./FixIt";
 import { doctor } from "./lib/doctor";
 import type { Finding, Report } from "./lib/doctor";
 import { parseDiskUsage } from "./lib/disk";
@@ -11,7 +11,7 @@ import { hostArch } from "./lib/guided";
 import { muted, setMuted, subscribeMuted } from "./lib/muted";
 import { fixAllPlan } from "./lib/setup";
 import type { SetupFinding } from "./lib/setup";
-import { Banner, useConfirm } from "./ui";
+import { Banner } from "./ui";
 import { Icon } from "./ui/icons";
 
 const ICON = { ok: "check", warn: "alert", fail: "close", info: "info" } as const;
@@ -62,70 +62,27 @@ export function groups(setupFindings: SetupFinding[], report: Report | null, mut
 
 const summaryOf = (todo: number) => (todo === 0 ? "Nothing needs action." : `${todo} thing${todo === 1 ? " needs" : "s need"} action.`);
 
-// The top of the Doctor where you already are: the worst few problems, one button each, and the way to the rest.
-const SHOWN = 3;
-type PanelProps = Omit<Props, "onOpen"> & { onOpen: (container: string) => void; onDoctor: () => void };
-export function DoctorPanel({ ctx, setup, doc, onProfiles, onGo, onOpen, onDoctor }: PanelProps) {
+// The setup checks (docker in your terminal, tests, login service, VM size), as one line in the VM row of
+// Containers. Container problems sit on their own rows; the rest of the Doctor is one click away.
+const TERMINAL: SetupFinding["id"][] = ["compose", "buildx", "leftovers", "creds", "context", "testcontainers", "autostart", "resources"];
+type NoteProps = { setup: ReturnType<typeof useSetup>; onProfiles: () => void; onDoctor: () => void };
+export function TerminalNote({ setup, onProfiles, onDoctor }: NoteProps) {
   const actions = useSetupActions({ reload: setup.reload, profile: setup.profile, onProfiles });
-  const mutedKeys = useMuted();
-  const confirm = useConfirm();
-  const runs = useFixRuns();
-  const { sAction, eAction, todo } = groups(setup.findings ?? [], doc.report, mutedKeys);
-  const plan = fixAllPlan(setup.findings ?? []);
-
-  type Line = { key: string; title: string; cls: "fail" | "warn"; action: ReactNode; count: number };
-  const review = <button onClick={onDoctor}>Review</button>;
-  // Setup first (it breaks or confuses docker in your terminal, as the old strip said), then crashes, then the rest.
-  const engine: Line[] = [...eAction].sort((a, b) => Number(a.level !== "bad") - Number(b.level !== "bad")).map((f) => {
-    const run = f.fix ? fixAction(f.fix, ctx ?? undefined, confirm, runs, () => doc.reload()) : null;
-    const action = run ? (
-      <button className="primary" disabled={run.running} onClick={run.go}>{run.running ? run.busyLabel : run.label}</button>
-    ) : f.fix?.go ? (
-      <button onClick={() => onGo(f.fix!.go!)}>{f.fix.label}</button>
-    ) : f.subject ? (
-      <button onClick={() => onOpen(f.subject!)}>Open</button>
-    ) : review;
-    return { key: f.key, title: f.title, cls: f.level === "bad" ? "fail" : "warn", action, count: 1 };
-  });
-  // Several setup fixes run as one Fix all, the same as on the Doctor page. The line counts only what Fix all
-  // fixes; a problem it can't fix gets its own line.
-  const covered = sAction.filter((f) => f.fix?.kind === "fix" || f.fix?.kind === "install");
-  const grouped = covered.length > 1 && plan.length > 1;
-  const breaks = covered.some((f) => f.status === "fail");
-  const single = (f: SetupFinding): Line => ({ key: f.id, title: f.title, cls: f.status === "fail" ? "fail" : "warn", action: actions.quick(f) ?? review, count: 1 });
-  const setupLines: Line[] = grouped
-    ? [
-        { key: "setup", title: `${covered.length} setup problems${breaks ? " will break docker in your terminal" : ""}`, cls: breaks ? "fail" : "warn", action: actions.quickAll(plan, covered), count: covered.length },
-        ...sAction.filter((f) => !covered.includes(f)).map(single),
-      ]
-    : sAction.map(single);
-  const byCls = (l: Line[], c: Line["cls"]) => l.filter((x) => x.cls === c);
-  const lines = [...byCls(setupLines, "fail"), ...byCls(setupLines, "warn"), ...byCls(engine, "fail"), ...byCls(engine, "warn")];
-  const shown = lines.slice(0, SHOWN);
-  const more = todo - shown.reduce((n, l) => n + l.count, 0);
-
+  const todo = (setup.findings ?? []).filter((f) => TERMINAL.includes(f.id) && (f.status === "fail" || f.status === "warn"));
+  if (!todo.length) return null;
+  const broken = todo.some((f) => f.status === "fail");
+  const plan = fixAllPlan(todo);
+  const covered = todo.filter((f) => f.fix?.kind === "fix" || f.fix?.kind === "install");
+  const text = todo.length === 1 ? todo[0].title : broken ? `docker in your terminal is broken (${todo.length} problems)` : `${todo.length} setup problems need a look`;
+  const action = plan.length > 1 ? actions.quickAll(plan, covered) : actions.quick(covered[0] ?? todo[0]);
   return (
-    <>
-      <FixRuns />
-      {todo > 0 && (
-        <section className="doctor-panel" aria-label="Doctor">
-          <div className="doctor-panel-head">
-            <b>{summaryOf(todo)}</b>
-            <button className="link" onClick={onDoctor}>Open Doctor</button>
-          </div>
-          <ul className="findings">
-            {shown.map((l) => (
-              <li key={l.key} className={`finding ${l.cls}`}>
-                <Icon name={ICON[l.cls]} />
-                <div className="doctor-line"><b>{l.title}</b>{l.action}</div>
-              </li>
-            ))}
-          </ul>
-          {more > 0 && <button className="link doctor-more" onClick={onDoctor}>+ {more} more in Doctor</button>}
-          {actions.log}
-        </section>
-      )}
-    </>
+    <div className={`vm-note ${broken ? "bad" : "warn"}`} role="status">
+      <Icon name="alert" size={14} />
+      <span className="vm-note-text">{text}</span>
+      {action}
+      <button className="link" onClick={onDoctor}>Details</button>
+      {actions.log}
+    </div>
   );
 }
 
