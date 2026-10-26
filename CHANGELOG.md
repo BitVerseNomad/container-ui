@@ -2,6 +2,12 @@
 
 Newest first. Older entries record what was true when they were written; later entries supersede them (the Overview, for example, was replaced by the Containers home screen).
 
+## Known-app checks: Kafka and Kafka UI
+- **"No clusters found" in Kafka UI now has an answer in the app.** The containers list reads every container's settings and flags three setups that run but can't work: Kafka UI with no cluster, Kafka UI pointed at `localhost`, and an apache/kafka broker that only advertises `localhost:9092` while other containers want it. The row says it in a few words ("No Kafka set up", "Only reachable from your Mac"); the container page explains it and gives the commands.
+- **Commands you run, built from the container itself**: same image, ports, volumes, restart policy, networks and settings, with only the broken address changed. The broker gets a full single-node setup, because any `KAFKA_` setting turns off all the image defaults. The page says when topics live inside the container and will not carry over.
+- **Safe to run**: the old container is renamed to `<name>-old` and stopped, and removed only once the new one starts. Every line names the profile's context.
+- **Not flagged**: host networking, stopped containers, Kafka UI with a config file or dynamic config, and brokers that already advertise a container address. Compose containers get compose-file lines, Kubernetes pods get advice only, and with no Kafka container the app suggests `host.docker.internal`.
+
 ## Review round 7: controls where a daily user looks first
 - **Switch profile at the top of the sidebar.** The switcher shows the current profile and its state. Its menu lists every profile with a tick on the current one, New profile, and Manage profiles. Each profile row has its own Start or Stop: it switches to that profile and shows the progress on Containers. A failure card stays with the profile it happened on.
 - **Logs and Shell on every container row.** Hover a row for Logs (opens the container on its Logs tab) and Shell (a running container, not a Kubernetes pod). The tools have their own column, so they never cover the Memory value.

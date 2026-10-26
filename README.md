@@ -24,6 +24,12 @@ The app talks to the docker context Colima creates for the selected profile (`co
 
 When a start or stop fails, the app says why and offers the next step.
 
+Some setups run but can't work. The app checks for known ones and shows them under Needs attention, with commands to copy:
+- **Kafka UI with no cluster**, or with its cluster set to `localhost` (inside a container that is the container itself).
+- **An apache/kafka broker that only advertises `localhost:9092`**, so other containers connect and then lose it. The fix adds a second address for containers.
+
+Each fix is a command you run yourself, never the app. It keeps the old container as `<name>-old` until the new one starts, and names the context so it works whatever your terminal points at. Compose containers get the lines to put in the compose file instead, and Kubernetes pods get advice only.
+
 ## Tests and checks
     npm test                                   # TypeScript logic (node --test), then the screens in jsdom (vitest)
     npm run test:ui                            # only the screens
