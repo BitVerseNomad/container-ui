@@ -573,3 +573,6 @@ td.mono { white-space: nowrap; }
   .brand { flex: none; }
 }
 td.in-use { font-weight: inherit; color: var(--ink); }
+
+/* Known-app fixes: the copy button keeps its label on one line next to the note */
+.health-panel .actions-inline button { white-space: nowrap; flex: none; }

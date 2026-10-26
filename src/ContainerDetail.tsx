@@ -15,15 +15,16 @@ import { ActivityList, HealthPanel } from "./Health";
 import { Problem, parseState, problemsFor } from "./lib/health";
 
 // Next to the state word, so a red dot beside "Running" says why.
-const SHORT: Record<Problem["id"], string> = { unhealthy: "Unhealthy", restarting: "Keeps restarting", oom: "Out of memory", crashed: "Stopped with an error" };
+const SHORT: Record<Problem["id"], string> = { unhealthy: "Unhealthy", restarting: "Keeps restarting", oom: "Out of memory", crashed: "Stopped with an error", "kafka-localhost": "Only reachable from your Mac", "kafka-ui-empty": "No Kafka set up", "kafka-ui-localhost": "Can't reach Kafka" };
 import { isKubeOwned } from "./lib/compose";
 import { eventWindow, parseEvents, timeline } from "./lib/events";
 
 const TABS = ["Logs", "Inspect", "Stats", "Mounts", "Network", "Activity"] as const;
 type Tab = (typeof TABS)[number];
-type Props = { ctx: string; id: string; onBack: () => void };
+// appProblems: known-app setup problems, worked out by the list from every container.
+type Props = { ctx: string; id: string; appProblems?: Problem[]; onBack: () => void };
 
-export default function ContainerDetail({ ctx, id, onBack }: Props) {
+export default function ContainerDetail({ ctx, id, appProblems, onBack }: Props) {
   const confirm = useConfirm();
   const [tab, setTab] = useState<Tab>("Logs");
   const [err, setErr] = useState<string | null>(null);
@@ -48,7 +49,8 @@ export default function ContainerDetail({ ctx, id, onBack }: Props) {
   const status = raw.charAt(0).toUpperCase() + raw.slice(1);
   const ports = running ? publishedPortPairs(c?.NetworkSettings.Ports) : [];
   const state = c ? parseState(JSON.stringify([c])) : null;
-  const problem = state ? problemsFor(state)[0] : undefined;
+  const extra = state?.running ? appProblems ?? [] : [];
+  const problem = state ? [...problemsFor(state), ...extra][0] : undefined;
   const activity = usePoll(async () => timeline(parseEvents(await docker(ctx, ["events", ...eventWindow(Date.now(), 86_400_000), "--filter", `container=${name}`, "--filter", "type=container", "--format", "{{json .}}"])), 50, name), [ctx, name], 10000, !!c && tab === "Activity");
   // The cluster owns these: stopping or removing one by hand only makes Kubernetes start it again, or breaks the pod.
   const kube = !!c && (isKubeOwned({ Names: name }) || !!c.Config.Labels?.["io.kubernetes.pod.name"]);
@@ -107,7 +109,7 @@ export default function ContainerDetail({ ctx, id, onBack }: Props) {
         </p>
       )}
 
-      {state && <HealthPanel state={state} onLogs={tab === "Logs" ? undefined : () => setTab("Logs")} />}
+      {state && <HealthPanel state={state} extra={extra} onLogs={tab === "Logs" ? undefined : () => setTab("Logs")} />}
 
       <div className="tabs" role="tablist">
         {TABS.map((t) => (

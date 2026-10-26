@@ -3,7 +3,8 @@
 
 export type Health = { status: "starting" | "healthy" | "unhealthy"; streak: number; lastOutput: string; lastExit: number | null };
 export type State = { name: string; running: boolean; status: string; exitCode: number; oomKilled: boolean; restartCount: number; startedAt: string; health: Health | null };
-export type Problem = { id: "oom" | "unhealthy" | "restarting" | "crashed"; level: "bad" | "warn"; title: string; detail: string };
+// `short` is the list-row label when the title is too long; `fix` is a command the user copies and runs; the app never runs it.
+export type Problem = { id: "oom" | "unhealthy" | "restarting" | "crashed" | "kafka-localhost" | "kafka-ui-empty" | "kafka-ui-localhost"; level: "bad" | "warn"; title: string; short?: string; detail: string; fix?: { label: string; text: string; note?: string } };
 
 export function exitCodeMeaning(code: number): string {
   switch (code) {

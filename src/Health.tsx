@@ -1,6 +1,7 @@
 import { ReactNode } from "react";
 import { Line, ago } from "./lib/events";
 import { Problem, State, problemsFor } from "./lib/health";
+import { Icon } from "./ui/icons";
 
 export const stripHealth = (status: string) => status.replace(/\s*\((?:un)?healthy\)|\s*\(health: starting\)/, "");
 
@@ -26,8 +27,8 @@ export function ActivityList({ lines, empty }: { lines: Line[]; empty: string })
 }
 
 // Health, restarts and anything wrong with a container, in plain words.
-export function HealthPanel({ state, onLogs }: { state: State; onLogs?: () => void }): ReactNode {
-  const problems: Problem[] = problemsFor(state);
+export function HealthPanel({ state, extra = [], onLogs }: { state: State; extra?: Problem[]; onLogs?: () => void }): ReactNode {
+  const problems: Problem[] = [...problemsFor(state), ...extra];
   return (
     <div className="health-panel panel">
       <div className="hp-row">
@@ -50,7 +51,17 @@ export function HealthPanel({ state, onLogs }: { state: State; onLogs?: () => vo
         <div key={p.id} className={`problem-line ${p.level}`}>
           <b>{p.title}</b>
           <div className="hint">{p.detail}</div>
-          {onLogs && <button onClick={onLogs}>Open the logs</button>}
+          {p.fix ? (
+            <>
+              <pre className="cmd" aria-label={p.fix.label}>{p.fix.text}</pre>
+              <span className="actions-inline">
+                <button onClick={() => navigator.clipboard.writeText(p.fix!.text)}><Icon name="copy" size={14} /> Copy commands</button>
+                <span className="hint">Run them in your terminal. Colima UI doesn't run them for you.{p.fix.note ? ` ${p.fix.note}` : ""}</span>
+              </span>
+            </>
+          ) : (
+            onLogs && <button onClick={onLogs}>Open the logs</button>
+          )}
         </div>
       ))}
     </div>

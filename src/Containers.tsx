@@ -21,6 +21,7 @@ import { ComposeScan } from "./useComposeScan";
 import ContainerDetail from "./ContainerDetail";
 import { HealthBadge, stripHealth } from "./Health";
 import { Problem, healthFromStatus, parseState, problemsFor } from "./lib/health";
+import { appProblems } from "./lib/apps";
 
 type VmOp = { op: "starting" | "stopping"; cmd: string; args: Record<string, unknown> };
 // `last` lives here, not in this screen, so Retry still repeats the right command after the screen remounts.
@@ -55,9 +56,9 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
   const df = usePoll<DfRow[]>(async () => (ctx ? dockerJson<DfRow>(ctx, ["system", "df"]) : []), [ctx], 30000);
   const idKey = (containers.data ?? []).map((c) => c.ID).join(",");
   const states = usePoll(async () => {
-    if (!ctx || !idKey) return [];
+    if (!ctx || !idKey) return { list: [], apps: new Map<string, Problem[]>() };
     const all: unknown[] = JSON.parse(await docker(ctx, ["inspect", ...idKey.split(",")]));
-    return all.map((el) => parseState(JSON.stringify([el]))).filter((s): s is NonNullable<typeof s> => s !== null);
+    return { list: all.map((el) => parseState(JSON.stringify([el]))).filter((s): s is NonNullable<typeof s> => s !== null), apps: appProblems(all, ctx) };
   }, [ctx, idKey], 10000);
   const [q, setQ] = useState("");
   const [only, setOnly] = useState<"all" | "running" | "attention">("all");
@@ -103,7 +104,10 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
   const lastStates = useRef(states.data);
   if (states.data) lastStates.current = states.data;
   const stateList = states.data ?? lastStates.current;
-  const problems = useMemo(() => new Map<string, Problem[]>((stateList ?? []).map((s) => [s.name, problemsFor(s)] as [string, Problem[]]).filter(([, p]) => p.length > 0)), [stateList]);
+  const problems = useMemo(
+    () => new Map<string, Problem[]>((stateList?.list ?? []).map((s) => [s.name, [...problemsFor(s), ...(s.running ? stateList?.apps.get(s.name) ?? [] : [])]] as [string, Problem[]]).filter(([, p]) => p.length > 0)),
+    [stateList],
+  );
   const all = containers.data ?? [];
   // With nothing left to attend to, the filter button goes away; fall back to All instead of an empty table.
   const view = only === "attention" && problems.size === 0 ? "all" : only;
@@ -132,7 +136,10 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
     if (allBox.current) allBox.current.indeterminate = chosen.length > 0 && chosen.length < selectable.length;
   });
 
-  if (detailId && ctx) return <ContainerDetail ctx={ctx} id={detailId} onBack={() => setDetailId(null)} />;
+  if (detailId && ctx) {
+    const named = (containers.data ?? []).find((c) => c.ID === detailId || c.ID.startsWith(detailId) || c.Names === detailId)?.Names;
+    return <ContainerDetail ctx={ctx} id={detailId} appProblems={named ? stateList?.apps.get(named) : undefined} onBack={() => setDetailId(null)} />;
+  }
 
   if (!profile) {
     return (
@@ -184,7 +191,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
                       </td>
                       <td>
                         {p ? (
-                          <span className={`plevel ${p.level} clip status-text`} title={`${stripHealth(c.Status)}. ${p.detail}`}>{p.title}</span>
+                          <span className={`plevel ${p.level} clip status-text`} title={`${stripHealth(c.Status)}. ${p.short ? `${p.title}. ` : ""}${p.detail}`}>{p.short ?? p.title}</span>
                         ) : (
                           <span className="clip status-text">{stripHealth(c.Status)} <HealthBadge status={healthFromStatus(c.Status)} /></span>
                         )}

@@ -94,5 +94,21 @@ t = await p.locator("tr", { hasText: "pgdata-old" }).innerText();
 check(/\d+(\.\d)? (GiB|MiB)/.test(t), `volumes: a size is shown (${t.replace(/\s+/g, " ")})`);
 await p.close();
 
+// Known apps: a Kafka setup that runs but can't work is called out, with commands to copy
+p = await open("Containers");
+const krow = (name) => p.locator("table.list tbody tr:not(.group-row)", { has: p.locator("b", { hasText: new RegExp(`^${name}$`) }) }).first();
+await p.waitForFunction(() => /Can.t reach Kafka/.test(document.body.innerText), null, { timeout: 15000 }).catch(() => {});
+check(/Can't reach Kafka/.test(await krow("kafka-ui").innerText().catch(() => "")), "apps: Kafka UI pointed at localhost is called out on its row");
+check(/inside its own container/.test(await krow("kafka-ui").locator(".plevel").getAttribute("title").catch(() => "")), "apps: the row tooltip carries the full reason");
+check(/Only reachable from your Mac/.test(await krow("kafka").innerText().catch(() => "")), "apps: a broker that only advertises localhost is called out");
+await krow("kafka-ui").locator("button.link-plain").click();
+await p.waitForSelector(".health-panel pre.cmd", { timeout: 8000 }).catch(() => {});
+const cmd = await p.locator(".health-panel pre.cmd").first().innerText().catch(() => "");
+check(/KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS='kafka:19092'/.test(cmd) && /rename kafka-ui kafka-ui-old/.test(cmd) && !/rm -f/.test(cmd), "apps: the detail page gives a safe replace command that uses the broker's name");
+check(await p.getByRole("button", { name: /Copy commands/ }).count() > 0, "apps: the commands can be copied");
+check(/Can't reach Kafka/.test(await p.locator("header").first().innerText().catch(() => "")), "apps: the status line names the problem");
+check(p.errors.length === 0, `apps: no page errors (${p.errors.join("; ")})`);
+await p.close();
+
 await browser.close();
 process.exit(failed ? 1 : 0);
