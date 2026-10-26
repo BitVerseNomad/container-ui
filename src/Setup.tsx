@@ -2,8 +2,7 @@ import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Profile } from "./api";
 import { usePoll } from "./hooks";
-import { PlanStep, SetupFinding, SetupReport, fixAllPlan, needsAttention, setupFindings, sortFindings } from "./lib/setup";
-import { Banner } from "./ui";
+import { PlanStep, SetupFinding, SetupReport, fixAllPlan, setupFindings, sortFindings } from "./lib/setup";
 import { Icon } from "./ui/icons";
 import OutputLog from "./ui/OutputLog";
 
@@ -17,9 +16,9 @@ export function useSetup(profile: Profile | null) {
   return { findings, error, reload, profile: name };
 }
 
-// Checks what removing Docker Desktop leaves behind. Each fix shows its command and runs only on a click.
-type Props = ReturnType<typeof useSetup> & { onProfiles: () => void };
-export default function Setup({ findings, error, reload, profile, onProfiles }: Props) {
+// Runs the setup fixes. Each fix shows its command and runs only on a click; the Doctor page places the rows.
+type Opts = { reload: () => void | Promise<unknown>; profile: string; onProfiles: () => void };
+export function useSetupActions({ reload, profile, onProfiles }: Opts) {
   const [busy, setBusy] = useState<string | null>(null);
   const [installing, setInstalling] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
@@ -56,13 +55,8 @@ export default function Setup({ findings, error, reload, profile, onProfiles }: 
     }
   }
 
-  if (!findings) return <Banner error={error} />;
-  const todo = needsAttention(findings);
-  const plan = fixAllPlan(findings);
-  const problems = findings.filter((f) => f.status !== "ok");
-  const passing = findings.filter((f) => f.status === "ok");
-  const row = (f: SetupFinding) => (
-    <li key={f.id} className={`finding ${f.status}`}>
+  const row = (f: SetupFinding, primary: boolean) => (
+    <li key={f.id} className={`finding ${f.status}`} data-setup={f.id}>
       <Icon name={ICON[f.status]} />
       <div>
         <b>{f.title}</b>
@@ -74,34 +68,21 @@ export default function Setup({ findings, error, reload, profile, onProfiles }: 
         )}
         {f.command && f.status !== "ok" && <pre className="cmd">{f.command}</pre>}
         {f.fix && f.status !== "ok" && (
-          <button className={f.status === "fail" && plan.length <= 1 ? "primary" : ""} disabled={busy !== null} onClick={() => act(f)}>
+          <button className={primary ? "primary" : ""} disabled={busy !== null} onClick={() => act(f)}>
             {busy === f.id ? "Working…" : copied === f.id ? "Copied" : f.fix.label}
           </button>
         )}
       </div>
     </li>
   );
-  return (
-    <div className="setup">
-      <p className="hint">
-        {todo === 0 ? "Everything Docker Desktop used to handle is in place." : `${todo} thing${todo === 1 ? "" : "s"} need${todo === 1 ? "s" : ""} attention before your terminal and tests work like they did with Docker Desktop.`}{" "}
-        {todo > 0 && "Nothing changes until you click a fix, and ~/.docker/config.json is backed up first."}
-      </p>
-      {plan.length > 1 && (
-        <div className="fix-all">
-          <button className="primary" disabled={busy !== null} onClick={() => run("all", plan)}>{busy === "all" ? "Fixing…" : "Fix all"}</button>
-          <span className="hint">Runs every fix below in order and stops if one fails.</span>
-        </div>
-      )}
-      <Banner error={error} />
-      <ul className="findings">{problems.map(row)}</ul>
-      {passing.length > 0 && (
-        <details className="passing">
-          <summary>{passing.length} check{passing.length === 1 ? "" : "s"} pass</summary>
-          <ul className="findings">{passing.map(row)}</ul>
-        </details>
-      )}
-      <OutputLog event="brew-progress" active={installing} failure={failure} />
-    </div>
-  );
+  const fixAll = (plan: PlanStep[]) =>
+    plan.length > 1 && (
+      <div className="fix-all">
+        <button className="primary" disabled={busy !== null} onClick={() => run("all", plan)}>{busy === "all" ? "Fixing…" : "Fix all setup problems"}</button>
+        <span className="hint">Runs every setup fix in order and stops if one fails. ~/.docker/config.json is backed up first.</span>
+      </div>
+    );
+  const log = <OutputLog event="brew-progress" active={installing} failure={failure} />;
+  return { row, fixAll, log };
 }
+

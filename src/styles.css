@@ -576,3 +576,15 @@ td.in-use { font-weight: inherit; color: var(--ink); }
 
 /* Known-app fixes: the copy button keeps its label on one line next to the note */
 .health-panel .actions-inline button { white-space: nowrap; flex: none; }
+
+/* Fix progress and outcome, on the container page above the health panel */
+.fix-result { margin: 0 0 10px; font-size: 13px; }
+.fix-result p { margin: 0; }
+.fix-result.ok { color: var(--primary); }
+.fix-result.bad { padding: 8px 12px; border: 1px solid color-mix(in srgb, var(--danger) 45%, var(--border)); border-radius: 8px; display: flex; flex-direction: column; gap: 6px; }
+.fix-result .cmd { margin: 0; max-height: 180px; overflow: auto; }
+.fix-dismiss { font-size: 12px; color: var(--muted, inherit); margin-left: 4px; }
+.doctor-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.doctor-head p { margin: 0; }
+.doctor-group { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted, inherit); margin: 14px 0 8px; }
+.doctor-links { gap: 12px; font-size: 12px; }

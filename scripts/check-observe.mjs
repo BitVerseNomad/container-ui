@@ -102,12 +102,51 @@ check(/Can't reach Kafka/.test(await krow("kafka-ui").innerText().catch(() => ""
 check(/inside its own container/.test(await krow("kafka-ui").locator(".plevel").getAttribute("title").catch(() => "")), "apps: the row tooltip carries the full reason");
 check(/Only reachable from your Mac/.test(await krow("kafka").innerText().catch(() => "")), "apps: a broker that only advertises localhost is called out");
 await krow("kafka-ui").locator("button.link-plain").click();
-await p.waitForSelector(".health-panel pre.cmd", { timeout: 8000 }).catch(() => {});
+await p.locator("details.fix-commands summary").first().click({ timeout: 8000 }).catch(() => {});
 const cmd = await p.locator(".health-panel pre.cmd").first().innerText().catch(() => "");
 check(/KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS='kafka:19092'/.test(cmd) && /rename kafka-ui kafka-ui-old/.test(cmd) && !/rm -f/.test(cmd), "apps: the detail page gives a safe replace command that uses the broker's name");
 check(await p.getByRole("button", { name: /Copy commands/ }).count() > 0, "apps: the commands can be copied");
 check(/Can't reach Kafka/.test(await p.locator("header").first().innerText().catch(() => "")), "apps: the status line names the problem");
 check(p.errors.length === 0, `apps: no page errors (${p.errors.join("; ")})`);
+await p.close();
+
+// Fix: one click replaces both containers, and the problems go away
+p = await open("Containers");
+const frow = (name) => p.locator("table.list tbody tr:not(.group-row)", { has: p.locator("b", { hasText: new RegExp(`^${name}$`) }) }).first();
+await p.waitForFunction(() => /Can.t reach Kafka/.test(document.body.innerText), null, { timeout: 15000 }).catch(() => {});
+await frow("kafka-ui").locator("button.link-plain").click();
+const fixBtn = p.getByRole("button", { name: "Fix both" });
+await fixBtn.waitFor({ timeout: 8000 }).catch(() => {});
+check(await fixBtn.count() === 1, "fix: Kafka UI's page has one Fix both button");
+check(await p.locator("details.fix-commands pre.cmd").count() > 0 && !(await p.locator("details.fix-commands").getAttribute("open")), "fix: the commands are still there, folded away");
+await fixBtn.click();
+const dialog = p.getByRole("alertdialog");
+check(/Replace kafka and then kafka-ui\?/.test(await dialog.innerText().catch(() => "")) && /no topics/.test(await dialog.innerText().catch(() => "")), "fix: it asks first, names both, and warns about topics");
+await dialog.getByRole("button", { name: "Fix" }).click();
+await p.waitForSelector(".fix-result.ok", { timeout: 45000 }).catch(() => {});
+check(/Fixed\. kafka and kafka-ui were replaced/.test(await p.locator(".fix-result.ok").first().innerText().catch(() => "")), "fix: the page says both were replaced");
+const after = await p.evaluate(() => window.__mock.state().ctrs.filter((c) => /^kafka/.test(c.name)).map((c) => `${c.name}:${c.state}:${c.networks.join("+")}:${c.env.find((e) => /ADVERTISED|BOOTSTRAP/.test(e)) ?? ""}`));
+check(after.length === 2 && after.every((x) => x.includes(":running:")) && after.some((x) => x.startsWith("kafka:") && /PLAINTEXT:\/\/kafka:19092/.test(x)) && after.some((x) => x.startsWith("kafka-ui:") && /devnet/.test(x) && /kafka:19092/.test(x)), `fix: two new containers run with the fixed settings and no -old left (${after.join(" | ")})`);
+await p.waitForFunction(() => !/Can.t reach Kafka/.test(document.querySelector("header")?.innerText ?? ""), null, { timeout: 15000 }).catch(() => {});
+check(!/Can't reach Kafka/.test(await p.locator("header").first().innerText().catch(() => "")), "fix: the page no longer reports the problem");
+check(p.errors.length === 0, `fix: no page errors (${p.errors.join("; ")})`);
+await p.close();
+
+// Fix that fails half-way: the broker is replaced, Kafka UI's new copy won't start, so the old one comes back
+p = await open("Containers");
+await p.waitForFunction(() => /Can.t reach Kafka/.test(document.body.innerText), null, { timeout: 15000 }).catch(() => {});
+await p.evaluate(() => window.__mock.failRunOnce("kafka-ui"));
+await p.locator("table.list tbody tr:not(.group-row)", { has: p.locator("b", { hasText: /^kafka-ui$/ }) }).first().locator("button.link-plain").click();
+await p.getByRole("button", { name: "Fix both" }).click({ timeout: 8000 }).catch(() => {});
+await p.getByRole("alertdialog").getByRole("button", { name: "Fix" }).click().catch(() => {});
+await p.waitForFunction(() => /A fix is running/.test(document.body.innerText), null, { timeout: 8000 }).catch(() => {});
+check(/A fix is running/.test(await p.locator("header").first().innerText().catch(() => "")) && (await p.getByRole("button", { name: "Remove" }).count()) === 0, "fix fails: Stop and Remove are locked while it runs");
+await p.waitForSelector(".fix-result.bad", { timeout: 60000 }).catch(() => {});
+const bad = await p.locator(".fix-result.bad").first().innerText().catch(() => "");
+check(/kafka was replaced, but kafka-ui couldn't be fixed/.test(bad) && /simulated/.test(bad) && /The old kafka-ui is back as it was/.test(bad), `fix fails: the page says what happened (${bad.slice(0, 160)})`);
+const back = await p.evaluate(() => window.__mock.state().ctrs.filter((c) => /^kafka-ui/.test(c.name)).map((c) => `${c.name}:${c.state}`));
+check(back.length === 1 && back[0] === "kafka-ui:running", `fix fails: the old kafka-ui runs again under its own name (${back.join(" | ")})`);
+check(p.errors.length === 0, `fix fails: no page errors (${p.errors.join("; ")})`);
 await p.close();
 
 await browser.close();

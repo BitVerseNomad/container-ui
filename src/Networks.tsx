@@ -5,7 +5,7 @@ import { usePoll } from "./hooks";
 import { NetInfo, parseNetworks } from "./lib/network";
 import { Banner, Empty, useConfirm } from "./ui";
 import IconButton from "./ui/IconButton";
-import Doctor from "./Doctor";
+import ConnectionTest from "./ConnectionTest";
 
 const BUILTIN = new Set(["bridge", "host", "none"]);
 const NAME = /^[A-Za-z0-9][A-Za-z0-9_.-]*$/;
@@ -21,7 +21,7 @@ export default function Networks({ ctx }: { ctx: string }) {
   const [newName, setNewName] = useState("");
   const [pick, setPick] = useState<Record<string, string>>({});
   const [err, setErr] = useState<string | null>(null);
-  const [doctor, setDoctor] = useState(false);
+  const [testing, setTesting] = useState(false);
 
   async function act(args: string[]) {
     try {
@@ -44,7 +44,7 @@ export default function Networks({ ctx }: { ctx: string }) {
       <div className="inline newnet">
         <input aria-label="New network name" placeholder="New network name, like devnet" value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && valid && act(["network", "create", newName.trim()]).then(() => setNewName(""))} />
         <button className="primary" disabled={!valid} onClick={async () => { await act(["network", "create", newName.trim()]); setNewName(""); }}>Create network</button>
-        <button className="push-right" onClick={() => setDoctor(true)}>Troubleshoot a connection…</button>
+        <button className="push-right" onClick={() => setTesting(true)}>Test a connection…</button>
       </div>
       <Banner error={nets.error ?? err} onClose={() => setErr(null)} />
       {nets.data && nets.data.length === 0 && <Empty title="No networks">Docker creates a few built-in ones when it starts.</Empty>}
@@ -92,7 +92,7 @@ export default function Networks({ ctx }: { ctx: string }) {
           </tbody>
         </table>
       )}
-      {doctor && <Doctor ctx={ctx} onClose={() => setDoctor(false)} />}
+      {testing && <ConnectionTest ctx={ctx} onClose={() => setTesting(false)} />}
     </section>
   );
 }

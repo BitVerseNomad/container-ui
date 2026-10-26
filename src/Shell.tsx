@@ -3,17 +3,17 @@ import { Profile } from "./api";
 import { Icon, IconName } from "./ui/icons";
 import Menu from "./ui/Menu";
 
-export type Tab = "Containers" | "Images" | "Volumes" | "Networks" | "Kubernetes" | "Profiles" | "Setup";
+export type Tab = "Containers" | "Images" | "Volumes" | "Networks" | "Kubernetes" | "Profiles" | "Doctor";
 
-// Setup and Profiles are set-and-forget, so they sit at the bottom; daily work stays at the top.
-const BOTTOM: Tab = "Setup";
+// Doctor and Profiles are for when something is off, so they sit at the bottom; daily work stays at the top.
+const BOTTOM: Tab = "Doctor";
 const NAV: { tab: Tab; icon: IconName }[] = [
   { tab: "Containers", icon: "box" },
   { tab: "Images", icon: "image" },
   { tab: "Volumes", icon: "database" },
   { tab: "Networks", icon: "network" },
   { tab: "Kubernetes", icon: "cluster" },
-  { tab: "Setup", icon: "check" },
+  { tab: "Doctor", icon: "check" },
   { tab: "Profiles", icon: "sliders" },
 ];
 
@@ -30,7 +30,7 @@ type Props = {
   // the VM operation in flight, so the switcher says "Starting…" instead of the last known state
   vmOp?: { name: string; op: "starting" | "stopping" } | null;
   children: ReactNode;
-  // a count shown next to a nav item, e.g. setup problems left
+  // a count shown next to a nav item, e.g. problems that need action
   badges?: Partial<Record<Tab, number>>;
   // nav items left out for now, e.g. Kubernetes while the active profile has it turned off
   hidden?: Tab[];

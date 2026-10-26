@@ -68,7 +68,7 @@ fn safe(s: &str) -> Result<(), String> {
 // The page can only ask for the docker commands the app itself uses. Anything else (exec, cp, build,
 // login, prune of volumes...) is refused here, so a compromised page cannot do more than the UI can.
 const DOCKER_SUBCOMMANDS: &[&str] =
-    &["ps", "images", "search", "logs", "inspect", "stats", "start", "stop", "restart", "pause", "unpause", "rm", "rmi", "run"];
+    &["ps", "images", "search", "logs", "inspect", "stats", "start", "stop", "restart", "pause", "unpause", "rm", "rmi", "run", "rename"];
 
 fn docker_args_allowed(args: &[String]) -> Result<(), String> {
     let first = args.first().map(String::as_str).unwrap_or("");
@@ -85,6 +85,10 @@ fn docker_args_allowed(args: &[String]) -> Result<(), String> {
     if !ok || (first != "run" && first != "events" && !flags_ok(args)) {
         return Err(format!("\"docker {}\" is not available from the app", args.join(" ")));
     }
+    // Fix replaces a container by renaming the old one aside; only two plain container names.
+    if first == "rename" && !(args.len() == 3 && container_name_ok(&args[1]) && container_name_ok(&args[2])) {
+        return Err(format!("\"docker {}\" is not available from the app", args.join(" ")));
+    }
     if first == "run" {
         let home = std::env::var("HOME").unwrap_or_default();
         run_args_ok(args, &home)?;
@@ -98,7 +102,8 @@ fn allowed_flags(cmd: &str) -> (&'static [&'static str], &'static [&'static str]
     const FMT: &[&str] = &["--format"];
     match cmd {
         "ps" => (&["-a", "-q"], &["--filter", "--format"]),
-        "images" | "inspect" | "volume ls" | "image inspect" | "network ls" | "network inspect" => (&[], FMT),
+        "inspect" => (&[], &["--type", "--format"]),
+        "images" | "volume ls" | "image inspect" | "network ls" | "network inspect" => (&[], FMT),
         "search" => (&[], &["--limit", "--format"]),
         "logs" => (&["--timestamps"], &["--tail", "--since", "--until"]),
         "stats" => (&["--no-stream"], FMT),
@@ -159,6 +164,8 @@ fn run_args_ok(args: &[String], home: &str) -> Result<(), String> {
         let ok = match flag {
             "--name" => run_name_ok(val),
             "--network" => run_name_ok(val) && val != "host" && val != "none",
+            // Docker's own policies only, so a replaced container keeps the one it had.
+            "--restart" => matches!(val, "no" | "always" | "unless-stopped" | "on-failure") || val.strip_prefix("on-failure:").map_or(false, |n| n.parse::<u16>().is_ok()),
             "-p" => run_port_ok(val),
             "-v" => run_mount_ok(val, home),
             "-e" => val.split_once('=').map_or(false, |(k, _)| {
@@ -459,6 +466,13 @@ async fn exec(bin: &'static str, args: Vec<String>, merge_stderr: bool) -> Resul
 
 async fn run(args: Vec<String>) -> Result<String, String> {
     exec("colima", args, false).await
+}
+
+// Fix asks this for every step before it changes anything, so a run the backend would refuse never leaves a
+// container stopped halfway. Same rules as `docker`, nothing is run.
+#[tauri::command]
+fn docker_check(args: Vec<String>) -> Result<(), String> {
+    docker_args_allowed(&args)
 }
 
 #[tauri::command]
@@ -991,7 +1005,7 @@ fn reveal_compose(path: String) -> Result<(), String> {
 fn main() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
-            list_profiles, docker, docker_pull, env_check, install_tools, network_probe, kubectl, open_terminal, start_profile, apply_resources,
+            list_profiles, docker, docker_check, docker_pull, env_check, install_tools, network_probe, kubectl, open_terminal, start_profile, apply_resources,
             stop_profile, force_stop_profile, restart_profile, force_restart_profile, delete_profile, cancel_vm_op, host_resources, vm_log_tail, open_url, pick_folder, setup_report, setup_fix, find_compose_files, reveal_compose
         ])
         .run(tauri::generate_context!())
@@ -1229,6 +1243,29 @@ mod tests {
     }
 
     #[test]
+    fn rename_and_restart_are_allowed_only_in_the_shape_fix_uses() {
+        assert!(docker_args_allowed(&args(&["rename", "kafka", "kafka-old"])).is_ok());
+        for a in [&["rename", "kafka"][..], &["rename", "kafka", "-x"], &["rename", "kafka", "a b"], &["rename", "a", "b", "c"]] {
+            assert!(docker_args_allowed(&args(a)).is_err(), "{a:?}");
+        }
+        for v in ["no", "always", "unless-stopped", "on-failure", "on-failure:3"] {
+            assert!(docker_args_allowed(&args(&["run", "-d", "--restart", v, "x"])).is_ok(), "{v}");
+        }
+        for v in ["sometimes", "on-failure:x", "always;rm"] {
+            assert!(docker_args_allowed(&args(&["run", "-d", "--restart", v, "x"])).is_err(), "{v}");
+        }
+    }
+
+    #[test]
+    fn fix_reads_a_container_by_type_and_checks_a_run_before_it() {
+        assert!(docker_args_allowed(&args(&["inspect", "--type", "container", "--format", "{{.Name}}", "kafka-old"])).is_ok());
+        assert!(super::docker_check(args(&["run", "-d", "--name", "kafka", "-p", "127.0.0.1:9092:9092", "apache/kafka:latest"])).is_ok());
+        // The env keys Spring-style apps use are refused, and Fix must hear that before it stops anything.
+        assert!(super::docker_check(args(&["run", "-d", "-e", "spring.config.x=1", "x"])).is_err());
+        assert!(super::docker_check(args(&["exec", "kafka", "sh"])).is_err());
+    }
+
+    #[test]
     fn docker_allowlist_has_the_network_commands_the_app_uses() {
         for a in [&["network", "ls"][..], &["network", "create", "devnet"], &["network", "inspect", "devnet"], &["network", "connect", "devnet", "c"], &["network", "disconnect", "devnet", "c"], &["network", "rm", "devnet"]] {
             assert!(docker_args_allowed(&args(a)).is_ok(), "{a:?}");
@@ -1309,7 +1346,7 @@ mod tests {
             vec!["image", "prune", "--filter", "until=1h"],
             vec!["ps", "--size"],
             vec!["logs", "--tail"],
-            vec!["inspect", "--type", "container", "x"],
+            vec!["inspect", "--size", "x"],
         ] {
             assert!(docker_args_allowed(&args(&bad)).is_err(), "{bad:?} should be refused");
         }

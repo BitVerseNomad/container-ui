@@ -10,25 +10,27 @@ import { usePoll } from "./hooks";
 import { Banner } from "./ui";
 import Logs from "./Logs";
 import StatsTab from "./StatsTab";
-import Doctor from "./Doctor";
+import ConnectionTest from "./ConnectionTest";
 import { ActivityList, HealthPanel } from "./Health";
+import { FixStatus, useFixRuns } from "./FixIt";
+import { busy } from "./lib/fixStore";
 import { Problem, parseState, problemsFor } from "./lib/health";
 
 // Next to the state word, so a red dot beside "Running" says why.
-const SHORT: Record<Problem["id"], string> = { unhealthy: "Unhealthy", restarting: "Keeps restarting", oom: "Out of memory", crashed: "Stopped with an error", "kafka-localhost": "Only reachable from your Mac", "kafka-ui-empty": "No Kafka set up", "kafka-ui-localhost": "Can't reach Kafka" };
+const SHORT: Record<string, string> = { unhealthy: "Unhealthy", restarting: "Keeps restarting", oom: "Out of memory", crashed: "Stopped with an error", "kafka-localhost": "Only reachable from your Mac", "kafka-ui-empty": "No Kafka set up", "kafka-ui-localhost": "Can't reach Kafka" };
 import { isKubeOwned } from "./lib/compose";
 import { eventWindow, parseEvents, timeline } from "./lib/events";
 
 const TABS = ["Logs", "Inspect", "Stats", "Mounts", "Network", "Activity"] as const;
 type Tab = (typeof TABS)[number];
-// appProblems: known-app setup problems, worked out by the list from every container.
-type Props = { ctx: string; id: string; appProblems?: Problem[]; onBack: () => void };
+// appProblems: the Doctor's findings about this container that need the other containers to work out.
+type Props = { ctx: string; id: string; appProblems?: Problem[]; onBack: () => void; onReplaced?: (name: string) => void };
 
-export default function ContainerDetail({ ctx, id, appProblems, onBack }: Props) {
+export default function ContainerDetail({ ctx, id, appProblems, onBack, onReplaced }: Props) {
   const confirm = useConfirm();
   const [tab, setTab] = useState<Tab>("Logs");
   const [err, setErr] = useState<string | null>(null);
-  const [doctor, setDoctor] = useState(false);
+  const [testing, setTesting] = useState(false);
   const { data: c, error, reload } = usePoll(async () => JSON.parse(await docker(ctx, ["inspect", id]))[0] as Inspect, [ctx, id]);
 
   async function act(args: string[], done?: () => void) {
@@ -49,26 +51,29 @@ export default function ContainerDetail({ ctx, id, appProblems, onBack }: Props)
   const status = raw.charAt(0).toUpperCase() + raw.slice(1);
   const ports = running ? publishedPortPairs(c?.NetworkSettings.Ports) : [];
   const state = c ? parseState(JSON.stringify([c])) : null;
-  const extra = state?.running ? appProblems ?? [] : [];
+  const extra = appProblems ?? [];
   const problem = state ? [...problemsFor(state), ...extra][0] : undefined;
   const activity = usePoll(async () => timeline(parseEvents(await docker(ctx, ["events", ...eventWindow(Date.now(), 86_400_000), "--filter", `container=${name}`, "--filter", "type=container", "--format", "{{json .}}"])), 50, name), [ctx, name], 10000, !!c && tab === "Activity");
   // The cluster owns these: stopping or removing one by hand only makes Kubernetes start it again, or breaks the pod.
   const kube = !!c && (isKubeOwned({ Names: name }) || !!c.Config.Labels?.["io.kubernetes.pod.name"]);
   const ip = Object.values(c?.NetworkSettings.Networks ?? {})[0]?.IPAddress;
+  // While a Fix swaps this container, Start, Stop or Remove would break the swap or lose the old one.
+  const fixing = busy(useFixRuns(), name);
 
   return (
     <section className="detail">
       <button className="back" onClick={onBack}>← Containers</button>
       <header>
         <h2>{name}</h2>
-        <Status level={problem?.level ?? (running ? "on" : paused ? "warn" : "off")}>{problem ? `${status} · ${SHORT[problem.id]}` : status}</Status>
+        <Status level={problem?.level ?? (running ? "on" : paused ? "warn" : "off")}>{problem ? `${status} · ${problem.short ?? SHORT[problem.id] ?? problem.title}` : status}</Status>
         {c && kube && (
           <div className="actions-inline">
             {running && <button onClick={() => invoke("open_terminal", { kind: "shell", context: ctx, target: name }).catch((e) => setErr(String(e)))}>Open a shell</button>}
             <span className="hint">Managed by Kubernetes. Restart or remove it from the cluster, not here.</span>
           </div>
         )}
-        {c && !kube && (
+        {c && !kube && fixing && <span className="hint">A fix is running for this container.</span>}
+        {c && !kube && !fixing && (
           <div className="actions-inline">
             {running && (
               <>
@@ -109,7 +114,8 @@ export default function ContainerDetail({ ctx, id, appProblems, onBack }: Props)
         </p>
       )}
 
-      {state && <HealthPanel state={state} extra={extra} onLogs={tab === "Logs" ? undefined : () => setTab("Logs")} />}
+      {c && <FixStatus name={name} />}
+      {state && <HealthPanel state={state} extra={extra} ctx={ctx} onFixed={onReplaced} onLogs={tab === "Logs" ? undefined : () => setTab("Logs")} />}
 
       <div className="tabs" role="tablist">
         {TABS.map((t) => (
@@ -147,7 +153,7 @@ export default function ContainerDetail({ ctx, id, appProblems, onBack }: Props)
                 </tbody>
               </table>
             )}
-            <div><button onClick={() => setDoctor(true)}>Troubleshoot a connection…</button></div>
+            <div><button onClick={() => setTesting(true)}>Test a connection…</button></div>
           </>
         )}
         {tab === "Mounts" && c && (
@@ -189,7 +195,7 @@ export default function ContainerDetail({ ctx, id, appProblems, onBack }: Props)
           </>
         )}
       </div>
-      {doctor && <Doctor ctx={ctx} from={name} onClose={() => setDoctor(false)} />}
+      {testing && <ConnectionTest ctx={ctx} from={name} onClose={() => setTesting(false)} />}
     </section>
   );
 }

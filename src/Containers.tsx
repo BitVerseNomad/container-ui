@@ -20,8 +20,9 @@ import ComposeProjects from "./ComposeProjects";
 import { ComposeScan } from "./useComposeScan";
 import ContainerDetail from "./ContainerDetail";
 import { HealthBadge, stripHealth } from "./Health";
-import { Problem, healthFromStatus, parseState, problemsFor } from "./lib/health";
-import { appProblems } from "./lib/apps";
+import { healthFromStatus, parseState } from "./lib/health";
+import { doctor } from "./lib/doctor";
+import { useMuted } from "./Doctor";
 
 type VmOp = { op: "starting" | "stopping"; cmd: string; args: Record<string, unknown> };
 // `last` lives here, not in this screen, so Retry still repeats the right command after the screen remounts.
@@ -56,9 +57,9 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
   const df = usePoll<DfRow[]>(async () => (ctx ? dockerJson<DfRow>(ctx, ["system", "df"]) : []), [ctx], 30000);
   const idKey = (containers.data ?? []).map((c) => c.ID).join(",");
   const states = usePoll(async () => {
-    if (!ctx || !idKey) return { list: [], apps: new Map<string, Problem[]>() };
+    if (!ctx || !idKey) return { list: [], all: [] as unknown[] };
     const all: unknown[] = JSON.parse(await docker(ctx, ["inspect", ...idKey.split(",")]));
-    return { list: all.map((el) => parseState(JSON.stringify([el]))).filter((s): s is NonNullable<typeof s> => s !== null), apps: appProblems(all, ctx) };
+    return { list: all.map((el) => parseState(JSON.stringify([el]))).filter((s): s is NonNullable<typeof s> => s !== null), all };
   }, [ctx, idKey], 10000);
   const [q, setQ] = useState("");
   const [only, setOnly] = useState<"all" | "running" | "attention">("all");
@@ -104,9 +105,14 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
   const lastStates = useRef(states.data);
   if (states.data) lastStates.current = states.data;
   const stateList = states.data ?? lastStates.current;
+  // The Doctor's checks. Needs attention lists what needs action there; worth-knowing findings stay on the
+  // Doctor page and the container page. (The CPU, disk and VM checks need data this list doesn't read, and are
+  // never "needs action", so the two agree.)
+  const mutedKeys = useMuted();
+  const report = useMemo(() => doctor({ containers: stateList?.all ?? [], ctx: ctx ?? "colima" }, mutedKeys), [stateList, ctx, mutedKeys]);
   const problems = useMemo(
-    () => new Map<string, Problem[]>((stateList?.list ?? []).map((s) => [s.name, [...problemsFor(s), ...(s.running ? stateList?.apps.get(s.name) ?? [] : [])]] as [string, Problem[]]).filter(([, p]) => p.length > 0)),
-    [stateList],
+    () => new Map([...report.byContainer].map(([n, l]) => [n, l.filter((f) => f.severity === "action")] as const).filter(([, l]) => l.length > 0)),
+    [report],
   );
   const all = containers.data ?? [];
   // With nothing left to attend to, the filter button goes away; fall back to All instead of an empty table.
@@ -138,7 +144,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
 
   if (detailId && ctx) {
     const named = (containers.data ?? []).find((c) => c.ID === detailId || c.ID.startsWith(detailId) || c.Names === detailId)?.Names;
-    return <ContainerDetail ctx={ctx} id={detailId} appProblems={named ? stateList?.apps.get(named) : undefined} onBack={() => setDetailId(null)} />;
+    return <ContainerDetail ctx={ctx} id={detailId} appProblems={named ? report.extra.get(named) : undefined} onBack={() => setDetailId(null)} onReplaced={(n) => { setDetailId(n); containers.reload(); states.reload(); }} />;
   }
 
   if (!profile) {
@@ -191,7 +197,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
                       </td>
                       <td>
                         {p ? (
-                          <span className={`plevel ${p.level} clip status-text`} title={`${stripHealth(c.Status)}. ${p.short ? `${p.title}. ` : ""}${p.detail}`}>{p.short ?? p.title}</span>
+                          <span className={`plevel ${p.level} clip status-text`} title={p.fix ? `${stripHealth(c.Status)}. ${p.title}. Open it to fix it.` : `${stripHealth(c.Status)}. ${p.short ? `${p.title}. ` : ""}${p.detail}`}>{p.short ?? p.title}</span>
                         ) : (
                           <span className="clip status-text">{stripHealth(c.Status)} <HealthBadge status={healthFromStatus(c.Status)} /></span>
                         )}

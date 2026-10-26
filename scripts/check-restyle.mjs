@@ -18,7 +18,7 @@ for (const [w, h] of [[1100, 680], [800, 600]]) {
   await page.waitForSelector(".content");
   // The Kubernetes item appears once the app has seen the profile's kubectl context.
   await nav(page, "Kubernetes").waitFor({ timeout: 6000 }).catch(() => {});
-  for (const name of ["Containers", "Images", "Volumes", "Networks", "Kubernetes", "Setup", "Profiles"]) {
+  for (const name of ["Containers", "Images", "Volumes", "Networks", "Kubernetes", "Doctor", "Profiles"]) {
     await nav(page, name).click();
     await page.waitForTimeout(400);
     const over = await page.evaluate(() => { const c = document.querySelector(".content"); return c.scrollWidth - c.clientWidth; });

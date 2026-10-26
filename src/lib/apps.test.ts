@@ -36,7 +36,10 @@ test("Given Kafka UI with no cluster and a broker on image defaults, when checke
   assert.match(t, /apache\/kafka:3\.9\.0 && \\\ndocker --context 'colima' rm kafka-u5it-old$/);
   assert.doesNotMatch(t, /rm -f/);
   assert.equal(u.id, "kafka-ui-empty");
-  assert.match(u.detail, /Fix kafka-u5it first/);
+  assert.match(u.detail, /Fix replaces kafka-u5it first, then kafka-ui-xekw/);
+  assert.deepEqual(u.fix!.steps!.map((r) => r.name), ["kafka-u5it", "kafka-ui-xekw"]);
+  assert.deepEqual(k.fix!.steps!.map((r) => r.name), ["kafka-u5it"]);
+  assert.match(u.fix!.text, /rename kafka-u5it kafka-u5it-old[\s\S]*rename kafka-ui-xekw kafka-ui-xekw-old/);
   assert.match(u.fix!.text, /-e KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS='kafka-u5it:19092'/);
   assert.match(u.fix!.text, /-e TZ='UTC'/);
   assert.doesNotMatch(u.fix!.text, /PATH=|JAVA_HOME=/);
@@ -122,4 +125,58 @@ test("Given a broker only on the default bridge, when replaced, then a network i
   const [k] = appProblems([broker([], { nets: ["bridge"], mode: "default" }), ui([], { nets: ["bridge"], mode: "default" })]).get("kafka-u5it")!;
   assert.match(k.fix!.text, /^docker --context 'colima' network create kafka\n/);
   assert.match(k.fix!.text, /--network 'kafka'/);
+});
+
+test("Given a mount the app may not use or a compose container, when checked, then Fix is copy-only", () => {
+  const outside = { Type: "bind", Source: "/opt/kafka-data", Destination: "/data", RW: true };
+  assert.equal(appProblems([broker([], { mounts: [outside] }), ui()]).get("kafka-u5it")![0].fix!.steps, undefined);
+  // The broker can't be replaced by the app, so Kafka UI's Fix is copy-only too.
+  assert.equal(appProblems([broker([], { mounts: [outside] }), ui()]).get("kafka-ui-xekw")![0].fix!.steps, undefined);
+  const labels = { "com.docker.compose.project": "shop" };
+  assert.equal(appProblems([broker(["KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka-u5it:19092"]), ui([], { labels })]).get("kafka-ui-xekw")![0].fix!.steps, undefined);
+});
+
+test("Given a replace step, when it is built, then its run args are the shape the backend accepts", () => {
+  const vol = { Type: "volume", Name: "kafka-data3", Destination: "/var/lib/kafka/data", RW: true };
+  const [r] = appProblems([broker([], { mounts: [vol], nets: ["devnet", "appnet"], restart: "unless-stopped" }), ui()]).get("kafka-u5it")![0].fix!.steps!;
+  assert.deepEqual(r.run.slice(0, 10), ["run", "-d", "--name", "kafka-u5it", "--network", "devnet", "--restart", "unless-stopped", "-p", "9092:9092"]);
+  assert.deepEqual(r.run.slice(10, 12), ["-v", "kafka-data3:/var/lib/kafka/data"]);
+  assert.equal(r.run[r.run.length - 1], "apache/kafka:3.9.0");
+  assert.equal((r.run.length - 3) % 2, 0); // flag and value pairs between "run -d" and the image
+  assert.deepEqual(r.connect, ["appnet"]);
+});
+
+test("Given a port bound to 127.0.0.1 and an on-failure retry count, when replaced, then both carry over", () => {
+  const b = broker([], { restart: "on-failure" });
+  b.NetworkSettings.Ports["9092/tcp"] = [{ HostIp: "127.0.0.1", HostPort: "9092" }];
+  (b.HostConfig.RestartPolicy as { MaximumRetryCount?: number }).MaximumRetryCount = 3;
+  const [k] = appProblems([b, ui()]).get("kafka-u5it")!;
+  const run = k.fix!.steps!.at(-1)!.run;
+  assert.ok(run.join(" ").includes("-p 127.0.0.1:9092:9092"));
+  assert.ok(run.join(" ").includes("--restart on-failure:3"));
+});
+
+test("Given a broker with its own settings, when replaced, then they are kept next to the listener setup", () => {
+  const [k] = appProblems([broker(["KAFKA_LISTENERS=PLAINTEXT://localhost:9092", "KAFKA_HEAP_OPTS=-Xmx512m", "TZ=Europe/Lisbon"]), ui()]).get("kafka-u5it")!;
+  const run = k.fix!.steps!.at(-1)!.run;
+  assert.ok(run.includes("KAFKA_HEAP_OPTS=-Xmx512m") && run.includes("TZ=Europe/Lisbon"));
+  assert.ok(!run.includes("KAFKA_LISTENERS=PLAINTEXT://localhost:9092"), "the broken listener is replaced");
+  assert.ok(!run.some((a) => a.startsWith("PATH=")), "image settings are left to the image");
+});
+
+test("Given settings Fix can't run again, when checked, then Fix is copy-only and says which", () => {
+  const b = broker();
+  Object.assign(b.HostConfig, { Memory: 1073741824, ExtraHosts: ["db:10.0.0.5"] });
+  const [k] = appProblems([b, ui()]).get("kafka-u5it")!;
+  assert.equal(k.fix!.steps, undefined);
+  assert.match(k.detail, /memory or CPU limits, extra hosts, which Fix can't carry over/);
+  const udp = broker();
+  udp.NetworkSettings.Ports["9999/udp"] = [{ HostIp: "", HostPort: "9999" }];
+  assert.equal(appProblems([udp, ui()]).get("kafka-u5it")![0].fix!.steps, undefined);
+});
+
+test("Given a replace step, when it is built, then it records what the container ran with", () => {
+  const b = { ...broker(), Image: "sha256:abc", Config: { ...broker().Config, Cmd: ["/etc/kafka/docker/run"], User: "appuser" } };
+  const [k] = appProblems([b, ui()]).get("kafka-u5it")!;
+  assert.deepEqual(k.fix!.steps!.at(-1)!.keep, { image: "apache/kafka:3.9.0", imageId: "sha256:abc", Cmd: ["/etc/kafka/docker/run"], Entrypoint: undefined, User: "appuser", WorkingDir: undefined, Healthcheck: undefined });
 });

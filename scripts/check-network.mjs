@@ -47,7 +47,7 @@ await p.close();
 // 2. the doctor, from the Kafka-style pair: UI on the default bridge, broker on devnet
 p = await open("Networks");
 await p.waitForSelector("tbody tr:not(.group-row)");
-await p.getByRole("button", { name: /Troubleshoot a connection/ }).click();
+await p.getByRole("button", { name: /Test a connection/ }).click();
 await p.waitForSelector(".drawer");
 await p.getByLabel("From container").selectOption("kafka-ui");
 await p.getByLabel("To container").selectOption("kafka");
@@ -84,7 +84,7 @@ await p.getByRole("tab", { name: "Network" }).click();
 await p.waitForSelector(".tabpane table", { timeout: 4000 }).catch(() => {});
 t = await p.locator(".tabpane").innerText();
 check(/kafka-ui/.test(t) && /bridge/.test(t) && /No name lookup/.test(t), "container page: shows its networks and flags the default bridge");
-await p.getByRole("button", { name: /Troubleshoot a connection/ }).click();
+await p.getByRole("button", { name: /Test a connection/ }).click();
 await p.waitForSelector(".drawer");
 await p.waitForFunction(() => document.querySelector("select[aria-label='From container']")?.options.length > 1, null, { timeout: 4000 }).catch(() => {});
 check(await p.getByLabel("From container").inputValue() === "kafka-ui", "container page: the doctor opens with this container as the client");

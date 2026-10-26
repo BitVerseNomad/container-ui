@@ -10,7 +10,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const hex = (n: number) => Array.from({ length: n }, () => "0123456789abcdef"[Math.floor(Math.random() * 16)]).join("");
 const GB = 1024 ** 3;
 
-type Ctr = { labels?: string; health?: string; healthOut?: string; streak?: number; restarts?: number; exitCode?: number; oom?: boolean; networks: string[]; exposed?: number[]; id: string; name: string; image: string; state: string; ports: [number, number][]; mounts: { Type: string; Name?: string; Source: string; Destination: string; RW: boolean }[]; env: string[]; born: number; cpu: number; mem: number };
+type Ctr = { error?: string; labels?: string; health?: string; healthOut?: string; streak?: number; restarts?: number; exitCode?: number; oom?: boolean; networks: string[]; exposed?: number[]; id: string; name: string; image: string; state: string; ports: [number, number][]; mounts: { Type: string; Name?: string; Source: string; Destination: string; RW: boolean }[]; env: string[]; born: number; cpu: number; mem: number };
 const now = Date.now();
 const db = {
   profiles: [{ name: "default", status: "Running", arch: "aarch64", cpus: 4, memory: 8 * GB, disk: 100 * GB, runtime: "docker", address: "192.168.5.2" }],
@@ -72,10 +72,18 @@ if (scenario === "k8spods") {
     { labels: podLabels, networks: [], id: hex(64), name: "k8s_POD_coredns-6799fbcd5-xk2p8_kube-system_0", image: "rancher/mirrored-pause:3.6", state: "running", ports: [], mounts: [], env: [], born: now - 36e5, cpu: 0, mem: 1e6 },
   );
 }
+if (scenario === "doctor") db.ctrs.push(
+  { networks: ["devnet"], exposed: [8080], id: hex(64), name: "orders", image: "acme/orders-api:1.4", state: "running", ports: [], mounts: [], env: ["DATABASE_URL=mysql://root@localhost:3306/orders"], born: now - 9e5, cpu: 0.7, mem: 120e6 },
+  { networks: ["bridge"], id: hex(64), name: "billing", image: "acme/billing:2.0", state: "running", ports: [], mounts: [], env: ["REDIS_HOST=sessions"], born: now - 8e5, cpu: 0.3, mem: 60e6 },
+  { networks: ["bridge"], exposed: [6379], id: hex(64), name: "sessions", image: "redis:7", state: "running", ports: [], mounts: [], env: [], born: now - 8e5, cpu: 0.1, mem: 8e6 },
+  { networks: ["devnet"], exposed: [5432], exitCode: 1, id: hex(64), name: "pg", image: "postgres:16", state: "exited", ports: [], mounts: [], env: [], born: now - 7e5, cpu: 0, mem: 0 },
+);
 if (scenario === "nonet") { db.networks = ["bridge", "host", "none"]; db.ctrs.forEach((c) => { c.networks = ["bridge"]; }); }
 if (["stopped", "failed", "stuck"].includes(scenario)) db.profiles[0].status = "Stopped";
 if (["none", "missing", "partial", "nobrew"].includes(scenario)) db.profiles = [];
 const ipOf = (c: Ctr, net: string) => `172.${net === "bridge" ? 17 : 18 + Math.max(0, db.networks.indexOf(net) - 3)}.0.${2 + db.ctrs.indexOf(c)}`;
+// A check can make the next `docker run` of one container fail, to see Fix put the old one back.
+let failRun: string | null = null;
 const find = (id: string) => db.ctrs.find((c) => c.id.startsWith(id) || c.name === id);
 const lines = (rows: object[]) => rows.map((r) => JSON.stringify(r)).join("\n");
 const fmtPorts = (c: Ctr) => c.state === "running" ? [...c.ports.map(([h, p]) => `0.0.0.0:${h}->${p}/tcp`), ...(c.exposed ?? []).filter((e) => !c.ports.some(([, p]) => p === e)).map((e) => `${e}/tcp`)].join(", ") : "";
@@ -135,7 +143,8 @@ function dockerCmd(args: string[]): string {
           "redis:7": { Architecture: "arm64", Config: { Env: null, ExposedPorts: { "6379/tcp": {} }, Volumes: { "/data": {} }, Labels: {} } },
           "nginx:latest": { Architecture: "arm64", Config: { Env: ["NGINX_VERSION=1.27.2"], ExposedPorts: { "80/tcp": {} }, Volumes: null, Labels: { maintainer: "NGINX Docker Maintainers" } } },
         };
-        return JSON.stringify([{ Os: "linux", ...(known[ref] ?? { Architecture: "arm64", Config: { Env: null, ExposedPorts: null, Volumes: null, Labels: {} } }) }]);
+        const refs = args.slice(2).filter((a) => !a.startsWith("-"));
+        return JSON.stringify((refs.length ? refs : [ref]).map((r) => { const tag = r.replace(/^sha256:/, ""); return { Id: `sha256:${tag}`, Os: "linux", ...(known[tag] ?? { Architecture: "arm64", Config: { Env: null, ExposedPorts: null, Volumes: null, Labels: {} } }) }; }));
       }
       if (sub === "inspect") return /mysql/.test(args[args.length - 1]) ? '{"3306/tcp":{},"33060/tcp":{}}' : /nginx/.test(args[args.length - 1]) ? '{"80/tcp":{}}' : "null";
       db.images = db.images.filter((i) => db.ctrs.some((c) => c.image.startsWith(i.Repository))); return "Total reclaimed space: 0B";
@@ -146,7 +155,9 @@ function dockerCmd(args: string[]): string {
       db.images = db.images.filter((i) => i !== img); return `Untagged: ${args[1]}`;
     }
     case "logs": { if (args.includes("--since") && !args.includes("--until")) return "" as T; const c = find(args[args.length - 1])!; const t = new Date().toISOString(); const base = logLines(c); return Array.from({ length: 160 }, (_, i) => `${t.slice(0, 17)}${String(i % 60).padStart(2, "0")}Z ${base[i % base.length]}`).join("\n") + "\n"; }
-    case "inspect": { const many = args.slice(1).map((i) => find(i)!).filter(Boolean); return JSON.stringify(many.map((c) => ({ Id: c.id, Name: `/${c.name}`, Created: new Date(c.born).toISOString(), Path: c.image.startsWith("mysql") ? "docker-entrypoint.sh" : "/docker-entrypoint.sh", Args: ["mysqld"], State: { Status: c.state, Running: c.state !== "exited", Paused: c.state === "paused", ExitCode: c.exitCode ?? 0, OOMKilled: !!c.oom, StartedAt: new Date(c.born).toISOString(), ...(c.health ? { Health: { Status: c.health, FailingStreak: c.streak ?? 0, Log: c.healthOut ? [{ ExitCode: 1, Output: c.healthOut }] : [] } } : {}) }, RestartCount: c.restarts ?? 0, Config: { Image: c.image, Env: c.env, ExposedPorts: Object.fromEntries([...c.ports.map(([, p]) => p), ...(c.exposed ?? [])].map((p) => [`${p}/tcp`, {}])) }, HostConfig: { RestartPolicy: { Name: "no" } }, NetworkSettings: { Ports: Object.fromEntries(c.ports.map(([h, p]) => [`${p}/tcp`, [{ HostIp: "0.0.0.0", HostPort: String(h) }]])), Networks: Object.fromEntries(c.networks.map((n) => [n, { IPAddress: ipOf(c, n), Aliases: n === "bridge" ? null : [c.name, c.id.slice(0, 12)] }])) }, Mounts: c.mounts }))); }
+    case "rename": { const c = find(args[1]); if (!c) throw `Error response from daemon: No such container: ${args[1]}`; c.name = args[2]; return ""; }
+    case "inspect": if (args.includes("--format")) { const ref = args[args.length - 1]; const c = find(ref); if (!c) throw `Error: No such object: ${ref}`; return args[args.indexOf("--format") + 1] === "{{.Name}}" ? `/${c.name}\n` : `${c.state === "running"} ${c.restarts ?? 0} \n`; }
+    { const many = args.slice(1).map((i) => find(i)!).filter(Boolean); return JSON.stringify(many.map((c) => ({ Id: c.id, Image: `sha256:${c.image}`, Name: `/${c.name}`, Created: new Date(c.born).toISOString(), Path: c.image.startsWith("mysql") ? "docker-entrypoint.sh" : "/docker-entrypoint.sh", Args: ["mysqld"], State: { Status: c.state, Running: c.state !== "exited", Paused: c.state === "paused", ExitCode: c.exitCode ?? 0, Error: c.error ?? "", OOMKilled: !!c.oom, StartedAt: new Date(c.born).toISOString(), ...(c.health ? { Health: { Status: c.health, FailingStreak: c.streak ?? 0, Log: c.healthOut ? [{ ExitCode: 1, Output: c.healthOut }] : [] } } : {}) }, RestartCount: c.restarts ?? 0, Config: { Image: c.image, Env: c.env, ExposedPorts: Object.fromEntries([...c.ports.map(([, p]) => p), ...(c.exposed ?? [])].map((p) => [`${p}/tcp`, {}])) }, HostConfig: { NetworkMode: c.networks[0] ?? "bridge", RestartPolicy: { Name: "no" } }, NetworkSettings: { Ports: Object.fromEntries(c.ports.map(([h, p]) => [`${p}/tcp`, [{ HostIp: "0.0.0.0", HostPort: String(h) }]])), Networks: Object.fromEntries(c.networks.map((n) => [n, { IPAddress: ipOf(c, n), Aliases: n === "bridge" ? null : [c.name, c.id.slice(0, 12)] }])) }, Mounts: c.mounts }))); }
     case "system": if (args.includes("-v")) { const sz: Record<string, string> = { "mysql-data": "412MB", "redis-data": "18MB", "pgdata-old": "1.2GB" }; return JSON.stringify({ Images: [], Containers: [], BuildCache: [], Volumes: db.volumes.map((Name) => ({ Name, Links: db.ctrs.filter((c) => c.mounts.some((x) => x.Name === Name)).length, Size: sz[Name] ?? (Name.startsWith("a") ? "36B" : "4kB") })) }); } return dfLines();
     case "stats": {
       if (args[args.length - 1] === "--no-stream") return lines(db.ctrs.filter((c) => c.state === "running").map((c) => ({ Name: c.name, CPUPerc: `${c.cpu.toFixed(2)}%`, MemUsage: `${(c.mem / 2 ** 20).toFixed(1)}MiB / 7.7GiB` }))); const c = find(args[args.length - 1])!; c.cpu = Math.max(0.1, c.cpu + (Math.random() - 0.45)); return lines([{ CPUPerc: `${c.cpu.toFixed(2)}%`, MemUsage: `${(c.mem / 2 ** 20).toFixed(1)}MiB / 7.7GiB`, NetIO: "1.2kB / 648B", BlockIO: "0B / 4.1kB", PIDs: "29" }]); }
@@ -154,6 +165,7 @@ function dockerCmd(args: string[]): string {
     case "rm": { const gone = args.slice(1).filter((a) => !a.startsWith("-")).map((x) => find(x)); db.ctrs = db.ctrs.filter((c) => !gone.includes(c)); return args.slice(1).filter((a) => !a.startsWith("-")).join("\n"); }
     case "run": {
       const name = args[args.indexOf("--name") + 1]; const image = args[args.length - 1];
+      if (failRun === name) { failRun = null; throw `docker: Error response from daemon: failed to create task for container ${name}: simulated`; }
       const net = args[args.indexOf("--network") + 1]; if (args.includes("--network") && !db.networks.includes(net)) throw `docker: Error response from daemon: network ${net} not found`;
       const ports = args.flatMap((a, i) => (args[i - 1] === "-p" ? [a] : [])).map((p) => { const parts = p.split(":"); const cp = Number(parts.pop()); const hp = parts.length ? Number(parts.pop()) : undefined; return [hp ?? NaN, cp]; }) as number[][];
       for (const [h] of ports) if (ports.length && db.ctrs.some((c) => c.state === "running" && c.ports.some(([x]) => x === h))) throw `docker: Error response from daemon: driver failed programming external connectivity: Bind for 0.0.0.0:${h} failed: port is already allocated`;
@@ -168,11 +180,12 @@ async function progress(event: string, steps: [string, number][]) { for (const [
 
 export async function invoke<T>(cmd: string, a: Record<string, any> = {}): Promise<T> {
   ((window as any).__calls ??= []).push(cmd);
-  (window as any).__mock = { setStatus: (s: string) => { db.profiles[0].status = s; }, state: () => JSON.parse(JSON.stringify(db)) };
+  (window as any).__mock = { setStatus: (s: string) => { db.profiles[0].status = s; }, state: () => JSON.parse(JSON.stringify(db)), failRunOnce: (name: string) => { failRun = name; } };
   await sleep(60);
   switch (cmd) {
     case "list_profiles": return db.profiles.map((p) => ({ ...p })) as T; // fresh objects per call, like the real IPC
-    case "docker": { const args: string[] = a.args.filter((x: string) => x !== "--format" && x !== "{{json .}}"); const i = a.args.indexOf("--format"); return dockerCmd(i > 0 && a.args[0] === "image" ? a.args : args) as T; }
+    case "docker": { const args: string[] = a.args.filter((x: string) => x !== "--format" && x !== "{{json .}}"); const i = a.args.indexOf("--format"); return dockerCmd(i > 0 && (a.args[0] === "image" || (a.args[0] === "inspect" && a.args[i + 1] !== "{{json .}}")) ? a.args : args) as T; }
+    case "docker_check": return undefined as T;
     case "docker_pull": {
       if (a.image === "ghcr.io/acme/private:1") {
         await progress("pull-progress", [["1: Pulling from acme/private", 200]]);

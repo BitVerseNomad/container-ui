@@ -13,7 +13,8 @@ import Networks from "./Networks";
 import Kubernetes from "./Kubernetes";
 import Profiles from "./Profiles";
 import InstallCard from "./InstallCard";
-import Setup, { useSetup } from "./Setup";
+import { useSetup } from "./Setup";
+import Doctor, { groups, useDoctor, useMuted } from "./Doctor";
 import { blocking, needsAttention } from "./lib/setup";
 import { useEnv } from "./useEnv";
 import { useComposeScan } from "./useComposeScan";
@@ -77,6 +78,9 @@ export default function App() {
   const setup = useSetup(current);
   const setupFails = setup.findings ? blocking(setup.findings) : 0;
   const setupTodo = setup.findings ? needsAttention(setup.findings) : 0;
+  const doc = useDoctor(ctx, current);
+  const mutedKeys = useMuted();
+  const doctorTodo = groups(setup.findings ?? [], doc.report, mutedKeys).todo;
   // Not blocking, but it's the "my terminal shows other containers" confusion, so it earns the strip too.
   const ctxMismatch = setup.findings?.find((f) => f.id === "context" && f.status === "warn");
   const toolsMissing = !!env && (!env.colima || !env.docker);
@@ -125,12 +129,12 @@ export default function App() {
           onKubernetes={kubeOn ? () => setTab("Kubernetes") : undefined}
         />
       )
-    ) : tab === "Setup" ? (
-      // Until the tool check answers, an empty Setup could read as an all-clear on a Mac with nothing installed.
+    ) : tab === "Doctor" ? (
+      // Until the tool check answers, an empty Doctor could read as an all-clear on a Mac with nothing installed.
       !env ? null : toolsMissing ? (
-        <Empty title="Install Colima and Docker first">The setup check needs both. The Containers screen installs them with one click.</Empty>
+        <Empty title="Install Colima and Docker first">The checks need both. The Containers screen installs them with one click.</Empty>
       ) : (
-        <Setup {...setup} onProfiles={() => setTab("Profiles")} />
+        <Doctor ctx={ctx} setup={setup} doc={doc} onProfiles={() => setTab("Profiles")} onGo={(page) => setTab(page)} onOpen={(name) => { setDetailId(name); setTab("Containers"); }} />
       )
     ) : tab === "Profiles" ? (
       <Profiles
@@ -174,18 +178,18 @@ export default function App() {
     );
 
   return (
-    <Shell badges={{ Setup: setupTodo }} hidden={kubeOn ? [] : ["Kubernetes"]} nav={tab} onNav={(t) => { setDetailId(null); setPullOnOpen(false); setNewProfileOnOpen(false); setTab(t); }} profiles={profiles} active={active} onSelect={switchTo} onVm={vmFromAnywhere} vmBusy={vm.op !== null} vmOp={vm.op && opName(vm) ? { name: opName(vm)!, op: vm.op } : null} onNewProfile={() => { setDetailId(null); setNewProfileOnOpen(true); setTab("Profiles"); }}>
+    <Shell badges={{ Doctor: doctorTodo }} hidden={kubeOn ? [] : ["Kubernetes"]} nav={tab} onNav={(t) => { setDetailId(null); setPullOnOpen(false); setNewProfileOnOpen(false); setTab(t); }} profiles={profiles} active={active} onSelect={switchTo} onVm={vmFromAnywhere} vmBusy={vm.op !== null} vmOp={vm.op && opName(vm) ? { name: opName(vm)!, op: vm.op } : null} onNewProfile={() => { setDetailId(null); setNewProfileOnOpen(true); setTab("Profiles"); }}>
       {!(tab === "Containers" && detailId) && <PageHeader title={tab} />}
       <Banner error={error} />
       <Banner error={appError} onClose={() => setAppError(null)} />
-      {tab !== "Setup" && !toolsMissing && setupFails > 0 && (
-        <button className="setup-strip" onClick={() => setTab("Setup")}>
-          <Icon name="alert" size={14} /> {setupTodo} setup problem{setupTodo === 1 ? "" : "s"} will break docker in your terminal. Review in Setup
+      {tab !== "Doctor" && !toolsMissing && setupFails > 0 && (
+        <button className="setup-strip" onClick={() => setTab("Doctor")}>
+          <Icon name="alert" size={14} /> {setupTodo} setup problem{setupTodo === 1 ? "" : "s"} will break docker in your terminal. Review in Doctor
         </button>
       )}
-      {tab !== "Setup" && !toolsMissing && setupFails === 0 && ctxMismatch && (
-        <button className="setup-strip warn" onClick={() => setTab("Setup")}>
-          <Icon name="alert" size={14} /> {ctxMismatch.detail} Review in Setup
+      {tab !== "Doctor" && !toolsMissing && setupFails === 0 && ctxMismatch && (
+        <button className="setup-strip warn" onClick={() => setTab("Doctor")}>
+          <Icon name="alert" size={14} /> {ctxMismatch.detail} Review in Doctor
         </button>
       )}
       {page}

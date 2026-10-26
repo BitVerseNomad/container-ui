@@ -14,7 +14,7 @@ await p.waitForSelector("table.list tbody tr:not(.group-row)");
 const nav = (n) => p.locator(".sidebar").getByRole("button", { name: n, exact: true }).click();
 
 await p.locator(".sidebar").getByRole("button", { name: "Kubernetes", exact: true }).waitFor({ timeout: 6000 }).catch(() => {});
-const PAGES = ["Containers", "Images", "Volumes", "Networks", "Kubernetes", "Setup", "Profiles"];
+const PAGES = ["Containers", "Images", "Volumes", "Networks", "Kubernetes", "Doctor", "Profiles"];
 for (const page of PAGES) {
   await nav(page);
   await p.waitForTimeout(400);

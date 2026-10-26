@@ -3,8 +3,18 @@
 
 export type Health = { status: "starting" | "healthy" | "unhealthy"; streak: number; lastOutput: string; lastExit: number | null };
 export type State = { name: string; running: boolean; status: string; exitCode: number; oomKilled: boolean; restartCount: number; startedAt: string; health: Health | null };
-// `short` is the list-row label when the title is too long; `fix` is a command the user copies and runs; the app never runs it.
-export type Problem = { id: "oom" | "unhealthy" | "restarting" | "crashed" | "kafka-localhost" | "kafka-ui-empty" | "kafka-ui-localhost"; level: "bad" | "warn"; title: string; short?: string; detail: string; fix?: { label: string; text: string; note?: string } };
+// One container replaced in place: the old one is renamed to <name>-old and stopped, `run` (docker run args) starts
+// the new one, it joins `connect`, and the old one is removed only once the new one keeps running.
+// keep: what the container ran with, checked against its image before a Fix so nothing is silently dropped.
+export type Keep = { image: string; imageId?: string; Cmd?: unknown; Entrypoint?: unknown; User?: unknown; WorkingDir?: unknown; Healthcheck?: unknown };
+export type Replace = { name: string; createNetwork?: string; run: string[]; connect: string[]; keep?: Keep };
+// `short` is the list-row label when the title is too long. `fix` is shown as commands to copy; with `steps`, the
+// app can also do it itself (Fix), in order.
+// connect: one click joins containers to a network (adding a network takes nothing away). go: a page that has the fix.
+export type Connect = { network: string; create: boolean; containers: string[] };
+export type ProblemFix = { label: string; text: string; note?: string; steps?: Replace[]; confirm?: string; connect?: Connect; go?: "Profiles" | "Images" };
+// id is the check's id ("oom", "kafka-localhost", "localhost-target"...), stable so a finding can be muted.
+export type Problem = { id: string; level: "bad" | "warn"; title: string; short?: string; detail: string; fix?: ProblemFix };
 
 export function exitCodeMeaning(code: number): string {
   switch (code) {
