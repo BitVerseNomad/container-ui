@@ -29,7 +29,7 @@ await m.close();
 // healthy: no strip on home, every Setup row is ok
 let p = await open("running");
 await p.waitForTimeout(500);
-check(await p.locator(".setup-strip").count() === 0, "healthy: no leftover strip on home");
+check(!/setup problem/.test(await p.locator(".doctor-panel").innerText().catch(() => "")), "healthy: the Doctor panel on home lists no setup problem");
 await p.getByRole("button", { name: "Doctor", exact: true }).click();
 await p.waitForSelector(".setup .finding[data-setup]", { timeout: 3000 }).catch(() => {});
 check((await statuses(p)).every((s) => s === "ok"), "healthy: every check passes");
@@ -39,12 +39,18 @@ await p.close();
 
 // desktop: strip on home, fails first, commands shown, fixes clear them
 p = await open("desktop");
-await p.waitForSelector(".setup-strip", { timeout: 3000 }).catch(() => {});
+await p.waitForSelector(".doctor-panel", { timeout: 3000 }).catch(() => {});
 await p.waitForSelector(".nav-badge", { timeout: 3000 }).catch(() => {});
-const stripN = (/(\d+) setup problems/.exec(await p.locator(".setup-strip").innerText().catch(() => "")) ?? [])[1];
+const panel = await p.locator(".doctor-panel").innerText().catch(() => "");
+const stripN = (/(\d+) setup problems will break docker in your terminal/.exec(panel) ?? [])[1];
 const badgeN = await p.locator(".nav-badge").innerText().catch(() => "");
-check(!!stripN && Number(badgeN) >= Number(stripN), "desktop: the sidebar badge counts at least the strip's setup problems");
-await p.locator(".setup-strip").click();
+check(!!stripN && Number(badgeN) >= Number(stripN), "desktop: the panel's first line counts the setup problems, and the badge counts at least those");
+check(new RegExp(`^${badgeN} things need action`).test(panel), "desktop: the panel's count is the badge's count");
+check(/^\d+ setup problems/.test(await p.locator(".doctor-panel .finding").first().innerText()), "desktop: the terminal problem is the panel's first line");
+await p.locator(".doctor-panel").getByRole("button", { name: "Fix all" }).click();
+check(/backed up first/.test(await p.getByRole("alertdialog").innerText().catch(() => "")), "desktop: Fix all from the panel asks first");
+await p.getByRole("alertdialog").getByRole("button", { name: "Cancel" }).click();
+await p.locator(".doctor-panel").getByRole("button", { name: "Open Doctor" }).click();
 await p.waitForSelector(".setup .finding[data-setup]", { timeout: 3000 }).catch(() => {});
 const s = await statuses(p);
 check(s[0] === "fail" && s.indexOf("fail") < s.indexOf("ok"), "desktop: failures sorted first");
@@ -70,18 +76,18 @@ check(await p.getByRole("button", { name: /^Fix all/ }).count() === 0, "desktop:
 const noH = await p.evaluate(() => { const c = document.querySelector(".content"); return c.scrollWidth <= c.clientWidth + 1; });
 check(noH, "desktop: no horizontal scroll at 980x640");
 await p.getByRole("button", { name: "Containers", exact: true }).click();
-check(await p.locator(".setup-strip").count() === 0, "desktop: strip gone after fixes");
+check(!/setup problems/.test(await p.locator(".doctor-panel").innerText().catch(() => "")), "desktop: the setup line leaves the panel after fixes");
 check(p.errors.length === 0, `desktop: no page errors ${p.errors.join("; ")}`);
 
 // terminal on another colima VM: not blocking, but the home strip says so and Setup fixes it
 let mm = await open("mismatch");
-await mm.waitForSelector(".setup-strip", { timeout: 3000 }).catch(() => {});
-check(/different VMs|talks to "colima-work"/.test(await mm.locator(".setup-strip").innerText().catch(() => "")), "mismatch: home strip names the other context");
-await mm.locator(".setup-strip").click();
-await mm.getByRole("button", { name: "Use colima", exact: true }).click();
+await mm.waitForSelector(".doctor-panel", { timeout: 3000 }).catch(() => {});
+const first = mm.locator(".doctor-panel .finding").first();
+check(/different VMs|colima-work/.test(await first.innerText().catch(() => "")), "mismatch: the panel's first line names the other context");
+await first.getByRole("button", { name: "Use colima", exact: true }).click();
+await mm.getByRole("alertdialog").getByRole("button", { name: "Use colima" }).click();
 await mm.waitForTimeout(1200);
-await mm.getByRole("button", { name: "Containers", exact: true }).click();
-check(await mm.locator(".setup-strip").count() === 0, "mismatch: strip gone after switching context");
+check(!/different VMs|colima-work/.test(await mm.locator(".doctor-panel").innerText().catch(() => "")), "mismatch: the line leaves the panel after switching context");
 await mm.close();
 
 await browser.close();

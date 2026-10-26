@@ -38,6 +38,8 @@ await p.getByRole("button", { name: "New" }).click();
 check(JSON.stringify(await p.getByRole("menuitem").allInnerTexts().then((t) => t.map((x) => x.split("\n")[0].trim()))) === JSON.stringify(["Run image", "Pull image", "Compose projects"]), "running: New offers Run image, Pull image and Compose projects");
 await p.keyboard.press("Escape");
 check(await p.getByRole("menu").count() === 0 && await p.evaluate(() => document.activeElement?.getAttribute("aria-label") === "New"), "running: Escape closes the menu and focus goes back to New");
+// The Doctor panel lands a moment after the list and moves it down; hover once it has settled.
+await p.waitForSelector(".doctor-panel", { timeout: 3000 }).catch(() => {});
 const actionsHidden = await p.locator("table.list tbody tr:not(.group-row)").first().locator("td.row-actions > *").first().evaluate((el) => getComputedStyle(el).opacity);
 await p.locator("table.list tbody tr:not(.group-row)").first().hover();
 await p.waitForTimeout(200);

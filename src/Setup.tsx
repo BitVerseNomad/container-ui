@@ -5,7 +5,9 @@ import { usePoll } from "./hooks";
 import { PlanStep, SetupFinding, SetupReport, fixAllPlan, setupFindings, sortFindings } from "./lib/setup";
 import { Icon } from "./ui/icons";
 import OutputLog from "./ui/OutputLog";
+import { useConfirm } from "./ui";
 
+const FIX_ALL = "Runs every setup fix in order and stops if one fails. ~/.docker/config.json is backed up first.";
 const ICON = { ok: "check", warn: "alert", fail: "close", info: "info" } as const;
 
 export function useSetup(profile: Profile | null) {
@@ -23,6 +25,7 @@ export function useSetupActions({ reload, profile, onProfiles }: Opts) {
   const [installing, setInstalling] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  const confirm = useConfirm();
 
   async function act(f: SetupFinding) {
     const fix = f.fix;
@@ -79,10 +82,25 @@ export function useSetupActions({ reload, profile, onProfiles }: Opts) {
     plan.length > 1 && (
       <div className="fix-all">
         <button className="primary" disabled={busy !== null} onClick={() => run("all", plan)}>{busy === "all" ? "Fixing…" : "Fix all setup problems"}</button>
-        <span className="hint">Runs every setup fix in order and stops if one fails. ~/.docker/config.json is backed up first.</span>
+        <span className="hint">{FIX_ALL}</span>
       </div>
     );
   const log = <OutputLog event="brew-progress" active={installing} failure={failure} />;
-  return { row, fixAll, log };
+
+  // The Doctor panel's one button per setup problem. The panel doesn't show the command, so a change asks first.
+  const quick = (f: SetupFinding) => {
+    const fix = f.fix;
+    // A copy fix needs the steps beside it to make sense, so the panel sends you to the Doctor for it.
+    if (!fix || fix.kind === "copy") return null;
+    const changes = fix.kind === "fix" || fix.kind === "install";
+    const what = [f.title, ...(f.steps ?? []), f.command].filter(Boolean).join("\n");
+    const go = async () => (!changes || (await confirm(what, fix.label))) && act(f);
+    return <button className="primary" disabled={busy !== null} onClick={go}>{busy === f.id ? "Working…" : copied === f.id ? "Copied" : fix.label}</button>;
+  };
+  const quickAll = (plan: PlanStep[], covers: SetupFinding[]) => {
+    const go = async () => (await confirm(["Fix all fixes:", ...covers.map((f) => `• ${f.title}`), "", FIX_ALL].join("\n"), "Fix all")) && run("all", plan);
+    return <button className="primary" disabled={busy !== null} onClick={go}>{busy === "all" ? "Fixing…" : "Fix all"}</button>;
+  };
+  return { row, fixAll, log, quick, quickAll };
 }
 

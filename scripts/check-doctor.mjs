@@ -15,7 +15,21 @@ p.errors = [];
 p.on("pageerror", (e) => p.errors.push(e.message));
 await p.goto(`file://${root}/preview/index.html?scenario=doctor`);
 await p.waitForSelector(".content", { timeout: 4000 }).catch(() => {});
-await p.getByRole("button", { name: "Doctor", exact: true }).click();
+// The Doctor panel on the Containers list: same count as the badge, three lines, one button each, asks first
+await p.waitForSelector(".doctor-panel", { timeout: 4000 }).catch(() => {});
+const panel = p.locator(".doctor-panel");
+const badge0 = await p.locator(".nav-badge").innerText().catch(() => "");
+check(new RegExp(`^${badge0} things? needs? action`).test(await panel.innerText().catch(() => "")), "panel: counts the same as the badge");
+check(await panel.locator(".finding").count() === 3 && await panel.locator(".finding button").count() === 3, "panel: three lines, one button each");
+check(/more in Doctor/.test(await panel.innerText()), "panel: says how many more are in Doctor");
+const fixBtn = panel.getByRole("button", { name: /^(Fix|Fix both|Connect)$/ }).first();
+check(await fixBtn.count() === 1, "panel: offers a one-click fix");
+await fixBtn.click();
+check(await p.getByRole("alertdialog").count() === 1, "panel: the fix asks before changing anything");
+await p.getByRole("alertdialog").getByRole("button", { name: "Cancel" }).click();
+if (shots) await p.screenshot({ path: `${shots}/doctor-panel.png` });
+
+await panel.getByRole("button", { name: "Open Doctor" }).click();
 await p.waitForSelector(".doctor section", { timeout: 4000 }).catch(() => {});
 await p.waitForTimeout(400);
 const text = () => p.locator(".doctor").innerText();

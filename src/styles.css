@@ -588,3 +588,16 @@ td.in-use { font-weight: inherit; color: var(--ink); }
 .doctor-head p { margin: 0; }
 .doctor-group { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted, inherit); margin: 14px 0 8px; }
 .doctor-links { gap: 12px; font-size: 12px; }
+
+/* Doctor panel on the Containers list: the worst few problems, one button each. */
+.doctor-panel { margin-bottom: 12px; padding: 8px 12px 6px; border: 1px solid color-mix(in srgb, var(--danger) 35%, var(--border)); border-radius: 8px; background: color-mix(in srgb, var(--danger) 5%, var(--page)); }
+.doctor-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 4px; }
+.doctor-panel .findings { margin: 0; gap: 0; }
+.doctor-panel .finding { align-items: center; padding: 4px 0; border: 0; border-top: 1px solid color-mix(in srgb, var(--danger) 15%, var(--border)); border-radius: 0; background: none; }
+.doctor-panel .finding > .doctor-line { flex: 1; flex-direction: row; align-items: center; justify-content: space-between; gap: 12px; }
+.doctor-panel .finding svg { margin-top: 0; }
+.doctor-line > b { font-weight: 500; overflow-wrap: anywhere; }
+.doctor-line > button { flex: none; }
+.doctor-more { margin: 2px 0 2px 24px; }
+/* Confirm messages may list steps and commands, one per line. */
+.modal p { white-space: pre-line; }
