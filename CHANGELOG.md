@@ -4,6 +4,7 @@ Newest first. Older entries record what was true when they were written; later e
 
 ## Doctor
 - **Setup is now Doctor.** One page, at the bottom of the sidebar, for every check: setup, containers, network, images, storage and the VM. The badge counts what needs action. Findings are grouped as Needs action and Worth knowing, with passed checks folded. The setup checks and their Fix all are unchanged.
+- **Doctor panel on Containers.** The red strip is now a panel with the same count as the badge, the three problems that matter most (setup first, then crashes) with one button each, and a link to the rest. Every button that changes something asks first; Fix all names what it fixes.
 - **New checks**, each showing what it found: a container looking for another at `localhost`; containers using each other's names with no shared network (or on the default network, which has no name lookup); a start that failed over a taken port, naming who holds it; an image built for another CPU; postgres or mysql stopped for a missing password setting; a database without a named volume; space held by unused images and cache; a VM too small for Elasticsearch, Kafka and the like.
 - **Connect**: a one-click fix that adds containers to a shared network. It only adds, so nothing restarts.
 - **Not an issue** hides a finding on the Doctor page, the Containers list and the badge, and can be undone.
