@@ -14,21 +14,31 @@ Prereqs: Node 22.6+, Rust (rustup), Colima and the Docker CLI (`brew install col
 The app talks to the docker context Colima creates for the selected profile (`colima`, or `colima-<profile>`).
 
 ## What it does
-- **Containers** (home): the VM in one line (state, CPU, memory, disk, Restart, Stop), then every container with status, problems, port links, CPU and memory. Compose projects are grouped; Kubernetes pod containers sit in their own folded group and can't be stopped or removed here. Rows are one line; their checkbox and Logs, Shell, Restart, Stop and Remove show on hover or focus. Pick several rows to start, stop or remove them together (only rows you can see: folded groups are left out). The New menu runs or pulls an image, or lists the Compose projects on your Mac (found with Spotlight when the app opens), with the command to start each in the profile on screen. The profile switcher at the top of the sidebar changes profile and starts or stops any of them; Setup and Profiles sit at the bottom. The sidebar folds to icons and remembers it. A container page has logs, inspect, stats, mounts, health, activity, network checks and Open a shell.
+- **Containers** (home): the VM in one line (state, CPU, memory, disk, Restart, Stop), then every container with status, problems, port links, CPU and memory. Compose projects are grouped; Kubernetes pod containers sit in their own folded group and can't be stopped or removed here. Rows are one line; their checkbox and Logs, Shell, Restart, Stop and Remove show on hover or focus. Pick several rows to start, stop or remove them together (only rows you can see: folded groups are left out). The New menu runs or pulls an image, or lists the Compose projects on your Mac (found with Spotlight when the app opens), with the command to start each in the profile on screen. The profile switcher at the top of the sidebar changes profile and starts or stops any of them; Doctor and Profiles sit at the bottom. The sidebar folds to icons and remembers it. A container page has logs, inspect, stats, mounts, health, activity, network checks and Open a shell.
 - **Images**: search your images, pull (Docker Hub search, a name, or a private registry such as GHCR, ECR or Google Artifact Registry), guided Run that reads what the image declares, and what takes space inside the VM, with one cleanup per kind (never your volumes).
 - **Volumes**: sizes and which containers use them; in-use volumes can't be removed.
-- **Networks**: create, connect, and the connection doctor ("why can't A reach B?").
+- **Networks**: create, connect, and Test a connection ("why can't A reach B?").
 - **Kubernetes** (shown when the profile has it): Colima's K3s cluster, read-only, with plain-words pod problems and Open in k9s.
 - **Profiles**: create, edit CPU, memory and disk, start, stop, delete.
-- **Setup**: what Docker Desktop used to handle (plugins, credentials, context, start at login), each fix shown before it runs.
+- **Doctor**: every check in one place, with a sidebar badge for what needs action. See below.
 
 When a start or stop fails, the app says why and offers the next step.
 
-Some setups run but can't work. The app checks for known ones and shows them under Needs attention, with commands to copy:
-- **Kafka UI with no cluster**, or with its cluster set to `localhost` (inside a container that is the container itself).
-- **An apache/kafka broker that only advertises `localhost:9092`**, so other containers connect and then lose it. The fix adds a second address for containers.
+## Doctor
+Doctor checks your setup and what runs on it, and says what it found in plain words, with the evidence ("DATABASE_URL is postgres://localhost:5432"). Findings are grouped: **Needs action**, **Worth knowing**, and the checks that passed (folded). Each one also shows on its container's row and page. Nothing changes until you click a fix, and every fix asks first.
+- **Setup**: what Docker Desktop used to handle (plugins, credentials, context, start at login, VM size).
+- **Containers**: crashed, ran out of memory, keeps restarting, failing health check; postgres or mysql stopped for a missing password setting.
+- **Network**: a container that looks for another one at `localhost`; containers that use each other's names but share no network (or sit on Docker's default network, which has no name lookup); a container that couldn't start because its port is taken, and who holds it; Kafka UI and apache/kafka set up so other containers can't reach the broker.
+- **Images**: an image built for another CPU than the VM's.
+- **Storage and VM**: a database whose data isn't in a named volume; space held by unused images and build cache; a VM too small for what runs on it.
 
-Each fix is a command you run yourself, never the app. It keeps the old container as `<name>-old` until the new one starts, and names the context so it works whatever your terminal points at. Compose containers get the lines to put in the compose file instead, and Kubernetes pods get advice only.
+Fixes come in four kinds:
+- **Fix**: replaces a container with a copy that has the right settings (same image, ports, volumes, networks, restart policy and environment), and puts the old one back if the copy doesn't stay up. It keeps the old one as `<name>-old` until the new one runs. Only offered when the app can carry every setting over; otherwise you get the commands.
+- **Connect**: adds containers to a shared network. It only adds, so nothing is restarted or removed.
+- **Commands to copy**, when only you can decide (a password) or the container comes from Compose or Kubernetes, where its file is the source.
+- **Open a page** (Profiles, Images) for changes made there.
+
+"Not an issue" hides a finding here and on its container; the page lists what you hid so you can bring it back. **Test a connection** checks whether one container can reach another, step by step. Every command names the profile's context, so it works whatever your terminal points at.
 
 ## Tests and checks
     npm test                                   # TypeScript logic (node --test), then the screens in jsdom (vitest)
@@ -44,4 +54,4 @@ If Playwright isn't installed in this repo, point `NODE_PATH` at a `node_modules
 The same UI runs against a simulated backend (`preview/mock.ts`). Pick a scenario with `?scenario=`: running, stopped, failed, stuck, stopfail, missing, partial, nobrew, none, two, nonet, desktop, mismatch, k8spods, nocompose. Add `&k8s=on` for Kubernetes.
 
 ## Safety
-The page can only ask the backend for allowlisted commands: per-command flag lists for `docker`, a shape check for `docker run` (detached only, named volumes or folders under your home outside `~/Library` and hidden folders, no host network), read-only `kubectl`, a fixed Spotlight query for Compose files (paths only, no file is read), and Colima contexts and profile names only. Publishing ports on 127.0.0.1 and mounting your folders read-only are the Run panel's defaults, not rules the backend enforces. Every command has a deadline. A strict Content Security Policy is set for release builds.
+The page can only ask the backend for allowlisted commands: per-command flag lists for `docker`, `docker rename` with exactly two container names, a shape check for `docker run` (detached only, a fixed set of flags including `--restart`, named volumes or folders under your home outside `~/Library` and hidden folders, no host network), read-only `kubectl`, a fixed Spotlight query for Compose files (paths only, no file is read), and Colima contexts and profile names only. Publishing ports on 127.0.0.1 and mounting your folders read-only are the Run panel's defaults, not rules the backend enforces. Every command has a deadline. A strict Content Security Policy is set for release builds.

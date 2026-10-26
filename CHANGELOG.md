@@ -2,6 +2,22 @@
 
 Newest first. Older entries record what was true when they were written; later entries supersede them (the Overview, for example, was replaced by the Containers home screen).
 
+## Doctor
+- **Setup is now Doctor.** One page, at the bottom of the sidebar, for every check: setup, containers, network, images, storage and the VM. The badge counts what needs action. Findings are grouped as Needs action and Worth knowing, with passed checks folded. The setup checks and their Fix all are unchanged.
+- **New checks**, each showing what it found: a container looking for another at `localhost`; containers using each other's names with no shared network (or on the default network, which has no name lookup); a start that failed over a taken port, naming who holds it; an image built for another CPU; postgres or mysql stopped for a missing password setting; a database without a named volume; space held by unused images and cache; a VM too small for Elasticsearch, Kafka and the like.
+- **Connect**: a one-click fix that adds containers to a shared network. It only adds, so nothing restarts.
+- **Not an issue** hides a finding on the Doctor page, the Containers list and the badge, and can be undone.
+- **One source for problems.** The Containers list, its Needs attention filter, the container page and the Doctor badge use the same checks, so they agree. Crash titles name their container on the Doctor page.
+- **Test a connection** is the new name for the two-container network tester. It opens from Doctor, Networks and the container page.
+- **Doctor, reviewed**: fewer false alarms. A `localhost` setting that is a CORS origin, a callback URL or a listen address is left alone, and so is a container that shares another's network. When several containers could be the target, the finding says so and offers no one-click fix. A postgres or mysql stop is blamed on a missing password only on a first start, and says its logs have the final word. A normal stop is not read as a CPU problem. A check that couldn't get its data is skipped, not shown as passed, and a container removed mid-check no longer hides the rest. Passed never contradicts Needs action, and the badge, the page and the Needs attention filter count the same things. "Not an issue" is per profile.
+- **Fix, reviewed**: checks every step before changing anything (a leftover `-old`, the backend's rules, an image tag that moved or a container started with its own command); waits for a health check; keeps the result on screen after the panel closes; locks Start, Stop and Remove while it runs; carries over 127.0.0.1 ports, restart counts and the broker's other settings, and stays copy-only for settings it can't carry.
+
+## One-click Fix for the Kafka checks
+- **Fix replaces the broken containers for you.** On the container page, Fix (or Fix both, when Kafka UI needs its broker fixed first) asks once, then for each container: renames it to `<name>-old`, stops it, starts the fixed copy, and waits about 12 seconds. The page shows each step as it happens.
+- **If the copy doesn't stay up, the old one comes back** under its own name and starts again. The page shows why, with the copy's last log lines. A leftover `<name>-old` stops the fix before anything changes.
+- **Only when the app can do it safely.** Containers with a mount the app can't recreate (a folder outside your home, or tmpfs), Compose containers and Kubernetes pods keep the copy-only commands. The commands are still under "Or run the commands yourself".
+- **Backend**: `docker rename` is allowed with exactly two container names, and `docker run` accepts `--restart`.
+
 ## Known-app checks: Kafka and Kafka UI
 - **"No clusters found" in Kafka UI now has an answer in the app.** The containers list reads every container's settings and flags three setups that run but can't work: Kafka UI with no cluster, Kafka UI pointed at `localhost`, and an apache/kafka broker that only advertises `localhost:9092` while other containers want it. The row says it in a few words ("No Kafka set up", "Only reachable from your Mac"); the container page explains it and gives the commands.
 - **Commands you run, built from the container itself**: same image, ports, volumes, restart policy, networks and settings, with only the broken address changed. The broker gets a full single-node setup, because any `KAFKA_` setting turns off all the image defaults. The page says when topics live inside the container and will not carry over.
