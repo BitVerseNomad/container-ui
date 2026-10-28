@@ -2,6 +2,14 @@
 
 Newest first. Older entries record what was true when they were written; later entries supersede them (the Overview, for example, was replaced by the Containers home screen).
 
+## Run Compose projects, see every command
+- **Compose projects run from the app.** Start, Stop, Restart and Down run `docker compose` in the project's own folder, as typing it there would. A running project offers "Start the N stopped" first and Down in red, with a confirm that says volumes stay. Every action's command is under "Run it yourself", with its own Copy.
+- **A failed Start says why.** A taken port names the container and project holding it, and says Down removes what was left. Missing `docker compose` points to the Doctor.
+- **Search that finds what you meant**: "search service" and "sss" both find service-search-service, by name, initials, word starts or folder. When no container matches, the list offers the Compose projects that do.
+- **Every click shows its command.** A toast says what happened ("Stopped web"), then the command with the profile's `--context`, then Copy. The Commands button lists the whole session. Now and then the toast asks you to recall the command first; you can turn that off.
+- **Fix, safer**: while a Fix runs, Compose actions and the sidebar VM Stop and Restart wait. A Fix turns the old copy's restart policy off and puts it back on undo, says so if it couldn't, and fails when the new copy restarted or was still starting at the last look. Containers with `--rm`, tmpfs, sysctls, log options and a few other settings stay copy-only. The Doctor flags a `NAME-old` left by an unfinished Fix, with the command to put it back.
+- **Small things**: rows keep their place while the pointer is over the list, so a click never lands on the row that moved in. One Escape closes only the top panel.
+
 ## Doctor
 - **Setup is now Doctor.** One page, at the bottom of the sidebar, for every check: setup, containers, network, images, storage and the VM. The badge counts what needs action. Findings are grouped as Needs action and Worth knowing, with passed checks folded. The setup checks and their Fix all are unchanged.
 - **Fix where it's broken.** Each broken container row has a Fix column with one always-visible button that says where it goes: Fix…, Fix both… (linked rows like Kafka and Kafka UI offer the same fix), Connect…, Logs or Show steps. While a fix runs the row says so; afterwards it says Fixed (with a note that Kafka takes about 30 s to start) or Fix failed with Details. Problems carry an icon, not only a color. Docker problems in your terminal show as one line in the VM row with its fix. Every change asks first, and the Replace confirm says files saved inside the container don't carry over.
