@@ -37,22 +37,22 @@ check(await p.locator(".setup section .finding[data-setup]").count() === 0, "hea
 check(p.errors.length === 0, `healthy: no page errors ${p.errors.join("; ")}`);
 await p.close();
 
-// desktop: strip on home, fails first, commands shown, fixes clear them
+// desktop: nothing about the terminal on home (the VM note is gone); the badge and the Doctor summary count the same
 p = await open("desktop");
-await p.waitForSelector(".vm-note", { timeout: 3000 }).catch(() => {});
+await p.waitForSelector("ul.apps > li.app", { timeout: 4000 }).catch(() => {});
 await p.waitForSelector(".nav-badge", { timeout: 3000 }).catch(() => {});
-const note = await p.locator(".vm-note").innerText().catch(() => "");
-const stripN = (/docker in your terminal is broken \((\d+) problems\)/.exec(note) ?? [])[1];
-const badgeN = await p.locator(".nav-badge").innerText().catch(() => "");
-check(!!stripN && Number(badgeN) >= Number(stripN), "desktop: the VM row says the terminal is broken, and the badge counts at least those");
-check(await p.locator(".vm-strip-wrap .vm-note").count() === 1, "desktop: the note sits in the VM row, not above the page");
-await p.locator(".vm-note").getByRole("button", { name: "Fix all" }).click();
-check(/backed up first/.test(await p.getByRole("alertdialog").innerText().catch(() => "")), "desktop: Fix all from the VM row asks first");
-await p.getByRole("alertdialog").getByRole("button", { name: "Cancel" }).click();
-await p.locator(".vm-note").getByRole("button", { name: "Details" }).click();
+const badgeLabel = await p.locator('.sidebar nav button[aria-label^="Doctor"]').getAttribute("aria-label");
+const badgeN = (/^Doctor, (\d+) problems?$/.exec(badgeLabel ?? "") ?? [])[1];
+check(!!badgeN && await p.locator(".nav-badge").innerText() === badgeN, `desktop: the Doctor badge counts the setup problems (${badgeLabel})`);
+check(await p.locator(".vm-note").count() === 0 && await p.locator(".vm-strip-wrap").count() === 0 && await p.locator(".setup-strip").count() === 0 && !/terminal is broken|Fix all/.test(await p.locator(".content").innerText()), "desktop: home has no VM row and no terminal note, however broken the setup is");
+await p.getByRole("button", { name: /^Doctor/ }).click();
 await p.waitForSelector(".setup .finding[data-setup]", { timeout: 3000 }).catch(() => {});
+await p.waitForFunction((n) => new RegExp(`^${n} things need action`).test(document.querySelector(".doctor-head .hint")?.textContent ?? ""), badgeN, { timeout: 3000 }).catch(() => {});
+check(new RegExp(`^${badgeN} things? needs? action`).test(await p.locator(".doctor-head .hint").innerText()), "desktop: the page summary equals the badge's count");
 const s = await statuses(p);
 check(s[0] === "fail" && s.indexOf("fail") < s.indexOf("ok"), "desktop: failures sorted first");
+check(await p.locator(".setup details.how").count() > 0 && await p.locator(".setup details.how").evaluateAll((d) => d.every((x) => !x.open)), "desktop: commands sit in collapsed details until asked for");
+await p.locator(".setup details.how > summary").evaluateAll((l) => l.forEach((x) => x.click()));
 check(/rm ~\/\.docker\/cli-plugins\/docker-buildx/.test(await p.locator(".setup").innerText()), "desktop: shows the exact command before fixing");
 const cmds = await p.locator(".setup .cmd").allInnerTexts();
 check(cmds.length > 0 && cmds.every((c) => !/backup is kept/.test(c)), "desktop: command boxes hold no English like (a backup is kept)");
@@ -60,10 +60,14 @@ check(/backup is kept/.test(await p.locator(".setup .steps").first().innerText()
 check(await p.locator(".setup details.passing").evaluate((d) => !d.open), "desktop: passing checks are collapsed");
 check(await p.locator(".setup .finding.ok").first().isVisible() === false, "desktop: passing rows are hidden until expanded");
 check(/\d+ checks? pass/.test(await p.locator(".setup details.passing summary").innerText()), "desktop: one row says how many checks pass");
-check(await p.locator(".fix-all .primary:visible").count() === 1, "desktop: one Fix all for the setup problems");
-await p.waitForFunction((n) => new RegExp(`^${n} things need action`).test(document.querySelector(".doctor-head .hint")?.textContent ?? ""), badgeN, { timeout: 3000 }).catch(() => {});
-check(new RegExp(`^${badgeN} things? needs? action`).test(await p.locator(".doctor-head .hint").innerText()), "desktop: the page summary shows the badge's count");
+check(await p.getByRole("button", { name: "Fix all setup problems", exact: true }).count() === 1, "desktop: one Fix all for the setup problems");
 await p.getByRole("button", { name: "Fix all setup problems", exact: true }).click();
+check(/backed up first/.test(await p.getByRole("alertdialog").innerText().catch(() => "")), "desktop: Fix all asks first, and says what is backed up");
+await p.getByRole("alertdialog").getByRole("button", { name: "Cancel" }).click();
+await p.waitForTimeout(400);
+check((await statuses(p)).includes("fail"), "desktop: Cancel changes nothing");
+await p.getByRole("button", { name: "Fix all setup problems", exact: true }).click();
+await p.getByRole("alertdialog").getByRole("button", { name: "Fix them", exact: true }).click();
 await p.waitForTimeout(3500);
 check((await statuses(p)).every((x) => x !== "fail"), "desktop: every failure clears after its fix");
 const rows = await p.locator(".setup .finding.info[data-setup]").allInnerTexts();
@@ -72,21 +76,26 @@ check(!/Colima starts at login/.test(await p.locator(".setup").innerText()), "de
 const left = (await statuses(p)).filter((x) => x === "warn").length;
 check(left === 1 && await p.locator(".setup section .finding.warn[data-setup]").count() === 1, "desktop: after fixes only the copy-only setup warning is left");
 check(await p.getByRole("button", { name: /^Fix all/ }).count() === 0, "desktop: Fix all goes away when nothing is left to fix");
+const after = (/^(\d+) things? needs? action/.exec(await p.locator(".doctor-head .hint").innerText()) ?? [])[1] ?? "0";
+const afterBadge = (/^Doctor, (\d+) problems?$/.exec(await p.locator('.sidebar nav button[aria-label^="Doctor"]').getAttribute("aria-label") ?? "") ?? [])[1] ?? "0";
+check(after === afterBadge, `desktop: after the fixes the badge and the summary still agree (${afterBadge} and ${after})`);
 const noH = await p.evaluate(() => { const c = document.querySelector(".content"); return c.scrollWidth <= c.clientWidth + 1; });
 check(noH, "desktop: no horizontal scroll at 980x640");
 await p.getByRole("button", { name: "Containers", exact: true }).click();
-check(!/terminal is broken/.test(await p.locator(".vm-note").innerText().catch(() => "")), "desktop: the VM row note goes away after fixes");
+check(await p.locator(".vm-note").count() === 0 && !/terminal is broken/.test(await p.locator(".content").innerText()), "desktop: home still says nothing about the terminal");
 check(p.errors.length === 0, `desktop: no page errors ${p.errors.join("; ")}`);
 
-// terminal on another colima VM: not blocking, but the home strip says so and Setup fixes it
+// terminal on another colima VM: not blocking; home says nothing, Doctor names it and fixes it
 let mm = await open("mismatch");
-await mm.waitForSelector(".vm-note", { timeout: 3000 }).catch(() => {});
-const first = mm.locator(".vm-note");
-check(/different VMs|colima-work/.test(await first.innerText().catch(() => "")), "mismatch: the VM row names the other context");
-await first.getByRole("button", { name: "Use colima", exact: true }).click();
-await mm.getByRole("alertdialog").getByRole("button", { name: "Use colima" }).click();
+await mm.waitForSelector("ul.apps > li.app", { timeout: 4000 }).catch(() => {});
+check(await mm.locator(".vm-note").count() === 0 && !/colima-work|different VMs/.test(await mm.locator(".content").innerText()), "mismatch: home has no VM row note about the other context");
+await mm.getByRole("button", { name: /^Doctor/ }).click();
+await mm.waitForSelector(".setup .finding[data-setup]", { timeout: 3000 }).catch(() => {});
+const first = mm.locator(".setup .finding", { hasText: "different VMs" });
+check(/colima-work/.test(await first.innerText().catch(() => "")), "mismatch: Doctor names the other context");
+await first.getByRole("button", { name: "Switch to Colima", exact: true }).click();
 await mm.waitForTimeout(1200);
-check(await mm.locator(".vm-note").count() === 0, "mismatch: the note goes away after switching context");
+check(await mm.locator(".setup .finding", { hasText: "different VMs" }).count() === 0 && await mm.locator('.sidebar nav button[aria-label^="Doctor"]').getAttribute("aria-label") === "Doctor", "mismatch: the problem and the badge go away after switching context");
 await mm.close();
 
 await browser.close();

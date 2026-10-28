@@ -13,24 +13,29 @@ async function open(tab) {
   p.errors = [];
   p.on("pageerror", (e) => p.errors.push(e.message));
   await p.goto(`file://${root}/preview/index.html`);
-  await p.waitForSelector("table.list tbody tr:not(.group-row)");
+  await p.waitForSelector("ul.apps > li.app");
   if (tab !== "Containers") await p.locator(".sidebar").getByRole("button", { name: tab, exact: true }).click();
   return p;
 }
 
-// Home: problems in plain words under each container's status
+// Home: problems in plain words under each app's row; an opened project shows each under its own service
 let p = await open("Containers");
-await p.waitForSelector("table.list .plevel", { timeout: 8000 }).catch(() => {});
-const row = (name) => p.locator("table.list tbody tr:not(.group-row)", { has: p.locator("b", { hasText: new RegExp(`^${name}$`) }) }).first().innerText().catch(() => "");
-check(/health check is failing/i.test(await row("api")), "home: an unhealthy container shows a plain reason");
-check(/too much memory|ran out of memory/i.test(await row("report-job")), "home: an out-of-memory stop is called out");
-check(/keeps restarting/i.test(await row("worker")), "home: a container that keeps restarting is called out");
-check(!/failing|memory|restarting/i.test(await row("web")), "home: healthy containers carry no problem line");
-const dot = (name) => p.locator("table.list tbody tr:not(.group-row)", { has: p.locator("b", { hasText: new RegExp(`^${name}$`) }) }).first().locator(".sdot").getAttribute("class").catch(() => "");
-check(/\bbad\b/.test(await dot("api")) && /\bwarn\b/.test(await dot("worker")) && /\bon\b/.test(await dot("web")), "home: the dot follows health (red failing, amber restarting, green fine)");
-check(await p.locator(".content .primary:visible").count() === 1, "home: still exactly one primary button");
+await p.waitForSelector("li.app .problem", { timeout: 8000 }).catch(() => {});
+const appRow = (name) => p.locator("li.app", { has: p.locator(".app-row .app-name", { hasText: new RegExp(`^${name}$`) }) }).first();
+const svcRow = (name) => p.locator("ul.svc > li", { has: p.locator(".svc-name", { hasText: new RegExp(`^${name}\\b`) }) }).first();
+const shop = await appRow("shop").innerText();
+check(/api · health check is failing/i.test(shop), "home: an unhealthy container shows a plain reason, under its project row with its name");
+check(/ran out of memory/i.test(shop), "home: an out-of-memory stop is called out");
+check(/worker · keeps restarting/i.test(shop), "home: a container that keeps restarting is called out");
+check(!/web ·/.test(shop) && await appRow("shop").locator(".problem").count() === 3, "home: healthy containers carry no problem line");
+const markOf = (r) => r.locator(".mark").first().getAttribute("class");
+check(/\bbad\b/.test(await markOf(appRow("kafka-ui"))) && /\bwarn\b/.test(await markOf(appRow("kafka"))) && /\bbad\b/.test(await markOf(appRow("shop"))), "home: the mark follows the worst problem (kafka-ui and shop red, kafka amber)");
+await appRow("shop").locator(".app-name").click();
+check(/\bbad\b/.test(await markOf(svcRow("api"))) && /\bwarn\b/.test(await markOf(svcRow("worker"))) && await svcRow("web").locator(".mark .dot.on").count() === 1, "home: the mark follows health per service (red failing, amber restarting, green fine)");
+check(await svcRow("api").locator(".problem").count() === 1 && /Health check is failing/.test(await svcRow("api").locator(".problem").innerText()) && await svcRow("web").locator(".problem").count() === 0, "home: opened, each problem sits under its own service");
+check(await p.locator(".content .primary:visible").count() === 1 + await p.locator(".content .problem .primary:visible").count(), "home: still exactly one primary button outside the problem lines");
 await p.screenshot({ path: "/tmp/obs-home.png" });
-await p.locator("table.list button.link-plain", { hasText: "api" }).first().click();
+await p.locator('ul.svc button.svc-name[aria-label^="api,"]').click();
 await p.waitForSelector(".detail");
 
 // container page: health panel with the last check's output
@@ -56,12 +61,18 @@ check(await p.getByRole("button", { name: /Following new lines/ }).getAttribute(
 await p.screenshot({ path: "/tmp/obs-container.png" });
 await p.close();
 
-// containers list: health badges
+// the home carries no health badge; the container page says healthy
 p = await open("Containers");
-await p.waitForFunction(() => /health check is failing/.test(document.querySelector("tbody")?.textContent ?? ""), null, { timeout: 4000 }).catch(() => {});
-check(/Its health check is failing/.test(await p.locator("tr", { hasText: "api" }).first().innerText()), "containers: api says in words that its health check is failing");
-check(/healthy/.test(await p.locator("tr", { hasText: "web" }).first().innerText()), "containers: a healthy badge on web");
-await p.locator("table.list button.link-plain", { hasText: "report-job" }).click();
+await p.locator(".app-name", { hasText: /^shop$/ }).click();
+await p.waitForSelector("ul.svc li .problem", { timeout: 6000 }).catch(() => {});
+check(!/healthy/i.test(await p.locator("ul.svc > li", { hasText: "web" }).first().innerText()), "containers: no health badge on the list, just a plain row for web");
+await p.locator('ul.svc button.svc-name[aria-label^="web,"]').click();
+await p.waitForSelector(".health-panel", { timeout: 4000 }).catch(() => {});
+check(/healthy/i.test(await p.locator(".health-panel").innerText().catch(() => "")), "containers: the container page says web is healthy");
+await p.close();
+p = await open("Containers");
+await p.locator(".app-name", { hasText: /^shop$/ }).click();
+await p.locator('ul.svc button.svc-name[aria-label^="report-job,"]').click();
 await p.waitForSelector(".detail");
 t = await p.locator(".health-panel").innerText();
 check(/ran out of memory/i.test(t) && /more memory than it was allowed/.test(t) && /No health check/i.test(t), "container page: out-of-memory is explained, and a missing health check is said plainly");
@@ -71,15 +82,17 @@ t = await p.locator(".tabpane").innerText();
 check(/report-job ran out of memory/.test(t) && !/api became/.test(t), "container page: the Activity tab shows only this container's events");
 await p.close();
 
-// container rows: Logs and Shell are one click away
+// container rows: Logs and Shell are one menu click away
 p = await open("Containers");
-await p.waitForSelector("tbody tr:not(.group-row)");
-await p.getByRole("button", { name: "Open a shell in web" }).click();
+await p.locator(".app-name", { hasText: /^shop$/ }).click();
+await p.getByRole("button", { name: "More actions for web", exact: true }).click();
+await p.getByRole("menuitem", { name: "Open a shell" }).click();
 await p.waitForFunction(() => (window.__terminal ?? []).length > 0, null, { timeout: 3000 }).catch(() => {});
 t = JSON.stringify(await p.evaluate(() => window.__terminal ?? []));
 check(/"kind":"shell".*"target":"web"/.test(t), `row Shell: opens a shell in that container (${t})`);
-check((await p.getByRole("button", { name: "Open a shell in cache" }).count()) === 0, "row Shell: not offered on a stopped container");
-await p.getByRole("button", { name: "Logs for cache" }).click();
+await p.getByRole("button", { name: "More actions for cache", exact: true }).click();
+check((await p.getByRole("menuitem", { name: "Open a shell" }).count()) === 0, "row Shell: not offered on a stopped container");
+await p.getByRole("menuitem", { name: "Logs" }).click();
 await p.waitForSelector(".tabs [aria-selected=true]", { timeout: 3000 }).catch(() => {});
 const selTab = await p.locator(".tabs [aria-selected=true]").innerText().catch((e) => String(e));
 await p.waitForFunction(() => /cache/.test(document.querySelector(".content")?.textContent ?? ""), null, { timeout: 3000 }).catch(() => {});
@@ -96,12 +109,12 @@ await p.close();
 
 // Known apps: a Kafka setup that runs but can't work is called out, with commands to copy
 p = await open("Containers");
-const krow = (name) => p.locator("table.list tbody tr:not(.group-row)", { has: p.locator("b", { hasText: new RegExp(`^${name}$`) }) }).first();
+const krow = (name) => p.locator("li.app", { has: p.locator(".app-row .app-name", { hasText: new RegExp(`^${name}$`) }) }).first();
 await p.waitForFunction(() => /Can.t reach Kafka/.test(document.body.innerText), null, { timeout: 15000 }).catch(() => {});
 check(/Can't reach Kafka/.test(await krow("kafka-ui").innerText().catch(() => "")), "apps: Kafka UI pointed at localhost is called out on its row");
-check(/inside its own container/.test(await krow("kafka-ui").locator(".plevel").getAttribute("title").catch(() => "")), "apps: the row tooltip carries the full reason");
+check(/(inside its own container|localhost is the container itself)/i.test(await krow("kafka-ui").locator(".problem").getAttribute("title").catch(() => "")), "apps: the row tooltip carries the full reason");
 check(/Only reachable from your Mac/.test(await krow("kafka").innerText().catch(() => "")), "apps: a broker that only advertises localhost is called out");
-await krow("kafka-ui").locator("button.link-plain").click();
+await krow("kafka-ui").locator("button.app-name").click();
 await p.locator("details.fix-commands summary").first().click({ timeout: 8000 }).catch(() => {});
 const cmd = await p.locator(".health-panel pre.cmd").first().innerText().catch(() => "");
 check(/KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS='kafka:19092'/.test(cmd) && /rename kafka-ui kafka-ui-old/.test(cmd) && !/rm -f/.test(cmd), "apps: the detail page gives a safe replace command that uses the broker's name");
@@ -112,12 +125,12 @@ await p.close();
 
 // Fix: one click replaces both containers, and the problems go away
 p = await open("Containers");
-const frow = (name) => p.locator("table.list tbody tr:not(.group-row)", { has: p.locator("b", { hasText: new RegExp(`^${name}$`) }) }).first();
+const frow = (name) => p.locator("li.app", { has: p.locator(".app-row .app-name", { hasText: new RegExp(`^${name}$`) }) }).first();
 await p.waitForFunction(() => /Can.t reach Kafka/.test(document.body.innerText), null, { timeout: 15000 }).catch(() => {});
-await frow("kafka-ui").locator("button.link-plain").click();
-const fixBtn = p.getByRole("button", { name: "Fix both" });
+await frow("kafka-ui").locator("button.app-name").click();
+const fixBtn = p.getByRole("button", { name: /^Fix kafka and kafka-ui$/ });
 await fixBtn.waitFor({ timeout: 8000 }).catch(() => {});
-check(await fixBtn.count() === 1, "fix: Kafka UI's page has one Fix both button");
+check(await fixBtn.count() === 1, "fix: Kafka UI's page has one Fix kafka and kafka-ui button");
 check(await p.locator("details.fix-commands pre.cmd").count() > 0 && !(await p.locator("details.fix-commands").getAttribute("open")), "fix: the commands are still there, folded away");
 await fixBtn.click();
 const dialog = p.getByRole("alertdialog");
@@ -136,8 +149,8 @@ await p.close();
 p = await open("Containers");
 await p.waitForFunction(() => /Can.t reach Kafka/.test(document.body.innerText), null, { timeout: 15000 }).catch(() => {});
 await p.evaluate(() => window.__mock.failRunOnce("kafka-ui"));
-await p.locator("table.list tbody tr:not(.group-row)", { has: p.locator("b", { hasText: /^kafka-ui$/ }) }).first().locator("button.link-plain").click();
-await p.getByRole("button", { name: "Fix both" }).click({ timeout: 8000 }).catch(() => {});
+await p.locator("li.app", { has: p.locator(".app-row .app-name", { hasText: /^kafka-ui$/ }) }).first().locator("button.app-name").click();
+await p.getByRole("button", { name: /^Fix kafka and kafka-ui$/ }).click({ timeout: 8000 }).catch(() => {});
 await p.getByRole("alertdialog").getByRole("button", { name: "Fix" }).click().catch(() => {});
 await p.waitForFunction(() => /A fix is running/.test(document.body.innerText), null, { timeout: 8000 }).catch(() => {});
 check(/A fix is running/.test(await p.locator("header").first().innerText().catch(() => "")) && (await p.getByRole("button", { name: "Remove" }).count()) === 0, "fix fails: Stop and Remove are locked while it runs");

@@ -6,7 +6,6 @@ import { usePoll } from "./hooks";
 import { Banner, Empty } from "./ui";
 import Shell, { Tab } from "./Shell";
 import PageHeader from "./ui/PageHeader";
-import { Icon } from "./ui/icons";
 import Containers, { VmState } from "./Containers";
 import Images from "./Images";
 import Volumes from "./Volumes";
@@ -15,9 +14,8 @@ import Kubernetes from "./Kubernetes";
 import Profiles from "./Profiles";
 import InstallCard from "./InstallCard";
 import { useSetup } from "./Setup";
-import Doctor, { TerminalNote, groups, useDoctor, useMuted } from "./Doctor";
+import Doctor, { groups, useDoctor, useMuted } from "./Doctor";
 import { useFixRuns } from "./FixIt";
-import { blocking, needsAttention } from "./lib/setup";
 import { useEnv } from "./useEnv";
 import { useComposeScan } from "./useComposeScan";
 import { contextNames, kubernetesOn } from "./lib/kubeNav";
@@ -79,28 +77,22 @@ export default function App() {
     if (tab === "Kubernetes" && !kubeOn && (kube.data !== null || !current)) setTab("Containers");
   }, [tab, kubeOn, kube.data, current]);
   const setup = useSetup(current);
-  const setupFails = setup.findings ? blocking(setup.findings) : 0;
-  const setupTodo = setup.findings ? needsAttention(setup.findings) : 0;
   const doc = useDoctor(ctx, current);
   const [logOpen, setLogOpen] = useState(false);
   const mutedKeys = useMuted();
   const doctorTodo = groups(setup.findings ?? [], doc.report, mutedKeys).todo;
-  // Not blocking, but it's the "my terminal shows other containers" confusion, so it earns the strip too.
-  const ctxMismatch = setup.findings?.find((f) => f.id === "context" && f.status === "warn");
   const toolsMissing = !!env && (!env.colima || !env.docker);
-  // The Containers list says it in its VM row; with no VM yet there is no row, so the strip stays.
-  const onList = tab === "Containers" && !detailId && !!current;
 
   // Starts or stops a VM from any tab (Empty states, the sidebar switcher). It switches to that profile and
   // shows the progress on Containers, where the VM strip lives.
   // A Fix renames and recreates containers; stopping the VM halfway would leave a NAME-old behind.
   const fixing = useFixRuns().some((r) => r.step != null);
-  async function vmFromAnywhere(name: string, op: "starting" | "stopping") {
+  async function vmFromAnywhere(name: string, op: "starting" | "stopping", restart = false) {
     if (fixing) return;
     setActive(name);
     setDetailId(null);
     setTab("Containers");
-    const last = op === "starting" ? { op, cmd: "start_profile", args: { opts: { name } } } : { op, cmd: "stop_profile", args: { name } };
+    const last = restart ? { op, cmd: "restart_profile", args: { name } } : op === "starting" ? { op, cmd: "start_profile", args: { opts: { name } } } : { op, cmd: "stop_profile", args: { name } };
     setVm({ op, failure: null, last });
     try {
       await ranVm(last.cmd, last.args, () => invoke(last.cmd, last.args));
@@ -136,7 +128,8 @@ export default function App() {
           compose={compose}
           onImages={() => setTab("Images")}
           onKubernetes={kubeOn ? () => setTab("Kubernetes") : undefined}
-          terminal={<TerminalNote setup={setup} onProfiles={() => setTab("Profiles")} onDoctor={() => setTab("Doctor")} />}
+          report={doc.report}
+          onReport={doc.reload}
         />
       )
     ) : tab === "Doctor" ? (
@@ -188,21 +181,10 @@ export default function App() {
     );
 
   return (
-    <Shell onCommands={() => setLogOpen(true)} badges={{ Doctor: doctorTodo }} hidden={kubeOn ? [] : ["Kubernetes"]} nav={tab} onNav={(t) => { setDetailId(null); setPullOnOpen(false); setNewProfileOnOpen(false); setTab(t); }} profiles={profiles} active={active} onSelect={switchTo} onVm={vmFromAnywhere} vmBusy={vm.op !== null || fixing} vmOp={vm.op && opName(vm) ? { name: opName(vm)!, op: vm.op } : null} onNewProfile={() => { setDetailId(null); setNewProfileOnOpen(true); setTab("Profiles"); }}>
+    <Shell onCommands={() => setLogOpen(true)} badges={{ Doctor: doctorTodo }} hidden={kubeOn ? [] : ["Kubernetes"]} nav={tab} onNav={(t) => { setDetailId(null); setPullOnOpen(false); setNewProfileOnOpen(false); setTab(t); }} profiles={profiles} active={active} onSelect={switchTo} onVm={vmFromAnywhere} onRestart={(name) => vmFromAnywhere(name, "starting", true)} vmBusy={vm.op !== null || fixing} vmOp={vm.op && opName(vm) ? { name: opName(vm)!, op: vm.op } : null} onNewProfile={() => { setDetailId(null); setNewProfileOnOpen(true); setTab("Profiles"); }}>
       {!(tab === "Containers" && detailId) && <PageHeader title={tab} />}
       <Banner error={error} />
       <Banner error={appError} onClose={() => setAppError(null)} />
-      {/* The Containers list says it in its VM row and on each container's row; other pages keep a one-line strip. */}
-      {tab !== "Doctor" && !onList && !toolsMissing && setupFails > 0 && (
-        <button className="setup-strip" onClick={() => setTab("Doctor")}>
-          <Icon name="alert" size={14} /> {setupTodo} setup problem{setupTodo === 1 ? "" : "s"} will break docker in your terminal. Review in Doctor
-        </button>
-      )}
-      {tab !== "Doctor" && !onList && !toolsMissing && setupFails === 0 && ctxMismatch && (
-        <button className="setup-strip warn" onClick={() => setTab("Doctor")}>
-          <Icon name="alert" size={14} /> {ctxMismatch.detail} Review in Doctor
-        </button>
-      )}
       {page}
       <CommandToast onOpenLog={() => setLogOpen(true)} />
       {logOpen && <CommandLog onClose={() => setLogOpen(false)} />}

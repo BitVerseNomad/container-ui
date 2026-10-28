@@ -59,7 +59,7 @@ test("given the docker CLI still points at Docker Desktop, when checked, then it
   const f = byId({ ...HEALTHY, contexts: [{ name: "colima", current: false }, { name: "desktop-linux", current: true }] }).get("context")!;
   assert.equal(f.status, "fail");
   assert.match(f.detail, /desktop-linux/);
-  assert.deepEqual(f.fix, { kind: "fix", id: "use_colima_context", label: "Use colima" });
+  assert.deepEqual(f.fix, { kind: "fix", id: "use_colima_context", label: "Switch to Colima" });
 });
 
 test("given the work profile and its own context, when checked, then the context passes", () => {

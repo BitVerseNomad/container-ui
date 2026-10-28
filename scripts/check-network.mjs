@@ -13,7 +13,7 @@ async function open(tab) {
   p.errors = [];
   p.on("pageerror", (e) => p.errors.push(e.message));
   await p.goto(`file://${root}/preview/index.html`);
-  await p.waitForSelector("table.list tbody tr:not(.group-row)");
+  await p.waitForSelector("ul.apps > li.app");
   await p.locator(".sidebar").getByRole("button", { name: tab, exact: true }).click();
   return p;
 }
@@ -77,8 +77,8 @@ await p.close();
 
 // 3. the container page
 p = await open("Containers");
-await p.waitForSelector("tbody tr:not(.group-row)");
-await p.locator("table.list button.link-plain", { hasText: "kafka-ui" }).click();
+await p.waitForSelector("ul.apps > li.app");
+await p.locator("ul.apps button.app-name", { hasText: /^kafka-ui$/ }).click();
 await p.waitForSelector(".detail");
 await p.getByRole("tab", { name: "Network" }).click();
 await p.waitForSelector(".tabpane table", { timeout: 4000 }).catch(() => {});

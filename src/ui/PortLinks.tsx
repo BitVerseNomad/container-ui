@@ -7,14 +7,15 @@ import { Icon } from "./icons";
 const SHOWN = 3;
 
 // A port that is not a web page (a database, a broker): a muted chip that copies "localhost:3306" on click.
-// It shows only the port, like the web chips, so it fits the Ports column.
+// It shows ":3306" like the web chips show ":8080"; only the icon and the color tell them apart.
 export function CopyPort({ label }: { label: string }) {
   const [copied, setCopied] = useState(false);
   const text = `localhost:${label}`;
   return (
     <button
       className="port-link muted mono"
-      aria-label={`Copy ${text}`}
+      aria-label={copied ? `Copied ${text}` : `Copy ${text}`}
+      aria-live="polite"
       title={`Copy ${text}`}
       onClick={() => {
         navigator.clipboard.writeText(text).then(() => {
@@ -23,7 +24,7 @@ export function CopyPort({ label }: { label: string }) {
         }, () => {});
       }}
     >
-      {copied ? "Copied" : <>{label} <Icon name="copy" size={11} /></>}
+      {copied ? "Copied" : <>:{label} <Icon name="copy" size={11} /></>}
     </button>
   );
 }

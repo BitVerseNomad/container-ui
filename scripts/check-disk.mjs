@@ -34,6 +34,8 @@ await p.locator("[role=alertdialog] .primary").click();
 await p.waitForFunction(() => /^0 B/.test(document.querySelector(".disk-card .disk-row:nth-child(2) > :nth-child(2)")?.textContent ?? ""), null, { timeout: 5000 }).catch(() => {});
 const after = await sizeOf();
 check(after !== before && /^0 B/.test(after), `disk: build cache size dropped (${before} -> ${after})`);
+check(/Freed 3\.4 GB from build cache\./.test(await card.innerText()), "disk: it says how much it freed");
+check(await clear.isDisabled(), "disk: with nothing left to free, the button is off");
 const scrollsSideways = await p.evaluate(() => document.scrollingElement.scrollWidth > window.innerWidth + 1 || [...document.querySelectorAll(".content, .content > *")].some((e) => e.scrollWidth > e.clientWidth + 1));
 check(!scrollsSideways, "disk: no horizontal scroll at 980x640");
 await browser.close();

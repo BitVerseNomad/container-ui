@@ -26,9 +26,10 @@ for (const [w, h] of [[1100, 680], [800, 600]]) {
   }
   if (w === 1100) {
     await nav(page, "Containers").click();
-    await page.waitForSelector("tbody tr:not(.group-row)");
-    check(await page.locator("tbody tr:not(.group-row)").first().getByRole("button", { name: /Stop|Start|Logs/ }).count() > 0, "containers: row actions are labelled icon buttons");
-    check(await page.locator("tbody tr:not(.group-row) .icon-btn").count() >= 3, "containers: rows use IconButton");
+    await page.waitForSelector("ul.apps > li.app");
+    check(await page.locator("ul.apps > li.app").first().getByRole("button", { name: /^(Stop|Start) / }).count() > 0 && await page.locator("ul.apps > li.app").first().getByRole("button", { name: /^More actions for / }).count() === 1, "containers: row actions are a labelled main button and a labelled … menu button");
+    check(await page.locator("ul.apps > li.app button.main, ul.apps > li.app button.more").evaluateAll((bs) => bs.length >= 6 && bs.every((b) => (b.getAttribute("aria-label") || b.textContent).trim().length > 0)), "containers: every row's main and … buttons have names");
+    check(await page.locator("ul.apps .icon-btn, ul.apps table, ul.apps input[type=checkbox]").count() === 0, "containers: no table, icon column or checkbox in the list");
     await nav(page, "Images").click();
     await page.waitForSelector("tbody tr:not(.group-row)");
     check(await page.locator("tbody tr:not(.group-row) .icon-btn").count() >= 2, "images: rows use IconButton");

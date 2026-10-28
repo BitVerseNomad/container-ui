@@ -13,7 +13,7 @@ async function openRun(scenario, ref) {
   p.errors = [];
   p.on("pageerror", (e) => p.errors.push(e.message));
   await p.goto(`file://${root}/preview/index.html?scenario=${scenario}`);
-  await p.waitForSelector("table.list tbody tr:not(.group-row)");
+  await p.waitForSelector("ul.apps > li.app");
   await p.locator(".sidebar").getByRole("button", { name: "Images", exact: true }).click();
   await p.waitForSelector("tbody tr:not(.group-row)");
   await p.getByRole("button", { name: `Run ${ref}`, exact: true }).click();

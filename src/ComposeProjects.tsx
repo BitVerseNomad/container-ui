@@ -16,7 +16,7 @@ import { activity, dockerLine } from "./lib/activity";
 import { useFixRuns } from "./FixIt";
 
 type Ctr = { State: string; Labels?: string; Names?: string; Ports?: string };
-type Action = "up" | "stop" | "restart" | "down" | "build" | "pull";
+export type Action = "up" | "stop" | "restart" | "down" | "build" | "pull";
 // The backend sends one path past this cap when the list was cut.
 const SHOWN_MAX = 300;
 const tilde = (dir: string) => dir.replace(/^\/Users\/[^/]+/, "~");
@@ -29,12 +29,36 @@ const typed = (dir: string, a: Action, ctx: string) => `cd ${cdPath(dir)} && doc
 
 // The run outlives the panel: switching tabs unmounts it, but the backend keeps going, so its state lives here.
 // holder: the container that has the port a failed start needed, when it is one Docker runs.
-type RunState = { busy: { dir: string; action: Action } | null; failed: { dir: string; text: string; why: string | null; holder: string | null } | null };
+type RunState = { busy: { dir: string; action: Action } | null; failed: { dir: string; action: Action; text: string; why: string | null; holder: string | null } | null };
 let state: RunState = { busy: null, failed: null };
 const subs = new Set<() => void>();
 const setRun = (next: Partial<RunState>) => { state = { ...state, ...next }; subs.forEach((f) => f()); };
-const useRun = () => useSyncExternalStore((l) => { subs.add(l); return () => subs.delete(l); }, () => state);
+// For tests: each one starts with no run in progress.
+export const resetComposeRun = () => setRun({ busy: null, failed: null });
+// Read once, outside render: whether the run that just ended failed.
+export const composeRunState = () => state;
+export const useComposeRun = () => useSyncExternalStore((l) => { subs.add(l); return () => subs.delete(l); }, () => state);
 const NO_COMPOSE = /'compose' is not a docker command|unknown command "compose"|unknown shorthand flag: 'd'/i;
+
+// Runs one Compose action for a project, as typing it in its folder would. The home list and this panel share it,
+// so both show the same run in progress. The caller asks first for Down and checks no Fix is running.
+// Returns false when another run held the lock and nothing ran.
+export async function runCompose(ctx: string, p: Pick<ComposeProject, "dir" | "files" | "name">, action: Action, containers: Ctr[]): Promise<boolean> {
+  if (state.busy) return false;
+  setRun({ busy: { dir: p.dir, action }, failed: null });
+  try {
+    await activity.ran(`compose ${action}`, typed(p.dir, action, ctx), () => invoke<void>("compose_action", { context: ctx, file: `${p.dir}/${p.files[0]}`, action }), p.name);
+  } catch (e) {
+    const text = String(e);
+    const why = NO_COMPOSE.test(text) ? "docker compose isn't installed, so nothing ran. The Doctor can install it." : whyFailed(text, containers);
+    // Compose may have created a network or some services before it failed; Down clears what it left.
+    const left = action === "up" ? " Part of the project may have been created; Down removes what was left." : "";
+    setRun({ failed: { dir: p.dir, action, text, why: why ? `${why}${left}` : left.trim() || null, holder: portHolder(text, containers) } });
+  } finally {
+    setRun({ busy: null });
+  }
+  return true;
+}
 
 function CopyCommand({ text, label }: { text: string; label: string }) {
   const [done, setDone] = useState(false);
@@ -60,7 +84,7 @@ export default function ComposeProjects({ ctx, scan, containers, attention, onCl
   // One project's live logs open at a time; a read, so it never waits for a run.
   const [logsDir, setLogsDir] = useState<string | null>(null);
   // One project at a time, as the backend allows; its output shows under it.
-  const { busy, failed } = useRun();
+  const { busy, failed } = useComposeRun();
   // A Fix renames a container to NAME-old; compose acting on the project then would remove or restart that copy.
   const fixing = useFixRuns().some((r) => r.step != null);
   const cut = (scan.paths?.length ?? 0) > SHOWN_MAX;
@@ -78,19 +102,8 @@ export default function ComposeProjects({ ctx, scan, containers, attention, onCl
   async function run(p: ComposeProject, action: Action) {
     if (state.busy || fixing) return;
     if (action === "down" && !(await confirm(`Stop and remove the containers of ${p.name}? Its volumes, and the data in them, stay.`, "Down"))) return;
-    setRun({ busy: { dir: p.dir, action }, failed: null });
-    try {
-      await activity.ran(`compose ${action}`, typed(p.dir, action, ctx), () => invoke<void>("compose_action", { context: ctx, file: `${p.dir}/${p.files[0]}`, action }), p.name);
-    } catch (e) {
-      const text = String(e);
-      const why = NO_COMPOSE.test(text) ? "docker compose isn't installed, so nothing ran. The Doctor can install it." : whyFailed(text, containers);
-      // Compose may have created a network or some services before it failed; Down clears what it left.
-      const left = action === "up" ? " Part of the project may have been created; Down removes what was left." : "";
-      setRun({ failed: { dir: p.dir, text, why: why ? `${why}${left}` : left.trim() || null, holder: portHolder(text, containers) } });
-    } finally {
-      setRun({ busy: null });
-      onChanged?.();
-    }
+    await runCompose(ctx, p, action, containers);
+    onChanged?.();
   }
 
   // The fix the port note asks for, in one click: stop the container holding the port, then start this project.

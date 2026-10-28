@@ -45,7 +45,7 @@ export function fixAction(fix: Fix, ctx: string | undefined, confirm: Confirm, r
       (r) => r.ok && onFixed?.(names[names.length - 1]),
     );
   };
-  return { label: names.length > 1 ? "Fix both" : "Fix", busyLabel: "Fixing…", running, go, hint: names.length > 1 ? `Replaces ${names.join(", then ")}.` : `Replaces ${names[0]}.` };
+  return { label: names.length > 1 ? `Fix ${names.join(" and ")}` : "Fix", busyLabel: "Fixing…", running, go, hint: names.length > 1 ? `Replaces ${names.join(", then ")}.` : `Replaces ${names[0]}.` };
 }
 
 export default function FixIt({ fix, ctx, onFixed, onGo }: { fix: NonNullable<Problem["fix"]>; ctx?: string; onFixed?: (name: string) => void; onGo?: (page: Go) => void }) {

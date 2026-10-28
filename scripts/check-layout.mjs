@@ -36,7 +36,7 @@ for (const [w, h] of [[1100, 680], [800, 600]]) {
   }
 
   await nav(page, "Containers").click();
-  await page.locator("table.list tbody tr:not(.group-row) button.link-plain").first().click();
+  await page.locator("ul.apps button.app-name:not([aria-expanded])").first().click();
   await page.waitForSelector(".logs");
   await page.waitForFunction(() => (document.querySelector(".logs")?.textContent ?? "").length > 500);
   const logs = await page.evaluate(() => { const el = document.querySelector(".logs"); return { scrollable: el.scrollHeight > el.clientHeight }; });
@@ -73,10 +73,10 @@ for (const [w, h] of [[1100, 680], [800, 600]]) {
     /Stopped/.test(await two.getByRole("menuitemradio", { name: /dev/ }).innerText()) ? ok("two profiles: each shows its state") : bad("two profiles: state missing");
     await two.getByRole("menuitemradio", { name: /dev/ }).click();
     await two.waitForFunction(() => /dev/.test(document.querySelector(".profile-switch")?.textContent ?? ""), null, { timeout: 3000 }).catch(() => {});
-    /dev/.test(await sw(two).innerText()) && /dev is stopped/.test(await two.locator(".content").innerText()) ? ok("two profiles: picking one switches the whole app") : bad("two profiles: switching did not take");
+    /dev/.test(await sw(two).innerText()) && /VM .dev. is stopped/.test(await two.locator(".content").innerText()) ? ok("two profiles: picking one switches the whole app") : bad("two profiles: switching did not take");
     await sw(two).click();
-    (await two.getByRole("menuitem", { name: "Stop default" }).count()) === 1 && (await two.getByRole("menuitem", { name: "Start dev" }).count()) === 1 ? ok("switcher: each profile row has Start or Stop") : bad("switcher: Start/Stop missing on profile rows");
-    await two.getByRole("menuitem", { name: "Start dev" }).click();
+    (await two.getByRole("menuitem", { name: /^Stop (the VM )?default$/ }).count()) === 1 && (await two.getByRole("menuitem", { name: /^Start (the VM )?dev$/ }).count()) === 1 ? ok("switcher: each profile row has Start or Stop") : bad("switcher: Start/Stop missing on profile rows");
+    await two.getByRole("menuitem", { name: /^Start (the VM )?dev$/ }).click();
     /Starting…/.test(await sw(two).innerText()) ? ok("switcher Start: the switcher says Starting… while it runs") : bad("switcher Start: switcher shows a stale state while starting");
     (await nav(two, "Containers").getAttribute("aria-current")) === "page" && /dev/.test(await sw(two).innerText()) ? ok("switcher Start: switches to dev and shows Containers") : bad("switcher Start: did not switch or open Containers");
     await two.waitForFunction(() => /Running/.test(document.querySelector(".profile-switch")?.textContent ?? ""), null, { timeout: 6000 }).catch(() => {});
@@ -89,20 +89,21 @@ for (const [w, h] of [[1100, 680], [800, 600]]) {
     await two.close();
   }
   {
-    // Row tools have their own column: on hover they never cover Memory.
+    // The state, main button and … button each have their own column: a row's buttons never cover its state.
     await page.goto(url());
-    await page.waitForSelector("tbody tr:not(.group-row)");
-    const row = page.locator("tr", { hasText: "web" }).first();
-    await row.hover();
-    const mem = await row.locator("td").nth(5).boundingBox(), tools = await row.locator(".row-tools").boundingBox();
-    mem && tools && tools.x >= mem.x + mem.width - 1 ? ok(`row tools ${w}: beside Memory, not over it`) : bad(`row tools ${w}: cover the Memory value`);
+    await page.waitForSelector("ul.apps > li.app");
+    const cols = await page.locator("ul.apps > li.app > .app-row").first().evaluate((r) => { const g = (s) => r.querySelector(s).getBoundingClientRect(); const st = g(".app-state"), main = g("button.main"), more = g("button.more"); return { st: st.right, main: [main.left, main.right], more: more.left }; });
+    cols.st <= cols.main[0] + 1 && cols.main[1] <= cols.more + 1 ? ok(`row buttons ${w}: beside the state, not over it`) : bad(`row buttons ${w}: overlap the state ${JSON.stringify(cols)}`);
   }
   if (w === 1100) {
     const narrow = await browser.newPage({ viewport: { width: 600, height: 700 } });
     await narrow.goto(url());
-    await narrow.waitForSelector("tbody tr:not(.group-row)");
+    await narrow.waitForSelector("ul.apps > li.app");
     (await narrow.evaluate(() => { const s = document.querySelector(".sidebar"); return s.scrollWidth <= s.clientWidth; })) ? ok("600: the top bar fits, nothing scrolls sideways") : bad("600: the top bar scrolls sideways");
-    (await narrow.locator("tr", { hasText: "web" }).first().innerText()).includes("8080") ? ok("600: Ports stay visible (one click to open the app)") : bad("600: Ports hidden");
+    await narrow.waitForTimeout(600);
+    const port = narrow.locator("li.app .app-port .port-link", { hasText: "8080" }).first();
+    (await port.isVisible() && await port.evaluate((el) => el.getBoundingClientRect().right <= innerWidth && el.scrollWidth <= el.clientWidth + 1)) ? ok("600: Ports stay visible (one click to open the app)") : bad("600: Ports hidden");
+    (await narrow.evaluate(() => { const c = document.querySelector(".content"); return c.scrollWidth <= c.clientWidth + 1; })) ? ok("600: the list does not scroll sideways") : bad("600: the list scrolls sideways");
     await narrow.close();
   }
   if (w === 1100) {

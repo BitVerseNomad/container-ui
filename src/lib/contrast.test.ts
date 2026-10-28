@@ -39,3 +39,12 @@ for (const [mode, p] of [["light", light], ["dark", dark]] as const) {
     test(`${mode}: warning text on ${name} is at least 4.5:1`, () => assert.ok(contrastRatio(warn[mode], bg) >= 4.5));
   }
 }
+
+// Status marks and button edges are not text, so they need 3:1 against the page (WCAG 1.4.11). Each mark also has
+// its own shape (dot, ring, cross, triangle), so color is never the only cue.
+const marks = { light: { ok: "#397863", bad: "#c93c32", warn: "#a06a1a" }, dark: { ok: "#5aa688", bad: "#e07a6d", warn: "#e3c26b" } };
+for (const [mode, p] of [["light", light], ["dark", dark]] as const) {
+  for (const [name, c] of Object.entries(marks[mode])) {
+    test(`${mode}: the ${name} status mark on page is at least 3:1`, () => assert.ok(contrastRatio(c, p.page) >= 3));
+  }
+}

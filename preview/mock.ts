@@ -150,7 +150,7 @@ function dockerCmd(args: string[]): string {
         return JSON.stringify((refs.length ? refs : [ref]).map((r) => { const tag = r.replace(/^sha256:/, ""); return { Id: `sha256:${tag}`, Os: "linux", ...(known[tag] ?? { Architecture: "arm64", Config: { Env: null, ExposedPorts: null, Volumes: null, Labels: {} } }) }; }));
       }
       if (sub === "inspect") return /mysql/.test(args[args.length - 1]) ? '{"3306/tcp":{},"33060/tcp":{}}' : /nginx/.test(args[args.length - 1]) ? '{"80/tcp":{}}' : "null";
-      db.images = db.images.filter((i) => db.ctrs.some((c) => c.image.startsWith(i.Repository))); return "Total reclaimed space: 0B";
+      { const kept = db.images.filter((i) => db.ctrs.some((c) => c.image.startsWith(i.Repository))); const freed = db.images.filter((i) => !kept.includes(i)).reduce((n, i) => n + parseFloat(i.Size), 0); db.images = kept; return `Total reclaimed space: ${Math.round(freed)}MB`; }
     case "rmi": {
       const img = db.images.find((i) => `${i.Repository}:${i.Tag}` === args[1] || i.ID === args[1]);
       const user = img && db.ctrs.find((c) => c.image.startsWith(img.Repository));
@@ -306,8 +306,10 @@ export async function invoke<T>(cmd: string, a: Record<string, any> = {}): Promi
       const project = dir.slice(dir.lastIndexOf("/") + 1);
       const t = (ms: number) => new Date(Date.now() - ms).toISOString();
       // Polled with since: one new line each time, so the view can be seen following.
-      if (a.since) return `${project}-web-1  | ${t(0)} GET /health 200\n` as T;
-      return ["web", "db"].flatMap((svc, i) => [`${project}-${svc}-1  | ${t(9000 - i)} ${svc} starting`, `${project}-${svc}-1  | ${t(8000 - i)} ${svc} ready`]).join("\n") as T;
+      if (a.since) return `${project === "shop" ? "web" : `${project}-web-1`}  | ${t(0)} GET /health 200\n` as T;
+      // Every container of the project, by its own name as compose prints it.
+      const mine = db.ctrs.filter((c) => (c.labels ?? (SHOP.has(c.name) ? "com.docker.compose.project=shop," : "")).includes(`com.docker.compose.project=${project},`)).map((c) => c.name);
+      return (mine.length ? mine : [`${project}-web-1`]).flatMap((n, i) => [`${n}  | ${t(9000 - i)} ${n} starting`, `${n}  | ${t(8000 - i)} ${n} ready`]).join("\n") as T;
     }
     case "compose_in_folder": {
       if (/\/\./.test(a.dir)) throw "Choose a folder inside your home folder. Hidden folders and ~/Library can't be added.";

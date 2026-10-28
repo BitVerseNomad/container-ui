@@ -158,7 +158,7 @@ textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; 
 .content:has(.detail) > .detail { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 
 .page-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 28px; margin-bottom: 12px; }
-.page-head h1 { margin: 0; font-size: 18px; line-height: 1.2; }
+.page-head h1 { margin: 0; font-size: 22px; font-weight: 700; line-height: 28px; }
 .panel { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
 .icon-btn { display: inline-grid; place-items: center; width: 26px; height: 26px; padding: 0; border-radius: 6px; }
 .icon-btn.danger { color: var(--muted); }
@@ -304,17 +304,25 @@ table.list td { overflow: hidden; }
 td .tag { margin-left: 8px; white-space: nowrap; }
 td:first-child:has(.tag) { white-space: nowrap; }
 .member:not(:has(.icon-btn)) { padding-right: 8px; }
-.findings { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-.finding { display: flex; gap: 10px; align-items: flex-start; padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); }
-.finding > div { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+/* Doctor and the connection test: a flat list like the home rows. Icon, what is wrong, one button on the right. */
+.findings { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--border); }
+.finding { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; gap: 10px; align-items: start; padding: 10px 4px; border-bottom: 1px solid var(--border); }
+.finding > div { display: flex; flex-direction: column; gap: 2px; align-items: flex-start; min-width: 0; max-width: 72ch; }
 .finding.ok svg { color: var(--primary); }
-.finding.fail { border-color: color-mix(in srgb, var(--danger) 45%, var(--border)); }
-.finding.fail svg { color: var(--danger); }
-.finding.warn { background: color-mix(in srgb, #c9a227 14%, var(--page)); border-color: color-mix(in srgb, #c9a227 35%, var(--border)); }
-
+.finding.info > svg { color: var(--muted); }
+.finding.fail > svg { color: var(--dot-bad); }
+.finding.warn > svg { color: var(--dot-warn); }
 .finding .hint, .finding b { overflow-wrap: anywhere; }
-.finding > div { min-width: 0; }
+.finding b { font-weight: 600; font-size: 13px; }
 .finding svg { flex: none; margin-top: 2px; }
+.finding-actions { display: flex; align-items: center; gap: 6px; }
+.finding-actions button.more { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--muted); }
+.finding-actions button.more:hover, .finding-actions button.more[aria-expanded=true] { background: color-mix(in srgb, var(--ink) 7%, transparent); color: var(--ink); }
+.finding .how { margin-top: 4px; font-size: 12px; }
+.finding .how summary { cursor: pointer; color: var(--muted); }
+.finding .how .cmd { margin-top: 6px; }
+.more-slot { width: 28px; }
+.doctor-group-head { padding-right: 34px;  display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .drawer label select { width: 100%; }
 
 /* Observability */
@@ -425,8 +433,10 @@ button.quiet:hover { border-color: var(--border); color: var(--ink); }
 .cmd-label { flex: none; width: 11em; font-size: 12px; color: var(--muted); }
 .compose-sick { margin: 0; display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--warn); }
 .compose-logs { display: flex; flex-direction: column; gap: 6px; }
+.compose-logs .log-bar { flex-wrap: wrap; gap: 8px; }
 .compose-logs .log-bar select { min-width: 10em; width: auto; }
-.compose-logs pre { margin: 0; max-height: 320px; overflow: auto; padding: 8px; border-radius: 6px; background: var(--bg); border: 1px solid var(--line); font-size: 12px; white-space: pre; }
+.compose-logs .log-bar .filter { flex: 1; min-width: 10em; }
+.compose-logs pre { margin: 0; min-height: 220px; max-height: 50vh; overflow: auto; padding: 8px; border-radius: 6px; background: var(--bg); border: 1px solid var(--line); font-size: 12px; white-space: pre; }
 .foot-sub { display: block; font-size: 12px; margin-top: 2px; }
 .nudge { display: flex; align-items: center; gap: 8px; margin-top: 10px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--muted); }
 .nudge .nudge-go { margin-left: auto; color: var(--primary); font-weight: 600; }
@@ -467,7 +477,6 @@ table.list tr:hover td.row-actions > *, table.list tr:focus-within td.row-action
 .menu > button { display: inline-flex; align-items: center; gap: 5px; }
 .menu-pop { position: absolute; right: 0; top: calc(100% + 4px); z-index: 5; min-width: 220px; padding: 4px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); box-shadow: 0 8px 24px rgb(0 0 0 / 14%); display: flex; flex-direction: column; }
 .menu-pop [role=menuitem] { display: flex; align-items: center; gap: 8px; width: 100%; border: 0; background: transparent; text-align: left; padding: 6px 8px; border-radius: 6px; color: var(--ink); }
-.menu-pop [role=menuitem]:hover, .menu-pop [role=menuitem]:focus-visible { background: color-mix(in srgb, var(--primary) 14%, transparent); outline: none; }
 .menu-hint { margin-left: auto; font-size: 11px; }
 table.list .link-plain.one-line { flex: 1 1 auto; flex-direction: row; align-items: baseline; }
 table.list .link-plain.one-line b { display: inline; flex: 0 1 auto; min-width: 0; max-width: 70%; }
@@ -508,7 +517,11 @@ table.list td:nth-child(4) > *, table.list td:nth-child(4) button { white-space:
 .brand .fold-btn { margin-left: 0; flex: none; }
 .menu-pop.left { left: 0; right: auto; }
 .menu-pop [role^=menuitem] { display: flex; align-items: center; gap: 8px; width: 100%; border: 0; background: transparent; text-align: left; padding: 6px 8px; border-radius: 6px; color: var(--ink); white-space: nowrap; }
-.menu-pop [role^=menuitem]:hover, .menu-pop [role^=menuitem]:focus-visible { background: color-mix(in srgb, var(--primary) 14%, transparent); outline: none; }
+.menu-pop [role^=menuitem]:hover { background: color-mix(in srgb, var(--ink) 7%, transparent); }
+/* The tint alone was 1.2:1 against the menu; a ring is what keyboard users can see (WCAG 2.4.7). */
+.menu-pop [role^=menuitem]:focus-visible { background: color-mix(in srgb, var(--ink) 7%, transparent); outline: 2px solid var(--primary); outline-offset: -2px; }
+.menu-pop [role^=menuitem][aria-disabled=true] { opacity: .45; cursor: default; }
+.menu-pop [role^=menuitem].danger { color: var(--danger); }
 .menu-pop .menu-divider { margin-top: 5px; position: relative; }
 .menu-pop .menu-divider::before { content: ""; position: absolute; left: 4px; right: 4px; top: -3px; border-top: 1px solid var(--border); }
 .menu-check { flex: none; width: 13px; display: inline-flex; color: var(--primary); }
@@ -521,9 +534,9 @@ table.list td:nth-child(4) > *, table.list td:nth-child(4) button { white-space:
 /* Round 7: a second, smaller action on a menu row (Start or Stop next to a profile). */
 .menu-row { display: flex; align-items: center; gap: 4px; }
 .menu-row > [role^=menuitem]:first-child { flex: 1; min-width: 0; }
-.menu-pop .menu-side { flex: none; width: auto; padding: 3px 9px; font-size: 12px; color: var(--muted); border: 1px solid var(--border); }
+.menu-pop .menu-side { flex: none; width: auto; padding: 3px 10px; font-size: 12px; color: var(--ink); background: var(--btn); border: 1px solid var(--btn-edge); border-radius: 6px; }
 .menu-pop .menu-side:hover:not(:disabled), .menu-pop .menu-side:focus-visible { color: var(--ink); }
-.menu-pop .menu-side:disabled { opacity: .45; cursor: default; }
+.menu-pop .menu-side:disabled, .menu-pop .menu-side[aria-disabled=true] { opacity: .45; cursor: default; }
 
 
 
@@ -598,10 +611,10 @@ td.in-use { font-weight: inherit; color: var(--ink); }
 .fix-result.bad { padding: 8px 12px; border: 1px solid color-mix(in srgb, var(--danger) 45%, var(--border)); border-radius: 8px; display: flex; flex-direction: column; gap: 6px; }
 .fix-result .cmd { margin: 0; max-height: 180px; overflow: auto; }
 .fix-dismiss { font-size: 12px; color: var(--muted, inherit); margin-left: 4px; }
-.doctor-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-.doctor-head p { margin: 0; }
-.doctor-group { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted, inherit); margin: 14px 0 8px; }
-.doctor-links { gap: 12px; font-size: 12px; }
+.doctor-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.doctor-head p { margin: 0; flex: 1; min-width: 0; }
+.doctor-group { font-size: 13px; font-weight: 600; color: var(--ink); margin: 16px 0 8px; }
+.doctor-links { gap: 8px; margin-top: 6px; }
 
 /* The Fix column: always visible, one button per broken row. The Status text can clip; the button can't. */
 table.list td.row-fix { width: 1%; white-space: nowrap; text-align: right; padding-right: 4px; }

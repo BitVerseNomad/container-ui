@@ -13,7 +13,7 @@ async function open(k8s = "on") {
   p.errors = [];
   p.on("pageerror", (e) => p.errors.push(e.message));
   await p.goto(`file://${root}/preview/index.html?k8s=${k8s}`);
-  await p.waitForSelector("table.list tbody tr:not(.group-row)");
+  await p.waitForSelector("ul.apps > li.app");
   // The nav item only exists once the profile has Kubernetes; give the cluster check a moment.
   if (k8s === "on") await p.locator(".sidebar").getByRole("button", { name: "Kubernetes", exact: true }).waitFor({ timeout: 6000 });
   return p;

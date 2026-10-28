@@ -10,7 +10,7 @@ const check = (c, m) => { console.log(c ? "ok" : "FAIL", m); if (!c) failed++; }
 const browser = await chromium.launch();
 const p = await browser.newPage({ viewport: { width: 1100, height: 680 } });
 await p.goto(`file://${root}/preview/index.html`);
-await p.waitForSelector("table.list tbody tr:not(.group-row)");
+await p.waitForSelector("ul.apps > li.app");
 const nav = (n) => p.locator(".sidebar").getByRole("button", { name: n, exact: true }).click();
 
 await p.locator(".sidebar").getByRole("button", { name: "Kubernetes", exact: true }).waitFor({ timeout: 6000 }).catch(() => {});
@@ -21,7 +21,7 @@ for (const page of PAGES) {
   const r = await p.evaluate(() => ({
     mains: document.querySelectorAll("main, [role=main]").length,
     thNoScope: [...document.querySelectorAll("th")].filter((t) => !t.getAttribute("scope")).length,
-    unnamed: [...document.querySelectorAll("button, a, [role=button]")].filter((e) => e.offsetParent && !(e.getAttribute("aria-label") || e.textContent).trim()).length,
+    unnamed: [...document.querySelectorAll("button, a, [role=button]")].filter((e) => e.offsetParent && !e.closest("[aria-hidden=true]") && !(e.getAttribute("aria-label") || e.textContent).trim()).length,
   }));
   check(r.mains === 1, `${page}: exactly one main landmark`);
   check(r.thNoScope === 0, `${page}: every table header has a scope`);
@@ -32,25 +32,38 @@ for (const page of PAGES) {
 {
   const off = await browser.newPage({ viewport: { width: 1100, height: 680 } });
   await off.goto(`file://${root}/preview/index.html?k8s=off`);
-  await off.waitForSelector("table.list tbody tr:not(.group-row)");
+  await off.waitForSelector("ul.apps > li.app");
   await off.waitForTimeout(800);
   check(await off.locator(".sidebar").getByRole("button", { name: "Kubernetes", exact: true }).count() === 0, "k8s off: no Kubernetes nav item");
   for (const name of PAGES.filter((n) => n !== "Kubernetes")) {
     await off.locator(".sidebar").getByRole("button", { name, exact: true }).click();
     await off.waitForTimeout(300);
-    const r = await off.evaluate(() => ({ mains: document.querySelectorAll("main, [role=main]").length, unnamed: [...document.querySelectorAll("button, a, [role=button]")].filter((e) => e.offsetParent && !(e.getAttribute("aria-label") || e.textContent).trim()).length }));
+    const r = await off.evaluate(() => ({ mains: document.querySelectorAll("main, [role=main]").length, unnamed: [...document.querySelectorAll("button, a, [role=button]")].filter((e) => e.offsetParent && !e.closest("[aria-hidden=true]") && !(e.getAttribute("aria-label") || e.textContent).trim()).length }));
     check(r.mains === 1 && r.unnamed === 0, `k8s off ${name}: one main landmark, every button named`);
   }
   await off.close();
 }
 
-// Names that read right: the container button says its image apart from its name; the group toggle hides its arrow glyph
+// Names that read right: a loose container's button says its name, then its state, apart by a comma; a project's
+// button says it is a project and tells whether it is open; the chevron is hidden from assistive tech (the name
+// button is the one control), and a service button carries the full container name and state.
 {
   await nav("Containers");
-  await p.waitForSelector("table.list tbody tr:not(.group-row)");
-  const r = await p.evaluate(() => ({ row: document.querySelector("table.list tbody tr:not(.group-row) button.link-plain")?.getAttribute("aria-label") ?? "", glyph: !!document.querySelector(".group-toggle > [aria-hidden=true]") }));
-  check(/^[^,]+, image .+/.test(r.row), `container button name has a separator (${r.row})`);
-  check(r.glyph, "group toggle: the arrow glyph is aria-hidden");
+  await p.waitForSelector("ul.apps > li.app");
+  const r = await p.evaluate(() => {
+    const names = [...document.querySelectorAll("ul.apps > li.app > .app-row > button.app-name")];
+    const loose = names.find((b) => !b.hasAttribute("aria-expanded"));
+    const project = names.find((b) => b.hasAttribute("aria-expanded"));
+    const chev = document.querySelector("ul.apps .app-chev > .chev");
+    return { loose: loose?.getAttribute("aria-label") ?? "", project: project?.getAttribute("aria-label") ?? "", expanded: project?.getAttribute("aria-expanded"), chevHidden: chev?.getAttribute("aria-hidden") === "true" && chev.tabIndex === -1 };
+  });
+  check(/^[^,]+, (Running|Stopped|\d+ of \d+ running)(, \d+ problems?)?$/.test(r.loose), `loose container button name is "name, state" (${r.loose})`);
+  check(/^[^,]+, project, .+/.test(r.project) && r.expanded === "false", `project button name says project and state, and is collapsed (${r.project})`);
+  check(r.chevHidden, "project chevron: hidden from assistive tech and out of the tab order");
+  await p.locator("ul.apps > li.app > .app-row > button.app-name[aria-expanded]").first().click();
+  const svc = await p.evaluate(() => ({ expanded: document.querySelector("ul.apps button.app-name[aria-expanded]")?.getAttribute("aria-expanded"), label: document.querySelector("ul.svc button.svc-name")?.getAttribute("aria-label") ?? "", unnamed: [...document.querySelectorAll("ul.svc button")].filter((e) => !(e.getAttribute("aria-label") || e.textContent).trim()).length }));
+  check(svc.expanded === "true" && /^[^,]+, (Running|Stopped|Finished)(, 1 problem)?$/.test(svc.label) && svc.unnamed === 0, `service button name is "container, state", every service control named (${svc.label})`);
+  await p.locator("ul.apps > li.app > .app-row > button.app-name[aria-expanded]").first().click();
 }
 
 // Side panel: modal semantics, focus in, focus trapped, Escape closes, focus returns
@@ -76,7 +89,7 @@ check(await p.evaluate(() => document.activeElement?.tagName === "BUTTON" && doc
 for (const scheme of ["light", "dark"]) {
   const page = await browser.newPage({ viewport: { width: 1100, height: 680 }, colorScheme: scheme });
   await page.goto(`file://${root}/preview/index.html`);
-  await page.waitForSelector("table.list tbody tr:not(.group-row)");
+  await page.waitForSelector("ul.apps > li.app");
   await page.locator(".sidebar").getByRole("button", { name: "Kubernetes", exact: true }).waitFor({ timeout: 6000 }).catch(() => {});
   for (const name of PAGES) {
     await page.locator(".sidebar").getByRole("button", { name, exact: true }).click();

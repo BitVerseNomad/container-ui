@@ -113,7 +113,7 @@ export function setupFindings(r: SetupReport, vm: VmSize, profile = "default"): 
   else out.push({ id: "creds", status: "ok", title: "Registry logins are set up", detail: r.creds_store ? `Using docker-credential-${r.creds_store}.` : "No credential helper is required." });
 
   const current = r.contexts.find((c) => c.current)?.name ?? "default";
-  const fixCtx: SetupFix = { kind: "fix", id: "use_colima_context", label: `Use ${want}` };
+  const fixCtx: SetupFix = { kind: "fix", id: "use_colima_context", label: `Switch to ${want === "colima" ? "Colima" : want}` };
   if (current === want) out.push({ id: "context", status: "ok", title: "The docker command uses Colima", detail: `Current context: ${current}.` });
   else if (current.startsWith("colima"))
     out.push({ id: "context", status: "warn", title: "Your terminal and this app see different VMs", detail: `docker in your terminal talks to "${current}"; this app shows ${profile} (${want}).`, command: `docker context use ${want}`, fix: fixCtx });

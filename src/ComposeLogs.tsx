@@ -6,6 +6,7 @@ import { usePoll } from "./hooks";
 import { Banner } from "./ui";
 import { Icon } from "./ui/icons";
 import { ProjectLine, mergeProjectLogs, projectSince, serviceName } from "./lib/composeLogs";
+import { useActivity } from "./Commands";
 
 const clock = (iso: string) => (iso ? new Date(iso).toLocaleTimeString([], { hour12: false }) : "");
 
@@ -29,13 +30,21 @@ export default function ComposeLogs({ ctx, file, project }: Props) {
   const lastTop = useRef(0);
   const width = Math.max(0, ...services.map((s) => serviceName(s, project).length));
 
+  // What you did to this project while its logs are open, marked in the stream at the time it happened.
+  const { entries } = useActivity();
+  const opened = useRef(Date.now());
+  const marks = useMemo(
+    () => entries.filter((e) => e.kind.startsWith("compose ") && e.what === project && e.ok !== null && e.at >= opened.current - 60_000).map((e) => ({ at: e.at, text: `${e.ok ? "" : "failed: "}${e.cmd.replace(/^.*compose /, "compose ")}` })),
+    [entries, project],
+  );
+
   const text = useMemo(() => {
     const q = filter.toLowerCase();
-    return (lines ?? [])
-      .filter((l) => (!only || l.service === only) && (!q || l.text.toLowerCase().includes(q)))
-      .map((l) => `${only ? "" : serviceName(l.service, project).padEnd(width) + "  "}${clock(l.iso)}  ${l.text}`)
-      .join("\n");
-  }, [lines, only, filter, project, width]);
+    const shown = (lines ?? []).filter((l) => (!only || l.service === only) && (!q || l.text.toLowerCase().includes(q)));
+    const rows = shown.map((l) => ({ at: l.iso ? Date.parse(l.iso) : 0, text: `${only ? "" : serviceName(l.service, project).padEnd(width) + "  "}${clock(l.iso)}  ${l.text}` }));
+    const marked = q ? [] : marks.map((m) => ({ at: m.at, text: `·· ${clock(new Date(m.at).toISOString())}  you ran ${m.text} ··` }));
+    return [...rows, ...marked].sort((a, b) => a.at - b.at).map((r) => r.text).join("\n");
+  }, [lines, only, filter, project, width, marks]);
 
   useEffect(() => {
     if (follow && box.current) box.current.scrollTop = box.current.scrollHeight;

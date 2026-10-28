@@ -10,7 +10,7 @@ const check = (c, m) => { console.log(c ? "ok" : "FAIL", m); if (!c) failed++; }
 const browser = await chromium.launch();
 const p = await browser.newPage({ viewport: { width: 1100, height: 900 } });
 await p.goto(`file://${root}/preview/index.html`);
-await p.waitForSelector("table.list tbody tr:not(.group-row)");
+await p.waitForSelector("ul.apps > li.app");
 await p.locator(".sidebar").getByRole("button", { name: "Images", exact: true }).click();
 await p.waitForSelector("tbody tr:not(.group-row)");
 await p.getByRole("button", { name: "Pull image" }).click();

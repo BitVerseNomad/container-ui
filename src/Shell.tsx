@@ -26,6 +26,7 @@ type Props = {
   onNewProfile: () => void;
   // Start or stop a profile from the switcher; the app switches to it first. Off while a VM operation runs.
   onVm: (name: string, op: "starting" | "stopping") => void;
+  onRestart?: (name: string) => void;
   vmBusy: boolean;
   // the VM operation in flight, so the switcher says "Starting…" instead of the last known state
   vmOp?: { name: string; op: "starting" | "stopping" } | null;
@@ -43,7 +44,7 @@ const FOLD_KEY = "colima-ui:sidebar-folded";
 const readFolded = () => { try { return localStorage.getItem(FOLD_KEY) === "1"; } catch { return false; } };
 const saveFolded = (v: boolean) => { try { localStorage.setItem(FOLD_KEY, v ? "1" : "0"); } catch { /* not remembered */ } };
 
-export default function Shell({ nav, onNav, profiles, active, onSelect, onNewProfile, onVm, vmBusy, vmOp, children, badges = {}, hidden = [], onCommands }: Props) {
+export default function Shell({ nav, onNav, profiles, active, onSelect, onNewProfile, onVm, onRestart, vmBusy, vmOp, children, badges = {}, hidden = [], onCommands }: Props) {
   const current = profiles.find((p) => p.name === active);
   const [folded, setFolded] = useState(readFolded);
   const fold = () => setFolded((f) => { saveFolded(!f); return !f; });
@@ -61,8 +62,10 @@ export default function Shell({ nav, onNav, profiles, active, onSelect, onNewPro
             items={[
               ...profiles.map((p) => ({ label: p.name, hint: shown(p), checked: p.name === active, icon: <span className={p.status === "Running" ? "sdot on" : "sdot"} aria-hidden="true" />, onSelect: () => onSelect(p.name),
                 side: p.status === "Running"
-                  ? { label: "Stop", ariaLabel: `Stop ${p.name}`, disabled: vmBusy, onSelect: () => onVm(p.name, "stopping") }
-                  : { label: "Start", ariaLabel: `Start ${p.name}`, disabled: vmBusy, onSelect: () => onVm(p.name, "starting") } })),
+                  ? { label: "Stop VM", ariaLabel: `Stop the VM ${p.name}`, disabled: vmBusy, onSelect: () => onVm(p.name, "stopping") }
+                  : { label: "Start VM", ariaLabel: `Start the VM ${p.name}`, disabled: vmBusy, onSelect: () => onVm(p.name, "starting") } })),
+              // The VM's own Restart, which used to sit in the strip on the Containers screen.
+              ...(current?.status === "Running" && onRestart ? [{ label: "Restart VM", ariaLabel: `Restart the VM ${current.name}`, icon: <Icon name="restart" size={13} />, divider: true, disabled: vmBusy, onSelect: () => onRestart(current.name) }] : []),
               { label: "New profile", icon: <Icon name="plus" size={13} />, divider: profiles.length > 0, onSelect: onNewProfile },
               { label: "Manage profiles", icon: <Icon name="sliders" size={13} />, onSelect: () => onNav("Profiles") },
             ]}
@@ -83,7 +86,7 @@ export default function Shell({ nav, onNav, profiles, active, onSelect, onNewPro
         </div>
         <nav aria-label="Main">
           {NAV.filter(({ tab }) => !hidden.includes(tab)).map(({ tab, icon }) => (
-            <button key={tab} className={`nav-item${tab === nav ? " active" : ""}${tab === BOTTOM ? " nav-bottom" : ""}`} aria-label={tab} title={tab} aria-current={tab === nav ? "page" : undefined} onClick={() => onNav(tab)}>
+            <button key={tab} className={`nav-item${tab === nav ? " active" : ""}${tab === BOTTOM ? " nav-bottom" : ""}`} aria-label={badges[tab] ? `${tab}, ${badges[tab]} problem${badges[tab] === 1 ? "" : "s"}` : tab} title={tab} aria-current={tab === nav ? "page" : undefined} onClick={() => onNav(tab)}>
               <Icon name={icon} />
               <span className="nav-label">{tab}</span>
               {!!badges[tab] && <span className="nav-badge" aria-hidden="true">{badges[tab]}</span>}

@@ -2,7 +2,7 @@ import { ReactNode } from "react";
 
 export type IconName =
   | "gauge" | "box" | "image" | "database" | "sliders" | "play" | "stop" | "restart"
-  | "cluster" | "check" | "alert" | "network" | "logs" | "trash" | "search" | "download" | "close" | "info" | "copy" | "folder" | "sidebar" | "plus" | "chevron" | "tick" | "terminal";
+  | "cluster" | "check" | "alert" | "network" | "logs" | "trash" | "search" | "download" | "close" | "info" | "copy" | "folder" | "sidebar" | "plus" | "chevron" | "tick" | "terminal" | "more" | "finder" | "hammer";
 
 const PATHS: Record<IconName, ReactNode> = {
   gauge: <><path d="M12 14l4-4" /><path d="M3.3 17a9 9 0 1 1 17.4 0" /></>,
@@ -30,6 +30,9 @@ const PATHS: Record<IconName, ReactNode> = {
   terminal: <><rect x="3" y="4.5" width="18" height="15" rx="2" /><path d="M7 10l3 2.5L7 15M12.5 15H17" /></>,
   tick: <path d="M5 12.5l4.5 4.5L19 7.5" />,
   copy: <><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V6a2 2 0 0 1 2-2h9" /></>,
+  more: <><circle cx="6" cy="12" r="1.3" fill="currentColor" /><circle cx="12" cy="12" r="1.3" fill="currentColor" /><circle cx="18" cy="12" r="1.3" fill="currentColor" /></>,
+  hammer: <><path d="M14 6l4 4M4 20l9-9M12 4l2 2 3-1 3 3-1 3 2 2-2 2-8-8 1-3z" /></>,
+  finder: <><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" /><path d="M12 13h5M14.5 10.5L17 13l-2.5 2.5" /></>,
 };
 
 export function Icon({ name, size = 16 }: { name: IconName; size?: number }) {

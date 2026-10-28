@@ -268,7 +268,7 @@ const CHECKS: Check[] = [
     run: ({ disk = [] }) => {
       const free = disk.filter((d) => d.kind === "images" || d.kind === "buildCache").reduce((n, d) => n + (d.reclaimable ?? 0), 0);
       if (free < 10 * GB) return [];
-      return [{ id: "disk", key: "disk", area: "Storage", severity: "know", level: "warn", title: `About ${Math.round(free / GB)} GB can be freed`, detail: "Unused images and build cache take this much of the VM's disk. Images shows what each part is and clears it; volumes are never touched.", fix: { label: "Open Images", text: "", go: "Images" } }];
+      return [{ id: "disk", key: "disk", area: "Storage", severity: "know", level: "warn", title: `About ${Math.round(free / GB)} GB can be freed`, detail: "Unused images and build cache take this much of the VM's disk. Images shows what each part is and clears it; volumes are never touched.", fix: { label: "Open Images to free it", text: "", go: "Images" } }];
     },
   },
 ];

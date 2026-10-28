@@ -73,7 +73,7 @@ function load(name) {
 load("main");`;
 
 const read = (...p) => fs.readFileSync(path.join(root, ...p), "utf8");
-const css = read("src", "ui", "tokens.css") + read("src", "styles.css").replace(/@import[^;]+;/g, "");
+const css = read("src", "ui", "tokens.css") + read("src", "styles.css").replace(/@import[^;]+;/g, "") + read("src", "home.css");
 const html = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">

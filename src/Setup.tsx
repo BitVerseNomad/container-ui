@@ -58,33 +58,43 @@ export function useSetupActions({ reload, profile, onProfiles }: Opts) {
     }
   }
 
-  const row = (f: SetupFinding, primary: boolean) => (
-    <li key={f.id} className={`finding ${f.status}`} data-setup={f.id}>
-      <Icon name={ICON[f.status]} />
-      <div>
-        <b>{f.title}</b>
-        <span className="hint">{f.detail}</span>
-        {f.steps && f.status !== "ok" && (
-          <ul className="steps hint">
-            {f.steps.map((t) => <li key={t}>{t}</li>)}
-          </ul>
-        )}
-        {f.command && f.status !== "ok" && <pre className="cmd">{f.command}</pre>}
-        {f.fix && f.status !== "ok" && (
-          <button className={primary ? "primary" : ""} disabled={busy !== null} onClick={() => act(f)}>
-            {busy === f.id ? "Working…" : copied === f.id ? "Copied" : f.fix.label}
+  // One line per problem, like a home row: what is wrong, and one button that does it. The command it runs is
+  // behind "What it does", for those who want it; nobody has to copy anything to fix a problem.
+  const row = (f: SetupFinding, primary: boolean) => {
+    const open = f.status !== "ok";
+    const fix = open ? f.fix : undefined;
+    const copy = fix?.kind === "copy";
+    const how = open && (f.steps?.length || f.command);
+    return (
+      <li key={f.id} className={`finding ${f.status}`} data-setup={f.id}>
+        <Icon name={ICON[f.status]} />
+        <div>
+          <b>{f.title}</b>
+          <span className="hint">{f.detail}</span>
+          {how && (
+            <details className="how">
+              <summary>{copy ? "Show the steps" : "What it does"}</summary>
+              {f.steps && <ul className="steps hint">{f.steps.map((t) => <li key={t}>{t}</li>)}</ul>}
+              {f.command && <pre className="cmd">{f.command}</pre>}
+            </details>
+          )}
+        </div>
+        {/* The empty slot is where a container problem has its "…", so every button ends on one edge. */}
+        {fix && <span className="finding-actions">
+          <button className={primary && !copy ? "small primary" : "small"} title={f.command && !copy ? `Runs: ${f.command}` : undefined} disabled={busy !== null} onClick={() => act(f)}>
+            {busy === f.id ? "Working…" : copied === f.id ? "Copied" : fix.label}
           </button>
-        )}
-      </div>
-    </li>
-  );
-  const fixAll = (plan: PlanStep[]) =>
-    plan.length > 1 && (
-      <div className="fix-all">
-        <button className="primary" disabled={busy !== null} onClick={() => run("all", plan)}>{busy === "all" ? "Fixing…" : "Fix all setup problems"}</button>
-        <span className="hint">{FIX_ALL}</span>
-      </div>
+          <span className="more-slot" aria-hidden="true" />
+        </span>}
+      </li>
     );
+  };
+  // It installs software and edits ~/.docker/config.json, so it says what it will do before it starts.
+  const fixAll = (plan: PlanStep[], covers: SetupFinding[]) => {
+    if (plan.length < 2 || covers.length < 2) return null;
+    const go = async () => (await confirm([`Fix ${covers.length} problems?`, ...covers.map((f) => `• ${f.title}`), "", FIX_ALL].join("\n"), "Fix them")) && run("all", plan);
+    return <button className="small primary" aria-label="Fix all setup problems" title={FIX_ALL} disabled={busy !== null} onClick={go}>{busy === "all" ? "Fixing…" : `Fix ${covers.length} problems`}</button>;
+  };
   const log = <OutputLog event="brew-progress" active={installing} failure={failure} />;
 
   // One button per setup problem, for the VM row's note. The note doesn't show the command, so a change asks first.

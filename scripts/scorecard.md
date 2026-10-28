@@ -31,3 +31,11 @@ Do not change the tasks between loops. Add new tasks only at the end, and score 
 14. Get a crash-looping container (worker) working, or know exactly what to do
 15. Find which container uses port 8080
 16. Free disk space taken by unused images
+
+## Design read (every loop that changes a screen)
+
+A loop that changes what a screen looks like passes only when all of these hold:
+
+1. Fresh-context reviewers, one per field (product, UX, visual, engineering, daily user, accessibility), score the new round above the last one, and none drops.
+2. They get screenshots of every state of every changed screen: healthy, with problems, empty, stopped. A state nobody screenshotted is unreviewed. (The Doctor page with setup problems was missed for three rounds this way.)
+3. Each new screen is compared side by side with home, as one app: same rows, buttons, marks and headings.

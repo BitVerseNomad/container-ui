@@ -3,7 +3,7 @@ import { Profile, docker } from "./api";
 import { usePoll } from "./hooks";
 import { useSetup, useSetupActions } from "./Setup";
 import ConnectionTest from "./ConnectionTest";
-import FixIt, { FixRuns, Go, useFixRuns } from "./FixIt";
+import { FixRuns, Go, fixAction, useFixRuns } from "./FixIt";
 import { doctor } from "./lib/doctor";
 import type { Finding, Report } from "./lib/doctor";
 import { parseDiskUsage } from "./lib/disk";
@@ -12,7 +12,9 @@ import { muted, setMuted, subscribeMuted } from "./lib/muted";
 import { busy } from "./lib/fixStore";
 import { fixAllPlan } from "./lib/setup";
 import type { SetupFinding } from "./lib/setup";
-import { Banner } from "./ui";
+import { Banner, useConfirm } from "./ui";
+import Menu from "./ui/Menu";
+import type { MenuItem } from "./ui/Menu";
 import { Icon } from "./ui/icons";
 
 const ICON = { ok: "check", warn: "alert", fail: "close", info: "info" } as const;
@@ -45,16 +47,19 @@ export function useDoctor(ctx: string | null, profile: Profile | null) {
   return { report, error: facts.error, reload: facts.reload };
 }
 
-// What the page shows in each group. The sidebar badge uses the same count, so the two can't disagree.
+// What the page shows in each group. todo is the one problem count in the app: the sidebar badge and this page's
+// summary both show it. A problem about one container is left out of it, because the Containers screen shows it
+// under that container's row; it is listed here too, under its own heading, uncounted.
 export function groups(setupFindings: SetupFinding[], report: Report | null, mutedKeys: ReadonlySet<string>) {
   const live = (report?.findings ?? []).filter((f) => !mutedKeys.has(f.key));
   // The general "small VM" note says less than the one naming what won't fit, so only one shows.
   const vmNamed = live.some((f) => f.id === "vm-memory");
   const sf = setupFindings.filter((f) => !(vmNamed && f.id === "resources"));
   const sAction = sf.filter((f) => f.status === "fail" || f.status === "warn");
-  const eAction = live.filter((f) => f.severity === "action");
+  const eAction = live.filter((f) => f.severity === "action" && !f.subject);
   return {
     sAction,
+    onHome: live.filter((f) => f.severity === "action" && !!f.subject),
     sKnow: sf.filter((f) => f.status === "info"),
     sPassed: sf.filter((f) => f.status === "ok"),
     eAction,
@@ -65,30 +70,6 @@ export function groups(setupFindings: SetupFinding[], report: Report | null, mut
 }
 
 const summaryOf = (todo: number) => (todo === 0 ? "Nothing needs action." : `${todo} thing${todo === 1 ? " needs" : "s need"} action.`);
-
-// The setup checks (docker in your terminal, tests, login service, VM size), as one line in the VM row of
-// Containers. Container problems sit on their own rows; the rest of the Doctor is one click away.
-const TERMINAL: SetupFinding["id"][] = ["compose", "buildx", "leftovers", "creds", "context", "testcontainers", "autostart", "resources"];
-type NoteProps = { setup: ReturnType<typeof useSetup>; onProfiles: () => void; onDoctor: () => void };
-export function TerminalNote({ setup, onProfiles, onDoctor }: NoteProps) {
-  const actions = useSetupActions({ reload: setup.reload, profile: setup.profile, onProfiles });
-  const todo = (setup.findings ?? []).filter((f) => TERMINAL.includes(f.id) && (f.status === "fail" || f.status === "warn"));
-  if (!todo.length) return null;
-  const broken = todo.some((f) => f.status === "fail");
-  const plan = fixAllPlan(todo);
-  const covered = todo.filter((f) => f.fix?.kind === "fix" || f.fix?.kind === "install");
-  const text = todo.length === 1 ? todo[0].title : broken ? `docker in your terminal is broken (${todo.length} problems)` : `${todo.length} setup problems need a look`;
-  const action = plan.length > 1 ? actions.quickAll(plan, covered) : actions.quick(covered[0] ?? todo[0]);
-  return (
-    <div className={`vm-note ${broken ? "bad" : "warn"}`} role="status">
-      <Icon name="alert" size={14} />
-      <span className="vm-note-text">{text}</span>
-      {action}
-      <button className="link" onClick={onDoctor}>Details</button>
-      {actions.log}
-    </div>
-  );
-}
 
 type Props = {
   ctx: string | null;
@@ -106,7 +87,7 @@ export default function Doctor({ ctx, setup, doc, onProfiles, onGo, onOpen }: Pr
   const [testing, setTesting] = useState(false);
   const [checking, setChecking] = useState(false);
 
-  const { sAction, sKnow, sPassed, eAction, eKnow, hidden, todo } = groups(setup.findings ?? [], doc.report, mutedKeys);
+  const { sAction, onHome, sKnow, sPassed, eAction, eKnow, hidden, todo } = groups(setup.findings ?? [], doc.report, mutedKeys);
   const plan = fixAllPlan(setup.findings ?? []);
   const passed = [...sPassed.map((f) => ({ t: f.title, setup: f.id as string })), ...(doc.report?.passed ?? []).map((t) => ({ t, setup: undefined }))];
 
@@ -121,41 +102,58 @@ export default function Doctor({ ctx, setup, doc, onProfiles, onGo, onOpen }: Pr
   );
   const item = (f: Finding) => {
     const cls = f.severity === "know" ? "info" : f.level === "bad" ? "fail" : "warn";
+    const more: MenuItem[] = [
+      ...(f.subject ? [{ label: `Open ${f.subject}`, icon: <Icon name="logs" size={13} />, onSelect: () => onOpen(f.subject!) }] : []),
+      { label: "Not an issue", icon: <Icon name="check" size={13} />, onSelect: () => setMuted(f.key, true) },
+    ];
     return (
-        <li key={f.key} className={`finding ${cls}`}>
-          <Icon name={ICON[cls]} />
-          <div>
-            <b>{f.title}</b>
-            <span className="hint">{f.detail}</span>
-            {f.fix && <FixIt fix={f.fix} ctx={ctx ?? undefined} onGo={onGo} onFixed={() => doc.reload()} />}
-            <span className="actions-inline doctor-links">
-              {f.subject && <button className="link" onClick={() => onOpen(f.subject!)}>Open {f.subject}</button>}
-              <button className="link" onClick={() => setMuted(f.key, true)}>Not an issue</button>
-            </span>
-          </div>
-        </li>
+      <li key={f.key} className={`finding ${cls}`}>
+        <Icon name={ICON[cls]} />
+        <div>
+          <b>{f.title}</b>
+          <span className="hint">{f.detail}</span>
+          {f.fix?.text && !f.fix.go && (
+            <details className="how">
+              <summary>Or run it yourself</summary>
+              <pre className="cmd">{f.fix.text}</pre>
+              {f.fix.note && <p className="hint">{f.fix.note}</p>}
+            </details>
+          )}
+        </div>
+        <span className="finding-actions">
+          {f.fix ? <DoctorFix fix={f.fix} ctx={ctx} onGo={onGo} onFixed={() => doc.reload()} /> : f.subject ? <button className="small" onClick={() => onOpen(f.subject!)}>Open {f.subject}</button> : null}
+          <Menu label={`More actions for ${f.title}`} className="more" items={more}><Icon name="more" size={16} /></Menu>
+        </span>
+      </li>
     );
   };
 
-  const summary = summaryOf(todo);
+  // The container problems below are counted on their own rows, not here, so the line says where they are.
+  const onScreen = onHome.length ? ` ${onHome.length === 1 ? "1 container problem is" : `${onHome.length} container problems are`} shown on the Containers screen.` : "";
+  const summary = `${todo === 0 && onHome.length ? "Nothing else needs action." : summaryOf(todo)}${onScreen}`;
   return (
     <div className="setup doctor">
       <div className="doctor-head">
         <p className="hint">
           {summary} {ctx ? "Nothing changes until you click a fix." : "Start the VM to also check containers, networks, images and storage."}
         </p>
-        <span className="actions-inline">
-          <button disabled={!ctx} onClick={() => setTesting(true)}>Test a connection…</button>
-          <button disabled={checking} onClick={recheck}>{checking ? "Checking…" : "Run checks again"}</button>
+        <span className="finding-actions">
+          <button className="small" disabled={checking} onClick={recheck}>{checking ? "Checking…" : "Run checks again"}</button>
+          <Menu label="More Doctor actions" className="more" items={[{ label: "Test a connection…", icon: <Icon name="network" size={13} />, disabled: !ctx, onSelect: () => setTesting(true) }]}><Icon name="more" size={16} /></Menu>
         </span>
       </div>
       <Banner error={setup.error ?? doc.error} />
       <FixRuns />
       {todo > 0 && (
         <section aria-label="Needs action">
-          <h3 className="doctor-group">Needs action</h3>
-          {actions.fixAll(plan)}
+          <div className="doctor-group-head"><h3 className="doctor-group">Needs action</h3>{actions.fixAll(plan, sAction.filter((f) => f.fix && f.fix.kind !== "copy" && f.fix.kind !== "profiles"))}</div>
           <ul className="findings">{[...sAction.map(setupRow), ...eAction.map(item)]}</ul>
+        </section>
+      )}
+      {onHome.length > 0 && (
+        <section aria-label="On the Containers screen">
+          <h3 className="doctor-group">On the Containers screen</h3>
+          <ul className="findings">{onHome.map(item)}</ul>
         </section>
       )}
       {sKnow.length + eKnow.length > 0 && (
@@ -196,3 +194,13 @@ export default function Doctor({ ctx, setup, doc, onProfiles, onGo, onOpen }: Pr
   );
 }
 
+
+// A container problem's one button: the fix when the app can run it, else where to go, else copy the commands.
+function DoctorFix({ fix, ctx, onGo, onFixed }: { fix: NonNullable<Finding["fix"]>; ctx: string | null; onGo: (page: Go) => void; onFixed: () => void }) {
+  const confirm = useConfirm();
+  const runs = useFixRuns();
+  if (fix.go) return <button className="small" onClick={() => onGo(fix.go!)}>{fix.label}</button>;
+  const run = fixAction(fix, ctx ?? undefined, confirm, runs, onFixed);
+  if (run) return <button className="small" title={run.hint} disabled={run.running} onClick={run.go}>{run.running ? run.busyLabel : `${run.label}…`}</button>;
+  return <button className="small" onClick={() => navigator.clipboard.writeText(fix.text)}>Copy commands</button>;
+}

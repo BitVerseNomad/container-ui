@@ -10,6 +10,13 @@
   --on-primary: #ffffff;
   --danger: #a14b3f;
   --warn: #6e5208;
+  /* A push button reads as one by its fill and edge, not a faint outline (HIG: Buttons). */
+  --btn: #ffffff;
+  --btn-edge: #c2cbc4;
+  /* Status marks: running green, failing red, warning amber, each with its own shape too. */
+  --dot-ok: #397863;
+  --dot-bad: #c93c32;
+  --dot-warn: #a06a1a;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -23,6 +30,11 @@
     --on-primary: #0b1a15;
     --danger: #e07a6d;
     --warn: #e3c26b;
+    --btn: #22312d;
+    --btn-edge: #3a4c47;
+    --dot-ok: #5aa688;
+    --dot-bad: #e07a6d;
+    --dot-warn: #e3c26b;
   }
   /* on a dark page a drawer needs its own surface; a shadow alone doesn't show */
   .drawer { background: var(--card); }
