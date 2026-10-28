@@ -347,6 +347,10 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
               )}
             </div>
             <span className="toolbar-actions page-action">
+              {/* A place, not a thing you create, so it has its own button as well as its New entry. */}
+              <button onClick={() => setComposeOpen(true)} aria-label={`Compose projects${composeCount ? `, ${composeCount} on this Mac` : ""}`}>
+                <Icon name="folder" size={13} /> Compose projects{composeCount ? <span className="count"> {composeCount}</span> : null}
+              </button>
               <Menu
                 label="New"
                 primary

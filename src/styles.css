@@ -425,6 +425,7 @@ button.quiet:hover { border-color: var(--border); color: var(--ink); }
 .cmd-label { flex: none; width: 11em; font-size: 12px; color: var(--muted); }
 .compose-sick { margin: 0; display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--warn); }
 .compose-logs { display: flex; flex-direction: column; gap: 6px; }
+.compose-logs .log-bar select { min-width: 10em; width: auto; }
 .compose-logs pre { margin: 0; max-height: 320px; overflow: auto; padding: 8px; border-radius: 6px; background: var(--bg); border: 1px solid var(--line); font-size: 12px; white-space: pre; }
 .foot-sub { display: block; font-size: 12px; margin-top: 2px; }
 .nudge { display: flex; align-items: center; gap: 8px; margin-top: 10px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--muted); }
@@ -635,5 +636,6 @@ td .status-text.fixing, td .status-text.fixed, td .fix-failed { white-space: nor
 .fix-commands .cmd-row pre { flex: 1; min-width: 0; margin: 0; overflow-x: auto; white-space: pre; overflow-wrap: normal; }
 .check-row input { width: auto; margin: 0; }
 .cmd-toast .cmd-entry { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.cmd-entry > span { display: block; }
 .cmd-entry code { overflow-wrap: anywhere; }
 .cmd-said { flex: none; font-weight: 600; }

@@ -183,6 +183,20 @@ await p.keyboard.press("Escape");
 await p.getByRole("button", { name: "Commands", exact: true }).click();
 check(/docker --context colima stop web/.test(await p.getByRole("dialog", { name: "Commands" }).innerText()), "running: the stop it ran is in the Commands list");
 
+// Compose projects has its own button, and a crash loop gets its cause and a next step.
+p = await open("running");
+const composeBtn = p.locator(".toolbar").getByRole("button", { name: /^Compose projects/ });
+await p.waitForFunction(() => /\d+ on this Mac/.test(document.querySelector('.toolbar [aria-label^="Compose projects"]')?.getAttribute("aria-label") ?? ""), null, { timeout: 3000 }).catch(() => {});
+check(/Compose projects\s*\d+/.test(await composeBtn.innerText().catch(() => "")), `running: Compose projects has its own button with the count (${await composeBtn.innerText().catch(() => "none")})`);
+await p.locator(".toolbar").getByRole("button", { name: /^Compose projects/ }).click();
+check(await p.getByRole("dialog", { name: "Compose projects" }).count() === 1, "running: the button opens the panel");
+await p.keyboard.press("Escape");
+await p.locator("tbody tr", { hasText: "worker" }).locator("button.link-plain").first().click();
+await p.waitForFunction(() => /Its last error/.test(document.querySelector(".content")?.textContent ?? ""), null, { timeout: 6000 }).catch(() => {});
+const crash = await p.locator(".health-panel").innerText().catch(() => "");
+check(/Its last error/.test(crash) && /4182\.png: no such file/.test(crash), "running: a restarting container shows the error behind it");
+check(/Nothing is mounted at \/data\/in/.test(crash), "running: and says the folder isn't mounted, with where to mount it");
+
 // The added folder is remembered across pages of this browser; this scenario starts with none.
 await p.evaluate(() => localStorage.removeItem("colima-ui:compose-folders"));
 p = await open("nocompose");
