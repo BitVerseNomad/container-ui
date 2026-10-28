@@ -32,6 +32,8 @@ async function turnOnFromProfiles(p) {
 let p = await open("on");
 await kubeNav(p).click();
 await p.waitForSelector(".k8s-summary", { timeout: 8000 }).catch(() => {});
+// The summary box shows before its numbers do; under load that gap is long enough to read too early.
+await p.waitForFunction(() => /1 node ready/i.test(document.querySelector(".content")?.textContent ?? ""), null, { timeout: 8000 }).catch(() => {});
 let t = await p.locator(".content").innerText();
 check(/1 node ready/i.test(t), "k8s: summary shows the node is ready");
 await p.waitForSelector(".k8s-problems .problem", { timeout: 8000 }).catch(() => {});

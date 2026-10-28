@@ -610,3 +610,20 @@ td .status-text.fixing, td .status-text.fixed, td .fix-failed { white-space: nor
 .vm-note .out-log { flex-basis: 100%; }
 /* Confirm messages may list steps and commands, one per line. */
 .modal p { white-space: pre-line; }
+
+/* The command a click ran, at the bottom of the window, and the list of every one this session. */
+.cmd-toast { position: fixed; left: 50%; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 12; display: flex; align-items: center; gap: 10px; max-width: min(640px, calc(100% - 32px)); padding: 8px 10px 8px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 24px rgb(0 0 0 / .18); font-size: 13px; }
+.cmd-toast code { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cmd-toast.bad { border-color: var(--danger); }
+.cmd-toast.bad > svg { color: var(--danger); }
+.cmd-toast.recall { border-color: var(--accent); }
+.cmd-toast .actions-inline { flex: none; display: flex; gap: 6px; align-items: center; }
+.check-row { display: flex; gap: 8px; align-items: center; font-size: 13px; }
+.cmd-log { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.cmd-log li { display: grid; grid-template-columns: auto 1fr auto auto; gap: 8px; align-items: center; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; font-size: 12px; }
+.cmd-log li code { overflow-wrap: anywhere; }
+.cmd-log li.bad { border-color: var(--danger); }
+.fix-commands .cmd-row { display: flex; gap: 8px; align-items: center; }
+.fix-commands .cmd-row pre { flex: 1; min-width: 0; margin: 0; overflow-x: auto; }
+.check-row input { width: auto; margin: 0; }
+.cmd-toast .cmd-said { flex: none; font-weight: 600; }

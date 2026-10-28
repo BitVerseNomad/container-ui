@@ -8,6 +8,7 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke: (cmd: string, a: Record<string,
 
 import Containers from "./Containers";
 import { ConfirmProvider } from "./ui";
+import { reset as resetFixes, startFix } from "./lib/fixStore";
 
 const POD = "io.kubernetes.pod.name=coredns-1,io.kubernetes.pod.namespace=kube-system";
 const rows = [
@@ -41,7 +42,10 @@ function show(reclaimable = "10MB", list = rows, volumes = "0B") {
 }
 
 describe("Containers", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resetFixes();
+  });
 
   it("given a Kubernetes pod container, when the list loads, then it sits in a folded group and cannot be selected or removed", async () => {
     const user = userEvent.setup();
@@ -125,5 +129,25 @@ describe("Containers", () => {
     show("10MB");
     await screen.findByRole("checkbox", { name: "Select web" });
     expect(screen.queryByRole("button", { name: "Free up space" })).not.toBeInTheDocument();
+  });
+
+  // A Fix renames the container to NAME-old, stops it and starts a new one. A click in the middle breaks that.
+  const fixing = (name: string) => startFix([{ name, run: [], connect: [] }], () => new Promise(() => {}), async () => {}, undefined, () => {});
+
+  it("given a fix running on web, when the list loads, then web and web-old cannot be started, stopped, restarted, removed or picked", async () => {
+    const list = [...rows.slice(0, 2), { ID: "old", Names: "web-old", Image: "nginx:latest", State: "exited", Status: "Exited (0) 1 second ago", Ports: "", Labels: "" }];
+    show("10MB", list);
+    fixing("web");
+    for (const name of [/^Restart web$/, /^Stop web$/, /^Remove web$/, /^Start web-old$/, /^Remove web-old$/]) expect(await screen.findByRole("button", { name })).toBeDisabled();
+    expect(screen.getByRole("checkbox", { name: "Select web" })).toBeDisabled();
+    expect(screen.getByRole("checkbox", { name: "Select web-old" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /^Start cache$/ })).toBeEnabled();
+  });
+
+  it("given a fix running, when the list loads, then the VM cannot be restarted or stopped until it ends", async () => {
+    show();
+    fixing("web");
+    expect(await screen.findByRole("button", { name: "Restart the default VM" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Stop the default VM" })).toBeDisabled();
   });
 });

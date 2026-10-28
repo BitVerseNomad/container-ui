@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { CommandLog, CommandToast } from "./Commands";
 import { invoke } from "@tauri-apps/api/core";
 import { Profile, ctxFor } from "./api";
 import { usePoll } from "./hooks";
@@ -15,10 +16,12 @@ import Profiles from "./Profiles";
 import InstallCard from "./InstallCard";
 import { useSetup } from "./Setup";
 import Doctor, { TerminalNote, groups, useDoctor, useMuted } from "./Doctor";
+import { useFixRuns } from "./FixIt";
 import { blocking, needsAttention } from "./lib/setup";
 import { useEnv } from "./useEnv";
 import { useComposeScan } from "./useComposeScan";
 import { contextNames, kubernetesOn } from "./lib/kubeNav";
+import { ranVm } from "./lib/activity";
 
 // The profile a VM operation runs on: start takes { opts: { name } }, the others { name }.
 const opName = (vm: VmState) => { const a = vm.last?.args as { name?: string; opts?: { name?: string } } | undefined; return a?.opts?.name ?? a?.name; };
@@ -79,6 +82,7 @@ export default function App() {
   const setupFails = setup.findings ? blocking(setup.findings) : 0;
   const setupTodo = setup.findings ? needsAttention(setup.findings) : 0;
   const doc = useDoctor(ctx, current);
+  const [logOpen, setLogOpen] = useState(false);
   const mutedKeys = useMuted();
   const doctorTodo = groups(setup.findings ?? [], doc.report, mutedKeys).todo;
   // Not blocking, but it's the "my terminal shows other containers" confusion, so it earns the strip too.
@@ -89,14 +93,17 @@ export default function App() {
 
   // Starts or stops a VM from any tab (Empty states, the sidebar switcher). It switches to that profile and
   // shows the progress on Containers, where the VM strip lives.
+  // A Fix renames and recreates containers; stopping the VM halfway would leave a NAME-old behind.
+  const fixing = useFixRuns().some((r) => r.step != null);
   async function vmFromAnywhere(name: string, op: "starting" | "stopping") {
+    if (fixing) return;
     setActive(name);
     setDetailId(null);
     setTab("Containers");
     const last = op === "starting" ? { op, cmd: "start_profile", args: { opts: { name } } } : { op, cmd: "stop_profile", args: { name } };
     setVm({ op, failure: null, last });
     try {
-      await invoke(last.cmd, last.args);
+      await ranVm(last.cmd, last.args, () => invoke(last.cmd, last.args));
       setVm({ op: null, failure: null, last });
     } catch (e) {
       setVm({ op: null, failure: String(e), last });
@@ -181,7 +188,7 @@ export default function App() {
     );
 
   return (
-    <Shell badges={{ Doctor: doctorTodo }} hidden={kubeOn ? [] : ["Kubernetes"]} nav={tab} onNav={(t) => { setDetailId(null); setPullOnOpen(false); setNewProfileOnOpen(false); setTab(t); }} profiles={profiles} active={active} onSelect={switchTo} onVm={vmFromAnywhere} vmBusy={vm.op !== null} vmOp={vm.op && opName(vm) ? { name: opName(vm)!, op: vm.op } : null} onNewProfile={() => { setDetailId(null); setNewProfileOnOpen(true); setTab("Profiles"); }}>
+    <Shell onCommands={() => setLogOpen(true)} badges={{ Doctor: doctorTodo }} hidden={kubeOn ? [] : ["Kubernetes"]} nav={tab} onNav={(t) => { setDetailId(null); setPullOnOpen(false); setNewProfileOnOpen(false); setTab(t); }} profiles={profiles} active={active} onSelect={switchTo} onVm={vmFromAnywhere} vmBusy={vm.op !== null || fixing} vmOp={vm.op && opName(vm) ? { name: opName(vm)!, op: vm.op } : null} onNewProfile={() => { setDetailId(null); setNewProfileOnOpen(true); setTab("Profiles"); }}>
       {!(tab === "Containers" && detailId) && <PageHeader title={tab} />}
       <Banner error={error} />
       <Banner error={appError} onClose={() => setAppError(null)} />
@@ -197,6 +204,8 @@ export default function App() {
         </button>
       )}
       {page}
+      <CommandToast onOpenLog={() => setLogOpen(true)} />
+      {logOpen && <CommandLog onClose={() => setLogOpen(false)} />}
     </Shell>
   );
 }

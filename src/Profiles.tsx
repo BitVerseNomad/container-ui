@@ -8,6 +8,8 @@ import EditPanel from "./EditPanel";
 import { Empty } from "./ui";
 import IconButton from "./ui/IconButton";
 import OutputLog from "./ui/OutputLog";
+import { useFixRuns } from "./FixIt";
+import { ranVm } from "./lib/activity";
 
 const gb = (bytes: number) => `${gbOf(bytes)} GiB`;
 
@@ -24,6 +26,8 @@ export default function Profiles({ profiles, reload, openNew = false, kubeOn = (
   const size = useHostSize();
   const confirm = useConfirm();
   const [busy, setBusy] = useState<string | null>(null);
+  // A container fix in the middle of a VM stop or restart is left half done, so the VM waits for it.
+  const fixing = useFixRuns().some((r) => r.step != null);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<Profile | null>(null);
   const dialog = useRef<HTMLDialogElement>(null);
@@ -44,7 +48,7 @@ export default function Profiles({ profiles, reload, openNew = false, kubeOn = (
     setBusy(`${name}: ${label}`);
     setError(null);
     try {
-      await invoke(cmd, args);
+      await ranVm(cmd, args, () => invoke(cmd, args));
       return true;
     } catch (e) {
       setError(String(e));
@@ -98,14 +102,14 @@ export default function Profiles({ profiles, reload, openNew = false, kubeOn = (
                   <td className="row-actions">
                     {up ? (
                       <>
-                        <IconButton label={`Stop ${p.name}`} icon="stop" disabled={!!busy} onClick={() => act(p.name, "stopping", "stop_profile", { name: p.name })} />
-                        <IconButton label={`Restart ${p.name}`} icon="restart" disabled={!!busy} onClick={() => act(p.name, "restarting", "restart_profile", { name: p.name })} />
+                        <IconButton label={`Stop ${p.name}`} icon="stop" disabled={!!busy || fixing} onClick={() => act(p.name, "stopping", "stop_profile", { name: p.name })} />
+                        <IconButton label={`Restart ${p.name}`} icon="restart" disabled={!!busy || fixing} onClick={() => act(p.name, "restarting", "restart_profile", { name: p.name })} />
                       </>
                     ) : (
                       <IconButton label={`Start ${p.name}`} icon="play" disabled={!!busy} onClick={() => act(p.name, "starting", "start_profile", { opts: { name: p.name } as StartOpts })} />
                     )}
-                    <IconButton label={`Edit ${p.name}`} icon="sliders" disabled={!!busy} onClick={() => setEditing(p)} />
-                    <IconButton label={`Delete ${p.name}`} icon="trash" danger disabled={!!busy} onClick={async () => (await confirm(`Delete profile "${p.name}" and its VM? All its containers and images are removed.`, "Delete")) && act(p.name, "deleting", "delete_profile", { name: p.name })} />
+                    <IconButton label={`Edit ${p.name}`} icon="sliders" disabled={!!busy || fixing} onClick={() => setEditing(p)} />
+                    <IconButton label={`Delete ${p.name}`} icon="trash" danger disabled={!!busy || fixing} onClick={async () => (await confirm(`Delete profile "${p.name}" and its VM? All its containers and images are removed.`, "Delete")) && act(p.name, "deleting", "delete_profile", { name: p.name })} />
                   </td>
                 </tr>
               );

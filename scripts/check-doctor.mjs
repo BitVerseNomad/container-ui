@@ -34,6 +34,11 @@ await p.getByRole("alertdialog").getByRole("button", { name: "Cancel" }).click()
 // The fix itself, from the row: Fixing… then Fixed in the same row, with Done to clear it
 await rowOf("orders").locator("td.row-fix button").click();
 await p.getByRole("alertdialog").getByRole("button", { name: "Fix" }).click();
+// While it runs, the sidebar's profile menu can't stop the VM under it.
+await p.getByRole("button", { name: /Switch profile/ }).click();
+const sideStop = p.getByRole("menuitem", { name: /^Stop / }).or(p.getByRole("button", { name: /^Stop default$/ }));
+check(await sideStop.first().isDisabled().catch(() => false), "rows: during a Fix the sidebar's Stop is disabled");
+await p.keyboard.press("Escape");
 await p.waitForFunction(() => [...document.querySelectorAll("table.list tbody tr")].some((tr) => /orders/.test(tr.textContent) && /Fixed\./.test(tr.textContent)), null, { timeout: 30000 }).catch(() => {});
 check(/Fixed\./.test(await rowOf("orders").innerText().catch(() => "")) && await btn("orders") === "Done", `rows: after the fix the row says Fixed, with Done (${await btn("orders")})`);
 await rowOf("orders").locator("td.row-fix button").click();

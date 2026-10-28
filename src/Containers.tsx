@@ -1,4 +1,6 @@
 // The home screen: the VM in one line, then every container in one table (like Docker Desktop).
+import { activity, dockerLine, ranVm } from "./lib/activity";
+import { score } from "./lib/fuzzy";
 import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Profile, docker, dockerJson } from "./api";
@@ -17,6 +19,7 @@ import { useHostSize } from "./useHostSize";
 import RunPicker from "./RunPicker";
 import RunPanel from "./RunPanel";
 import ComposeProjects from "./ComposeProjects";
+import { projectName } from "./lib/composeScan";
 import { ComposeScan } from "./useComposeScan";
 import ContainerDetail from "./ContainerDetail";
 import { HealthBadge, stripHealth } from "./Health";
@@ -26,7 +29,7 @@ import { useMuted } from "./Doctor";
 import type { Finding } from "./lib/doctor";
 import { fixAction, useFixRuns } from "./FixIt";
 import { describe } from "./lib/fixRun";
-import { dismiss, runFor } from "./lib/fixStore";
+import { busy as fixBusy, dismiss, runFor } from "./lib/fixStore";
 import type { Run } from "./lib/fixStore";
 
 type VmOp = { op: "starting" | "stopping"; cmd: string; args: Record<string, unknown> };
@@ -84,7 +87,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
     const last = { op, cmd, args };
     onVm({ op, failure: null, last });
     try {
-      await invoke(cmd, args);
+      await ranVm(cmd, args, () => invoke(cmd, args));
       onVm({ op: null, failure: null, last });
     } catch (e) {
       onVm({ op: null, failure: String(e), last });
@@ -96,8 +99,10 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
   const start = () => vmAct("starting", "start_profile", { opts: profile ? { name: profile.name } : { name: "default", ...size } });
 
   async function act(args: string[]) {
+    // Logged with names, as you'd type it; the call itself uses IDs, which can't be mistaken.
+    const shown = args.map((a) => all.find((c) => c.ID === a)?.Names ?? a);
     try {
-      await docker(ctx!, args);
+      await activity.ran(args[0], dockerLine(ctx!, shown), () => docker(ctx!, args), shown.slice(1).filter((w) => !w.startsWith("-")).join(" and "));
       setErr(null);
     } catch (e) {
       setErr(String(e));
@@ -139,19 +144,29 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
   }, [runs]);
   // With nothing left to attend to, the filter button goes away; fall back to All instead of an empty table.
   const view = only === "attention" && problems.size === 0 ? "all" : only;
-  const rows = useMemo(
-    () =>
-      all
-        .filter((c) => `${c.Names} ${c.Image}`.toLowerCase().includes(q.toLowerCase()))
-        .filter((c) => view === "all" || (view === "running" ? c.State === "running" : flagged(c.Names)))
-        .sort((a, b) => Number(flagged(b.Names)) - Number(flagged(a.Names)) || Number(b.State === "running") - Number(a.State === "running") || a.Names.localeCompare(b.Names)),
-    [all, q, view, problems, runs], // eslint-disable-line react-hooks/exhaustive-deps
-  );
+  // While the pointer is over the list, rows keep their places: a Stop that re-sorted the list would put another
+  // container's Remove under the next click. They settle into order once the pointer leaves.
+  const [pointing, setPointing] = useState(false);
+  const order = useRef<string[]>([]);
+  const rows = useMemo(() => {
+    const sorted = all
+      .filter((c) => score(c.Names, q) > 0 || score(c.Image, q, false) > 0)
+      .filter((c) => view === "all" || (view === "running" ? c.State === "running" : flagged(c.Names)))
+      .sort((a, b) => Number(flagged(b.Names)) - Number(flagged(a.Names)) || Number(b.State === "running") - Number(a.State === "running") || a.Names.localeCompare(b.Names));
+    if (!pointing) {
+      order.current = sorted.map((c) => c.Names);
+      return sorted;
+    }
+    const at = (c: C) => { const i = order.current.indexOf(c.Names); return i < 0 ? Infinity : i; };
+    return [...sorted].sort((a, b) => at(a) - at(b));
+  }, [all, q, view, problems, runs, pointing]); // eslint-disable-line react-hooks/exhaustive-deps
   const busy = vm.op !== null;
   const groups = groupByProject(rows);
   const groupKey = (g: Group<C>) => (g.kind === "kubernetes" ? KUBE_KEY : g.project);
   // Only rows on screen count: not filtered out, not gone, and not inside a folded group.
-  const selectable = groups.filter((g) => !closed.has(groupKey(g) ?? "")).flatMap((g) => g.rows).filter((c) => !isKubeOwned(c));
+  // A row a fix is working on (or its NAME-old copy) is locked: a stop or remove mid-fix leaves neither one running.
+  const locked = (c: C) => fixBusy(runs, c.Names);
+  const selectable = groups.filter((g) => !closed.has(groupKey(g) ?? "")).flatMap((g) => g.rows).filter((c) => !isKubeOwned(c) && !locked(c));
   const chosen = selectable.filter((c) => picked.has(c.ID));
   const pick = (ids: string[], on: boolean) => setPicked((s) => { const n = new Set(s); ids.forEach((id) => (on ? n.add(id) : n.delete(id))); return n; });
   async function bulk(args: string[], list: C[]) {
@@ -197,7 +212,10 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
     return `${live.length ? "Stop and remove" : "Remove"} ${n}? ${list}.${why} This can't be undone.`;
   };
   const groupLabel = (g: Group<C>) => (g.kind === "kubernetes" ? "Kubernetes pods" : g.project ?? "Other containers");
-  const composeCount = compose.paths ? new Set(compose.paths.map((x) => x.slice(0, x.lastIndexOf("/")))).size : null;
+  const composeDirs = compose.paths ? [...new Set(compose.paths.map((x) => x.slice(0, x.lastIndexOf("/"))))] : null;
+  const composeCount = composeDirs ? composeDirs.length : null;
+  // A search that finds no container may be for a project that was never started, which only the Compose panel lists.
+  const projectHits = q.trim() && composeDirs ? composeDirs.filter((d) => score(projectName(d.slice(d.lastIndexOf("/") + 1)), q) > 0).length : 0;
   // The Fix column: one button per broken row, saying where it goes. While a fix runs, and after, the Status
   // cell says how it went; the row is matched by name, since Replace gives the container a new ID.
   const fixed = () => { containers.reload(); states.reload(); };
@@ -237,10 +255,11 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
                   const run = runFor(runs, c.Names);
                   const cell = fixCell(c, p, run);
                   const kube = isKubeOwned(c);
+                  const lock = locked(c);
                   return (
                     <tr key={c.ID} className={picked.has(c.ID) && !kube ? "picked" : undefined}>
                       <td className="pick">
-                        {!kube && <input type="checkbox" aria-label={`Select ${c.Names}`} checked={picked.has(c.ID)} onChange={(e) => pick([c.ID], e.target.checked)} />}
+                        {!kube && <input type="checkbox" aria-label={`Select ${c.Names}`} disabled={lock} checked={picked.has(c.ID) && !lock} onChange={(e) => pick([c.ID], e.target.checked)} />}
                       </td>
                       <td>
                         <div className="name-cell">
@@ -267,16 +286,16 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
                       <td className="row-actions">
                         <span className="row-tools">
                         <IconButton label={`Logs for ${c.Names}`} icon="logs" onClick={() => setDetailId(c.ID)} />
-                        {up && !kube && <IconButton label={`Open a shell in ${c.Names}`} icon="terminal" onClick={() => invoke("open_terminal", { kind: "shell", context: ctx, target: c.Names }).catch((e) => setErr(String(e)))} />}
+                        {up && !kube && <IconButton label={`Open a shell in ${c.Names}`} icon="terminal" disabled={lock} onClick={() => activity.ran("exec", dockerLine(ctx!, ["exec", "-it", c.Names, "sh"]), () => invoke("open_terminal", { kind: "shell", context: ctx, target: c.Names }), c.Names).catch((e) => setErr(String(e)))} />}
                         {kube ? null : up ? (
                           <>
-                            <IconButton label={`Restart ${c.Names}`} icon="restart" onClick={() => act(["restart", c.ID])} />
-                            <IconButton label={`Stop ${c.Names}`} icon="stop" onClick={() => act(["stop", c.ID])} />
+                            <IconButton label={`Restart ${c.Names}`} icon="restart" disabled={lock} onClick={() => act(["restart", c.ID])} />
+                            <IconButton label={`Stop ${c.Names}`} icon="stop" disabled={lock} onClick={() => act(["stop", c.ID])} />
                           </>
                         ) : (
-                          <IconButton label={`Start ${c.Names}`} icon="play" onClick={() => act(["start", c.ID])} />
+                          <IconButton label={`Start ${c.Names}`} icon="play" disabled={lock} onClick={() => act(["start", c.ID])} />
                         )}
-                        {!kube && <IconButton label={`Remove ${c.Names}`} icon="trash" danger onClick={async () => (await confirm(`Remove container "${c.Names}"?`)) && act(["rm", "-f", c.ID])} />}
+                        {!kube && <IconButton label={`Remove ${c.Names}`} icon="trash" danger disabled={lock} onClick={async () => (await confirm(`Remove container "${c.Names}"?`)) && act(["rm", "-f", c.ID])} />}
                         </span>
                       </td>
                     </tr>
@@ -294,6 +313,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
         failedOp={vm.last?.op}
         onStart={start}
         onRetry={() => (vm.last ? vmAct(vm.last.op, vm.last.cmd, vm.last.args) : start())}
+        fixing={runs.some((r) => r.step != null)}
         onStop={() => vmAct("stopping", "stop_profile", { name: profile.name })}
         onRestart={() => vmAct("starting", "restart_profile", { name: profile.name })}
         onForce={() => vmAct("starting", "force_restart_profile", { name: profile.name })}
@@ -342,7 +362,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
           {containers.data && all.length === 0 ? (
             <EmptyState title="No containers yet">Press Run image to start your first one.</EmptyState>
           ) : (
-            <table className={chosen.length ? "list ctr picking" : "list ctr"}>
+            <table className={chosen.length ? "list ctr picking" : "list ctr"} onMouseEnter={() => setPointing(true)} onMouseLeave={() => setPointing(false)}>
               <thead>
                 <tr>
                   <th scope="col" className="pick">
@@ -360,7 +380,8 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
               {groups.map((g) => {
                 const key = groupKey(g);
                 const shut = key !== null && closed.has(key);
-                const up = g.rows.filter((c) => c.State === "running");
+                const free = g.rows.filter((c) => !locked(c));
+                const up = free.filter((c) => c.State === "running");
                 return (
                   <tbody key={key ?? "-"}>
                     {grouped && (
@@ -375,11 +396,11 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
                                 {g.rows.length} containers. The cluster restarts them, so manage them {onKubernetes ? <>in the <button className="link-plain inline-link" onClick={onKubernetes}>Kubernetes tab</button></> : "with kubectl"}.
                               </span>
                             ) : (
-                              <span className="hint">{up.length} of {g.rows.length} running{g.dir ? ` · ${g.dir.replace(/^\/Users\/[^/]+/, "~")}` : ""}</span>
+                              <span className="hint">{g.rows.filter((c) => c.State === "running").length} of {g.rows.length} running{g.dir ? ` · ${g.dir.replace(/^\/Users\/[^/]+/, "~")}` : ""}</span>
                             )}
                             {g.kind === "compose" && (
                               <span className="row-actions">
-                                {up.length < g.rows.length && <IconButton label={`Start all in ${g.project}`} icon="play" onClick={() => act(["start", ...g.rows.filter((c) => c.State !== "running").map((c) => c.ID)])} />}
+                                {up.length < free.length && <IconButton label={`Start all in ${g.project}`} icon="play" onClick={() => act(["start", ...free.filter((c) => c.State !== "running").map((c) => c.ID)])} />}
                                 {up.length > 0 && <IconButton label={`Restart all in ${g.project}`} icon="restart" onClick={() => act(["restart", ...up.map((c) => c.ID)])} />}
                                 {up.length > 0 && <IconButton label={`Stop all in ${g.project}`} icon="stop" onClick={() => act(["stop", ...up.map((c) => c.ID)])} />}
                               </span>
@@ -394,7 +415,14 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
               })}
             </table>
           )}
-          {all.length > 0 && rows.length === 0 && <p className="hint pad">No container matches.</p>}
+          {all.length > 0 && rows.length === 0 && (
+            <p className="hint pad">
+              No container matches.
+              {q.trim() && projectHits > 0 && (
+                <> {projectHits === 1 ? "1 Compose project that isn't running matches" : `${projectHits} Compose projects match`}. <button className="link" onClick={() => setComposeOpen(true)}>Show {projectHits === 1 ? "it" : "them"}</button></>
+              )}
+            </p>
+          )}
           {chosen.length > 0 && (
             <div className="bulk-bar" role="region" aria-label="Selected containers">
               <b>{chosen.length} selected</b>
@@ -417,7 +445,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
         </>
       )}
 
-      {composeOpen && ctx && <ComposeProjects ctx={ctx} scan={compose} containers={all} onClose={() => setComposeOpen(false)} />}
+      {composeOpen && ctx && <ComposeProjects ctx={ctx} scan={compose} containers={all} query={rows.length === 0 ? q : ""} onClose={() => setComposeOpen(false)} onChanged={fixed} />}
       {picking && ctx && (
         <RunPicker ctx={ctx} onClose={() => setPicking(false)} onPick={(ref) => { setPicking(false); setRunImage(ref); }} />
       )}

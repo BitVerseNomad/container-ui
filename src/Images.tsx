@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { score } from "./lib/fuzzy";
 import IconButton from "./ui/IconButton";
 import { useConfirm } from "./ui";
 import { docker, dockerJson } from "./api";
@@ -9,6 +10,7 @@ import { formatBytes, parseBytes } from "./containerInfo";
 import RunPanel from "./RunPanel";
 import DiskCard from "./DiskCard";
 import { Icon } from "./ui/icons";
+import { activity, dockerLine } from "./lib/activity";
 
 type I = { ID: string; Repository: string; Tag: string; Size: string; CreatedSince: string };
 
@@ -20,11 +22,11 @@ export default function Images({ ctx, onRan, startPull = false, arch }: { ctx: s
   const [hubTerm, setHubTerm] = useState<string | undefined>(undefined);
   const [running, setRunning] = useState<string | null>(null);
   const [q, setQ] = useState("");
-  const shown = (data ?? []).filter((i) => `${i.Repository}:${i.Tag}`.toLowerCase().includes(q.trim().toLowerCase()));
+  const shown = (data ?? []).filter((i) => score(`${i.Repository}:${i.Tag}`, q) > 0);
 
   async function act(args: string[]) {
     try {
-      await docker(ctx, args);
+      await activity.ran(args[0], dockerLine(ctx, args), () => docker(ctx, args), args.length > 1 && !args[args.length - 1].startsWith("-") ? args[args.length - 1] : undefined);
       setErr(null);
     } catch (e) {
       setErr(String(e));

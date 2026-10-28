@@ -24,7 +24,9 @@ for (const [w, h] of [[1100, 680], [800, 600]]) {
   ok(`.content present ${w}x${h}`);
 
   await nav(page, "Kubernetes").waitFor({ timeout: 6000 }).catch(() => {});
-  const labels = await page.locator(".sidebar nav .nav-item").evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")));
+  const labels = await page.locator(".sidebar nav .nav-item:not(.nav-tool)").evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")));
+  const last = await page.locator(".sidebar nav .nav-item").last().getAttribute("aria-label");
+  last === "Commands" ? ok(`Commands opens from the bottom of the sidebar ${w}x${h}`) : bad(`the last sidebar button is ${last}`);
   JSON.stringify(labels) === JSON.stringify(["Containers", "Images", "Volumes", "Networks", "Kubernetes", "Doctor", "Profiles"]) ? ok(`nav order puts Profiles after Doctor ${w}x${h}`) : bad(`nav order is ${labels.join(", ")}`);
   for (const name of labels) {
     await nav(page, name).click();
@@ -108,7 +110,7 @@ for (const [w, h] of [[1100, 680], [800, 600]]) {
     await off.goto(url("?k8s=off"));
     await off.waitForSelector(".content");
     await off.waitForTimeout(800);
-    const offLabels = await off.locator(".sidebar nav .nav-item").evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")));
+    const offLabels = await off.locator(".sidebar nav .nav-item:not(.nav-tool)").evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")));
     JSON.stringify(offLabels) === JSON.stringify(["Containers", "Images", "Volumes", "Networks", "Doctor", "Profiles"]) ? ok("without Kubernetes the nav has no Kubernetes item") : bad(`nav without Kubernetes is ${offLabels.join(", ")}`);
     for (const name of offLabels) {
       await nav(off, name).click();

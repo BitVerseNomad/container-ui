@@ -16,6 +16,17 @@ export default function Drawer({ label, title, onClose, closeDisabled = false, c
     return () => opener.current?.focus?.();
   }, []);
 
+  // A button that disables itself on click (Scan again, Start) drops focus to the page, out of reach of onKeyDown.
+  useEffect(() => {
+    const lost = (e: globalThis.KeyboardEvent) => {
+      // Only the panel opened last closes, so one Escape never closes two.
+      const top = [...document.querySelectorAll(".drawer")].pop();
+      if (e.key === "Escape" && !closeDisabled && document.activeElement === document.body && top === ref.current) onClose();
+    };
+    document.addEventListener("keydown", lost);
+    return () => document.removeEventListener("keydown", lost);
+  }, [closeDisabled, onClose]);
+
   function onKeyDown(e: KeyboardEvent) {
     if (e.key === "Escape" && !closeDisabled) {
       e.stopPropagation();

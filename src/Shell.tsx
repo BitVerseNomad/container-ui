@@ -34,6 +34,8 @@ type Props = {
   badges?: Partial<Record<Tab, number>>;
   // nav items left out for now, e.g. Kubernetes while the active profile has it turned off
   hidden?: Tab[];
+  // Opens the list of commands the app ran; not a page, so it isn't one of the tabs.
+  onCommands?: () => void;
 };
 
 const FOLD_KEY = "colima-ui:sidebar-folded";
@@ -41,7 +43,7 @@ const FOLD_KEY = "colima-ui:sidebar-folded";
 const readFolded = () => { try { return localStorage.getItem(FOLD_KEY) === "1"; } catch { return false; } };
 const saveFolded = (v: boolean) => { try { localStorage.setItem(FOLD_KEY, v ? "1" : "0"); } catch { /* not remembered */ } };
 
-export default function Shell({ nav, onNav, profiles, active, onSelect, onNewProfile, onVm, vmBusy, vmOp, children, badges = {}, hidden = [] }: Props) {
+export default function Shell({ nav, onNav, profiles, active, onSelect, onNewProfile, onVm, vmBusy, vmOp, children, badges = {}, hidden = [], onCommands }: Props) {
   const current = profiles.find((p) => p.name === active);
   const [folded, setFolded] = useState(readFolded);
   const fold = () => setFolded((f) => { saveFolded(!f); return !f; });
@@ -87,6 +89,12 @@ export default function Shell({ nav, onNav, profiles, active, onSelect, onNewPro
               {!!badges[tab] && <span className="nav-badge" aria-hidden="true">{badges[tab]}</span>}
             </button>
           ))}
+          {onCommands && (
+            <button className="nav-item nav-tool" aria-label="Commands" title="Every docker command the app ran" onClick={onCommands}>
+              <Icon name="terminal" />
+              <span className="nav-label">Commands</span>
+            </button>
+          )}
         </nav>
       </div>
       <main className="content">{children}</main>
