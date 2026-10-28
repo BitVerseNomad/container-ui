@@ -2,6 +2,8 @@
 
 The fixed test for every improvement loop. A fresh reviewer, who has not seen the code or the changes, does each task in the preview (`preview/index.html?scenario=running`) and scores it. A loop is kept only if the total goes up and no task's score goes down. Two loops in a row with no gain means stop.
 
+Score the old and new builds together, by one reviewer, as A and B without saying which is newer. Totals from different reviewers drift by up to 8 points, so only the gap within one pair counts.
+
 Do not change the tasks between loops. Add new tasks only at the end, and score them for the old build too, so totals stay comparable.
 
 ## Scores

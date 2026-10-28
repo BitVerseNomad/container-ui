@@ -2,6 +2,12 @@
 
 Newest first. Older entries record what was true when they were written; later entries supersede them (the Overview, for example, was replaced by the Containers home screen).
 
+## Round 4: the cause of a crash loop, Compose projects in reach
+- **A crash loop names its cause.** The container page reads the last log lines and shows the error behind the restarts. A line whose cause it knows wins over the last error line, with what to do: "Nothing is mounted at /data/in, so /data/in/4182.png isn't there. Mount the folder that has it at /data/in", or that localhost inside a container is the container itself.
+- **Compose projects has its own button** on the Containers toolbar, with the count. It stays under New too.
+- **Small fixes**: the logs service picker is wider, and Commands entries keep the words and the command on separate lines.
+- **Scorecard**: loop 4 scored 45/48 against loop 3's 37 from the same reviewer. Totals from different reviewers differ by up to 8 points, so only same-reviewer comparisons count.
+
 ## Compose, round 3: live logs, Run again, one-click port fixes
 - **Project logs are live.** New lines every 2 seconds, each with its service and time. Filter by service or text; scrolling up pauses following.
 - **Run again** in Commands, for a container start, stop, restart, pause, resume or shell. It waits while a Fix runs. Remove, Down, VM and Compose actions stay copy-only. Each entry says what it did in words.
