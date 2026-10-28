@@ -2,11 +2,12 @@
 import type { Connect, Replace } from "./health.ts";
 
 type Docker = (args: string[]) => Promise<string>;
-// untouched: the failed container was never changed. restored: it was, and is back as it was.
+// untouched: the failed container was never changed. restored: it was, and is back as it was ("no-policy": back and
+// running, but its restart policy could not be set again).
 // leftover: old containers that could not be removed after their replacement started.
 export type FixResult =
   | { ok: true; replaced: string[]; leftover: string[]; message?: string }
-  | { ok: false; replaced: string[]; leftover: string[]; failed: string; reason: string; logs: string; untouched: boolean; restored: boolean; unknown?: boolean; message?: string };
+  | { ok: false; replaced: string[]; leftover: string[]; failed: string; reason: string; logs: string; untouched: boolean; restored: boolean | "no-policy"; unknown?: boolean; message?: string };
 
 // Long enough for Kafka to start or fail on its settings, short enough to wait for.
 export const SETTLE_MS = 12_000;
@@ -37,22 +38,31 @@ async function differs(docker: Docker, r: Replace): Promise<string | null> {
   return changed.length ? `${r.name} was started with its own ${changed.map((k) => words[k]).join(", ")}, which Fix can't carry over.` : null;
 }
 
-// null when it stays up; otherwise why not. With a health check, it must also pass it.
+// null when it stays up; otherwise why not. With a health check, it must also pass it. Some images restart once on
+// first boot (write their config, then start again), so one restart is fine if the next look finds it still up.
 async function staysUp(docker: Docker, name: string, wait: (ms: number) => Promise<void>): Promise<string | null> {
   await wait(SETTLE_MS);
   let seen = false;
+  let before = 0;
+  // Ending on a look that was still settling proves nothing, so the last look must be a calm one.
+  let settling = "";
   for (let i = 0; i < HEALTH_TRIES; i++) {
     const out = await docker(["inspect", "--type", "container", "--format", "{{.State.Running}} {{.RestartCount}} {{if .State.Health}}{{.State.Health.Status}}{{end}}", name]).catch(() => null);
     if (out !== null) {
       seen = true;
       const [up, restarts, health = ""] = out.trim().split(/\s+/);
-      if (up !== "true" || restarts !== "0") return `The new ${name} stopped after starting.`;
+      const count = Number(restarts) || 0;
+      if (up !== "true") return `The new ${name} stopped after starting.`;
+      if (count > 1) return `The new ${name} keeps restarting.`;
+      const justRestarted = count !== before;
+      before = count;
       if (health === "unhealthy") return `The new ${name} is running, but its health check fails.`;
-      if (health !== "starting") return null;
+      if (health !== "starting" && !justRestarted) return null;
+      settling = justRestarted ? `The new ${name} restarted and didn't settle in time.` : `The new ${name}'s health check was still starting after a minute.`;
     }
     await wait(5000);
   }
-  return seen ? null : `Couldn't check that the new ${name} is running.`;
+  return seen ? settling || null : `Couldn't check that the new ${name} is running.`;
 }
 
 // allowed: the backend's own check of a command, so a run it would refuse stops the fix before anything changes.
@@ -89,6 +99,8 @@ export async function runFix(steps: Replace[], docker: Docker, onStep: (text: st
       onStep(`Stopping ${r.name}…`);
       await docker(["rename", r.name, old]);
       renamed = true;
+      // Otherwise an old copy that can't be removed starts again with the VM and takes the new one's ports.
+      if (autoRestarts(r)) await docker(["update", "--restart", "no", old]);
       await docker(["stop", old]);
       onStep(`Starting the new ${r.name}…`);
       await docker(r.run);
@@ -102,7 +114,7 @@ export async function runFix(steps: Replace[], docker: Docker, onStep: (text: st
       if (!renamed) return stop(r.name, message(e));
       const logs = await docker(["logs", "--tail", "40", r.name]).catch(() => "");
       onStep(`Putting the old ${r.name} back…`);
-      const restored = await restore(docker, r.name, old);
+      const restored = await restore(docker, r, old);
       return stop(r.name, message(e), { logs, untouched: false, restored });
     }
     replaced.push(r.name);
@@ -112,13 +124,18 @@ export async function runFix(steps: Replace[], docker: Docker, onStep: (text: st
   return { ok: true, replaced, leftover };
 }
 
-// Remove the new one if it exists, give the old one its name back and start it.
-async function restore(docker: Docker, name: string, old: string): Promise<boolean> {
+const autoRestarts = (r: Replace) => !!r.restart && r.restart !== "no";
+
+// Remove the new one if it exists, give the old one its name and restart policy back, and start it.
+async function restore(docker: Docker, r: Replace, old: string): Promise<boolean | "no-policy"> {
+  const name = r.name;
   await docker(["rm", "-f", name]).catch(() => "");
   try {
     await docker(["rename", old, name]);
+    // Running again without its policy is still better than not running, so it starts either way and says so.
+    const policy = autoRestarts(r) ? await docker(["update", "--restart", r.restart!, name]).then(() => true, () => false) : true;
     await docker(["start", name]);
-    return true;
+    return policy || "no-policy";
   } catch {
     return false;
   }
@@ -134,6 +151,7 @@ export function describe(r: FixResult): string {
   const done = r.replaced.length ? `${r.replaced.join(" and ")} ${were(r.replaced)} replaced, but ` : "";
   const after = r.untouched
     ? r.replaced.length ? ` ${r.failed} wasn't changed.` : " Nothing was changed."
+    : r.restored === "no-policy" ? ` The old ${r.failed} is back and running, but without its restart policy, so it won't start with the VM.`
     : r.restored ? ` The old ${r.failed} is back as it was.` : ` Putting the old one back also failed: it is stopped and named ${r.failed}-old. Start it from the Containers list.`;
   const reason = /[.!?)]$/.test(r.reason) ? r.reason : `${r.reason}.`;
   return `${done}${r.failed} couldn't be fixed. ${reason}${after}${left}`;

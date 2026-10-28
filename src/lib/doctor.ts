@@ -153,6 +153,22 @@ const CHECKS: Check[] = [
       }),
   },
   {
+    // Fix renames a container to NAME-old and stops it while the new one starts. If the app quit or the VM stopped
+    // in the middle, that copy is what's left. A running NAME-old was named that by hand, so it isn't one.
+    id: "fix-leftover",
+    area: "Containers",
+    passed: "No container is left over from an unfinished Fix",
+    run: ({ apps, ctx }) =>
+      apps.flatMap((a) => {
+        const base = /^(.+)-old$/.exec(a.name)?.[1];
+        if (!base || a.running) return [];
+        const d = dockerCmd(ctx);
+        if (apps.some((x) => x.name === base))
+          return [about(a, { id: "fix-leftover", area: "Containers", severity: "know", title: `${a.name} is the old copy a Fix kept`, short: "Old copy from a Fix", detail: `A Fix replaced ${base} and kept the old one aside as ${a.name}. Once ${base} works, remove ${a.name}.`, fix: { label: "Remove the old copy", text: `${d} rm ${a.name}` } })];
+        return [about(a, { id: "fix-leftover", area: "Containers", severity: "action", title: `A Fix didn't finish: ${base} is still named ${a.name}`, short: "Fix didn't finish", detail: `${base} was renamed to ${a.name} to be replaced, and the new ${base} never started. Giving it its name back and starting it returns it. The Fix turned its restart policy off, so if it should start with the VM, set that again too (${d} update --restart unless-stopped ${base}).`, fix: { label: "Put it back", text: `${d} rename ${a.name} ${base} && ${d} start ${base}` } })];
+      }),
+  },
+  {
     // A container that stopped because its host port was taken says so in State.Error.
     id: "port-taken",
     area: "Network",

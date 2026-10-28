@@ -3,12 +3,13 @@ import { Profile, docker } from "./api";
 import { usePoll } from "./hooks";
 import { useSetup, useSetupActions } from "./Setup";
 import ConnectionTest from "./ConnectionTest";
-import FixIt, { FixRuns, Go } from "./FixIt";
+import FixIt, { FixRuns, Go, useFixRuns } from "./FixIt";
 import { doctor } from "./lib/doctor";
 import type { Finding, Report } from "./lib/doctor";
 import { parseDiskUsage } from "./lib/disk";
 import { hostArch } from "./lib/guided";
 import { muted, setMuted, subscribeMuted } from "./lib/muted";
+import { busy } from "./lib/fixStore";
 import { fixAllPlan } from "./lib/setup";
 import type { SetupFinding } from "./lib/setup";
 import { Banner } from "./ui";
@@ -34,10 +35,13 @@ export function useDoctor(ctx: string | null, profile: Profile | null) {
     return { containers, images, disk };
   }, [ctx], 30_000);
   const running = profile?.status === "Running";
-  const report = useMemo(
-    () => (ctx && facts.data ? doctor({ ctx, ...facts.data, hostArch: hostArch(profile?.arch ?? ""), vmMemory: running ? profile?.memory : undefined }, mutedKeys) : null),
-    [ctx, facts.data, profile?.arch, profile?.memory, running, mutedKeys],
-  );
+  const runs = useFixRuns();
+  const report = useMemo(() => {
+    if (!ctx || !facts.data) return null;
+    const r = doctor({ ctx, ...facts.data, hostArch: hostArch(profile?.arch ?? ""), vmMemory: running ? profile?.memory : undefined }, mutedKeys);
+    // A NAME-old is a leftover only once its Fix has stopped; mid-Fix it is the step the Fix is on.
+    return { ...r, findings: r.findings.filter((f) => !(f.id === "fix-leftover" && f.subject && busy(runs, f.subject))) };
+  }, [ctx, facts.data, profile?.arch, profile?.memory, running, mutedKeys, runs]);
   return { report, error: facts.error, reload: facts.reload };
 }
 

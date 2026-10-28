@@ -31,7 +31,14 @@ export type Inspect = {
     SecurityOpt?: string[] | null;
     ReadonlyRootfs?: boolean;
     Links?: string[] | null;
-    LogConfig?: { Type?: string };
+    LogConfig?: { Type?: string; Config?: Record<string, string> | null };
+    AutoRemove?: boolean;
+    Tmpfs?: Record<string, string> | null;
+    Sysctls?: Record<string, string> | null;
+    PidMode?: string;
+    IpcMode?: string;
+    PublishAllPorts?: boolean;
+    CapDrop?: string[] | null;
   };
   Mounts?: { Type?: string; Name?: string; Source?: string; Destination?: string; RW?: boolean }[] | null;
 };
@@ -117,6 +124,16 @@ export function toApp(c: Inspect): App {
     [!!h.ReadonlyRootfs, "a read-only filesystem"],
     [!!h.Links?.length, "links to other containers"],
     [!!h.LogConfig?.Type && !["json-file", "local"].includes(h.LogConfig.Type), "its own log driver"],
+    [Object.keys(h.LogConfig?.Config ?? {}).length > 0, "log options"],
+    // Fix stops the old copy before starting the new one; with --rm Docker deletes it right then, so a failed Fix
+    // would have nothing to put back.
+    [!!h.AutoRemove, "being removed when it stops (--rm)"],
+    [Object.keys(h.Tmpfs ?? {}).length > 0, "a tmpfs mount"],
+    [Object.keys(h.Sysctls ?? {}).length > 0, "kernel settings (sysctls)"],
+    // Docker's defaults are an empty PID mode and a private or shareable IPC mode.
+    [!!h.PidMode || /^(host|container:)/.test(h.IpcMode ?? ""), "a shared process or IPC namespace"],
+    [!!h.PublishAllPorts, "all ports published (-P)"],
+    [!!h.CapDrop?.length, "dropped capabilities"],
     [!!c.Config?.Tty, "a terminal (-t)"],
     // Docker's default hostname is the short ID; anything else was set, and some apps (RabbitMQ) keep data under it.
     [!!c.Config?.Hostname && !id.startsWith(c.Config.Hostname), "its own hostname"],
@@ -188,7 +205,7 @@ function replacement(a: App, net: string | null, env: Env, createAs = "kafka"): 
   for (const m of a.mounts) if (m.spec) run.push("-v", m.spec);
   for (const [key, v] of env) run.push("-e", `${key}=${v}`);
   run.push(a.image);
-  return { name: a.name, createNetwork: net ? undefined : createAs, run, connect: a.nets.filter((x) => !DEFAULT_NETS.has(x) && x !== useNet), keep: a.keep };
+  return { name: a.name, createNetwork: net ? undefined : createAs, run, connect: a.nets.filter((x) => !DEFAULT_NETS.has(x) && x !== useNet), keep: a.keep, restart: a.restart || undefined };
 }
 
 // The same steps as commands to paste. Every line names the context, since the terminal may point elsewhere.
@@ -207,7 +224,7 @@ export function replaceText(ctx: string, r: Replace): string {
   const body = pairs.filter((p) => /^(-v|-e) /.test(p)).map((p) => `  ${p} \\`);
   return [
     ...(r.createNetwork ? [`${d} network create ${r.createNetwork}`] : []),
-    `${d} rename ${n} ${n}-old && ${d} stop ${n}-old && \\`,
+    `${d} rename ${n} ${n}-old && ${r.restart && r.restart !== "no" ? `${d} update --restart no ${n}-old && ` : ""}${d} stop ${n}-old && \\`,
     `${d} run -d ${head} \\`,
     ...body,
     `  ${r.run[r.run.length - 1]} && \\`,

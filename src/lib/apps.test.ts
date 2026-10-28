@@ -175,8 +175,39 @@ test("Given settings Fix can't run again, when checked, then Fix is copy-only an
   assert.equal(appProblems([udp, ui()]).get("kafka-u5it")![0].fix!.steps, undefined);
 });
 
+// --rm would delete the old copy the moment Fix stops it, so nothing is left to put back; the others would just vanish.
+test("Given --rm, tmpfs, log options or other run flags, when checked, then Fix is copy-only and names each one", () => {
+  const cases: [Record<string, unknown>, RegExp][] = [
+    [{ AutoRemove: true }, /removed when it stops \(--rm\)/],
+    [{ Tmpfs: { "/scratch": "" } }, /a tmpfs mount/],
+    [{ LogConfig: { Type: "json-file", Config: { "max-size": "10m" } } }, /log options/],
+    [{ Sysctls: { "net.core.somaxconn": "1024" } }, /kernel settings \(sysctls\)/],
+    [{ PidMode: "host" }, /a shared process or IPC namespace/],
+    [{ IpcMode: "host" }, /a shared process or IPC namespace/],
+    [{ PublishAllPorts: true }, /all ports published \(-P\)/],
+    [{ CapDrop: ["NET_RAW"] }, /dropped capabilities/],
+  ];
+  for (const [host, says] of cases) {
+    const b = broker();
+    Object.assign(b.HostConfig, host);
+    const [k] = appProblems([b, ui()]).get("kafka-u5it")!;
+    assert.equal(k.fix!.steps, undefined, JSON.stringify(host));
+    assert.match(k.detail, says);
+  }
+  // Docker's own defaults are not settings someone chose.
+  const plain = broker();
+  Object.assign(plain.HostConfig, { IpcMode: "private", PidMode: "", LogConfig: { Type: "json-file", Config: {} }, Tmpfs: null, CapDrop: null });
+  assert.ok(appProblems([plain, ui()]).get("kafka-u5it")![0].fix!.steps);
+});
+
 test("Given a replace step, when it is built, then it records what the container ran with", () => {
   const b = { ...broker(), Image: "sha256:abc", Config: { ...broker().Config, Cmd: ["/etc/kafka/docker/run"], User: "appuser" } };
   const [k] = appProblems([b, ui()]).get("kafka-u5it")!;
   assert.deepEqual(k.fix!.steps!.at(-1)!.keep, { image: "apache/kafka:3.9.0", imageId: "sha256:abc", Cmd: ["/etc/kafka/docker/run"], Entrypoint: undefined, User: "appuser", WorkingDir: undefined, Healthcheck: undefined });
+});
+
+test("Given a broker that restarts always, when its Fix is built, then the commands turn that off on the old copy too", () => {
+  const [k] = appProblems([broker([], { restart: "always" }), ui()], "colima").get("kafka-u5it")!;
+  assert.equal(k.fix!.steps![0].restart, "always");
+  assert.match(k.fix!.text, /rename kafka-u5it kafka-u5it-old && docker --context 'colima' update --restart no kafka-u5it-old && docker --context 'colima' stop kafka-u5it-old/);
 });

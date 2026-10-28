@@ -7,7 +7,8 @@ export type State = { name: string; running: boolean; status: string; exitCode: 
 // the new one, it joins `connect`, and the old one is removed only once the new one keeps running.
 // keep: what the container ran with, checked against its image before a Fix so nothing is silently dropped.
 export type Keep = { image: string; imageId?: string; Cmd?: unknown; Entrypoint?: unknown; User?: unknown; WorkingDir?: unknown; Healthcheck?: unknown };
-export type Replace = { name: string; createNetwork?: string; run: string[]; connect: string[]; keep?: Keep };
+// restart: the container's own restart policy, turned off on the old copy while it waits aside and put back on undo.
+export type Replace = { name: string; createNetwork?: string; run: string[]; connect: string[]; keep?: Keep; restart?: string };
 // `short` is the list-row label when the title is too long. `fix` is shown as commands to copy; with `steps`, the
 // app can also do it itself (Fix), in order.
 // connect: one click joins containers to a network (adding a network takes nothing away). go: a page that has the fix.

@@ -12,7 +12,10 @@ type Opts = {
   failRmOld?: boolean;
   failRename?: "before" | "after";
   failRestore?: boolean;
+  failUpdate?: boolean;
   image?: { Id?: string; Config?: Record<string, unknown> } | null;
+  // RestartCount at each look, for a container that restarts on its own.
+  restarts?: string[];
 };
 
 // A fake docker that records every call and fails where a test says.
@@ -27,7 +30,11 @@ function fake(opts: Opts = {}) {
       if (opts.exists?.includes(last) || renamed.has(last)) return `/${last}`;
       throw "Error: No such object";
     }
-    if (args[0] === "inspect") return opts.health ? `true 0 ${opts.health[Math.min(looks++, opts.health.length - 1)]}` : opts.dies ? "false 0" : "true 0";
+    if (args[0] === "inspect") {
+      const n = looks++;
+      const restarts = opts.restarts ? opts.restarts[Math.min(n, opts.restarts.length - 1)] : "0";
+      return opts.health ? `true ${restarts} ${opts.health[Math.min(n, opts.health.length - 1)]}` : opts.dies ? `false ${restarts}` : `true ${restarts}`;
+    }
     if (args[0] === "image") {
       if (opts.image === null) throw "Error: No such image";
       return JSON.stringify([opts.image ?? { Id: "sha256:a", Config: { Cmd: ["run"] } }]);
@@ -41,6 +48,7 @@ function fake(opts: Opts = {}) {
     if (args[0] === "run" && opts.failRun) throw "docker: port is already allocated";
     if (args[0] === "network" && args[1] === "connect" && opts.failConnect) throw "network appnet not found";
     if (args[0] === "rm" && args[1].endsWith("-old") && opts.failRmOld) throw "removal in progress";
+    if (args[0] === "update" && args[2] !== "no" && opts.failUpdate) throw "update failed";
     if (args[0] === "logs") return "ERROR bad config";
     return "";
   };
@@ -202,4 +210,62 @@ test("Given the second connect fails, when Connect runs, then it says the first 
   }, () => {});
   assert.equal(out.ok, false);
   assert.match(describe(out), /^Couldn't connect b to n: Error response from daemon: container b is not running\. a is on n now, which does no harm\.$/);
+});
+
+// A restart policy of always brings a leftover -old back on the next VM start, where it fights the new one for ports.
+test("Given a container that restarts always, when Fix runs, then the old copy's restart is turned off before it stops", async () => {
+  const { calls, docker } = fake({ failRmOld: true });
+  const out = await runFix([step("kafka", { restart: "always" })], docker, () => {}, noWait);
+  assert.equal(out.ok, true);
+  assert.deepEqual(changes(calls).slice(0, 3), ["rename kafka kafka-old", "update --restart no kafka-old", "stop kafka-old"]);
+  assert.deepEqual(out.leftover, ["kafka-old"]);
+});
+
+test("Given a container that restarts always, when its Fix fails, then the old one gets its restart policy back", async () => {
+  const { calls, docker } = fake({ failRun: true });
+  const out = await runFix([step("kafka", { restart: "unless-stopped" })], docker, () => {}, noWait);
+  assert.equal(out.ok, false);
+  const back = changes(calls).slice(changes(calls).indexOf("rename kafka-old kafka"));
+  assert.deepEqual(back, ["rename kafka-old kafka", "update --restart unless-stopped kafka", "start kafka"]);
+});
+
+test("Given no restart policy, when Fix runs, then it changes no policy", async () => {
+  const { calls, docker } = fake();
+  await runFix([step("kafka", { restart: "no" }), step("ui")], docker, () => {}, noWait);
+  assert.ok(!calls.some((c) => c.startsWith("update")));
+});
+
+// Some images restart once on first boot (they write their config, then start again). That is not a failed Fix.
+test("Given the new container restarts once and stays up, when Fix checks it, then the Fix succeeds", async () => {
+  const { docker } = fake({ restarts: ["1", "1"] });
+  const out = await runFix([step("kafka")], docker, () => {}, noWait);
+  assert.equal(out.ok, true);
+});
+
+test("Given the new container keeps restarting, when Fix checks it, then the old one comes back", async () => {
+  const { docker } = fake({ restarts: ["1", "2"] });
+  const out = await runFix([step("kafka")], docker, () => {}, noWait);
+  assert.equal(out.ok, false);
+  if (out.ok) return;
+  assert.match(out.reason, /keeps restarting/);
+});
+
+test("Given the policy can't be set back, when a failed Fix puts the old one back, then it says the policy is off", async () => {
+  const { docker } = fake({ failRun: true, failUpdate: true });
+  const out = await runFix([step("kafka", { restart: "always" })], docker, () => {}, noWait);
+  assert.equal(out.ok === false && out.restored, "no-policy");
+  assert.match(describe(out), /back and running, but without its restart policy/);
+});
+
+test("Given every health look is still starting, when Fix checks it, then the Fix fails instead of passing", async () => {
+  const { docker } = fake({ health: ["starting"] });
+  const out = await runFix([step("kafka")], docker, () => {}, noWait);
+  assert.equal(out.ok, false);
+  assert.match(describe(out), /health check was still starting/);
+});
+
+test("Given a restart on the very last look, when Fix checks it, then the Fix fails instead of passing", async () => {
+  const { docker } = fake({ restarts: ["0", "0", "0", "0", "0", "0", "0", "0", "0", "1"], health: ["starting"] });
+  const out = await runFix([step("kafka")], docker, () => {}, noWait);
+  assert.equal(out.ok, false);
 });

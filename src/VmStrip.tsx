@@ -26,6 +26,8 @@ type Props = {
   onRestart: () => void;
   onForce: () => void;
   onForceStop: () => void;
+  // A container fix is running: a VM restart in the middle would leave its container half replaced.
+  fixing?: boolean;
 };
 
 function Use({ label, value, part }: { label: string; value: string; part: number }) {
@@ -38,7 +40,7 @@ function Use({ label, value, part }: { label: string; value: string; part: numbe
   );
 }
 
-export default function VmStrip({ profile, totals, op, failure, failedOp, onStart, startInCard, onRetry, onStop, onRestart, onForce, onForceStop, note }: Props) {
+export default function VmStrip({ profile, totals, op, failure, failedOp, onStart, startInCard, onRetry, onStop, onRestart, onForce, onForceStop, note, fixing }: Props) {
   const running = profile.status === "Running";
   const t = totals ?? { cores: 0, memBytes: 0, diskBytes: 0 };
   const busy = op !== null;
@@ -71,8 +73,8 @@ export default function VmStrip({ profile, totals, op, failure, failedOp, onStar
             <button onClick={() => invoke("cancel_vm_op").catch(() => {})}>Cancel</button>
           ) : running && !failure ? (
             <>
-              <button className="quiet" aria-label={`Restart the ${profile.name} VM`} title={`Restart the ${profile.name} VM`} disabled={busy} onClick={onRestart}>Restart</button>
-              <button className="quiet" aria-label={`Stop the ${profile.name} VM`} title={`Stop the ${profile.name} VM`} disabled={busy} onClick={onStop}>Stop VM</button>
+              <button className="quiet" aria-label={`Restart the ${profile.name} VM`} title={fixing ? "Wait for the fix to finish" : `Restart the ${profile.name} VM`} disabled={busy || fixing} onClick={onRestart}>Restart</button>
+              <button className="quiet" aria-label={`Stop the ${profile.name} VM`} title={fixing ? "Wait for the fix to finish" : `Stop the ${profile.name} VM`} disabled={busy || fixing} onClick={onStop}>Stop VM</button>
             </>
           ) : failure || startInCard ? null : (
             <button className="primary" disabled={busy} onClick={onStart}>Start</button>

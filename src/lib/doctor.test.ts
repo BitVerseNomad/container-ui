@@ -191,3 +191,29 @@ test("Given the same finding in two profiles, when muted in one, then the other 
   const key = doctor({ ctx: "colima", containers }).findings.find((f) => f.id === "db-password")!.key;
   assert.ok(doctor({ ctx: "colima-work", containers }, new Set([key])).byContainer.get("pg")!.some((f) => f.id === "db-password"));
 });
+
+// A Fix renames the container to NAME-old while it starts a new one. If the app quit or the VM stopped mid-way,
+// that copy is all that's left, and nothing else says so.
+test("Given a stopped NAME-old and no NAME, when checked, then it says the Fix didn't finish and how to put it back", () => {
+  const r = doctor({ ctx: "colima", containers: [c({ name: "kafka-old", image: "apache/kafka:3.9.0", running: false, exit: 143 })] });
+  const f = r.findings.find((x) => x.id === "fix-leftover")!;
+  assert.equal(f.subject, "kafka-old");
+  assert.equal(f.severity, "action");
+  assert.match(f.title, /kafka is still named kafka-old/);
+  assert.equal(f.fix?.text, "docker --context 'colima' rename kafka-old kafka && docker --context 'colima' start kafka");
+  assert.equal(f.fix?.steps, undefined);
+});
+
+test("Given a stopped NAME-old next to a working NAME, when checked, then it is worth knowing, with the command to remove it", () => {
+  const r = doctor({ ctx: "colima", containers: [c({ name: "kafka", image: "apache/kafka:3.9.0" }), c({ name: "kafka-old", image: "apache/kafka:3.9.0", running: false, exit: 143 })] });
+  const f = r.findings.find((x) => x.id === "fix-leftover")!;
+  assert.equal(f.severity, "know");
+  assert.equal(f.fix?.text, "docker --context 'colima' rm kafka-old");
+  assert.ok(!r.findings.some((x) => x.id === "fix-leftover" && x.subject === "kafka"));
+});
+
+test("Given a running container whose name ends in -old, when checked, then it is not taken for a Fix leftover", () => {
+  const r = doctor({ ctx: "colima", containers: [c({ name: "site-old", image: "nginx" })] });
+  assert.ok(!r.findings.some((x) => x.id === "fix-leftover"));
+  assert.ok(r.passed.includes("No container is left over from an unfinished Fix"));
+});
