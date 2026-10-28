@@ -5,6 +5,7 @@ import Drawer from "./ui/Drawer";
 import { Icon } from "./ui/icons";
 import { activity } from "./lib/activity";
 import type { Entry } from "./lib/activity";
+import { useFixRuns } from "./FixIt";
 
 export const useActivity = () => useSyncExternalStore(activity.subscribe, activity.snapshot);
 // A recall waits until you answer it; a plain one goes after a few seconds.
@@ -72,9 +73,13 @@ const time = (at: number) => new Date(at).toLocaleTimeString([], { hour: "2-digi
 
 export function CommandLog({ onClose }: { onClose: () => void }) {
   const { entries, tips } = useActivity();
+  // Run again skips the screen's own locks, so it waits while a Fix is replacing a container.
+  const fixing = useFixRuns().some((r) => r.step != null);
+  const [err, setErr] = useState<string | null>(null);
   return (
     <Drawer label="Commands" title={<>Commands</>} onClose={onClose}>
-      <p className="hint">What each click ran, newest first. Type these in Terminal to do the same.</p>
+      <p className="hint">What each click ran, newest first. Run a start, stop or shell again from here, or copy any of them for Terminal.</p>
+      {err && <p className="note" role="status">{err}</p>}
       <label className="check-row">
         <input type="checkbox" checked={tips} onChange={(e) => activity.setTips(e.target.checked)} />
         Now and then, ask me to recall the command first
@@ -84,8 +89,22 @@ export function CommandLog({ onClose }: { onClose: () => void }) {
         {entries.map((e: Entry) => (
           <li key={e.id} className={e.ok === false ? "bad" : undefined}>
             <span className="hint">{time(e.at)}</span>
-            <code className="mono">{e.cmd}</code>
+            <span className="cmd-entry">
+              {said(e) && <span>{said(e)}</span>}
+              <code className="mono">{e.cmd}</code>
+            </span>
             <span className="hint">{e.ok === null ? "running" : e.ok ? "" : "failed"}</span>
+            {e.again && (
+              <button
+                className="link"
+                aria-label={`Run again: ${e.cmd}`}
+                disabled={fixing || e.ok === null}
+                title={fixing ? "Wait for the fix to finish" : e.cmd}
+                onClick={() => { setErr(null); e.again!().catch((x) => setErr(x instanceof Error ? x.message : String(x))); }}
+              >
+                Run again
+              </button>
+            )}
             <Copy text={e.cmd} label={`Copy ${e.cmd}`} />
           </li>
         ))}

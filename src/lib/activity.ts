@@ -2,7 +2,8 @@
 // recall the command before showing it, like a phone that asks for the PIN even though Face ID works: the button
 // stays convenient and the skill doesn't fade (JetBrains' Key Promoter X does the same for keyboard shortcuts).
 // what: the thing acted on, in words ("web", "shop"), for the toast to say what happened.
-export type Entry = { id: number; kind: string; cmd: string; ok: boolean | null; at: number; recall: boolean; what?: string };
+// again: runs the same click once more. Only for container actions that can't lose anything (see AGAIN).
+export type Entry = { id: number; kind: string; cmd: string; ok: boolean | null; at: number; recall: boolean; what?: string; again?: () => Promise<unknown> };
 export type Activity = { entries: Entry[]; tips: boolean };
 type Storage = { getItem: (k: string) => string | null; setItem: (k: string, v: string) => void };
 
@@ -32,6 +33,10 @@ export const ranVm = <T,>(cmd: string, args: Record<string, unknown>, work: () =
 };
 const KEEP = 100;
 
+// Run again skips the screen it came from, and so its locks; only these are safe from the log. Remove, Down, prune,
+// VM and Compose actions stay copy-only: they lose data, or a screen tracks their progress.
+export const AGAIN = new Set(["start", "stop", "restart", "pause", "unpause", "exec", "debug"]);
+
 // Spaced, not every time: recall works because it is occasional (retrieval practice), and nagging gets turned off.
 export const recallDue = (n: number) => n === 3 || n === 10 || n === 30 || (n >= 100 && n % 100 === 0);
 
@@ -60,15 +65,30 @@ export function createActivity(storage: Storage | undefined) {
   };
 
   // kind groups clicks that teach the same command (every restart counts towards "restart").
-  function record(kind: string, cmd: string, what?: string): number {
+  function record(kind: string, cmd: string, what?: string, again?: () => Promise<unknown>): number {
     const n = (saved.counts[kind] ?? 0) + 1;
     saved.counts[kind] = n;
     save();
     const id = next++;
-    set([{ id, kind, cmd, what, ok: null, at: Date.now(), recall: saved.tips && recallDue(n) }, ...state.entries].slice(0, KEEP));
+    set([{ id, kind, cmd, what, ok: null, at: Date.now(), recall: saved.tips && recallDue(n), again }, ...state.entries].slice(0, KEEP));
     return id;
   }
   const settle = (id: number, ok: boolean) => set(state.entries.map((e) => (e.id === id ? { ...e, ok } : e)));
+
+  // Runs the work and logs the command it stands for; the result or error passes through untouched. Only docker
+  // lines get Run again: a colima line is a VM action, which the VM strip tracks.
+  async function ran<T>(kind: string, cmd: string, work: () => Promise<T>, what?: string): Promise<T> {
+    const again = AGAIN.has(kind) && cmd.startsWith("docker ") ? () => ran(kind, cmd, work, what) : undefined;
+    const id = record(kind, cmd, what, again);
+    try {
+      const out = await work();
+      settle(id, true);
+      return out;
+    } catch (e) {
+      settle(id, false);
+      throw e;
+    }
+  }
 
   return {
     subscribe: (l: () => void) => {
@@ -78,18 +98,7 @@ export function createActivity(storage: Storage | undefined) {
     snapshot: () => state,
     record,
     settle,
-    // Runs the work and logs the command it stands for; the result or error passes through untouched.
-    async ran<T>(kind: string, cmd: string, work: () => Promise<T>, what?: string): Promise<T> {
-      const id = record(kind, cmd, what);
-      try {
-        const out = await work();
-        settle(id, true);
-        return out;
-      } catch (e) {
-        settle(id, false);
-        throw e;
-      }
-    },
+    ran,
     // A recall entry, once shown, reads like any other.
     reveal: (id: number) => set(state.entries.map((e) => (e.id === id ? { ...e, recall: false } : e))),
     setTips(on: boolean) {

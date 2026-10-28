@@ -78,3 +78,17 @@ test("Given a VM button, when logged, then the line is the colima command the ba
   assert.equal(colimaLine("force_restart_profile", { name: "default" }), "colima stop --force default && colima start default");
   assert.equal(colimaLine("vm_log_tail", { name: "default" }), null);
 });
+
+test("given a container start and a remove, when logged, then only the start can run again, and it runs the same work", async () => {
+  const a = createActivity(undefined);
+  let runs = 0;
+  await a.ran("start", "docker --context colima start web", async () => void runs++, "web");
+  await a.ran("rm", "docker --context colima rm web", async () => undefined, "web");
+  await a.ran("stop", "colima stop default", async () => undefined, "the default VM");
+  const [vm, rm, start] = a.snapshot().entries;
+  assert.equal(rm.again, undefined);
+  assert.equal(vm.again, undefined);
+  await start.again!();
+  assert.equal(runs, 2);
+  assert.equal(a.snapshot().entries[0].cmd, "docker --context colima start web");
+});
