@@ -17,6 +17,7 @@ import { ActivityList, HealthPanel } from "./Health";
 import { FixStatus, useFixRuns } from "./FixIt";
 import { busy } from "./lib/fixStore";
 import { Problem, parseState, problemsFor } from "./lib/health";
+import { crashLead } from "./lib/crashLead";
 
 // Next to the state word, so a red dot beside "Running" says why.
 const SHORT: Record<string, string> = { unhealthy: "Unhealthy", restarting: "Keeps restarting", oom: "Out of memory", crashed: "Stopped with an error", "kafka-localhost": "Only reachable from your Mac", "kafka-ui-empty": "No Kafka set up", "kafka-ui-localhost": "Can't reach Kafka" };
@@ -53,7 +54,12 @@ export default function ContainerDetail({ ctx, id, appProblems, onBack, onReplac
   const status = raw.charAt(0).toUpperCase() + raw.slice(1);
   const ports = running ? publishedPortPairs(c?.NetworkSettings.Ports) : [];
   const state = c ? parseState(JSON.stringify([c])) : null;
-  const extra = appProblems ?? [];
+  // A crash or restart loop: read the last lines and put the error, and what to do, next to the problem.
+  const crashing = !!state && problemsFor(state).some((p) => p.id === "restarting" || p.id === "crashed");
+  const tail = usePoll(() => docker(ctx, ["logs", "--tail", "80", name], true), [ctx, name], 10000, crashing);
+  const lead = crashing && tail.data ? crashLead(tail.data, c?.Mounts ?? []) : null;
+  const leadProblem: Problem[] = lead ? [{ id: "last-error", level: "warn", title: "Its last error", detail: `"${lead.line.slice(0, 300)}"${lead.hint ? ` ${lead.hint}` : ""}` }] : [];
+  const extra = [...leadProblem, ...(appProblems ?? [])];
   const problem = state ? [...problemsFor(state), ...extra][0] : undefined;
   const activity = usePoll(async () => timeline(parseEvents(await docker(ctx, ["events", ...eventWindow(Date.now(), 86_400_000), "--filter", `container=${name}`, "--filter", "type=container", "--format", "{{json .}}"])), 50, name), [ctx, name], 10000, !!c && tab === "Activity");
   // The cluster owns these: stopping or removing one by hand only makes Kubernetes start it again, or breaks the pod.
