@@ -278,8 +278,26 @@ export async function invoke<T>(cmd: string, a: Record<string, any> = {}): Promi
       return undefined as T;
     }
     case "cancel_vm_op": return true as T;
-    case "find_compose_files": await sleep(150); return (scenario === "nocompose" ? [] : ["/Users/me/code/blog/docker-compose.yml", "/Users/me/code/shop/compose.yaml", "/Users/me/My Apps/orders-api/compose.yaml"]) as T;
+    case "find_compose_files": await sleep(150); return (scenario === "nocompose" ? [] : ["/Users/me/code/blog/docker-compose.yml", "/Users/me/code/shop/compose.yaml", "/Users/me/My Apps/orders-api/compose.yaml", "/Users/me/Dev/global-search-service/docker-compose.yml", "/Users/me/Dev/service-search-service/docker-compose.yml"]) as T;
     case "reveal_compose": ((window as any).__revealed ??= []).push(a.path); return undefined as T;
+    case "compose_action": {
+      ((window as any).__composed ??= []).push({ file: a.file, action: a.action, context: a.context });
+      const dir: string = a.file.slice(0, a.file.lastIndexOf("/"));
+      const project = dir.slice(dir.lastIndexOf("/") + 1);
+      await progress("compose-progress", [[`[+] Running 2/2 (${a.action})`, 150], [` ✔ Network ${project}_default  Created`, 200]]);
+      // blog's web port is taken, so its start fails the way docker compose reports it.
+      if (project === "blog" && a.action === "up") throw "Error response from daemon: driver failed programming external connectivity on endpoint blog-web-1: Bind for 0.0.0.0:8080 failed: port is already allocated";
+      const labels = (svc: string) => `com.docker.compose.project=${project},com.docker.compose.project.working_dir=${dir},com.docker.compose.service=${svc}`;
+      const shopLabel = (c: Ctr) => (SHOP.has(c.name) ? "com.docker.compose.project=shop," : "");
+      const mine = db.ctrs.filter((c) => (c.labels ?? shopLabel(c)).includes(`com.docker.compose.project=${project},`));
+      if (a.action === "down") db.ctrs = db.ctrs.filter((c) => !mine.includes(c));
+      else if (a.action === "stop") mine.forEach((c) => (c.state = "exited"));
+      else if (mine.length) mine.forEach((c) => (c.state = "running"));
+      else db.ctrs.push({ ...structuredClone(db.ctrs[0]), id: `${project}0000000000000000`, name: `${project}-web-1`, state: "running", labels: labels("web") });
+      emit("compose-progress", ` ✔ Container ${project}-web-1  Started`);
+      return undefined as T;
+    }
+    case "cancel_compose": return false as T;
     case "pick_folder": return "/Users/you/code/app" as T; // the native chooser; null means cancelled
     case "force_stop_profile": { await progress("colima-progress", [['level=info msg="stopping colima (forced)"', 300]]); db.profiles.find((x) => x.name === a.name)!.status = "Stopped"; return undefined as T; }
     case "force_restart_profile": { await progress("colima-progress", [['level=info msg="stopping colima (forced)"', 300], ['level=info msg="done"', 300]]); db.profiles.find((x) => x.name === a.name)!.status = "Running"; return undefined as T; }

@@ -35,6 +35,26 @@ export function projectsFrom(paths: string[], containers: Ctr[]): ComposeProject
 
 export const shellQuote = (s: string) => `'${s.replace(/'/g, `'\\''`)}'`;
 
-// What to paste in Terminal. The app shows it and never runs it: a Compose file can mount any folder or run any image.
+// What to paste in Terminal to do it yourself.
 // The context is named so the project starts in the profile on screen, not whichever one Terminal has selected.
 export const upCommand = (dir: string, ctx: string) => `cd ${shellQuote(dir)} && docker --context ${shellQuote(ctx)} compose up -d`;
+
+type Named = { Names?: string; Ports?: string; Labels?: string };
+// A folder as you'd type it in any shell: ~/code/shop when that is safe to leave bare, the full path quoted otherwise
+// (bash does not expand a ~ that sits next to a quote).
+export const cdPath = (dir: string) => {
+  const short = dir.replace(/^\/Users\/[^/]+/, "~");
+  return /^~?[\w./@+-]*$/.test(short) ? short : shellQuote(dir);
+};
+
+// Docker's own words for a taken port, turned into who holds it, when one of the listed containers does.
+const TAKEN = /(?:Bind for [\d.:[\]]*?:(\d+) failed: port is already allocated|listen tcp[46]? [\d.:[\]]*?:(\d+): bind: address already in use)/i;
+export function whyFailed(text: string, containers: Named[]): string | null {
+  const m = TAKEN.exec(text);
+  if (!m) return null;
+  const port = m[1] ?? m[2];
+  const holder = containers.find((c) => new RegExp(`(^|[ ,:])${port}->`).test(c.Ports ?? ""));
+  if (!holder) return `Port ${port} is already in use on your Mac, so a service that needs it couldn't start. Stop whatever uses ${port}, then Start again.`;
+  const project = parseLabels(holder.Labels ?? "").get("com.docker.compose.project");
+  return `Port ${port} is already used by ${holder.Names}${project ? ` (in ${project})` : ""}, so a service that needs it couldn't start. Stop ${holder.Names}, then Start again.`;
+}

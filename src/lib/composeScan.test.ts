@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { projectName, projectsFrom, shellQuote, upCommand } from "./composeScan.ts";
+import { cdPath, projectName, projectsFrom, shellQuote, upCommand, whyFailed } from "./composeScan.ts";
 
 const ctr = (Names: string, State: string, dir: string, project = dir.split("/").pop()!) => ({
   Names, State, Labels: `com.docker.compose.project=${project},com.docker.compose.project.working_dir=${dir}`,
@@ -47,4 +47,17 @@ test("given a container started from the same folder written in another letter c
 
 test("given a docker context, when the start command is built, then it targets that context so the project lands in the profile on screen", () => {
   assert.equal(upCommand("/Users/me/code/shop", "colima-work"), "cd '/Users/me/code/shop' && docker --context 'colima-work' compose up -d");
+});
+
+test("Given a folder, when written as a command, then it works in bash and zsh alike", () => {
+  assert.equal(cdPath("/Users/me/code/shop"), "~/code/shop");
+  assert.equal(cdPath("/Users/me/My Apps/orders-api"), "'/Users/me/My Apps/orders-api'");
+});
+
+test("Given a start that failed on a taken port, when explained, then it names the container holding it", () => {
+  const err = "Error response from daemon: driver failed programming external connectivity on endpoint blog-web-1: Bind for 0.0.0.0:8080 failed: port is already allocated";
+  const web = { Names: "web", Ports: "0.0.0.0:8080->80/tcp, :::8080->80/tcp", Labels: "com.docker.compose.project=shop" };
+  assert.equal(whyFailed(err, [{ Names: "db", Ports: "3306/tcp" }, web]), "Port 8080 is already used by web (in shop), so a service that needs it couldn't start. Stop web, then Start again.");
+  assert.match(whyFailed(err, [])!, /^Port 8080 is already in use on your Mac/);
+  assert.equal(whyFailed("no such image", [web]), null);
 });

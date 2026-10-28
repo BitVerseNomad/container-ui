@@ -74,6 +74,8 @@ fn docker_args_allowed(args: &[String]) -> Result<(), String> {
     let first = args.first().map(String::as_str).unwrap_or("");
     let second = args.get(1).map(String::as_str).unwrap_or("");
     let ok = match first {
+        // Fix turns off the old copy's restart policy while it waits aside, and puts it back if the old one returns.
+        "update" => args.len() == 4 && args[1] == "--restart" && restart_policy_ok(&args[2]) && container_name_ok(&args[3]),
         "volume" => matches!(second, "ls" | "rm"),
         "image" => matches!(second, "inspect" | "prune"),
         "system" => second == "df",
@@ -82,7 +84,7 @@ fn docker_args_allowed(args: &[String]) -> Result<(), String> {
         "events" => events_args_ok(args),
         other => DOCKER_SUBCOMMANDS.contains(&other),
     };
-    if !ok || (first != "run" && first != "events" && !flags_ok(args)) {
+    if !ok || (!matches!(first, "run" | "events" | "update") && !flags_ok(args)) {
         return Err(format!("\"docker {}\" is not available from the app", args.join(" ")));
     }
     // Fix replaces a container by renaming the old one aside; only two plain container names.
@@ -165,7 +167,7 @@ fn run_args_ok(args: &[String], home: &str) -> Result<(), String> {
             "--name" => run_name_ok(val),
             "--network" => run_name_ok(val) && val != "host" && val != "none",
             // Docker's own policies only, so a replaced container keeps the one it had.
-            "--restart" => matches!(val, "no" | "always" | "unless-stopped" | "on-failure") || val.strip_prefix("on-failure:").map_or(false, |n| n.parse::<u16>().is_ok()),
+            "--restart" => restart_policy_ok(val),
             "-p" => run_port_ok(val),
             "-v" => run_mount_ok(val, home),
             "-e" => val.split_once('=').map_or(false, |(k, _)| {
@@ -224,6 +226,10 @@ fn run_source_ok(src: &str, home: &str) -> bool {
 // Pinned to a tag so the helper cannot change under the app (src/Doctor.tsx HELPER must match).
 const NETSHOOT_IMAGE: &str = "nicolaka/netshoot:v0.16";
 const PROBE_SCRIPT: &str = r#"nslookup "$1" 2>&1; echo "::dns-exit=$?"; nc -zv -w 3 "$1" "$2" 2>&1; echo "::tcp-exit=$?""#;
+
+fn restart_policy_ok(val: &str) -> bool {
+    matches!(val, "no" | "always" | "unless-stopped" | "on-failure") || val.strip_prefix("on-failure:").map_or(false, |n| n.parse::<u16>().is_ok())
+}
 
 fn container_name_ok(n: &str) -> bool {
     let mut chars = n.chars();
@@ -576,7 +582,16 @@ fn stream(app: &tauri::AppHandle, event: &str, bin: &str, args: &[String]) -> Re
 }
 
 fn stream_with(app: &tauri::AppHandle, event: &str, bin: &str, args: &[String], silence: Duration, on_spawn: impl Fn(Option<u32>)) -> Result<(), String> {
-    let mut child = Command::new("sh")
+    stream_in(app, event, bin, args, None, silence, on_spawn)
+}
+
+// cwd: the folder to run in, for commands that find their files there (docker compose).
+fn stream_in(app: &tauri::AppHandle, event: &str, bin: &str, args: &[String], cwd: Option<&str>, silence: Duration, on_spawn: impl Fn(Option<u32>)) -> Result<(), String> {
+    let mut cmd = Command::new("sh");
+    if let Some(dir) = cwd {
+        cmd.current_dir(dir);
+    }
+    let mut child = cmd
         .args(["-c", "exec \"$@\" 2>&1", "sh", &find_bin(bin)])
         .args(args)
         .env("PATH", path_env())
@@ -1002,11 +1017,62 @@ fn reveal_compose(path: String) -> Result<(), String> {
     Command::new("/usr/bin/open").args(["-R", &path]).spawn().map(|_| ()).map_err(|e| e.to_string())
 }
 
+// ---- Running a Compose project, as `cd <folder> && docker compose <action>` would ----
+// Only a Compose file the scan would list, and only these actions. `down` keeps volumes (no -v), so data stays.
+// It runs in the project's folder with no -f, so an override file there is merged just as it is in Terminal.
+const COMPOSE_TIMEOUT: Duration = Duration::from_secs(600);
+static COMPOSE_LOCK: Mutex<()> = Mutex::new(());
+static COMPOSE_PID: Mutex<Option<u32>> = Mutex::new(None);
+
+fn compose_args(context: &str, file: &str, action: &str, home: &str) -> Result<(String, Vec<String>), String> {
+    if !context_ok(context) {
+        return Err(format!("Unknown Docker context \"{context}\""));
+    }
+    if compose_paths(file, home) != [file] {
+        return Err("Only a Compose file the app found in your home folder can be run".into());
+    }
+    let tail: &[&str] = match action {
+        "up" => &["up", "-d"],
+        "stop" => &["stop"],
+        "restart" => &["restart"],
+        "down" => &["down"],
+        _ => return Err(format!("\"docker compose {action}\" is not available from the app")),
+    };
+    let dir = file.rsplit_once('/').map(|(d, _)| d.to_string()).unwrap_or_default();
+    let mut args: Vec<String> = vec!["--context".into(), context.into(), "compose".into()];
+    args.extend(tail.iter().map(|s| s.to_string()));
+    Ok((dir, args))
+}
+
+#[tauri::command]
+async fn compose_action(app: tauri::AppHandle, context: String, file: String, action: String) -> Result<(), String> {
+    let home = std::env::var("HOME").unwrap_or_default();
+    let (dir, args) = compose_args(&context, &file, &action, &home)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let _guard = match COMPOSE_LOCK.try_lock() {
+            Ok(g) => g,
+            Err(TryLockError::Poisoned(p)) => p.into_inner(),
+            Err(TryLockError::WouldBlock) => return Err("Another Compose project is still starting or stopping. Wait for it, or cancel it.".to_string()),
+        };
+        let track = |pid| *COMPOSE_PID.lock().unwrap_or_else(|p| p.into_inner()) = pid;
+        stream_in(&app, "compose-progress", "docker", &args, Some(&dir), COMPOSE_TIMEOUT, track)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+// Stops the Compose run in progress. What it already started keeps running; Stop or Down clears it.
+#[tauri::command]
+fn cancel_compose() -> bool {
+    let pid = *COMPOSE_PID.lock().unwrap_or_else(|p| p.into_inner());
+    pid.map(kill_group).is_some()
+}
+
 fn main() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             list_profiles, docker, docker_check, docker_pull, env_check, install_tools, network_probe, kubectl, open_terminal, start_profile, apply_resources,
-            stop_profile, force_stop_profile, restart_profile, force_restart_profile, delete_profile, cancel_vm_op, host_resources, vm_log_tail, open_url, pick_folder, setup_report, setup_fix, find_compose_files, reveal_compose
+            stop_profile, force_stop_profile, restart_profile, force_restart_profile, delete_profile, cancel_vm_op, host_resources, vm_log_tail, open_url, pick_folder, setup_report, setup_fix, find_compose_files, reveal_compose, compose_action, cancel_compose
         ])
         .run(tauri::generate_context!())
         .expect("error while running Colima UI");
@@ -1019,6 +1085,25 @@ mod tests {
     fn given_spotlight_output_when_filtered_then_only_compose_files_in_ordinary_home_folders_stay() {
         let out = "/Users/me/code/shop/compose.yaml\0/Users/me/code/shop/compose.yaml\0/Users/me/.config/x/docker-compose.yml\0/Users/me/Library/App/compose.yml\0/Users/me/library/App/compose.yml\0/Users/me/code/app/node_modules/pkg/docker-compose.yml\0/Users/me/go/pkg/mod/github.com/x/compose.yml\0/Users/me/code/blog/docker-compose.yml\0/Users/me/code/blog/compose.override.yml\0/Users/other/code/compose.yml\0/Users/me/compose.yml\0";
         assert_eq!(super::compose_paths(out, "/Users/me"), vec!["/Users/me/code/blog/docker-compose.yml", "/Users/me/code/shop/compose.yaml"]);
+    }
+
+    #[test]
+    fn given_a_compose_file_when_run_then_only_listed_files_and_known_actions_are_accepted() {
+        let (dir, args) = super::compose_args("colima", "/Users/me/code/shop/compose.yaml", "up", "/Users/me").unwrap();
+        assert_eq!(dir, "/Users/me/code/shop");
+        assert_eq!(args, vec!["--context", "colima", "compose", "up", "-d"]);
+        assert_eq!(super::compose_args("colima-work", "/Users/me/code/shop/compose.yaml", "down", "/Users/me").unwrap().1, vec!["--context", "colima-work", "compose", "down"]);
+        for (ctx, file, action) in [
+            ("colima", "/Users/me/code/shop/compose.yaml", "rm"),
+            ("colima", "/Users/me/code/shop/compose.yaml", "down -v"),
+            ("colima", "/Users/me/code/shop/secrets.txt", "up"),
+            ("colima", "/Users/me/.hidden/compose.yaml", "up"),
+            ("colima", "/Users/other/code/compose.yaml", "up"),
+            ("colima", "code/shop/compose.yaml", "up"),
+            ("desktop-linux", "/Users/me/code/shop/compose.yaml", "up"),
+        ] {
+            assert!(super::compose_args(ctx, file, action, "/Users/me").is_err(), "{ctx} {file} {action}");
+        }
     }
 
     #[test]
@@ -1253,6 +1338,21 @@ mod tests {
         }
         for v in ["sometimes", "on-failure:x", "always;rm"] {
             assert!(docker_args_allowed(&args(&["run", "-d", "--restart", v, "x"])).is_err(), "{v}");
+        }
+    }
+
+    #[test]
+    fn update_is_allowed_only_to_set_a_restart_policy_on_one_container() {
+        assert!(docker_args_allowed(&args(&["update", "--restart", "no", "kafka-old"])).is_ok());
+        assert!(docker_args_allowed(&args(&["update", "--restart", "on-failure:3", "kafka"])).is_ok());
+        for a in [
+            &["update", "--memory", "1g", "kafka"][..],
+            &["update", "--restart", "sometimes", "kafka"],
+            &["update", "--restart", "no", "-x"],
+            &["update", "--restart", "no", "a", "b"],
+            &["update", "--restart=no", "kafka"],
+        ] {
+            assert!(docker_args_allowed(&args(a)).is_err(), "{a:?}");
         }
     }
 
