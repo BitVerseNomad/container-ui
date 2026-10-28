@@ -2,6 +2,15 @@
 
 Newest first. Older entries record what was true when they were written; later entries supersede them (the Overview, for example, was replaced by the Containers home screen).
 
+## Compose, round 2: rebuild, logs, add a folder, a shell for every container
+- **Rebuild and Update images** on each project (`up -d --build`, `up -d --pull always`). On a stopped project they say "and start", because they do.
+- **Logs** under a project's card: the last 300 lines of every service, with Refresh and the command to follow them live.
+- **Add a folder…** for a project Spotlight missed. It is remembered, checked on every scan, and listed even past the 300-file cut. Hidden folders, ~/Library and dependency folders are refused with the reason.
+- **Each card names what needs attention**, from the same checks as the Doctor ("worker: it keeps restarting").
+- **Open a shell picks bash, then sh.** A minimal image with neither gets a toolbox shell next to it (a throwaway, pinned busybox that shares its processes and network), and the toast says why. The check gives up after 5 s, and a stopped container or a stuck Docker is reported as itself.
+- **Steadier panel**: buttons wrap instead of running off the edge, cards keep their place while it is open, Close works during a run, a failed Start offers the Down its note mentions, and "Run it yourself" labels each command.
+- **Fixes**: Refresh no longer closes the logs, a late log answer can't land under the wrong project, a scan can't drop a folder added meanwhile, and the recall checkbox sits next to its label.
+
 ## Run Compose projects, see every command
 - **Compose projects run from the app.** Start, Stop, Restart and Down run `docker compose` in the project's own folder, as typing it there would. A running project offers "Start the N stopped" first and Down in red, with a confirm that says volumes stay. Every action's command is under "Run it yourself", with its own Copy.
 - **A failed Start says why.** A taken port names the container and project holding it, and says Down removes what was left. Missing `docker compose` points to the Doctor.
