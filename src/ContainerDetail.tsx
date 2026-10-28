@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { openShell } from "./lib/shell";
 import { activity as commands, dockerLine } from "./lib/activity";
 import Status from "./ui/Status";
 import { useConfirm } from "./ui";
@@ -69,7 +70,7 @@ export default function ContainerDetail({ ctx, id, appProblems, onBack, onReplac
         <Status level={problem?.level ?? (running ? "on" : paused ? "warn" : "off")}>{problem ? `${status} · ${problem.short ?? SHORT[problem.id] ?? problem.title}` : status}</Status>
         {c && kube && (
           <div className="actions-inline">
-            {running && <button onClick={() => commands.ran("exec", dockerLine(ctx, ["exec", "-it", name, "sh"]), () => invoke("open_terminal", { kind: "shell", context: ctx, target: name }), name).catch((e) => setErr(String(e)))}>Open a shell</button>}
+            {running && <button onClick={() => openShell(ctx, name).catch((e) => setErr(e instanceof Error ? e.message : String(e)))}>Open a shell</button>}
             <span className="hint">Managed by Kubernetes. Restart or remove it from the cluster, not here.</span>
           </div>
         )}
@@ -78,7 +79,7 @@ export default function ContainerDetail({ ctx, id, appProblems, onBack, onReplac
           <div className="actions-inline">
             {running && (
               <>
-                <button onClick={() => commands.ran("exec", dockerLine(ctx, ["exec", "-it", name, "sh"]), () => invoke("open_terminal", { kind: "shell", context: ctx, target: name }), name).catch((e) => setErr(String(e)))}>Open a shell</button>
+                <button onClick={() => openShell(ctx, name).catch((e) => setErr(e instanceof Error ? e.message : String(e)))}>Open a shell</button>
                 <button onClick={() => act(["restart", id])}>Restart</button>
                 <button onClick={() => act(["stop", id])}>Stop</button>
                 <button onClick={() => act(["pause", id])}>Pause</button>
