@@ -2,6 +2,13 @@
 
 Newest first. Older entries record what was true when they were written; later entries supersede them (the Overview, for example, was replaced by the Containers home screen).
 
+## Compose, round 3: live logs, Run again, one-click port fixes
+- **Project logs are live.** New lines every 2 seconds, each with its service and time. Filter by service or text; scrolling up pauses following.
+- **Run again** in Commands, for a container start, stop, restart, pause, resume or shell. It waits while a Fix runs. Remove, Down, VM and Compose actions stay copy-only. Each entry says what it did in words.
+- **A port clash is one click**: "Stop web and start blog" stops the container holding the port, then starts the project.
+- **Search by port**: typing 8080 finds the container that publishes it.
+- **Scorecard**: `scripts/scorecard.md` is the fixed test for every improvement loop, scored blind by a fresh reviewer. Loop 1 scored 31/48, loop 2 40 (38 from a second reviewer), loop 3 45.
+
 ## Compose, round 2: rebuild, logs, add a folder, a shell for every container
 - **Rebuild and Update images** on each project (`up -d --build`, `up -d --pull always`). On a stopped project they say "and start", because they do.
 - **Logs** under a project's card: the last 300 lines of every service, with Refresh and the command to follow them live.
