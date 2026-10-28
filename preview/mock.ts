@@ -289,7 +289,7 @@ export async function invoke<T>(cmd: string, a: Record<string, any> = {}): Promi
       const project = dir.slice(dir.lastIndexOf("/") + 1);
       await progress("compose-progress", [[`[+] Running 2/2 (${a.action})`, 150], [` ✔ Network ${project}_default  Created`, 200]]);
       // blog's web port is taken, so its start fails the way docker compose reports it.
-      if (project === "blog" && a.action === "up") throw "Error response from daemon: driver failed programming external connectivity on endpoint blog-web-1: Bind for 0.0.0.0:8080 failed: port is already allocated";
+      if (project === "blog" && a.action !== "stop" && a.action !== "down" && db.ctrs.some((c) => c.name === "web" && c.state === "running")) throw "Error response from daemon: driver failed programming external connectivity on endpoint blog-web-1: Bind for 0.0.0.0:8080 failed: port is already allocated";
       const labels = (svc: string) => `com.docker.compose.project=${project},com.docker.compose.project.working_dir=${dir},com.docker.compose.service=${svc}`;
       const shopLabel = (c: Ctr) => (SHOP.has(c.name) ? "com.docker.compose.project=shop," : "");
       const mine = db.ctrs.filter((c) => (c.labels ?? shopLabel(c)).includes(`com.docker.compose.project=${project},`));
@@ -304,8 +304,10 @@ export async function invoke<T>(cmd: string, a: Record<string, any> = {}): Promi
     case "compose_logs": {
       const dir: string = a.file.slice(0, a.file.lastIndexOf("/"));
       const project = dir.slice(dir.lastIndexOf("/") + 1);
-      const t = new Date().toISOString();
-      return ["web", "db"].flatMap((svc) => [`${project}-${svc}-1  | ${t} ${svc} starting`, `${project}-${svc}-1  | ${t} ${svc} ready`]).join("\n") as T;
+      const t = (ms: number) => new Date(Date.now() - ms).toISOString();
+      // Polled with since: one new line each time, so the view can be seen following.
+      if (a.since) return `${project}-web-1  | ${t(0)} GET /health 200\n` as T;
+      return ["web", "db"].flatMap((svc, i) => [`${project}-${svc}-1  | ${t(9000 - i)} ${svc} starting`, `${project}-${svc}-1  | ${t(8000 - i)} ${svc} ready`]).join("\n") as T;
     }
     case "compose_in_folder": {
       if (/\/\./.test(a.dir)) throw "Choose a folder inside your home folder. Hidden folders and ~/Library can't be added.";

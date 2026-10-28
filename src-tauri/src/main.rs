@@ -1081,10 +1081,25 @@ async fn compose_action(app: tauri::AppHandle, context: String, file: String, ac
 
 // The last lines of every service in the project, as Compose prints them (services interleaved). A read, so it doesn't wait for a run in progress.
 #[tauri::command]
-async fn compose_logs(context: String, file: String) -> Result<String, String> {
+async fn compose_logs(context: String, file: String, since: Option<String>) -> Result<String, String> {
     let home = std::env::var("HOME").unwrap_or_default();
-    let (dir, args) = compose_args(&context, &file, "logs", &home)?;
+    let (dir, args) = compose_logs_args(&context, &file, since.as_deref(), &home)?;
     exec_in("docker", args, true, Some(dir)).await
+}
+
+// First the last 300 lines of each service; then, polled, only what came after the newest timestamp seen.
+fn compose_logs_args(context: &str, file: &str, since: Option<&str>, home: &str) -> Result<(String, Vec<String>), String> {
+    let (dir, mut args) = compose_args(context, file, "logs", home)?;
+    if let Some(t) = since {
+        // An RFC 3339 time as Docker prints it, nothing else: it lands in argv, so no flag or word can ride along.
+        let stamp = t.len() <= 40 && t.starts_with(|c: char| c.is_ascii_digit()) && t.chars().all(|c| c.is_ascii_digit() || "-:.TZ+".contains(c));
+        if !stamp {
+            return Err("Bad log time".into());
+        }
+        args.truncate(4);
+        args.extend(["--since", t, "--no-color", "--timestamps"].map(String::from));
+    }
+    Ok((dir, args))
 }
 
 // A folder Spotlight missed (not indexed, or just created). Same rules as the scan: in your home, not hidden.
@@ -1181,6 +1196,11 @@ mod tests {
         assert_eq!(tail("build"), "up -d --build");
         assert_eq!(tail("pull"), "up -d --pull always");
         assert_eq!(tail("logs"), "logs --tail 300 --no-color --timestamps");
+        let since = |t: &str| super::compose_logs_args("colima", "/Users/me/code/shop/compose.yaml", Some(t), "/Users/me").map(|(_, a)| a[3..].join(" "));
+        assert_eq!(since("2026-10-28T15:04:05.123456789Z").unwrap(), "logs --since 2026-10-28T15:04:05.123456789Z --no-color --timestamps");
+        for bad in ["--tail=9999", "2026 -f", "x", "2026-10-28T15:04:05Z;ls", ""] {
+            assert!(since(bad).is_err(), "{bad}");
+        }
         for (ctx, file, action) in [
             ("colima", "/Users/me/code/shop/compose.yaml", "rm"),
             ("colima", "/Users/me/code/shop/compose.yaml", "down -v"),

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cdPath, projectName, projectsFrom, shellQuote, upCommand, whyFailed } from "./composeScan.ts";
+import { cdPath, portHolder, projectName, projectsFrom, shellQuote, upCommand, whyFailed } from "./composeScan.ts";
 
 const ctr = (Names: string, State: string, dir: string, project = dir.split("/").pop()!) => ({
   Names, State, Labels: `com.docker.compose.project=${project},com.docker.compose.project.working_dir=${dir}`,
@@ -61,4 +61,6 @@ test("Given a start that failed on a taken port, when explained, then it names t
   assert.equal(whyFailed(err, [{ Names: "db", Ports: "3306/tcp" }, web]), "Port 8080 is already used by web (in shop), so a service that needs it couldn't start. Stop web, then Start again.");
   assert.match(whyFailed(err, [])!, /^Port 8080 is already in use on your Mac/);
   assert.equal(whyFailed("no such image", [web]), null);
+  assert.equal(portHolder(err, [web]), "web");
+  assert.equal(portHolder(err, []), null);
 });

@@ -4,13 +4,15 @@ import { useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import Drawer from "./ui/Drawer";
 import OutputLog from "./ui/OutputLog";
+import ComposeLogs from "./ComposeLogs";
 import { Banner, useConfirm } from "./ui";
 import { Icon } from "./ui/icons";
 import { ComposeScan } from "./useComposeScan";
-import { cdPath, projectName, projectsFrom, shellQuote, whyFailed } from "./lib/composeScan";
+import { cdPath, portHolder, projectName, projectsFrom, shellQuote, whyFailed } from "./lib/composeScan";
+import { docker } from "./api";
 import type { ComposeProject } from "./lib/composeScan";
 import { rank } from "./lib/fuzzy";
-import { activity } from "./lib/activity";
+import { activity, dockerLine } from "./lib/activity";
 import { useFixRuns } from "./FixIt";
 
 type Ctr = { State: string; Labels?: string; Names?: string; Ports?: string };
@@ -21,13 +23,13 @@ const tilde = (dir: string) => dir.replace(/^\/Users\/[^/]+/, "~");
 const VERB: Record<Action, [string, string]> = { up: ["Start", "Starting…"], stop: ["Stop", "Stopping…"], restart: ["Restart", "Restarting…"], down: ["Down", "Taking down…"], build: ["Rebuild", "Rebuilding…"], pull: ["Update images", "Updating images…"] };
 const TAIL: Record<Action, string> = { up: "up -d", stop: "stop", restart: "restart", down: "down", build: "up -d --build", pull: "up -d --pull always" };
 const tail = (a: Action) => TAIL[a];
-const LOGS = "logs --tail 300 --no-color --timestamps";
 // What the button runs, as you'd type it, with the context named so a paste acts on the same profile.
 const ctxWord = (ctx: string) => (/^[\w.@-]+$/.test(ctx) ? ctx : shellQuote(ctx));
 const typed = (dir: string, a: Action, ctx: string) => `cd ${cdPath(dir)} && docker --context ${ctxWord(ctx)} compose ${tail(a)}`;
 
 // The run outlives the panel: switching tabs unmounts it, but the backend keeps going, so its state lives here.
-type RunState = { busy: { dir: string; action: Action } | null; failed: { dir: string; text: string; why: string | null } | null };
+// holder: the container that has the port a failed start needed, when it is one Docker runs.
+type RunState = { busy: { dir: string; action: Action } | null; failed: { dir: string; text: string; why: string | null; holder: string | null } | null };
 let state: RunState = { busy: null, failed: null };
 const subs = new Set<() => void>();
 const setRun = (next: Partial<RunState>) => { state = { ...state, ...next }; subs.forEach((f) => f()); };
@@ -55,8 +57,8 @@ export default function ComposeProjects({ ctx, scan, containers, attention, onCl
   const [q, setQ] = useState(query);
   const [err, setErr] = useState<string | null>(null);
   const [added, setAdded] = useState<string | null>(null);
-  // One project's logs open at a time; a read, so it never waits for a run.
-  const [logs, setLogs] = useState<{ dir: string; text: string | null; error: string | null } | null>(null);
+  // One project's live logs open at a time; a read, so it never waits for a run.
+  const [logsDir, setLogsDir] = useState<string | null>(null);
   // One project at a time, as the backend allows; its output shows under it.
   const { busy, failed } = useRun();
   // A Fix renames a container to NAME-old; compose acting on the project then would remove or restart that copy.
@@ -84,26 +86,22 @@ export default function ComposeProjects({ ctx, scan, containers, attention, onCl
       const why = NO_COMPOSE.test(text) ? "docker compose isn't installed, so nothing ran. The Doctor can install it." : whyFailed(text, containers);
       // Compose may have created a network or some services before it failed; Down clears what it left.
       const left = action === "up" ? " Part of the project may have been created; Down removes what was left." : "";
-      setRun({ failed: { dir: p.dir, text, why: why ? `${why}${left}` : left.trim() || null } });
+      setRun({ failed: { dir: p.dir, text, why: why ? `${why}${left}` : left.trim() || null, holder: portHolder(text, containers) } });
     } finally {
       setRun({ busy: null });
       onChanged?.();
     }
   }
 
-  // The newest request wins: logs asked for A, then B, never show A's answer under A once B is open.
-  const latest = useRef(0);
-  async function showLogs(p: ComposeProject, refresh = false) {
-    if (!refresh && logs?.dir === p.dir) return setLogs(null);
-    const id = ++latest.current;
-    setLogs({ dir: p.dir, text: null, error: null });
-    const done = (v: { text: string; error: string | null }) => id === latest.current && setLogs({ dir: p.dir, ...v });
+  // The fix the port note asks for, in one click: stop the container holding the port, then start this project.
+  async function freePortAndStart(p: ComposeProject, holder: string) {
+    if (state.busy || fixing) return;
     try {
-      const text = await invoke<string>("compose_logs", { context: ctx, file: `${p.dir}/${p.files[0]}` });
-      done({ text: text.trim() || "No log lines yet.", error: null });
+      await activity.ran("stop", dockerLine(ctx, ["stop", holder]), () => docker(ctx, ["stop", holder]), holder);
     } catch (e) {
-      done({ text: "", error: String(e) });
+      return setErr(String(e));
     }
+    await run(p, "up");
   }
 
   async function addFolder() {
@@ -143,7 +141,7 @@ export default function ComposeProjects({ ctx, scan, containers, attention, onCl
           const up = p.running > 0;
           const stopped = p.total - p.running;
           const sick = p.names.flatMap((n) => (attention?.get(n)?.[0] ? [`${n}: ${(attention.get(n)![0].short ?? attention.get(n)![0].title).toLowerCase()}`] : []));
-          const logsHere = logs?.dir === p.dir ? logs : null;
+          const logsHere = logsDir === p.dir;
           // On a partly running project, Start only starts what is stopped, so it says so.
           // Rebuild and Update images end with `up -d`, so on a stopped project they start it too, and say so.
           const label = (a: Action) => (a === "up" && up ? `Start the ${stopped} stopped` : !up && (a === "build" || a === "pull") ? `${VERB[a][0]} and start` : VERB[a][0]);
@@ -166,7 +164,7 @@ export default function ComposeProjects({ ctx, scan, containers, attention, onCl
               <div className="actions-inline">
                 {up ? <>{stopped > 0 && btn("up", "primary")}{btn("restart")}{btn("stop")}{btn("down", "danger")}</> : <>{btn("up", "primary")}{leftovers && btn("down", "danger")}</>}
                 {mine && <button className="link" onClick={() => invoke("cancel_compose").catch(() => {})}>Cancel</button>}
-                {p.total > 0 && <button className="link" aria-expanded={!!logsHere} aria-label={`Logs of ${p.name}`} onClick={() => showLogs(p)}>{logsHere ? "Hide logs" : "Logs"}</button>}
+                {p.total > 0 && <button className="link" aria-expanded={!!logsHere} aria-label={`Logs of ${p.name}`} onClick={() => setLogsDir(logsHere ? null : p.dir)}>{logsHere ? "Hide logs" : "Logs"}</button>}
                 {!mine && <button className="link" disabled={!!busy || fixing} title={typed(p.dir, "build", ctx)} aria-label={`Rebuild ${p.name}`} onClick={() => run(p, "build")}>{label("build")}</button>}
                 {!mine && <button className="link" disabled={!!busy || fixing} title={typed(p.dir, "pull", ctx)} aria-label={`Update images of ${p.name}`} onClick={() => run(p, "pull")}>{label("pull")}</button>}
                 {!mine && (
@@ -179,17 +177,17 @@ export default function ComposeProjects({ ctx, scan, containers, attention, onCl
                   </button>
                 )}
               </div>
-              {failed?.dir === p.dir && failed.why && !mine && <p className="note" role="status">{failed.why}</p>}
-              {logsHere && (
-                <div className="compose-logs">
-                  {logsHere.text === null ? <p className="hint">Reading logs…</p> : logsHere.error ? <Banner error={logsHere.error} onClose={() => setLogs(null)} /> : <pre className="mono" tabIndex={0} aria-label={`Last log lines of ${p.name}`}>{logsHere.text}</pre>}
-                  <div className="inline">
-                    <button className="link" onClick={() => void showLogs(p, true)}>Refresh</button>
-                    <CopyCommand text={`cd ${cdPath(p.dir)} && docker --context ${ctxWord(ctx)} compose logs -f`} label={`Copy the follow logs command for ${p.name}`} />
-                    <span className="hint">The last 300 lines of each service. To follow them live, paste the command in Terminal.</span>
-                  </div>
+              {failed?.dir === p.dir && failed.why && !mine && (
+                <div className="note" role="status">
+                  <p>{failed.why}</p>
+                  {failed.holder && (
+                    <button className="primary" disabled={!!busy || fixing} onClick={() => freePortAndStart(p, failed.holder!)}>
+                      Stop {failed.holder} and start {p.name}
+                    </button>
+                  )}
                 </div>
               )}
+              {logsHere && <ComposeLogs ctx={ctx} file={`${p.dir}/${p.files[0]}`} project={p.name} />}
               {(mine || failed?.dir === p.dir) && <OutputLog event="compose-progress" active={mine} failure={failed?.dir === p.dir ? failed.text : null} />}
               <details className="fix-commands">
                 <summary>Run it yourself</summary>

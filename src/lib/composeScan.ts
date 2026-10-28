@@ -50,11 +50,19 @@ export const cdPath = (dir: string) => {
 
 // Docker's own words for a taken port, turned into who holds it, when one of the listed containers does.
 const TAKEN = /(?:Bind for [\d.:[\]]*?:(\d+) failed: port is already allocated|listen tcp[46]? [\d.:[\]]*?:(\d+): bind: address already in use)/i;
-export function whyFailed(text: string, containers: Named[]): string | null {
+const holderOf = (text: string, containers: Named[]) => {
   const m = TAKEN.exec(text);
   if (!m) return null;
   const port = m[1] ?? m[2];
-  const holder = containers.find((c) => new RegExp(`(^|[ ,:])${port}->`).test(c.Ports ?? ""));
+  return { port, holder: containers.find((c) => new RegExp(`(^|[ ,:])${port}->`).test(c.Ports ?? "")) };
+};
+// The container holding the port a failed start needed, so the app can offer to stop it and start again.
+export const portHolder = (text: string, containers: Named[]) => holderOf(text, containers)?.holder?.Names ?? null;
+
+export function whyFailed(text: string, containers: Named[]): string | null {
+  const found = holderOf(text, containers);
+  if (!found) return null;
+  const { port, holder } = found;
   if (!holder) return `Port ${port} is already in use on your Mac, so a service that needs it couldn't start. Stop whatever uses ${port}, then Start again.`;
   const project = parseLabels(holder.Labels ?? "").get("com.docker.compose.project");
   return `Port ${port} is already used by ${holder.Names}${project ? ` (in ${project})` : ""}, so a service that needs it couldn't start. Stop ${holder.Names}, then Start again.`;

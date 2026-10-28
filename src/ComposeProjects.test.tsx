@@ -20,7 +20,7 @@ const running = (name: string, dir: string) => ({ Names: name, State: "running",
 
 function show(opts: { containers?: ReturnType<typeof running>[]; attention?: Map<string, { short?: string; title: string }[]>; add?: () => Promise<string | null> } = {}) {
   const onCompose = vi.fn(async (_a: Record<string, unknown>) => "");
-  const onLogs = vi.fn(async (_a: Record<string, unknown>) => "web-1  | ready");
+  const onLogs = vi.fn(async (_a: Record<string, unknown>) => "sss-web-1  | 2026-10-28T15:00:01Z ready\n");
   backend.current = fakeBackend({});
   const invoke = backend.current.invoke;
   backend.current.invoke = vi.fn(async (cmd: string, a: Record<string, unknown> = {}) => (cmd === "compose_action" ? onCompose(a) : cmd === "compose_logs" ? onLogs(a) : invoke(cmd, a)));
@@ -78,8 +78,8 @@ describe("ComposeProjects", () => {
     const dir = "/Users/me/Dev/service-search-service";
     const { onLogs } = show({ containers: [running("sss-web-1", dir)] });
     await user.click(screen.getByRole("button", { name: "Logs of service-search-service" }));
-    expect(await screen.findByText(/web-1 +\| ready/)).toBeInTheDocument();
-    expect(onLogs).toHaveBeenCalledWith({ context: "colima", file: `${dir}/docker-compose.yml` });
+    expect(await screen.findByText(/ready/)).toBeInTheDocument();
+    expect(onLogs).toHaveBeenCalledWith({ context: "colima", file: `${dir}/docker-compose.yml`, since: null });
   });
 
   it("given a folder that can't be added, when Add a folder is used, then the reason shows", async () => {
@@ -89,14 +89,14 @@ describe("ComposeProjects", () => {
     expect(await screen.findByText(/No compose.yaml or docker-compose.yml in notes/)).toBeInTheDocument();
   });
 
-  it("given logs are open, when Refresh is clicked, then they are read again and stay open", async () => {
+  it("given logs are open, when the next poll brings a new line, then it is added after the first ones", async () => {
     const user = userEvent.setup();
     const dir = "/Users/me/Dev/service-search-service";
     const { onLogs } = show({ containers: [running("sss-web-1", dir)] });
+    onLogs.mockImplementation(async (a) => (a.since ? "sss-web-1  | 2026-10-28T15:00:05Z GET /health 200\n" : "sss-web-1  | 2026-10-28T15:00:01Z ready\n"));
     await user.click(screen.getByRole("button", { name: "Logs of service-search-service" }));
-    await screen.findByText(/web-1 +\| ready/);
-    await user.click(screen.getByRole("button", { name: "Refresh" }));
-    expect(await screen.findByText(/web-1 +\| ready/)).toBeInTheDocument();
-    expect(onLogs).toHaveBeenCalledTimes(2);
+    const box = await screen.findByLabelText("Live logs of service-search-service");
+    await waitFor(() => expect(box.textContent).toMatch(/ready[\s\S]*GET \/health 200/), { timeout: 4000 });
+    expect(onLogs).toHaveBeenCalledWith({ context: "colima", file: `${dir}/docker-compose.yml`, since: "2026-10-28T15:00:01.0Z" });
   });
 });

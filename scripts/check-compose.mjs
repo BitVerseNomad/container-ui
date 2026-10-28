@@ -67,6 +67,7 @@ const blog = await drawer.locator(".compose-item", { hasText: "blog" }).innerTex
 check(/port is already allocated/.test(blog), "running: a failed start keeps docker's own error under that project");
 check(/Port 8080 is already used by web \(in shop\)/.test(blog) && /Down removes what was left/.test(blog), "running: a failed start says who holds the port and how to clean up");
 check(await drawer.getByRole("button", { name: "Down blog" }).count() === 1, "running: after a failed start, the Down the note points to is there");
+check(await drawer.getByRole("button", { name: "Stop web and start blog" }).count() === 1, "running: a port clash offers to stop the holder and start again, in one click");
 
 // Down asks first, and Cancel runs nothing.
 await drawer.getByRole("button", { name: "Down shop" }).click();
@@ -95,9 +96,13 @@ const shopCard = drawer.locator(".compose-item", { hasText: "~/code/shop" });
 const shopText = await shopCard.innerText().catch(() => "");
 check(/need attention: .*worker/i.test(shopText), `running: the shop card names its containers that need attention (${shopText.split("\n").find((l) => /attention/.test(l)) ?? "none"})`);
 await drawer.getByRole("button", { name: "Logs of shop" }).click();
-await drawer.locator(".compose-logs pre").waitFor({ timeout: 2000 }).catch(() => {});
-check(/shop-web-1 +\| .* ready/.test(await drawer.locator(".compose-logs pre").innerText().catch(() => "")), "running: Logs shows the project's last lines under its card");
-check(await drawer.getByRole("button", { name: "Copy the follow logs command for shop" }).count() === 1, "running: the follow-logs command is there to copy");
+const live = drawer.getByLabel("Live logs of shop");
+await p.waitForFunction(() => /ready/.test(document.querySelector(".compose-logs pre")?.textContent ?? ""), null, { timeout: 3000 }).catch(() => {});
+check(/^web +\d\d:\d\d:\d\d +web ready/m.test(await live.innerText().catch(() => "")), "running: Logs shows each line with its service and time");
+await p.waitForFunction(() => /GET \/health 200/.test(document.querySelector(".compose-logs pre")?.textContent ?? ""), null, { timeout: 5000 }).catch(() => {});
+check(/GET \/health 200/.test(await live.innerText().catch(() => "")), "running: new lines arrive while the logs are open");
+await drawer.getByLabel("Service to show for shop").selectOption({ label: "db" });
+check(!/^web /m.test(await live.innerText()) && /db ready/.test(await live.innerText()), "running: choosing a service shows only its lines");
 await drawer.getByRole("button", { name: "Logs of shop" }).click();
 check(await drawer.locator(".compose-logs").count() === 0, "running: Hide logs closes them");
 await drawer.getByRole("button", { name: "Rebuild shop" }).click();
@@ -150,8 +155,33 @@ await p.getByRole("button", { name: "Commands", exact: true }).click();
 const log = p.getByRole("dialog", { name: "Commands" });
 const box = await p.evaluate(() => { const l = document.querySelector(".check-row"); return l.querySelector("input").getBoundingClientRect().left - l.getBoundingClientRect().left; });
 check(box < 2, `running: the recall checkbox sits at the start of its label (${Math.round(box)}px in)`);
+const again = log.getByRole("button", { name: /^Run again: / });
+check(await again.count() >= 1 && !(await again.evaluateAll((bs) => bs.some((b) => / compose /.test(b.getAttribute("aria-label"))))), "running: Run again is offered for the shell, never for Compose actions");
+const before = (await p.evaluate(() => window.__terminal ?? [])).length;
+await again.first().click();
+await p.waitForFunction((n) => (window.__terminal ?? []).length > n, before, { timeout: 3000 }).catch(() => {});
+check((await p.evaluate(() => window.__terminal ?? [])).length === before + 1, "running: Run again runs the same click once more");
+check(/has no shell .*toolbox shell opened/.test(await log.innerText()), "running: each entry says what it did, in words");
 check((await log.locator(".cmd-log li").count()) >= 2 && /failed/.test(await log.innerText()), "running: the Commands list has both runs, the failed one marked");
 check(p.errors.length === 0, `running: no page errors${p.errors.length ? ": " + p.errors.join("; ") : ""}`);
+
+// A port clash fixed in one click, on a fresh page so the rest above saw the clash.
+p = await open("running");
+await p.getByRole("textbox", { name: /Search containers/ }).fill("8080");
+const portRows = await p.locator("tbody tr:not(.group-row)").allInnerTexts();
+check(portRows.some((r) => /^web\b/m.test(r) || /\bweb\b/.test(r)) && portRows.length <= 2, `running: searching 8080 finds the container that publishes it (${portRows.length} rows)`);
+await p.getByRole("textbox", { name: /Search containers/ }).fill("");
+await p.getByRole("button", { name: "New" }).click();
+await p.getByRole("menuitem", { name: /^Compose projects/ }).click();
+const d2 = p.getByRole("dialog", { name: "Compose projects" });
+await d2.getByRole("button", { name: "Start blog" }).click();
+await d2.getByRole("button", { name: "Stop web and start blog" }).waitFor({ timeout: 3000 }).catch(() => {});
+await d2.getByRole("button", { name: "Stop web and start blog" }).click();
+await p.waitForFunction(() => /1 of 1 running/.test([...document.querySelectorAll(".compose-item")].find((e) => /~\/code\/blog/.test(e.textContent))?.textContent ?? ""), null, { timeout: 6000 }).catch(() => {});
+check(/1 of 1 running/.test(await d2.locator(".compose-item", { hasText: "~/code/blog" }).innerText()), "running: after Stop web and start blog, blog is running");
+await p.keyboard.press("Escape");
+await p.getByRole("button", { name: "Commands", exact: true }).click();
+check(/docker --context colima stop web/.test(await p.getByRole("dialog", { name: "Commands" }).innerText()), "running: the stop it ran is in the Commands list");
 
 // The added folder is remembered across pages of this browser; this scenario starts with none.
 await p.evaluate(() => localStorage.removeItem("colima-ui:compose-folders"));

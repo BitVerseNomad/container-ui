@@ -151,7 +151,8 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
   const order = useRef<string[]>([]);
   const rows = useMemo(() => {
     const sorted = all
-      .filter((c) => score(c.Names, q) > 0 || score(c.Image, q, false) > 0)
+      // A number finds the container that publishes that port ("8080" finds web on 0.0.0.0:8080->80).
+      .filter((c) => score(c.Names, q) > 0 || score(c.Image, q, false) > 0 || (/^\d{2,5}$/.test(q.trim()) && new RegExp(`(^|[ ,:])${q.trim()}->`).test(c.Ports ?? "")))
       .filter((c) => view === "all" || (view === "running" ? c.State === "running" : flagged(c.Names)))
       .sort((a, b) => Number(flagged(b.Names)) - Number(flagged(a.Names)) || Number(b.State === "running") - Number(a.State === "running") || a.Names.localeCompare(b.Names));
     if (!pointing) {
