@@ -9,12 +9,14 @@ import type { Entry } from "./lib/activity";
 export const useActivity = () => useSyncExternalStore(activity.subscribe, activity.snapshot);
 // A recall waits until you answer it; a plain one goes after a few seconds.
 const SHOW_MS = 6000;
-const what = (kind: string) => ({ rm: "remove", rmi: "remove", "compose up": "start", "compose stop": "stop", "compose restart": "restart", "compose down": "take down", prune: "clean up", exec: "open a shell in" } as Record<string, string>)[kind] ?? kind;
-const PAST: Record<string, string> = { start: "Started", stop: "Stopped", restart: "Restarted", rm: "Removed", rmi: "Removed", pause: "Paused", unpause: "Resumed", "compose up": "Started", "compose stop": "Stopped", "compose restart": "Restarted", "compose down": "Took down", delete: "Deleted", force_stop: "Stopped", force_restart: "Restarted", exec: "Opened a shell in" };
+const what = (kind: string) => ({ rm: "remove", rmi: "remove", "compose up": "start", "compose stop": "stop", "compose restart": "restart", "compose down": "take down", "compose build": "rebuild", "compose pull": "update the images of", prune: "clean up", exec: "open a shell in", debug: "open a toolbox shell next to" } as Record<string, string>)[kind] ?? kind;
+const PAST: Record<string, string> = { start: "Started", stop: "Stopped", restart: "Restarted", rm: "Removed", rmi: "Removed", pause: "Paused", unpause: "Resumed", "compose up": "Started", "compose stop": "Stopped", "compose restart": "Restarted", "compose down": "Took down", delete: "Deleted", force_stop: "Stopped", force_restart: "Restarted", exec: "Opened a shell in", "compose build": "Rebuilt", "compose pull": "Updated the images of" };
 // "Stopped web", "Couldn't stop web": what happened, before the command that did it.
 const said = (e: Entry) => {
   if (!e.what) return null;
   if (e.ok === false) return `Couldn't ${what(e.kind)} ${e.what}`;
+  // Said in full, because the user asked for a shell and got something else.
+  if (e.kind === "debug") return e.ok ? `${e.what} has no shell (normal for small images), so a toolbox shell opened next to it` : `${e.what}…`;
   return e.ok ? `${PAST[e.kind] ?? "Done:"} ${e.what}` : `${e.what}…`;
 };
 

@@ -8,8 +8,9 @@ export function projectName(folder: string): string {
   return folder.toLowerCase().replace(/[^a-z0-9_-]/g, "");
 }
 
-export type ComposeProject = { name: string; dir: string; files: string[]; running: number; total: number };
-type Ctr = { State: string; Labels?: string };
+// names: the containers started from it, so the card can say which of them need attention.
+export type ComposeProject = { name: string; dir: string; files: string[]; running: number; total: number; names: string[] };
+type Ctr = { State: string; Labels?: string; Names?: string };
 
 export function projectsFrom(paths: string[], containers: Ctr[]): ComposeProject[] {
   const byDir = new Map<string, string[]>();
@@ -28,7 +29,7 @@ export function projectsFrom(paths: string[], containers: Ctr[]): ComposeProject
   return [...byDir]
     .map(([dir, files]) => {
       const cs = inDir.get(dir.toLowerCase()) ?? [];
-      return { name: projectName(dir.slice(dir.lastIndexOf("/") + 1)), dir, files: files.sort(), running: cs.filter((c) => c.State === "running").length, total: cs.length };
+      return { name: projectName(dir.slice(dir.lastIndexOf("/") + 1)), dir, files: files.sort(), running: cs.filter((c) => c.State === "running").length, total: cs.length, names: cs.flatMap((c) => (c.Names ? [c.Names] : [])) };
     })
     .sort((a, b) => Number(b.total > 0) - Number(a.total > 0) || a.name.localeCompare(b.name) || a.dir.localeCompare(b.dir));
 }

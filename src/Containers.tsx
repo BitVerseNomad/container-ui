@@ -1,4 +1,5 @@
 // The home screen: the VM in one line, then every container in one table (like Docker Desktop).
+import { openShell } from "./lib/shell";
 import { activity, dockerLine, ranVm } from "./lib/activity";
 import { score } from "./lib/fuzzy";
 import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
@@ -286,7 +287,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
                       <td className="row-actions">
                         <span className="row-tools">
                         <IconButton label={`Logs for ${c.Names}`} icon="logs" onClick={() => setDetailId(c.ID)} />
-                        {up && !kube && <IconButton label={`Open a shell in ${c.Names}`} icon="terminal" disabled={lock} onClick={() => activity.ran("exec", dockerLine(ctx!, ["exec", "-it", c.Names, "sh"]), () => invoke("open_terminal", { kind: "shell", context: ctx, target: c.Names }), c.Names).catch((e) => setErr(String(e)))} />}
+                        {up && !kube && <IconButton label={`Open a shell in ${c.Names}`} icon="terminal" disabled={lock} onClick={() => openShell(ctx!, c.Names).catch((e) => setErr(e instanceof Error ? e.message : String(e)))} />}
                         {kube ? null : up ? (
                           <>
                             <IconButton label={`Restart ${c.Names}`} icon="restart" disabled={lock} onClick={() => act(["restart", c.ID])} />
@@ -445,7 +446,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
         </>
       )}
 
-      {composeOpen && ctx && <ComposeProjects ctx={ctx} scan={compose} containers={all} query={rows.length === 0 ? q : ""} onClose={() => setComposeOpen(false)} onChanged={fixed} />}
+      {composeOpen && ctx && <ComposeProjects ctx={ctx} scan={compose} containers={all} attention={problems} query={rows.length === 0 ? q : ""} onClose={() => setComposeOpen(false)} onChanged={fixed} />}
       {picking && ctx && (
         <RunPicker ctx={ctx} onClose={() => setPicking(false)} onPick={(ref) => { setPicking(false); setRunImage(ref); }} />
       )}

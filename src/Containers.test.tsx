@@ -28,7 +28,7 @@ const df = (reclaimable: string, volumes = "0B") =>
     { Type: "Local Volumes", TotalCount: "1", Active: "0", Size: volumes, Reclaimable: volumes },
   ]);
 const profile = { name: "default", status: "Running", arch: "aarch64", cpus: 4, memory: 8 * 1024 ** 3, disk: 100 * 1024 ** 3, runtime: "docker" };
-const scan = { paths: [], scanning: false, error: null, scan: async () => {} };
+const scan = { paths: [], scanning: false, error: null, scan: async () => {}, add: async () => null, pinned: [] };
 
 function show(reclaimable = "10MB", list = rows, volumes = "0B") {
   backend.current = fakeBackend({ ps: () => jsonLines(list), stats: () => "", "system df": () => df(reclaimable, volumes), inspect: () => "[]" });

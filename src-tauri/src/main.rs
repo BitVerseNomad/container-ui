@@ -225,6 +225,7 @@ fn run_source_ok(src: &str, home: &str) -> bool {
 // The target and port are positional parameters ($1, $2), never part of the script text.
 // Pinned to a tag so the helper cannot change under the app (src/Doctor.tsx HELPER must match).
 const NETSHOOT_IMAGE: &str = "nicolaka/netshoot:v0.16";
+const BUSYBOX_IMAGE: &str = "busybox:1.36";
 const PROBE_SCRIPT: &str = r#"nslookup "$1" 2>&1; echo "::dns-exit=$?"; nc -zv -w 3 "$1" "$2" 2>&1; echo "::tcp-exit=$?""#;
 
 fn restart_policy_ok(val: &str) -> bool {
@@ -340,7 +341,8 @@ async fn kubectl(context: Option<String>, args: Vec<String>) -> Result<String, S
 
 // ---- Open a terminal UI (k9s) in Terminal.app; the command is fixed and must be plain text ----
 fn terminal_script(command: &str) -> Option<String> {
-    let plain = !command.is_empty() && command.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, ' ' | '/' | '.' | '_' | '-'));
+    // ':' is for "container:NAME" and an image tag; it means nothing to AppleScript or the shell.
+    let plain = !command.is_empty() && command.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, ' ' | '/' | '.' | '_' | '-' | ':'));
     plain.then(|| format!("tell application \"Terminal\" to do script \"{command}\""))
 }
 
@@ -366,6 +368,9 @@ fn terminal_command(kind: &str, context: &str, target: Option<&str>) -> Result<S
     match (kind, target) {
         ("k9s", None) => Ok(format!("{} --context {}", find_bin("k9s"), context)),
         ("shell", Some(name)) if run_name_ok(name) => Ok(format!("{} --context {} exec -it {} sh", find_bin("docker"), context, name)),
+        ("bash", Some(name)) if run_name_ok(name) => Ok(format!("{} --context {} exec -it {} bash", find_bin("docker"), context, name)),
+        // A container with no shell: a throwaway busybox that shares its processes and network, removed on exit.
+        ("debug", Some(name)) if run_name_ok(name) => Ok(format!("{} --context {} run --rm -it --pid container:{name} --network container:{name} --cap-add SYS_PTRACE {BUSYBOX_IMAGE} sh", find_bin("docker"), context)),
         _ => Err("Only k9s or a container shell can be opened from the app".into()),
     }
 }
@@ -446,6 +451,10 @@ pub(crate) fn output_with_deadline(mut cmd: Command, deadline: std::time::Durati
 }
 
 async fn exec(bin: &'static str, args: Vec<String>, merge_stderr: bool) -> Result<String, String> {
+    exec_in(bin, args, merge_stderr, None).await
+}
+
+async fn exec_in(bin: &'static str, args: Vec<String>, merge_stderr: bool, cwd: Option<String>) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let missing = |e: std::io::Error| format!("Could not run {bin}: {e}. Is it installed?");
         let mut cmd = if merge_stderr {
@@ -457,6 +466,9 @@ async fn exec(bin: &'static str, args: Vec<String>, merge_stderr: bool) -> Resul
             Command::new(find_bin(bin))
         };
         cmd.args(&args).env("PATH", path_env());
+        if let Some(dir) = &cwd {
+            cmd.current_dir(dir);
+        }
         let (ok, stdout, stderr) = output_with_deadline(cmd, EXEC_DEADLINE).map_err(missing)?;
         if ok {
             Ok(String::from_utf8_lossy(&stdout).into_owned())
@@ -906,6 +918,7 @@ fn open_url(url: String) -> Result<(), String> {
 
 // The native macOS folder chooser, so the Run panel never asks for a typed path. Ok(None) means the user cancelled.
 const PICK_FOLDER_SCRIPT: &str = r#"POSIX path of (choose folder with prompt "Choose a folder to share with the container")"#;
+const PICK_COMPOSE_SCRIPT: &str = r#"POSIX path of (choose folder with prompt "Choose the folder with your compose.yaml")"#;
 const PICK_FOLDER_DEADLINE: Duration = Duration::from_secs(300);
 
 fn parse_pick_folder(ok: bool, stdout: &[u8], stderr: &[u8]) -> Result<Option<String>, String> {
@@ -923,13 +936,14 @@ fn parse_pick_folder(ok: bool, stdout: &[u8], stderr: &[u8]) -> Result<Option<St
 }
 
 #[tauri::command]
-async fn pick_folder() -> Result<Option<String>, String> {
+async fn pick_folder(purpose: Option<String>) -> Result<Option<String>, String> {
     if !cfg!(target_os = "macos") {
         return Err("Choosing a folder is only supported on macOS".into());
     }
-    tauri::async_runtime::spawn_blocking(|| {
+    let script = if purpose.as_deref() == Some("compose") { PICK_COMPOSE_SCRIPT } else { PICK_FOLDER_SCRIPT };
+    tauri::async_runtime::spawn_blocking(move || {
         let mut cmd = Command::new("/usr/bin/osascript");
-        cmd.args(["-e", PICK_FOLDER_SCRIPT]);
+        cmd.args(["-e", script]);
         let (ok, out, err) = output_with_deadline(cmd, PICK_FOLDER_DEADLINE).map_err(|e| format!("Could not open the folder chooser: {e}"))?;
         parse_pick_folder(ok, &out, &err)
     })
@@ -1033,6 +1047,10 @@ fn compose_args(context: &str, file: &str, action: &str, home: &str) -> Result<(
     }
     let tail: &[&str] = match action {
         "up" => &["up", "-d"],
+        // Rebuild what has a build: section; get newer images for the rest. Both then start the project.
+        "build" => &["up", "-d", "--build"],
+        "pull" => &["up", "-d", "--pull", "always"],
+        "logs" => &["logs", "--tail", "300", "--no-color", "--timestamps"],
         "stop" => &["stop"],
         "restart" => &["restart"],
         "down" => &["down"],
@@ -1061,6 +1079,72 @@ async fn compose_action(app: tauri::AppHandle, context: String, file: String, ac
     .map_err(|e| e.to_string())?
 }
 
+// The last lines of every service in the project, as Compose prints them (services interleaved). A read, so it doesn't wait for a run in progress.
+#[tauri::command]
+async fn compose_logs(context: String, file: String) -> Result<String, String> {
+    let home = std::env::var("HOME").unwrap_or_default();
+    let (dir, args) = compose_args(&context, &file, "logs", &home)?;
+    exec_in("docker", args, true, Some(dir)).await
+}
+
+// A folder Spotlight missed (not indexed, or just created). Same rules as the scan: in your home, not hidden.
+fn compose_files_in(dir: &str, exists: impl Fn(&str) -> bool, home: &str) -> Result<Vec<String>, String> {
+    let dir = dir.trim_end_matches('/');
+    if !run_source_ok(dir, home) {
+        return Err("Choose a folder inside your home folder. Hidden folders and ~/Library can't be added.".into());
+    }
+    if dir.split('/').any(|c| COMPOSE_SKIP_DIRS.contains(&c)) || format!("{dir}/").contains("/pkg/mod/") {
+        return Err("That folder is inside a dependency folder (like node_modules or vendor), which the app leaves alone.".into());
+    }
+    let found: String = COMPOSE_NAMES.iter().map(|n| format!("{dir}/{n}")).filter(|p| exists(p)).map(|p| p + "\0").collect();
+    let v = compose_paths(&found, home);
+    if v.is_empty() {
+        return Err(format!("No compose.yaml or docker-compose.yml in {}", dir.rsplit('/').next().unwrap_or(dir)));
+    }
+    Ok(v)
+}
+
+#[tauri::command]
+fn compose_in_folder(dir: String) -> Result<Vec<String>, String> {
+    let home = std::env::var("HOME").unwrap_or_default();
+    compose_files_in(&dir, |p| std::path::Path::new(p).is_file(), &home)
+}
+
+// Which shell a running container has: bash if it has one, else sh, else none (a minimal image). Only "not
+// found" means no shell; a stopped container, a paused one or a stuck Docker is an error, said as it is.
+const SHELL_PROBE_DEADLINE: Duration = Duration::from_secs(5);
+
+fn shell_probe_verdict(ok: bool, output: &str) -> Result<bool, String> {
+    let missing = ["executable file not found", "no such file or directory"];
+    match ok {
+        true => Ok(true),
+        false if missing.iter().any(|m| output.to_lowercase().contains(m)) => Ok(false),
+        false if output.trim().is_empty() => Err("Docker didn't answer in 5 seconds. Try again, or restart the VM.".into()),
+        false => Err(output.trim().to_string()),
+    }
+}
+
+#[tauri::command]
+async fn container_shell(context: String, name: String) -> Result<String, String> {
+    if !context_ok(&context) || !container_name_ok(&name) {
+        return Err("Unknown container".into());
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        for sh in ["bash", "sh"] {
+            let mut cmd = Command::new(find_bin("docker"));
+            cmd.args(["--context", &context, "exec", &name, sh, "-c", "exit 0"]).env("PATH", path_env());
+            let (ok, out, err) = output_with_deadline(cmd, SHELL_PROBE_DEADLINE).map_err(|e| format!("Could not run docker: {e}"))?;
+            let text = format!("{}{}", String::from_utf8_lossy(&out), String::from_utf8_lossy(&err));
+            if shell_probe_verdict(ok, &text)? {
+                return Ok(sh.to_string());
+            }
+        }
+        Ok("none".to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 // Stops the Compose run in progress. What it already started keeps running; Stop or Down clears it.
 #[tauri::command]
 fn cancel_compose() -> bool {
@@ -1072,7 +1156,7 @@ fn main() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             list_profiles, docker, docker_check, docker_pull, env_check, install_tools, network_probe, kubectl, open_terminal, start_profile, apply_resources,
-            stop_profile, force_stop_profile, restart_profile, force_restart_profile, delete_profile, cancel_vm_op, host_resources, vm_log_tail, open_url, pick_folder, setup_report, setup_fix, find_compose_files, reveal_compose, compose_action, cancel_compose
+            stop_profile, force_stop_profile, restart_profile, force_restart_profile, delete_profile, cancel_vm_op, host_resources, vm_log_tail, open_url, pick_folder, setup_report, setup_fix, find_compose_files, reveal_compose, compose_action, cancel_compose, compose_logs, compose_in_folder, container_shell
         ])
         .run(tauri::generate_context!())
         .expect("error while running Colima UI");
@@ -1093,6 +1177,10 @@ mod tests {
         assert_eq!(dir, "/Users/me/code/shop");
         assert_eq!(args, vec!["--context", "colima", "compose", "up", "-d"]);
         assert_eq!(super::compose_args("colima-work", "/Users/me/code/shop/compose.yaml", "down", "/Users/me").unwrap().1, vec!["--context", "colima-work", "compose", "down"]);
+        let tail = |a: &str| super::compose_args("colima", "/Users/me/code/shop/compose.yaml", a, "/Users/me").unwrap().1[3..].join(" ");
+        assert_eq!(tail("build"), "up -d --build");
+        assert_eq!(tail("pull"), "up -d --pull always");
+        assert_eq!(tail("logs"), "logs --tail 300 --no-color --timestamps");
         for (ctx, file, action) in [
             ("colima", "/Users/me/code/shop/compose.yaml", "rm"),
             ("colima", "/Users/me/code/shop/compose.yaml", "down -v"),
@@ -1104,6 +1192,26 @@ mod tests {
         ] {
             assert!(super::compose_args(ctx, file, action, "/Users/me").is_err(), "{ctx} {file} {action}");
         }
+    }
+
+    #[test]
+    fn given_a_chosen_folder_when_added_then_only_its_compose_files_in_an_ordinary_home_folder_count() {
+        let has = |names: &'static [&'static str]| move |p: &str| names.iter().any(|n| p.ends_with(&format!("/{n}")));
+        assert_eq!(super::compose_files_in("/Users/me/code/shop/", has(&["compose.yaml", "docker-compose.yml"]), "/Users/me").unwrap(), vec!["/Users/me/code/shop/compose.yaml", "/Users/me/code/shop/docker-compose.yml"]);
+        assert!(super::compose_files_in("/Users/me/code/shop", has(&[]), "/Users/me").unwrap_err().contains("No compose.yaml"));
+        assert!(super::compose_files_in("/Users/me/code/app/node_modules/x", has(&["compose.yaml"]), "/Users/me").unwrap_err().contains("dependency folder"));
+        for dir in ["/Users/me/.config/x", "/Users/me/Library/x", "/Users/other/x", "/tmp/x", "/Users/me", "/Users/me/code/node_modules/x"] {
+            assert!(super::compose_files_in(dir, has(&["compose.yaml"]), "/Users/me").is_err(), "{dir}");
+        }
+    }
+
+    #[test]
+    fn given_a_shell_probe_when_it_fails_then_only_a_missing_shell_counts_as_no_shell() {
+        assert_eq!(super::shell_probe_verdict(true, ""), Ok(true));
+        assert_eq!(super::shell_probe_verdict(false, "OCI runtime exec failed: exec: \"bash\": executable file not found in $PATH: unknown"), Ok(false));
+        assert!(super::shell_probe_verdict(false, "Error response from daemon: container abc is not running").unwrap_err().contains("not running"));
+        assert!(super::shell_probe_verdict(false, "Error response from daemon: Container abc is paused, unpause the container before exec").is_err());
+        assert!(super::shell_probe_verdict(false, "  ").unwrap_err().contains("5 seconds"));
     }
 
     #[test]
@@ -1460,7 +1568,13 @@ mod tests {
         assert!(super::terminal_command("shell", "colima", Some("-u root")).is_err());
         assert!(super::terminal_command("shell", "colima", None).is_err());
         assert!(super::terminal_command("k9s", "colima", Some("x")).is_err());
-        assert!(super::terminal_command("bash", "colima", Some("x")).is_err());
+        assert!(super::terminal_command("bash", "colima", Some("x")).unwrap().ends_with(" exec -it x bash"));
+        assert!(super::terminal_command("zsh", "colima", Some("x")).is_err());
+        let debug = super::terminal_command("debug", "colima", Some("worker")).unwrap();
+        assert!(debug.ends_with(" --context colima run --rm -it --pid container:worker --network container:worker --cap-add SYS_PTRACE busybox:1.36 sh"), "{debug}");
+        assert!(super::terminal_script(&debug).is_some());
+        assert!(super::terminal_command("debug", "colima", Some("x;rm")).is_err());
+        assert!(super::terminal_script("docker exec x sh; open /").is_none());
         assert!(super::terminal_command("shell", "default", Some("x")).is_err());
     }
 

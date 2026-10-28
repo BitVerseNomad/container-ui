@@ -88,7 +88,10 @@ const find = (id: string) => db.ctrs.find((c) => c.id.startsWith(id) || c.name =
 const lines = (rows: object[]) => rows.map((r) => JSON.stringify(r)).join("\n");
 const fmtPorts = (c: Ctr) => c.state === "running" ? [...c.ports.map(([h, p]) => `0.0.0.0:${h}->${p}/tcp`), ...(c.exposed ?? []).filter((e) => !c.ports.some(([, p]) => p === e)).map((e) => `${e}/tcp`)].join(", ") : "";
 const status = (c: Ctr) => (c.state === "running" ? `Up 2 hours${c.health ? ` (${c.health === "starting" ? "health: starting" : c.health})` : ""}` : c.state === "paused" ? "Up 2 hours (Paused)" : `Exited (${c.exitCode ?? 0}) 3 hours ago`);
-const logLines = (c: Ctr) => c.image.startsWith("mysql")
+// worker crash-loops (7 restarts), so its logs say why; the rest look healthy.
+const logLines = (c: Ctr) => c.image.startsWith("acme/worker")
+  ? ["worker 2.0 starting, queue=redis://queue:6379", "connected to queue, waiting for jobs", "job 4182 picked up: resize-images", "ERROR job 4182 failed: open /data/in/4182.png: no such file or directory", "fatal: too many failed jobs in a row, exiting with code 1"]
+  : c.image.startsWith("mysql")
   ? ["[Server] /usr/sbin/mysqld (mysqld 8.4.3) starting as process 1", "[Server] InnoDB initialization has started", "[Server] InnoDB initialization has ended", "[Server] X Plugin ready for connections. Bind-address: '::' port: 33060", "[Server] ready for connections. Version: '8.4.3'  port: 3306"]
   : ["/docker-entrypoint.sh: Configuration complete; ready for start up", `${c.image}: listening on 0.0.0.0:${c.ports[0]?.[1] ?? 80}`, "GET / 200 612 \"curl/8.4.0\"", "GET /favicon.ico 404 153 \"Mozilla/5.0\""];
 
@@ -298,7 +301,20 @@ export async function invoke<T>(cmd: string, a: Record<string, any> = {}): Promi
       return undefined as T;
     }
     case "cancel_compose": return false as T;
-    case "pick_folder": return "/Users/you/code/app" as T; // the native chooser; null means cancelled
+    case "compose_logs": {
+      const dir: string = a.file.slice(0, a.file.lastIndexOf("/"));
+      const project = dir.slice(dir.lastIndexOf("/") + 1);
+      const t = new Date().toISOString();
+      return ["web", "db"].flatMap((svc) => [`${project}-${svc}-1  | ${t} ${svc} starting`, `${project}-${svc}-1  | ${t} ${svc} ready`]).join("\n") as T;
+    }
+    case "compose_in_folder": {
+      if (/\/\./.test(a.dir)) throw "Choose a folder inside your home folder. Hidden folders and ~/Library can't be added.";
+      if (/empty$/.test(a.dir)) throw `No compose.yaml or docker-compose.yml in ${a.dir.split("/").pop()}`;
+      return [`${a.dir.replace(/\/+$/, "")}/compose.yaml`] as T;
+    }
+    // worker's image is minimal (no shell), mysql has bash, the rest have sh.
+    case "container_shell": { const c = find(a.name); return (c?.image.startsWith("acme/worker") ? "none" : c?.image.startsWith("mysql") ? "bash" : "sh") as T; }
+    case "pick_folder": return ((window as any).__pickFolder ?? "/Users/you/code/app") as T; // the native chooser; null means cancelled
     case "force_stop_profile": { await progress("colima-progress", [['level=info msg="stopping colima (forced)"', 300]]); db.profiles.find((x) => x.name === a.name)!.status = "Stopped"; return undefined as T; }
     case "force_restart_profile": { await progress("colima-progress", [['level=info msg="stopping colima (forced)"', 300], ['level=info msg="done"', 300]]); db.profiles.find((x) => x.name === a.name)!.status = "Running"; return undefined as T; }
     case "stop_profile": case "restart_profile": {

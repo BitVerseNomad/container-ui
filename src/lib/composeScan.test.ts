@@ -21,6 +21,7 @@ test("given containers started from a folder, when matched, then the project cou
   const p = projectsFrom(["/Users/me/code/shop/compose.yaml", "/Users/me/code/blog/compose.yml"], [ctr("shop-web-1", "running", "/Users/me/code/shop"), ctr("shop-db-1", "exited", "/Users/me/code/shop")]);
   const shop = p.find((x) => x.name === "shop")!;
   assert.deepEqual([shop.running, shop.total], [1, 2]);
+  assert.deepEqual(shop.names, ["shop-web-1", "shop-db-1"]);
   const blog = p.find((x) => x.name === "blog")!;
   assert.deepEqual([blog.running, blog.total], [0, 0]);
 });

@@ -66,6 +66,7 @@ await p.waitForTimeout(800);
 const blog = await drawer.locator(".compose-item", { hasText: "blog" }).innerText();
 check(/port is already allocated/.test(blog), "running: a failed start keeps docker's own error under that project");
 check(/Port 8080 is already used by web \(in shop\)/.test(blog) && /Down removes what was left/.test(blog), "running: a failed start says who holds the port and how to clean up");
+check(await drawer.getByRole("button", { name: "Down blog" }).count() === 1, "running: after a failed start, the Down the note points to is there");
 
 // Down asks first, and Cancel runs nothing.
 await drawer.getByRole("button", { name: "Down shop" }).click();
@@ -86,6 +87,56 @@ check(await drawer.getByRole("button", { name: /Scanning/ }).count() === 1, "run
 await p.keyboard.press("Escape");
 check(await drawer.count() === 0, "running: Escape closes the panel");
 
+// Loop 2: health on the card, Rebuild, Update images, project logs, Add a folder.
+await p.evaluate(() => (window.__composed = []));
+await p.getByRole("button", { name: "New" }).click();
+await p.getByRole("menuitem", { name: /^Compose projects/ }).click();
+const shopCard = drawer.locator(".compose-item", { hasText: "~/code/shop" });
+const shopText = await shopCard.innerText().catch(() => "");
+check(/need attention: .*worker/i.test(shopText), `running: the shop card names its containers that need attention (${shopText.split("\n").find((l) => /attention/.test(l)) ?? "none"})`);
+await drawer.getByRole("button", { name: "Logs of shop" }).click();
+await drawer.locator(".compose-logs pre").waitFor({ timeout: 2000 }).catch(() => {});
+check(/shop-web-1 +\| .* ready/.test(await drawer.locator(".compose-logs pre").innerText().catch(() => "")), "running: Logs shows the project's last lines under its card");
+check(await drawer.getByRole("button", { name: "Copy the follow logs command for shop" }).count() === 1, "running: the follow-logs command is there to copy");
+await drawer.getByRole("button", { name: "Logs of shop" }).click();
+check(await drawer.locator(".compose-logs").count() === 0, "running: Hide logs closes them");
+await drawer.getByRole("button", { name: "Rebuild shop" }).click();
+await p.waitForFunction(() => (window.__composed ?? []).some((c) => c.action === "build"), null, { timeout: 3000 }).catch(() => {});
+check(await p.evaluate(() => (window.__composed ?? []).some((c) => c.action === "build" && c.file === "/Users/me/code/shop/compose.yaml")), "running: Rebuild runs compose up --build for shop");
+await p.locator(".cmd-toast", { hasText: "up -d --build" }).waitFor({ timeout: 3000 }).catch(() => {});
+check(/Rebuilt shop|Done: shop/.test(await p.locator(".cmd-toast").innerText().catch(() => "")) || /up -d --build/.test(await p.locator(".cmd-toast").innerText().catch(() => "")), `running: the toast shows the rebuild command (${(await p.locator(".cmd-toast").innerText().catch(() => "")).replace(/\n/g, " ")})`);
+await drawer.getByRole("button", { name: "Update images of shop" }).waitFor({ state: "visible" });
+await p.waitForFunction(() => !document.querySelector('[aria-label="Update images of shop"]')?.disabled, null, { timeout: 3000 }).catch(() => {});
+await drawer.getByRole("button", { name: "Update images of shop" }).click();
+await p.waitForFunction(() => (window.__composed ?? []).some((c) => c.action === "pull"), null, { timeout: 3000 }).catch(() => {});
+check(await p.evaluate(() => (window.__composed ?? []).some((c) => c.action === "pull")), "running: Update images runs compose up --pull always");
+// Running hides the row's other buttons, so wait for Cancel to go, not for a button to be enabled.
+await p.waitForFunction(() => !/Cancel/.test(document.querySelector(".drawer")?.textContent ?? ""), null, { timeout: 4000 }).catch(() => {});
+const rightEdge = await p.evaluate(() => Math.max(...[...document.querySelectorAll(".drawer .compose-item button")].map((b) => b.getBoundingClientRect().right)));
+const drawerEdge = await p.evaluate(() => document.querySelector(".drawer").getBoundingClientRect().right);
+check(rightEdge <= drawerEdge, `running: every card button fits inside the panel (${Math.round(rightEdge)} <= ${Math.round(drawerEdge)})`);
+const blogCard = drawer.locator(".compose-item", { hasText: "~/code/blog" });
+check(/Rebuild and start/.test(await blogCard.innerText()) && /Update images and start/.test(await blogCard.innerText()), "running: on a stopped project, Rebuild and Update images say they start it");
+await p.evaluate(() => (window.__pickFolder = "/Users/me/.config/thing"));
+await drawer.getByRole("button", { name: /Add a folder/ }).click();
+await drawer.getByText(/Hidden folders and/).waitFor({ timeout: 2000 }).catch(() => {});
+check(/Hidden folders and ~\/Library can't be added/.test(await drawer.innerText()), "running: a hidden folder is refused with the reason");
+await p.evaluate(() => (window.__pickFolder = "/Users/me/work/billing"));
+await drawer.getByRole("button", { name: /Add a folder/ }).click();
+await drawer.locator(".compose-item", { hasText: "~/work/billing" }).waitFor({ timeout: 2000 }).catch(() => {});
+check(await drawer.locator(".compose-item", { hasText: "~/work/billing" }).count() === 1 && /Added ~\/work\/billing/.test(await drawer.innerText()), "running: an added folder shows as a project at once");
+check(JSON.parse(await p.evaluate(() => localStorage.getItem("colima-ui:compose-folders"))).includes("/Users/me/work/billing"), "running: the added folder is remembered");
+await p.keyboard.press("Escape");
+
+// A minimal image has no shell: open a toolbox shell next to it, and say so, instead of a Terminal that closes at once.
+await p.evaluate(() => (window.__terminal = []));
+await p.locator("tbody tr", { hasText: "worker" }).hover();
+await p.getByRole("button", { name: "Open a shell in worker" }).click();
+await p.waitForFunction(() => (window.__terminal ?? []).length > 0, null, { timeout: 3000 }).catch(() => {});
+check(JSON.stringify(await p.evaluate(() => window.__terminal)) === JSON.stringify([{ kind: "debug", context: "colima", target: "worker" }]), "running: a container with no shell gets a toolbox shell next to it");
+const shellToast = await p.locator(".cmd-toast").innerText().catch(() => "");
+check(/worker has no shell .*toolbox shell opened/.test(shellToast) && /busybox:1\.36 sh/.test(shellToast), `running: the toast says why and shows the toolbox command (${shellToast.replace(/\n/g, " ")})`);
+
 // A container search that finds nothing points to the projects that match.
 await p.getByRole("textbox", { name: /Search containers/ }).fill("sss");
 const hint = p.locator("p.hint", { hasText: "No container matches" });
@@ -97,9 +148,13 @@ await p.keyboard.press("Escape");
 // Every command of the session, from the sidebar.
 await p.getByRole("button", { name: "Commands", exact: true }).click();
 const log = p.getByRole("dialog", { name: "Commands" });
+const box = await p.evaluate(() => { const l = document.querySelector(".check-row"); return l.querySelector("input").getBoundingClientRect().left - l.getBoundingClientRect().left; });
+check(box < 2, `running: the recall checkbox sits at the start of its label (${Math.round(box)}px in)`);
 check((await log.locator(".cmd-log li").count()) >= 2 && /failed/.test(await log.innerText()), "running: the Commands list has both runs, the failed one marked");
 check(p.errors.length === 0, `running: no page errors${p.errors.length ? ": " + p.errors.join("; ") : ""}`);
 
+// The added folder is remembered across pages of this browser; this scenario starts with none.
+await p.evaluate(() => localStorage.removeItem("colima-ui:compose-folders"));
 p = await open("nocompose");
 await p.getByRole("button", { name: "New" }).click();
 await p.getByRole("menuitem", { name: /^Compose projects/ }).click();
