@@ -26,7 +26,7 @@ export function fixAction(fix: Fix, ctx: string | undefined, confirm: Confirm, r
     const running = c.containers.some((n) => busy(runs, n));
     const go = async () => {
       const what = `${c.create ? `Create the network ${c.network} and connect` : `Connect`} ${c.containers.join(" and ")}${c.create ? "" : ` to ${c.network}`}? Their other networks stay as they are.`;
-      if (running || !(await confirm(what, "Connect"))) return;
+      if (running || !(await confirm(what, "Connect", { safe: true }))) return;
       startConnect(c, (args) => docker(ctx, args), (r) => r.ok && onFixed?.(c.containers[0]));
     };
     return { label: "Connect", busyLabel: "Connecting…", running, go, hint: `Adds ${c.containers.join(" and ")} to ${c.network}. Nothing is restarted.` };
@@ -36,7 +36,7 @@ export function fixAction(fix: Fix, ctx: string | undefined, confirm: Confirm, r
   const names = steps.map((s) => s.name);
   const running = names.some((n) => busy(runs, n));
   const go = async () => {
-    if (running || !(await confirm(fix.confirm ?? `Replace ${names.join(" and ")}?`, "Fix"))) return;
+    if (running || !(await confirm(fix.confirm ?? `Replace ${names.join(" and ")}?`, names.length > 1 ? "Replace both" : "Replace", { safe: true }))) return;
     startFix(
       steps,
       (args) => docker(ctx, args, args[0] === "logs"),

@@ -16,6 +16,8 @@ const AFTER_DESKTOP: SetupReport = {
   contexts: [{ name: "colima", current: true }, { name: "desktop-linux", current: false }],
   autostart: "none",
   testcontainers_host: null,
+  testcontainers_override: true,
+  shell_profile: "~/.zshrc",
   docker_desktop_installed: false,
 };
 const HEALTHY: SetupReport = { ...AFTER_DESKTOP, plugins: [], brew_plugins: ["docker-buildx", "docker-compose"], extra_dirs: [BREW], autostart: "started", contexts: [{ name: "colima", current: true }] };
@@ -82,7 +84,7 @@ test("given the default 2 CPU, 2 GiB VM, when checked, then it warns and points 
 test("given Testcontainers is pinned to Docker Desktop's socket, when checked, then it warns with the Colima socket", () => {
   const f = byId({ ...HEALTHY, testcontainers_host: "unix:///Users/me/.docker/run/docker.sock" }).get("testcontainers")!;
   assert.equal(f.status, "warn");
-  assert.equal(f.fix?.kind, "copy");
+  assert.deepEqual(f.fix, { kind: "fix", id: "testcontainers", label: "Point to Colima" });
 });
 
 test("given no VM yet, when checked, then the resource check is skipped", () => {
@@ -98,7 +100,7 @@ test("given the app shows the work profile but the terminal uses default's colim
 
 test("given a non-default profile, when the Testcontainers fix is offered, then it uses that profile's socket", () => {
   const f = setupFindings({ ...HEALTHY, testcontainers_host: "unix:///x.sock" }, vm, "work").find((x) => x.id === "testcontainers")!;
-  assert.match(f.command!, /\.colima\/work\/docker\.sock/);
+  assert.match(f.steps!.join("\n"), /\.colima\/work\/docker\.sock/);
 });
 
 test("given several leftovers, when planning Fix all, then each fix runs once and installs come before the link fix", () => {
@@ -131,7 +133,7 @@ test("given config edits are needed, when commands are shown, then boxes hold on
   for (const f of out) assert.doesNotMatch(f.command ?? "", /backup is kept|^(add|remove) /im, f.id);
   const creds = out.find((f) => f.id === "creds")!;
   assert.equal(creds.command, undefined);
-  assert.match(creds.steps!.join("\n"), /Remove "credsStore" from ~\/\.docker\/config\.json \(a backup is kept\)/);
+  assert.match(creds.steps!.join("\n"), /Remove `credsStore` from `~\/\.docker\/config\.json` \(a backup is kept\)/);
 });
 
 test("given compose and buildx need the same plugin fix, when checked, then the steps show once and the second card points to them", () => {
@@ -160,11 +162,38 @@ test("given no Docker Desktop context, when checked, then there is no volumes no
   assert.equal(byId(HEALTHY).has("desktop_data"), false);
 });
 
-test("given Testcontainers points elsewhere, when the fix is offered, then it sets real environment variables with no unexpanded text", () => {
+test("given Testcontainers points elsewhere, when the fix is offered, then the app runs it and there is nothing to copy", () => {
   const f = byId({ ...HEALTHY, testcontainers_host: "unix:///x.sock" }).get("testcontainers")!;
-  assert.doesNotMatch(f.command!, /\$\{HOME\}/);
-  assert.match(f.command!, /^export DOCKER_HOST="unix:\/\/\$HOME\/\.colima\/default\/docker\.sock"$/m);
-  assert.match(f.command!, /^export TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=\/var\/run\/docker\.sock$/m);
-  assert.deepEqual(f.fix, { kind: "copy", text: f.command!, label: "Copy the two lines" });
-  assert.match(f.steps!.join("\n"), /shell profile/);
+  assert.equal(f.command, undefined);
+  assert.match(f.steps!.join("\n"), /backup is kept/);
+});
+
+test("given Testcontainers and the context both need fixing, when planning Fix all, then both run", () => {
+  const plan = fixAllPlan(setupFindings({ ...HEALTHY, testcontainers_host: "unix:///x.sock", contexts: [{ name: "desktop-linux", current: true }] }, vm));
+  assert.deepEqual(plan.map((s) => (s.kind === "fix" ? s.id : "install")), ["use_colima_context", "testcontainers"]);
+});
+
+test("given Testcontainers points at another profile's socket, when checked for this profile, then it warns", () => {
+  const other = setupFindings({ ...HEALTHY, testcontainers_host: "unix:///Users/me/.colima/work/docker.sock" }, vm, "default");
+  assert.equal(other.find((f) => f.id === "testcontainers")?.status, "warn");
+  const own = setupFindings({ ...HEALTHY, testcontainers_host: "unix:///Users/me/.colima/work/docker.sock" }, vm, "work");
+  assert.equal(own.some((f) => f.id === "testcontainers"), false);
+  assert.equal(setupFindings({ ...HEALTHY, testcontainers_host: "unix:///Users/me/.colima/docker.sock" }, vm).some((f) => f.id === "testcontainers"), false);
+});
+
+test("given the file points at Colima but the socket override is missing, when checked, then it warns and the same fix adds it", () => {
+  const f = setupFindings({ ...HEALTHY, testcontainers_host: "unix:///Users/me/.colima/default/docker.sock", testcontainers_override: false }, vm).find((x) => x.id === "testcontainers")!;
+  assert.equal(f.status, "warn");
+  assert.match(f.title, /cleanup container/);
+  assert.deepEqual(f.fix, { kind: "fix", id: "testcontainers", label: "Point to Colima" });
+  assert.match(f.steps!.join("\n"), /TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE/);
+});
+
+test("given nobody uses Testcontainers, when checked, then the missing override is not a problem", () => {
+  assert.equal(setupFindings({ ...HEALTHY, testcontainers_override: false }, vm).some((x) => x.id === "testcontainers"), false);
+});
+
+test("given the file points elsewhere and the override is missing, when the fix is offered, then its steps name both changes", () => {
+  const f = setupFindings({ ...HEALTHY, testcontainers_host: "unix:///x.sock", testcontainers_override: false }, vm).find((x) => x.id === "testcontainers")!;
+  assert.equal(f.steps!.length, 2);
 });

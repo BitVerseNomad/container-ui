@@ -12,9 +12,11 @@ export type SetupReport = {
   contexts: { name: string; current: boolean }[];
   autostart: string | null;
   testcontainers_host: string | null;
+  testcontainers_override: boolean;
+  shell_profile: string;
   docker_desktop_installed: boolean;
 };
-export type FixId = "plugins" | "creds_store" | "autostart_on" | "autostart_restart" | "autostart_off" | "use_colima_context";
+export type FixId = "plugins" | "creds_store" | "autostart_on" | "autostart_restart" | "autostart_off" | "use_colima_context" | "testcontainers";
 export type SetupFix =
   | { kind: "fix"; id: FixId; label: string }
   | { kind: "install"; names: string[]; label: string; then: FixId }
@@ -43,7 +45,7 @@ const deadDesktopLinks = (r: SetupReport) => r.plugins.filter((p) => p.broken &&
 function pluginParts(r: SetupReport): { command?: string; steps: string[] } {
   const dead = deadDesktopLinks(r);
   const steps: string[] = [];
-  if (r.brew_plugin_dir && !r.extra_dirs.includes(r.brew_plugin_dir)) steps.push(`Add "${r.brew_plugin_dir}" to cliPluginsExtraDirs in ~/.docker/config.json (a backup is kept).`);
+  if (r.brew_plugin_dir && !r.extra_dirs.includes(r.brew_plugin_dir)) steps.push(`Add \`${r.brew_plugin_dir}\` to \`cliPluginsExtraDirs\` in \`~/.docker/config.json\` (a backup is kept).`);
   return { command: dead.length ? `rm ${dead.map((p) => `${USER_PLUGINS}/${p.name}`).join(" ")}` : undefined, steps };
 }
 
@@ -106,8 +108,8 @@ export function setupFindings(r: SetupReport, vm: VmSize, profile = "default"): 
       id: "creds",
       status: "fail",
       title: "Pulls and logins will fail",
-      detail: `~/.docker/config.json says credsStore "${r.creds_store}", but docker-credential-${r.creds_store} isn't installed.`,
-      steps: [`Remove "credsStore" from ~/.docker/config.json (a backup is kept).`],
+      detail: `\`~/.docker/config.json\` says \`credsStore: ${r.creds_store}\`, but \`docker-credential-${r.creds_store}\` isn't installed.`,
+      steps: [`Remove \`credsStore\` from \`~/.docker/config.json\` (a backup is kept).`],
       fix: { kind: "fix", id: "creds_store", label: "Remove the setting" },
     });
   else out.push({ id: "creds", status: "ok", title: "Registry logins are set up", detail: r.creds_store ? `Using docker-credential-${r.creds_store}.` : "No credential helper is required." });
@@ -140,18 +142,32 @@ export function setupFindings(r: SetupReport, vm: VmSize, profile = "default"): 
     else out.push({ id: "resources", status: "ok", title: `The VM has ${vm.cpus} CPUs and ${gib} GiB`, detail: "Enough for most local stacks." });
   }
 
-  if (r.testcontainers_host && !r.testcontainers_host.includes(".colima")) {
-    const lines = `export DOCKER_HOST="unix://$HOME/.colima/${profile}/docker.sock"\nexport TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock`;
+  // Only this profile's socket counts: a file left pointing at another profile reaches the wrong VM.
+  const tcHost = r.testcontainers_host;
+  const ownSocket = (h: string) => h.endsWith(`/.colima/${profile}/docker.sock`) || (profile === "default" && h.endsWith("/.colima/docker.sock"));
+  const rc = r.shell_profile || "your shell profile";
+  const overrideStep = `Add \`export TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock\` to \`${rc}\` (a backup is kept), so Testcontainers' cleanup container finds Docker inside the VM. Restart your IDE afterwards.`;
+  const pointStep = `Set \`docker.host\` to \`~/.colima/${profile}/docker.sock\` in \`~/.testcontainers.properties\`, and \`docker.client.strategy\` to the one that reads it. A backup is kept; other lines stay.`;
+  const tcFix: SetupFix = { kind: "fix", id: "testcontainers", label: "Point to Colima" };
+  if (tcHost && !ownSocket(tcHost))
     out.push({
       id: "testcontainers",
       status: "warn",
       title: "Testcontainers points somewhere else",
-      detail: `~/.testcontainers.properties has docker.host=${r.testcontainers_host}. Tests will fail to find Docker. Environment variables override that file.`,
-      steps: ["Add these two lines to your shell profile (for example ~/.zshrc), then open a new terminal."],
-      command: lines,
-      fix: { kind: "copy", text: lines, label: "Copy the two lines" },
+      detail: `\`~/.testcontainers.properties\` has \`docker.host=${tcHost}\`, so tests won't find Docker.`,
+      steps: r.testcontainers_override ? [pointStep] : [pointStep, overrideStep],
+      fix: tcFix,
     });
-  }
+  // Used from the file alone, Testcontainers reaches Colima but its cleanup container (Ryuk) can't, and tests stop at startup.
+  else if (tcHost && !r.testcontainers_override)
+    out.push({
+      id: "testcontainers",
+      status: "warn",
+      title: "Testcontainers can't start its cleanup container",
+      detail: "Colima needs `TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE` set, or tests stop at startup.",
+      steps: [overrideStep],
+      fix: tcFix,
+    });
 
   if (r.contexts.some((c) => c.name === "desktop-linux")) {
     const exportCmd = 'docker run --rm -v VOLUME:/data -v "$PWD":/backup alpine tar czf /backup/VOLUME.tgz -C /data .';
@@ -184,6 +200,6 @@ export function fixAllPlan(findings: SetupFinding[]): PlanStep[] {
     if (f.fix?.kind === "install") ids.add(f.fix.then);
     if (f.fix?.kind === "fix") ids.add(f.fix.id);
   }
-  const order: FixId[] = ["plugins", "creds_store", "use_colima_context", "autostart_on", "autostart_restart"];
+  const order: FixId[] = ["plugins", "creds_store", "use_colima_context", "testcontainers", "autostart_on", "autostart_restart"];
   return [...(names.length ? [{ kind: "install" as const, names }] : []), ...order.filter((id) => ids.has(id)).map((id) => ({ kind: "fix" as const, id }))];
 }

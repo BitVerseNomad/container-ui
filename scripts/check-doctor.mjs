@@ -29,13 +29,18 @@ if (shots) await p.screenshot({ path: `${shots}/doctor-1.png`, fullPage: true })
 const onHome = p.locator('section[aria-label="On the Containers screen"] > ul > li');
 const n = await onHome.count();
 check(n >= 8 && await p.locator('section[aria-label="On the Containers screen"] h3').innerText() === "On the Containers screen", `the page lists ${n} container problems under "On the Containers screen"`);
-const counted = async () => { const m = /^(\d+) things? needs? action/.exec(await p.locator(".doctor-head .hint").innerText()); return m ? Number(m[1]) : 0; };
+const counted = async () => { const m = /^(\d+) problems? needs? action/.exec(await p.locator(".doctor-head .hint").innerText()); return m ? Number(m[1]) : 0; };
 const badge = async () => { const l = await p.locator('.sidebar nav button[aria-label^="Doctor"]').getAttribute("aria-label"); const m = /^Doctor, (\d+) problems?$/.exec(l ?? ""); return m ? Number(m[1]) : 0; };
 check(await badge() === await counted(), `the sidebar badge and the page summary count the same (${await badge()} and ${await counted()})`);
-check(await counted() === 0 && await p.locator('section[aria-label="Needs action"]').count() === 0 && /Nothing else needs action\. 8 container problems are shown on the Containers screen/.test(await p.locator(".doctor-head .hint").innerText()), "container problems are not counted: nothing else needs action, and the summary says where they are");
+check(await counted() === 0 && await p.locator('section[aria-label="Needs action"]').count() === 0 && /Nothing needs action here\. 8 container problems are on the Containers screen/.test(await p.locator(".doctor-head .hint").innerText()), "container problems are not counted: nothing else needs action, and the summary says where they are");
 check(await p.locator('section[aria-label="Needs action"] .finding', { hasText: /orders|billing|kafka|pg|api|worker|report-job/ }).count() === 0, "no container problem is listed under Needs action");
 check(await p.locator('section[aria-label="Worth knowing"]').count() === 1, "there is a Worth knowing group");
 check(await p.locator(".doctor details.passing").first().evaluate((d) => !d.open), "passed checks start folded");
+
+// Kafka and Kafka UI are fixed together, so the page offers that fix once, on Kafka UI, and Kafka says so.
+check(await p.locator(".doctor button", { hasText: /^Fix kafka and kafka-ui/ }).count() === 1, "one Kafka fix on the page, not one per container");
+check(/Fixed together with kafka-ui\./.test(await item("Other containers can't use this Kafka").innerText()), "the Kafka row points to the shared fix");
+check(await item("Other containers can't use this Kafka").locator(".finding-actions button.small").count() === 0, "the Kafka row has no button of its own");
 
 // One of each new check, with the evidence in the text
 const t = await text();
@@ -46,7 +51,7 @@ check(/orders runs an amd64 image on your arm64 VM/.test(t), "CPU: the amd64 ima
 check(/pg keeps its data inside the container/.test(t), "storage: the database without a volume is worth knowing");
 
 // Connect fix: asks first, then adds both to a new network and the problem goes away
-await item("billing can't find sessions").getByRole("button", { name: "Connect…", exact: true }).click();
+await item("billing can't find sessions").getByRole("button", { name: /^Connect…: / }).click();
 check(/Create the network sessions-net and connect billing and sessions\?/.test(await p.getByRole("alertdialog").innerText().catch(() => "")), "Connect asks before changing anything");
 await p.getByRole("alertdialog").getByRole("button", { name: "Connect", exact: true }).click();
 await p.waitForFunction(() => /Connected\. billing and sessions are on sessions-net/.test(document.querySelector(".doctor")?.textContent ?? ""), null, { timeout: 4000 }).catch(() => {});
@@ -62,7 +67,7 @@ const before = await onHome.count();
 await p.getByRole("button", { name: "More actions for pg stopped, probably because it has no POSTGRES_PASSWORD" }).click();
 await p.getByRole("menuitem", { name: "Not an issue" }).click();
 await p.waitForTimeout(200);
-check(await onHome.count() === before - 1 && new RegExp(`${before - 1} container problems are shown`).test(await p.locator(".doctor-head .hint").innerText()), "Not an issue takes it out of the Containers screen group and its count");
+check(await onHome.count() === before - 1 && new RegExp(`${before - 1} container problems are on the Containers`).test(await p.locator(".doctor-head .hint").innerText()), "Not an issue takes it out of the Containers screen group and its count");
 check(await badge() === await counted() && await badge() === 0, "and the badge and summary still agree");
 await p.getByText(/1 marked not an issue/).click();
 await p.getByRole("button", { name: "Show it again" }).click();
@@ -109,7 +114,7 @@ await p.getByRole("alertdialog").getByRole("button", { name: "Cancel" }).click()
 check(await rowOf("orders").locator(".problem").count() === 1 && /Fix…/.test(await btn("orders")), "rows: Cancel leaves the problem as it was");
 // The fix itself, from the row: Fixing… then Fixed in the same line, with Done to clear it
 await rowOf("orders").locator(".problem button").click();
-await p.getByRole("alertdialog").getByRole("button", { name: "Fix" }).click();
+await p.getByRole("alertdialog").getByRole("button", { name: /^Replace/ }).click();
 await p.waitForSelector(`li.app .problem.busy`, { timeout: 4000 }).catch(() => {});
 check(/Fixing…/.test(await btn("orders")) && await rowOf("orders").locator(".problem button").getAttribute("aria-disabled") === "true" && await rowOf("orders").locator(".problem.busy").count() === 1, "rows: while the fix runs the line is busy and its button says Fixing…");
 check(await rowOf("orders").locator("button.main").getAttribute("aria-disabled") === "true", "rows: while the fix runs the row's Stop is aria-disabled");

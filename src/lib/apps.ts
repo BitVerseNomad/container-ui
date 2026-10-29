@@ -284,7 +284,7 @@ function composeFix(a: App, env: Env): { label: string; text: string } {
 
 // The fix and its last sentence, by who owns the container. `before` are replacements that must happen first.
 const confirmText = (names: string[], loses: string[]) =>
-  `Replace ${names.join(" and then ")}? ${names.length > 1 ? "Each is" : "It is"} stopped and started again with the fixed settings.${loses.length ? ` ${loses.join(" and ")} will start with no topics.` : ""} If a new one doesn't stay up, the old one is put back. Files saved inside the container, not in a volume, don't carry over.`;
+  `Replace ${names.join(" and ")}?${loses.length ? ` ${loses.join(" and ")} will start with no topics.` : ""}\n${names.length > 1 ? "Each is" : "It is"} stopped and started again with the fixed settings. If a new one doesn't stay up, the old one is put back. Files saved inside the container, not in a volume, don't carry over.`;
 
 export function fixFor(ctx: string, a: App, net: string | null, env: Env, changed: Env, before: Replace[] | null = [], loses: string[] = [], createAs = "kafka"): { tail: string; fix?: Problem["fix"] } {
   const who = owner(a);
@@ -325,7 +325,7 @@ export function appProblems(raw: unknown[], ctx = "colima"): Map<string, Problem
       level: "warn",
       title: "Other containers can't use this Kafka",
       short: "Only reachable from your Mac",
-      detail: `${k.name} tells every client to connect to localhost:${hostPort}. That works from your Mac, but inside another container localhost is that container. It needs a second address for containers, ${k.name}:19092.${lost}${tail}`,
+      detail: `${k.name} tells every client to connect to \`localhost:${hostPort}\`. That works from your Mac, but inside another container localhost is that container. It needs a second address for containers, \`${k.name}:19092\`.${lost}${tail}`,
       fix,
     });
   }
@@ -340,8 +340,8 @@ export function appProblems(raw: unknown[], ctx = "colima"): Map<string, Problem
     if (!empty && !local) continue;
 
     const base = empty
-      ? { id: "kafka-ui-empty" as const, title: "Kafka UI has no Kafka cluster set up", short: "No Kafka set up", what: `${ui.name} was started without KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS, so it shows "No clusters found".` }
-      : { id: "kafka-ui-localhost" as const, title: "Kafka UI looks for Kafka inside its own container", short: "Can't reach Kafka", what: `${local![0]} is ${local![1]}. Inside a container, localhost is the container itself, not your Mac or another container.` };
+      ? { id: "kafka-ui-empty" as const, title: "Kafka UI has no Kafka cluster set up", short: "No Kafka set up", what: `${ui.name} was started without \`KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS\`, so it shows "No clusters found".` }
+      : { id: "kafka-ui-localhost" as const, title: "Kafka UI looks for Kafka inside its own container", short: "Can't reach Kafka", what: `\`${local![0]}\` is \`${local![1]}\`. Inside a container, localhost is the container itself, not your Mac or another container.` };
     const { what, ...head } = base;
     const k = brokers.find((b) => b.nets.some((n) => ui.nets.includes(n))) ?? brokers[0];
     if (!k) {
@@ -360,7 +360,7 @@ export function appProblems(raw: unknown[], ctx = "colima"): Map<string, Problem
     const both = !brokerAddress(k) && fix?.steps && fix.steps.length > 1;
     const first = brokerAddress(k) || both ? "" : ` Fix ${k.name} first (see its page).`;
     const how = both ? ` Fix replaces ${k.name} first, then ${ui.name}, each with the same image, ports, volumes, networks, restart policy and environment.` : tail;
-    add(ui.name, { ...head, level: "bad", detail: `${what} ${k.name} is the Kafka it should use, at ${bootstrap}.${first}${how}`, fix: fix && both ? { ...fix, label: `Fix ${k.name} and ${ui.name}`, text: [...fix.steps!.map((r) => replaceText(ctx, r))].join("\n\n") } : fix });
+    add(ui.name, { ...head, level: "bad", detail: `${what} ${k.name} is the Kafka it should use, at \`${bootstrap}\`.${first}${how}`, fix: fix && both ? { ...fix, label: `Fix ${k.name} and ${ui.name}`, text: [...fix.steps!.map((r) => replaceText(ctx, r))].join("\n\n") } : fix });
   }
   return out;
 }

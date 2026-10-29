@@ -319,10 +319,29 @@ td:first-child:has(.tag) { white-space: nowrap; }
 .finding-actions button.more { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--muted); }
 .finding-actions button.more:hover, .finding-actions button.more[aria-expanded=true] { background: color-mix(in srgb, var(--ink) 7%, transparent); color: var(--ink); }
 .finding .how { margin-top: 4px; font-size: 12px; }
-.finding .how summary { cursor: pointer; color: var(--muted); }
+details.how > summary, details.out-more > summary { cursor: pointer; color: var(--muted); list-style: none; display: inline-flex; align-items: center; gap: 4px; }
+details.how > summary::-webkit-details-marker, details.out-more > summary::-webkit-details-marker { display: none; }
+/* The same chevron as a home row: points right when closed, down when open. */
+details.how > summary svg, details.out-more > summary svg { transform: rotate(-90deg); transition: transform .12s; }
+details.how[open] > summary svg, details.out-more[open] > summary svg { transform: none; }
+@media (prefers-reduced-motion: reduce) { details.how > summary svg, details.out-more > summary svg { transition: none; } }
+.fix-result details.how { margin: 2px 0 0 20px; font-size: 12px; }
+.finding code { font: 12px ui-monospace, "SF Mono", Menlo, monospace; }
 .finding .how .cmd { margin-top: 6px; }
+details.how ul.steps { list-style: none; padding-left: 0; margin: 6px 0 0; }
+details.how ul.steps li + li { margin-top: 6px; }
+.finding .together { color: var(--ink); }
+.finding .together .link { padding: 0; }
+.modal ul { margin: 6px 0 12px; padding-left: 16px; list-style: disc outside; }
+.modal li + li { margin-top: 2px; }
+.modal-title { font-weight: 600; font-size: 13px; margin-bottom: 4px; }
+details.passing > summary { list-style: none; display: inline-flex; align-items: center; gap: 4px; }
+details.passing > summary::-webkit-details-marker { display: none; }
+details.passing > summary svg { transform: rotate(-90deg); transition: transform .12s; }
+details.passing[open] > summary svg { transform: none; }
+@media (prefers-reduced-motion: reduce) { details.passing > summary svg { transition: none; } }
 .more-slot { width: 28px; }
-.doctor-group-head { padding-right: 34px;  display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.doctor-group-head { padding-right: 38px;  display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .drawer label select { width: 100%; }
 
 /* Observability */

@@ -134,8 +134,8 @@ check(await fixBtn.count() === 1, "fix: Kafka UI's page has one Fix kafka and ka
 check(await p.locator("details.fix-commands pre.cmd").count() > 0 && !(await p.locator("details.fix-commands").getAttribute("open")), "fix: the commands are still there, folded away");
 await fixBtn.click();
 const dialog = p.getByRole("alertdialog");
-check(/Replace kafka and then kafka-ui\?/.test(await dialog.innerText().catch(() => "")) && /no topics/.test(await dialog.innerText().catch(() => "")), "fix: it asks first, names both, and warns about topics");
-await dialog.getByRole("button", { name: "Fix" }).click();
+check(/^Replace kafka and kafka-ui\? kafka will start with no topics\./.test(await dialog.innerText().catch(() => "")) && /no topics/.test(await dialog.innerText().catch(() => "")), "fix: it asks first, names both, and warns about topics");
+await dialog.getByRole("button", { name: /^Replace/ }).click();
 await p.waitForSelector(".fix-result.ok", { timeout: 45000 }).catch(() => {});
 check(/Fixed\. kafka and kafka-ui were replaced/.test(await p.locator(".fix-result.ok").first().innerText().catch(() => "")), "fix: the page says both were replaced");
 const after = await p.evaluate(() => window.__mock.state().ctrs.filter((c) => /^kafka/.test(c.name)).map((c) => `${c.name}:${c.state}:${c.networks.join("+")}:${c.env.find((e) => /ADVERTISED|BOOTSTRAP/.test(e)) ?? ""}`));
@@ -151,7 +151,7 @@ await p.waitForFunction(() => /Can.t reach Kafka/.test(document.body.innerText),
 await p.evaluate(() => window.__mock.failRunOnce("kafka-ui"));
 await p.locator("li.app", { has: p.locator(".app-row .app-name", { hasText: /^kafka-ui$/ }) }).first().locator("button.app-name").click();
 await p.getByRole("button", { name: /^Fix kafka and kafka-ui$/ }).click({ timeout: 8000 }).catch(() => {});
-await p.getByRole("alertdialog").getByRole("button", { name: "Fix" }).click().catch(() => {});
+await p.getByRole("alertdialog").getByRole("button", { name: /^Replace/ }).click().catch(() => {});
 await p.waitForFunction(() => /A fix is running/.test(document.body.innerText), null, { timeout: 8000 }).catch(() => {});
 check(/A fix is running/.test(await p.locator("header").first().innerText().catch(() => "")) && (await p.getByRole("button", { name: "Remove" }).count()) === 0, "fix fails: Stop and Remove are locked while it runs");
 await p.waitForSelector(".fix-result.bad", { timeout: 60000 }).catch(() => {});

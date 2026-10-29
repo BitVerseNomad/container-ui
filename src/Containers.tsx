@@ -31,6 +31,8 @@ import ContainerDetail from "./ContainerDetail";
 import type { Finding, Report } from "./lib/doctor";
 import { setMuted } from "./lib/muted";
 import { fixAction, useFixRuns } from "./FixIt";
+import { biggerFix } from "./lib/sharedFix";
+import { plain } from "./ui/Ticks";
 import { describe } from "./lib/fixRun";
 import { busy as fixBusy, dismiss, runFor } from "./lib/fixStore";
 import type { Run } from "./lib/fixStore";
@@ -271,14 +273,11 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
     if (!p) return r ? <Line key={c.ID} level="bad" text={`${who}The fix didn't finish.`} title={describe(r)} action={see} /> : null;
     // When this row's own fix replaces containers, a bigger fix that also replaces this one (Kafka UI's "fix both"
     // includes its broker) wins, so both rows offer the one fix that makes them work together.
-    const own = p.fix?.steps;
-    const shared = own && [...problems.values()].flat().map((f) => f.fix)
-      .filter((f) => (f?.steps?.length ?? 0) > own.length && own.every((s) => f!.steps!.some((x) => x.name === s.name)))
-      .sort((a, b) => b!.steps!.length - a!.steps!.length)[0];
+    const shared = biggerFix(p.fix, [...problems.values()].flat().map((f) => f.fix));
     const fix = shared ?? p.fix;
     // That bigger fix gets one button, on the row that owns it; this row says where it is.
     const owner = shared ? [...problems].find(([, l]) => l.some((f) => f.fix === shared))?.[0] : undefined;
-    if (shared && owner && owner !== c.Names) return <Line key={c.ID} level={p.level === "bad" ? "bad" : "warn"} text={`${who}${p.short ?? p.title}. Fixed together with ${owner}.`} title={p.detail} />;
+    if (shared && owner && owner !== c.Names) return <Line key={c.ID} level={p.level === "bad" ? "bad" : "warn"} text={`${who}${p.short ?? p.title}. Fixed together with ${owner}.`} title={plain(p.detail)} />;
     const one = fix ? fixAction(fix, ctx ?? undefined, confirm, runs, fixed) : null;
     const names = fix?.steps?.map((x) => x.name) ?? [];
     const said = p.short ?? p.title;
@@ -292,7 +291,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
     ) : fix?.go === "Images" ? (
       <button className="small" onClick={onImages}>Open Images</button>
     ) : see;
-    return <Line key={c.ID} level={p.level === "bad" ? "bad" : "warn"} text={text} title={p.detail} action={action} />;
+    return <Line key={c.ID} level={p.level === "bad" ? "bad" : "warn"} text={text} title={plain(p.detail)} action={action} />;
   };
 
   const containerMenu = (c: C, a: App<C>): MenuItem[] => {

@@ -33,6 +33,10 @@ pub struct SetupReport {
     contexts: Vec<Context>,
     autostart: Option<String>,
     testcontainers_host: Option<String>,
+    // Whether TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE reaches new terminals: set here, or in the shell's profile.
+    testcontainers_override: bool,
+    // The shell profile the fix edits, as ~/..., so the confirm can name it before the click.
+    shell_profile: String,
     docker_desktop_installed: bool,
 }
 
@@ -102,8 +106,149 @@ pub fn parse_autostart(out: &str) -> Option<String> {
     v.as_array()?.iter().find(|s| s["name"] == "colima").and_then(|s| s["status"].as_str()).map(String::from)
 }
 
+// One `key=value` entry of a .properties file, read the way java.util.Properties reads it: "=", ":" or white space
+// ends the key, a line ending in an odd number of "\" goes on to the next line, and "#" or "!" starts a comment.
+// `lines` is how many lines of the file the entry takes, so an edit can replace all of them.
+struct Entry {
+    key: String,
+    value: String,
+    lines: usize,
+}
+
+fn entries(props: &str) -> Vec<Option<Entry>> {
+    let raw: Vec<&str> = props.lines().collect();
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < raw.len() {
+        let mut text = raw[i].trim_start().to_string();
+        let mut lines = 1;
+        let comment = text.is_empty() || text.starts_with('#') || text.starts_with('!');
+        while !comment && (text.len() - text.trim_end_matches('\\').len()) % 2 == 1 && i + lines < raw.len() {
+            text.pop();
+            text.push_str(raw[i + lines].trim_start());
+            lines += 1;
+        }
+        if comment {
+            out.push(None);
+        } else {
+            let mut key = String::new();
+            let mut rest = "";
+            let mut chars = text.char_indices();
+            while let Some((at, ch)) = chars.next() {
+                if ch == '\\' {
+                    if let Some((_, next)) = chars.next() {
+                        key.push(next);
+                    }
+                } else if ch == '=' || ch == ':' || ch.is_whitespace() {
+                    let after = text[at..].trim_start();
+                    rest = after.strip_prefix(['=', ':']).unwrap_or(after).trim_start();
+                    break;
+                } else {
+                    key.push(ch);
+                }
+            }
+            out.push(Some(Entry { key, value: rest.replace("\\:", ":").replace("\\=", "=").trim_end().to_string(), lines }));
+            for _ in 1..lines {
+                out.push(None);
+            }
+        }
+        i += lines;
+    }
+    out
+}
+
+// Java keeps the last value when a key is set twice, so the report shows that one.
+fn property(props: &str, key: &str) -> Option<String> {
+    entries(props).into_iter().flatten().filter(|e| e.key == key).last().map(|e| e.value)
+}
+
 pub fn parse_testcontainers_host(props: &str) -> Option<String> {
-    props.lines().find_map(|l| l.trim().strip_prefix("docker.host=").map(|v| v.trim().to_string()))
+    property(props, "docker.host")
+}
+
+// Testcontainers reads the socket override only from the environment, so the fix puts it in the login shell's
+// profile. fish has its own syntax; zsh is the macOS default.
+const TC_OVERRIDE: &str = "TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE";
+const TC_MARK: &str = "# Added by Colima UI (Testcontainers)";
+
+// The file the login shell really reads. A login bash reads only the first of these that exists, so a new
+// .bash_profile would hide a ~/.profile. zsh reads .zshrc from ZDOTDIR when .zshenv sets it.
+pub fn shell_profile() -> (PathBuf, bool) {
+    let shell = std::env::var("SHELL").unwrap_or_default();
+    match shell.rsplit('/').next().unwrap_or("") {
+        "fish" => (home().join(".config/fish/config.fish"), true),
+        "bash" => ([".bash_profile", ".bash_login", ".profile"].iter().map(|f| home().join(f)).find(|p| p.exists()).unwrap_or_else(|| home().join(".bash_profile")), false),
+        _ => (zdotdir().join(".zshrc"), false),
+    }
+}
+
+// ~/.zshenv may print (nvm, direnv), so only the last line counts, and only when it is a folder that exists.
+// Asked once per app start: the setup check polls every minute and a slow .zshenv would slow every poll.
+fn zdotdir() -> PathBuf {
+    static DIR: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+    DIR.get_or_init(|| output("zsh", &["-c", "print -r -- ${ZDOTDIR:-$HOME}"]).as_deref().and_then(last_dir).unwrap_or_else(home)).clone()
+}
+
+pub fn last_dir(out: &str) -> Option<PathBuf> {
+    out.lines().map(str::trim).filter(|l| !l.is_empty()).last().map(PathBuf::from).filter(|p| p.is_absolute() && p.is_dir())
+}
+
+// Only a line that sets it to the socket inside the VM counts; `unset`, `echo $...` or another value don't.
+pub fn has_override(profile_text: &str) -> bool {
+    let sh = format!("{TC_OVERRIDE}=");
+    profile_text.lines().map(str::trim).any(|l| {
+        let l = l.strip_prefix("export ").map(str::trim_start).unwrap_or(l);
+        let fish = l.strip_prefix("set ").and_then(|r| r.trim_start().strip_prefix("-gx ")).and_then(|r| r.trim_start().strip_prefix(TC_OVERRIDE)).map(str::trim_start);
+        let value = l.strip_prefix(&sh).or(fish).map(|v| v.trim_matches(|c| c == '"' || c == '\''));
+        value == Some("/var/run/docker.sock")
+    })
+}
+
+pub fn add_override(profile_text: &str, fish: bool) -> String {
+    let line = if fish { format!("set -gx {TC_OVERRIDE} /var/run/docker.sock") } else { format!("export {TC_OVERRIDE}=/var/run/docker.sock") };
+    let sep = if profile_text.is_empty() || profile_text.ends_with('\n') { "" } else { "\n" };
+    format!("{profile_text}{sep}\n{TC_MARK}\n{line}\n")
+}
+
+// A brand-new .bash_profile is the one bash file read at login, so it brings ~/.profile along.
+fn new_bash_profile(rc: &Path) -> &'static str {
+    if rc.ends_with(".bash_profile") && !rc.exists() && home().join(".profile").exists() { "[ -f ~/.profile ] && . ~/.profile\n" } else { "" }
+}
+
+const TC_STRATEGY: &str = "org.testcontainers.dockerclient.EnvironmentAndSystemPropertyClientProviderStrategy";
+
+// Points ~/.testcontainers.properties at `socket`. Testcontainers only reads docker.host from this file under the
+// environment strategy, so that key is set too. Every other line, comments included, stays where it was; an entry
+// split over several lines is replaced whole.
+pub fn point_testcontainers(props: &str, socket: &str) -> String {
+    let wanted = [("docker.host", format!("unix\\://{socket}")), ("docker.client.strategy", TC_STRATEGY.to_string())];
+    let raw: Vec<&str> = props.lines().collect();
+    let mut seen = [false; 2];
+    let mut out: Vec<String> = Vec::new();
+    let mut skip = 0;
+    for (line, entry) in raw.iter().zip(entries(props)) {
+        if skip > 0 {
+            skip -= 1;
+            continue;
+        }
+        match entry.and_then(|e| wanted.iter().position(|(k, _)| *k == e.key).map(|i| (i, e.lines))) {
+            Some((i, lines)) => {
+                skip = lines - 1;
+                // Set once, where the first copy was; later copies would win in Java, so they go.
+                if !seen[i] {
+                    out.push(format!("{}={}", wanted[i].0, wanted[i].1));
+                }
+                seen[i] = true;
+            }
+            None => out.push(line.to_string()),
+        }
+    }
+    for (i, (key, value)) in wanted.iter().enumerate() {
+        if !seen[i] {
+            out.push(format!("{key}={value}"));
+        }
+    }
+    out.join("\n") + "\n"
 }
 
 pub fn report() -> SetupReport {
@@ -121,6 +266,8 @@ pub fn report() -> SetupReport {
         contexts: output("docker", &["context", "ls", "--format", "json"]).map(|o| parse_contexts(&o)).unwrap_or_default(),
         autostart: output("brew", &["services", "list", "--json"]).and_then(|o| parse_autostart(&o)),
         testcontainers_host: std::fs::read_to_string(home().join(".testcontainers.properties")).ok().and_then(|p| parse_testcontainers_host(&p)),
+        shell_profile: shell_profile().0.display().to_string().replacen(&home().display().to_string(), "~", 1),
+        testcontainers_override: std::env::var(TC_OVERRIDE).map_or(false, |v| v == "/var/run/docker.sock") || std::fs::read_to_string(shell_profile().0).map_or(false, |t| has_override(&t)),
         docker_desktop_installed: Path::new(DESKTOP_APP).exists(),
     }
 }
@@ -178,7 +325,9 @@ fn unique_sibling(path: &Path, kind: &str) -> PathBuf {
     let stamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
     loop {
         let n = WRITE_SEQ.fetch_add(1, Ordering::Relaxed);
-        let candidate = path.with_extension(format!("json.{kind}-{stamp}-{n}"));
+        let mut name = path.file_name().unwrap_or_default().to_os_string();
+        name.push(format!(".{kind}-{stamp}-{n}"));
+        let candidate = path.with_file_name(name);
         if !candidate.exists() {
             return candidate;
         }
@@ -189,21 +338,28 @@ fn unique_sibling(path: &Path, kind: &str) -> PathBuf {
 // the same folder and is renamed over the original, so a crash never leaves a half-written config.
 // Returns where the backup went, or None when there was nothing to back up.
 fn backup_and_write(path: &Path, config: &Value) -> Result<Option<String>, String> {
-    let backup = path.exists().then(|| unique_sibling(path, "bak"));
-    if let Some(b) = &backup {
-        std::fs::copy(path, b).map_err(|e| format!("Could not back up {}: {e}", path.display()))?;
-    }
     // Docker writes this file with tabs; keep it that way so diffs stay small.
     let mut buf = Vec::new();
     let fmt = serde_json::ser::PrettyFormatter::with_indent(b"\t");
     let mut ser = serde_json::Serializer::with_formatter(&mut buf, fmt);
     serde::Serialize::serialize(config, &mut ser).map_err(|e| e.to_string())?;
+    backup_and_write_bytes(path, &buf)
+}
+
+fn backup_and_write_bytes(path: &Path, buf: &[u8]) -> Result<Option<String>, String> {
+    // A dotfiles setup links the file into a repo; writing through the link keeps the link and updates the repo copy.
+    let real = std::fs::symlink_metadata(path).ok().filter(|m| m.file_type().is_symlink()).and_then(|_| std::fs::canonicalize(path).ok());
+    let path = real.as_deref().unwrap_or(path);
+    let backup = path.exists().then(|| unique_sibling(path, "bak"));
+    if let Some(b) = &backup {
+        std::fs::copy(path, b).map_err(|e| format!("Could not back up {}: {e}", path.display()))?;
+    }
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir).map_err(|e| format!("Could not create {}: {e}", dir.display()))?;
     }
     let tmp = unique_sibling(path, "tmp");
     let write = || -> std::io::Result<()> {
-        std::fs::write(&tmp, &buf)?;
+        std::fs::write(&tmp, buf)?;
         // The config can hold credentials, so keep the original file's permissions.
         if let Ok(meta) = std::fs::metadata(path) {
             std::fs::set_permissions(&tmp, meta.permissions())?;
@@ -219,7 +375,7 @@ fn backup_and_write(path: &Path, config: &Value) -> Result<Option<String>, Strin
 
 // " Backup: <path>" when a backup was made, so the message always says where the old file went.
 fn backup_note(backup: Option<String>) -> String {
-    backup.map_or(String::new(), |b| format!(" Backup: {b}"))
+    backup.map_or(String::new(), |b| format!(" Backup: {b}."))
 }
 
 pub fn fix(id: &str, profile: &str) -> Result<String, String> {
@@ -239,7 +395,7 @@ pub fn fix(id: &str, profile: &str) -> Result<String, String> {
             for name in &dead {
                 std::fs::remove_file(dir.join(name)).map_err(|e| format!("Could not remove {name}: {e}"))?;
             }
-            let mut done = vec![format!("Removed {} broken Docker Desktop link(s).", dead.len())];
+            let mut done = vec![format!("Removed {} broken Docker Desktop link{}.", dead.len(), if dead.len() == 1 { "" } else { "s" })];
             if let Some(brew) = BREW_PLUGIN_DIRS.iter().find(|d| Path::new(d).is_dir()) {
                 let mut config = read_config(&path)?;
                 if add_extra_dir(&mut config, brew) {
@@ -264,7 +420,41 @@ pub fn fix(id: &str, profile: &str) -> Result<String, String> {
                 return Err(format!("Invalid profile name: \"{profile}\""));
             }
             let ctx = context_for(profile);
-            run("docker", &["context", "use", &ctx]).map(|_| format!("The docker CLI now talks to Colima ({ctx})."))
+            run("docker", &["context", "use", &ctx]).map(|_| if ctx == "colima" { "docker now uses Colima.".into() } else { format!("docker now uses Colima ({ctx}).") })
+        }
+        "testcontainers" => {
+            if !crate::profile_name_ok(profile) {
+                return Err(format!("Invalid profile name: \"{profile}\""));
+            }
+            let socket = home().join(format!(".colima/{profile}/docker.sock"));
+            if !socket.exists() {
+                return Err(format!("Colima's socket isn't at {}. Start the {profile} VM, then try again.", socket.display()));
+            }
+            let file = home().join(".testcontainers.properties");
+            let old = match std::fs::read_to_string(&file) {
+                Ok(t) => t,
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
+                Err(e) => return Err(format!("Could not read {}: {e}", file.display())),
+            };
+            let replaced = property(&old, "docker.client.strategy").filter(|v| v != TC_STRATEGY);
+            let backup = backup_and_write_bytes(&file, point_testcontainers(&old, &socket.display().to_string()).as_bytes())?;
+            let strategy = replaced.map_or(String::new(), |v| format!(" docker.client.strategy was {v}."));
+            let named = if profile == "default" { String::new() } else { format!(" ({profile})") };
+            let mut done = format!("Testcontainers now uses Colima{named}.{strategy}{}", backup_note(backup));
+            let (rc, fish) = shell_profile();
+            let text = match std::fs::read_to_string(&rc) {
+                Ok(t) => t,
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => new_bash_profile(&rc).to_string(),
+                // The properties file is already done, so this is a partial success, not a failure.
+                Err(e) => return Ok(format!("{done} {TC_OVERRIDE} was not added: {} could not be read ({e}).", rc.display())),
+            };
+            if !has_override(&text) {
+                match backup_and_write_bytes(&rc, add_override(&text, fish).as_bytes()) {
+                    Ok(backup) => done.push_str(&format!(" Added {TC_OVERRIDE} to {}.{}", rc.display(), backup_note(backup))),
+                    Err(e) => done.push_str(&format!(" {TC_OVERRIDE} was not added: {e}")),
+                }
+            }
+            Ok(done)
         }
         _ => Err(format!("Unknown fix \"{id}\"")),
     }
@@ -403,6 +593,85 @@ mod tests {
     fn testcontainers_host_is_read_from_properties() {
         assert_eq!(parse_testcontainers_host("#c\ndocker.host=unix:///x.sock\n").as_deref(), Some("unix:///x.sock"));
         assert_eq!(parse_testcontainers_host("docker.client.strategy=Unix\n"), None);
+        assert_eq!(parse_testcontainers_host("docker.host=unix\\:///x.sock\n").as_deref(), Some("unix:///x.sock"));
+    }
+
+    #[test]
+    fn given_the_ways_java_spells_a_key_when_read_then_each_gives_the_value_and_the_last_one_wins() {
+        assert_eq!(parse_testcontainers_host("docker.host = tcp://a:1\n").as_deref(), Some("tcp://a:1"));
+        assert_eq!(parse_testcontainers_host("docker.host:tcp://b\n").as_deref(), Some("tcp://b"));
+        assert_eq!(parse_testcontainers_host("docker.host tcp://c\r\n").as_deref(), Some("tcp://c"));
+        assert_eq!(parse_testcontainers_host("docker.host=one\ndocker.host=two\n").as_deref(), Some("two"));
+        assert_eq!(parse_testcontainers_host("# docker.host=no\n! docker.host=no\n"), None);
+        assert_eq!(parse_testcontainers_host("docker.host=unix\\\n   :///x.sock\n").as_deref(), Some("unix:///x.sock"));
+    }
+
+    #[test]
+    fn given_a_value_split_over_lines_and_a_second_copy_when_pointed_at_colima_then_both_go_and_nothing_is_left_behind() {
+        let props = "docker.host=tcp\\://x\\\n  \\:1\na=1\ndocker.host : old\n";
+        let out = point_testcontainers(props, "/s.sock");
+        assert_eq!(out, format!("docker.host=unix\\:///s.sock\na=1\ndocker.client.strategy={TC_STRATEGY}\n"));
+    }
+
+    #[test]
+    fn given_a_shell_profile_when_the_override_is_added_then_it_is_one_marked_line_and_is_seen_next_time() {
+        let out = add_override("export PATH=x", false);
+        assert_eq!(out, "export PATH=x\n\n# Added by Colima UI (Testcontainers)\nexport TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock\n");
+        assert!(has_override(&out));
+        assert!(add_override("", true).ends_with("set -gx TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE /var/run/docker.sock\n"));
+        assert!(!has_override("# export TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock\n"));
+        assert!(!has_override("unset TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE\n"));
+        assert!(!has_override("echo $TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE\n"));
+        assert!(!has_override("export TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/Users/me/.colima/default/docker.sock\n"));
+        assert!(has_override("TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=\"/var/run/docker.sock\"\n"));
+        assert!(has_override("set -gx TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE /var/run/docker.sock\n"));
+    }
+
+    #[test]
+    fn given_zshenv_prints_something_when_finding_zdotdir_then_only_a_real_folder_on_the_last_line_counts() {
+        let tmp = std::env::temp_dir();
+        assert_eq!(last_dir(&format!("Now using node v20\n{}\n", tmp.display())), Some(tmp.clone()));
+        assert_eq!(last_dir("hi\nnot/absolute\n"), None);
+        assert_eq!(last_dir("/no/such/folder/anywhere\n"), None);
+        assert_eq!(last_dir(""), None);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn given_the_file_is_a_symlink_when_written_then_the_link_stays_and_its_target_changes() {
+        let d = scratch("link");
+        let target = d.join("dotfiles.properties");
+        let link = d.join(".testcontainers.properties");
+        std::fs::write(&target, "docker.host=x\n").unwrap();
+        std::os::unix::fs::symlink(&target, &link).unwrap();
+        backup_and_write_bytes(&link, b"docker.host=y\n").unwrap();
+        assert!(std::fs::symlink_metadata(&link).unwrap().file_type().is_symlink());
+        assert_eq!(std::fs::read_to_string(&target).unwrap(), "docker.host=y\n");
+    }
+
+    #[test]
+    fn given_properties_pointing_elsewhere_when_pointed_at_colima_then_only_the_two_keys_change() {
+        let props = "# mine\ndocker.host=unix\\:///Users/me/.docker/run/docker.sock\nryuk.disabled=false\n";
+        let out = point_testcontainers(props, "/Users/me/.colima/default/docker.sock");
+        assert_eq!(out, format!("# mine\ndocker.host=unix\\:///Users/me/.colima/default/docker.sock\nryuk.disabled=false\ndocker.client.strategy={TC_STRATEGY}\n"));
+        assert_eq!(parse_testcontainers_host(&out).as_deref(), Some("unix:///Users/me/.colima/default/docker.sock"));
+    }
+
+    #[test]
+    fn given_no_properties_file_when_pointed_at_colima_then_both_keys_are_written() {
+        let out = point_testcontainers("", "/s.sock");
+        assert_eq!(out, format!("docker.host=unix\\:///s.sock\ndocker.client.strategy={TC_STRATEGY}\n"));
+    }
+
+    #[test]
+    fn given_a_properties_file_when_backed_up_then_the_backup_sits_next_to_it_with_its_own_name() {
+        let d = scratch("props");
+        let f = d.join(".testcontainers.properties");
+        std::fs::write(&f, "docker.host=x\n").unwrap();
+        let b = backup_and_write_bytes(&f, b"docker.host=y\n").unwrap().unwrap();
+        assert!(b.contains(".testcontainers.properties.bak-"));
+        assert_eq!(std::fs::read_to_string(&b).unwrap(), "docker.host=x\n");
+        assert_eq!(std::fs::read_to_string(&f).unwrap(), "docker.host=y\n");
     }
 }
 

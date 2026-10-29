@@ -75,7 +75,7 @@ export default function Shell({ nav, onNav, profiles, active, onSelect, onNewPro
               {current && <span className={current.status === "Running" ? "sdot on" : "sdot"} aria-hidden="true" />}
             </span>
             <span className="switch-text">
-              <b>{current?.name ?? "No VM yet"}</b>
+              <b>{current?.name ?? "No VM"}</b>
               {current && <span className="hint">{shown(current)}</span>}
             </span>
             <span className="switch-chev"><Icon name="chevron" size={13} /></span>

@@ -61,8 +61,8 @@ const SHOP = new Set(["api", "worker", "report-job", "web", "db", "queue", "cach
 const BREW_PLUGINS = "/opt/homebrew/lib/docker/cli-plugins";
 const deadLink = (name: string) => ({ name, target: `/Applications/Docker.app/Contents/Resources/cli-plugins/${name}`, broken: true });
 const setup = scenario === "desktop"
-  ? { plugins: [deadLink("docker-buildx"), deadLink("docker-compose"), deadLink("docker-scout")], brew_plugin_dir: BREW_PLUGINS, brew_plugins: ["docker-compose"], extra_dirs: [] as string[], creds_store: "desktop" as string | null, creds_helper_found: false, contexts: [{ name: "colima", current: false }, { name: "desktop-linux", current: true }], autostart: "none", testcontainers_host: "unix:///Users/me/.docker/run/docker.sock" as string | null, docker_desktop_installed: false }
-  : { plugins: [] as { name: string; target: string; broken: boolean }[], brew_plugin_dir: BREW_PLUGINS, brew_plugins: ["docker-buildx", "docker-compose"], extra_dirs: [BREW_PLUGINS], creds_store: null as string | null, creds_helper_found: true, contexts: [{ name: "colima", current: true }], autostart: "started", testcontainers_host: null as string | null, docker_desktop_installed: false };
+  ? { plugins: [deadLink("docker-buildx"), deadLink("docker-compose"), deadLink("docker-scout")], brew_plugin_dir: BREW_PLUGINS, brew_plugins: ["docker-compose"], extra_dirs: [] as string[], creds_store: "desktop" as string | null, creds_helper_found: false, contexts: [{ name: "colima", current: false }, { name: "desktop-linux", current: true }], autostart: "none", testcontainers_host: "unix:///Users/me/.docker/run/docker.sock" as string | null, testcontainers_override: false, shell_profile: "~/.zshrc", docker_desktop_installed: false }
+  : { plugins: [] as { name: string; target: string; broken: boolean }[], brew_plugin_dir: BREW_PLUGINS, brew_plugins: ["docker-buildx", "docker-compose"], extra_dirs: [BREW_PLUGINS], creds_store: null as string | null, creds_helper_found: true, contexts: [{ name: "colima", current: true }], autostart: "started", testcontainers_host: null as string | null, testcontainers_override: true, shell_profile: "~/.zshrc", docker_desktop_installed: false };
 if (scenario === "mismatch") setup.contexts = [{ name: "colima", current: false }, { name: "colima-work", current: true }];
 // Kubernetes on the docker runtime: each pod shows up as k8s_ containers that the cluster owns.
 if (scenario === "k8spods") {
@@ -251,11 +251,14 @@ export async function invoke<T>(cmd: string, a: Record<string, any> = {}): Promi
       await new Promise((r) => setTimeout(r, 300));
       if (a.id === "plugins") { setup.plugins = setup.plugins.filter((p) => !p.broken); if (!setup.extra_dirs.includes(BREW_PLUGINS)) setup.extra_dirs.push(BREW_PLUGINS); }
       else if (a.id === "creds_store") setup.creds_store = null;
+      else if (a.id === "testcontainers") { setup.testcontainers_host = `unix:///Users/me/.colima/${a.profile ?? "default"}/docker.sock`; setup.testcontainers_override = true; }
       else if (a.id === "use_colima_context") { const want = !a.profile || a.profile === "default" ? "colima" : `colima-${a.profile}`; setup.contexts = setup.contexts.map((c) => ({ ...c, current: c.name === want })); }
       else if (a.id === "autostart_on" || a.id === "autostart_restart") setup.autostart = "started";
       else if (a.id === "autostart_off") setup.autostart = "none";
       else throw `unknown fix ${a.id}`;
-      return undefined as T;
+      // The same kind of sentence the real fix returns, so the page shows where each backup went.
+      const said: Record<string, string> = { plugins: "Removed 2 broken Docker Desktop links. Added /opt/homebrew/lib/docker/cli-plugins to /Users/me/.docker/config.json. Backup: /Users/me/.docker/config.json.bak-1-0.", creds_store: 'Removed "credsStore": "desktop" from /Users/me/.docker/config.json. Backup: /Users/me/.docker/config.json.bak-1-1.', testcontainers: "Testcontainers now uses Colima. Backup: /Users/me/.testcontainers.properties.bak-1-2. Added TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE to /Users/me/.zshrc. Backup: /Users/me/.zshrc.bak-1-3.", use_colima_context: "docker now uses Colima." };
+      return (said[a.id as string] ?? "Done.") as T;
     }
     case "env_check": return { ...env } as T; // a fresh object per call, like the real IPC
     case "install_tools": {

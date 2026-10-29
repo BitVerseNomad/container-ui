@@ -34,7 +34,7 @@ export default function OutputLog({ event, failure = null, active = false, onCle
   if (collapsed && !active)
     return lines.length ? (
       <details className="out-more">
-        <summary>Show output ({lines.length} lines)</summary>
+        <summary><Icon name="chevron" size={12} />Show output ({lines.length} lines)</summary>
         <pre ref={box} className="out-log">
           {lines.map((l, i) => (
             <div key={i} className={`ln ${l.level}`}>{l.text}</div>

@@ -1,6 +1,7 @@
 import { ReactNode } from "react";
 import { Line, ago } from "./lib/events";
 import { Problem, State, problemsFor } from "./lib/health";
+import Ticks from "./ui/Ticks";
 import FixIt from "./FixIt";
 
 export const stripHealth = (status: string) => status.replace(/\s*\((?:un)?healthy\)|\s*\(health: starting\)/, "");
@@ -51,7 +52,7 @@ export function HealthPanel({ state, extra = [], onLogs, ctx, onFixed }: { state
       {problems.map((p) => (
         <div key={p.id} className={`problem-line ${p.level}`}>
           <b>{p.title}</b>
-          <div className="hint">{p.detail}</div>
+          <div className="hint"><Ticks text={p.detail} /></div>
           {p.fix ? (
             <FixIt fix={p.fix} ctx={ctx} onFixed={onFixed} />
           ) : (

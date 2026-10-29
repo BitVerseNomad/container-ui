@@ -11,11 +11,13 @@ import { hostArch } from "./lib/guided";
 import { muted, setMuted, subscribeMuted } from "./lib/muted";
 import { busy } from "./lib/fixStore";
 import { fixAllPlan } from "./lib/setup";
+import { biggerFix } from "./lib/sharedFix";
 import type { SetupFinding } from "./lib/setup";
 import { Banner, useConfirm } from "./ui";
 import Menu from "./ui/Menu";
 import type { MenuItem } from "./ui/Menu";
 import { Icon } from "./ui/icons";
+import Ticks from "./ui/Ticks";
 
 const ICON = { ok: "check", warn: "alert", fail: "close", info: "info" } as const;
 
@@ -69,7 +71,7 @@ export function groups(setupFindings: SetupFinding[], report: Report | null, mut
   };
 }
 
-const summaryOf = (todo: number) => (todo === 0 ? "Nothing needs action." : `${todo} thing${todo === 1 ? " needs" : "s need"} action.`);
+const summaryOf = (todo: number) => (todo === 0 ? "Nothing needs action." : `${todo} problem${todo === 1 ? " needs" : "s need"} action.`);
 
 type Props = {
   ctx: string | null;
@@ -82,7 +84,7 @@ type Props = {
 
 // Every check in one place: setup, containers, networks, images, storage and the VM. Nothing changes until a click.
 export default function Doctor({ ctx, setup, doc, onProfiles, onGo, onOpen }: Props) {
-  const actions = useSetupActions({ reload: setup.reload, profile: setup.profile, onProfiles });
+  const actions = useSetupActions({ reload: setup.reload, profile: setup.profile, onProfiles, rc: setup.rc });
   const mutedKeys = useMuted();
   const [testing, setTesting] = useState(false);
   const [checking, setChecking] = useState(false);
@@ -100,28 +102,45 @@ export default function Doctor({ ctx, setup, doc, onProfiles, onGo, onOpen }: Pr
   const setupRow = (f: SetupFinding) => (
     actions.row(f, f.status === "fail" && plan.length <= 1)
   );
+  const listed = [...eAction, ...onHome, ...eKnow];
   const item = (f: Finding) => {
     const cls = f.severity === "know" ? "info" : f.level === "bad" ? "fail" : "warn";
+    // Same rule as the Containers screen: a pair fixed together has one button, on the problem that owns the fix.
+    const shared = biggerFix(f.fix, listed.map((x) => x.fix));
+    const owner = shared && listed.find((x) => x.fix === shared);
+    const elsewhere = owner && owner !== f ? owner : undefined;
     const more: MenuItem[] = [
       ...(f.subject ? [{ label: `Open ${f.subject}`, icon: <Icon name="logs" size={13} />, onSelect: () => onOpen(f.subject!) }] : []),
       { label: "Not an issue", icon: <Icon name="check" size={13} />, onSelect: () => setMuted(f.key, true) },
     ];
     return (
-      <li key={f.key} className={`finding ${cls}`}>
+      <li key={f.key} className={`finding ${cls}`} data-key={f.key}>
         <Icon name={ICON[cls]} />
         <div>
           <b>{f.title}</b>
-          <span className="hint">{f.detail}</span>
-          {f.fix?.text && !f.fix.go && (
+          {elsewhere && (
+            <span className="hint together">
+              Fixed together with{" "}
+              <button className="link" aria-label={`Go to the fix on ${elsewhere.subject ?? elsewhere.title}`} onClick={() => {
+                const row = document.querySelector<HTMLElement>(`[data-key="${CSS.escape(elsewhere.key)}"]`);
+                const fixButton = row?.querySelector<HTMLElement>(".finding-actions button.small");
+                // A muted owner has no button here; its row (or the page) still takes focus so the move is heard.
+                if (!fixButton && row) row.tabIndex = -1;
+                (fixButton ?? row)?.focus();
+              }}>{elsewhere.subject ?? elsewhere.title}</button>.
+            </span>
+          )}
+          <span className="hint"><Ticks text={f.detail} /></span>
+          {f.fix?.text && !f.fix.go && !elsewhere && (
             <details className="how">
-              <summary>Or run it yourself</summary>
+              <summary><Icon name="chevron" size={12} />Or run it yourself<span className="sr-only">: {f.title}</span></summary>
               <pre className="cmd">{f.fix.text}</pre>
               {f.fix.note && <p className="hint">{f.fix.note}</p>}
             </details>
           )}
         </div>
         <span className="finding-actions">
-          {f.fix ? <DoctorFix fix={f.fix} ctx={ctx} onGo={onGo} onFixed={() => doc.reload()} /> : f.subject ? <button className="small" onClick={() => onOpen(f.subject!)}>Open {f.subject}</button> : null}
+          {elsewhere ? null : f.fix ? <DoctorFix fix={f.fix} title={f.title} ctx={ctx} onGo={onGo} onFixed={() => doc.reload()} /> : f.subject ? <button className="small" onClick={() => onOpen(f.subject!)}>Open {f.subject}</button> : null}
           <Menu label={`More actions for ${f.title}`} className="more" items={more}><Icon name="more" size={16} /></Menu>
         </span>
       </li>
@@ -129,13 +148,13 @@ export default function Doctor({ ctx, setup, doc, onProfiles, onGo, onOpen }: Pr
   };
 
   // The container problems below are counted on their own rows, not here, so the line says where they are.
-  const onScreen = onHome.length ? ` ${onHome.length === 1 ? "1 container problem is" : `${onHome.length} container problems are`} shown on the Containers screen.` : "";
-  const summary = `${todo === 0 && onHome.length ? "Nothing else needs action." : summaryOf(todo)}${onScreen}`;
+  const onScreen = onHome.length ? ` ${onHome.length} ${todo ? "more" : onHome.length === 1 ? "container problem" : "container problems"} ${onHome.length === 1 ? "is" : "are"} on the Containers screen.` : "";
+  const summary = `${todo === 0 && onHome.length ? "Nothing needs action here." : summaryOf(todo)}${onScreen}`;
   return (
     <div className="setup doctor">
       <div className="doctor-head">
         <p className="hint">
-          {summary} {ctx ? "Nothing changes until you click a fix." : "Start the VM to also check containers, networks, images and storage."}
+          {summary}{ctx ? "" : " Start the VM to also check containers, networks, images and storage."}
         </p>
         <span className="finding-actions">
           <button className="small" disabled={checking} onClick={recheck}>{checking ? "Checking…" : "Run checks again"}</button>
@@ -144,9 +163,10 @@ export default function Doctor({ ctx, setup, doc, onProfiles, onGo, onOpen }: Pr
       </div>
       <Banner error={setup.error ?? doc.error} />
       <FixRuns />
+      {actions.log}
       {todo > 0 && (
         <section aria-label="Needs action">
-          <div className="doctor-group-head"><h3 className="doctor-group">Needs action</h3>{actions.fixAll(plan, sAction.filter((f) => f.fix && f.fix.kind !== "copy" && f.fix.kind !== "profiles"))}</div>
+          <div className="doctor-group-head"><h3 className="doctor-group">Needs action</h3>{actions.fixAll(plan, sAction.filter((f) => f.fix && f.fix.kind !== "copy" && f.fix.kind !== "profiles"), todo)}</div>
           <ul className="findings">{[...sAction.map(setupRow), ...eAction.map(item)]}</ul>
         </section>
       )}
@@ -164,7 +184,7 @@ export default function Doctor({ ctx, setup, doc, onProfiles, onGo, onOpen }: Pr
       )}
       {passed.length > 0 && (
         <details className="passing">
-          <summary>{passed.length} check{passed.length === 1 ? "" : "s"} pass</summary>
+          <summary><Icon name="chevron" size={12} />{passed.length} check{passed.length === 1 ? "" : "s"} pass</summary>
           <ul className="findings">
             {passed.map(({ t, setup: id }) => (
               <li key={t} className="finding ok" data-setup={id}><Icon name="check" /><div><b>{t}</b></div></li>
@@ -174,7 +194,7 @@ export default function Doctor({ ctx, setup, doc, onProfiles, onGo, onOpen }: Pr
       )}
       {hidden.length > 0 && (
         <details className="passing">
-          <summary>{hidden.length} marked not an issue</summary>
+          <summary><Icon name="chevron" size={12} />{hidden.length} marked not an issue</summary>
           <ul className="findings">
             {hidden.map((f) => (
               <li key={f.key} className="finding info">
@@ -188,7 +208,6 @@ export default function Doctor({ ctx, setup, doc, onProfiles, onGo, onOpen }: Pr
           </ul>
         </details>
       )}
-      {actions.log}
       {testing && ctx && <ConnectionTest ctx={ctx} onClose={() => setTesting(false)} />}
     </div>
   );
@@ -196,11 +215,11 @@ export default function Doctor({ ctx, setup, doc, onProfiles, onGo, onOpen }: Pr
 
 
 // A container problem's one button: the fix when the app can run it, else where to go, else copy the commands.
-function DoctorFix({ fix, ctx, onGo, onFixed }: { fix: NonNullable<Finding["fix"]>; ctx: string | null; onGo: (page: Go) => void; onFixed: () => void }) {
+function DoctorFix({ fix, title, ctx, onGo, onFixed }: { fix: NonNullable<Finding["fix"]>; title: string; ctx: string | null; onGo: (page: Go) => void; onFixed: () => void }) {
   const confirm = useConfirm();
   const runs = useFixRuns();
-  if (fix.go) return <button className="small" onClick={() => onGo(fix.go!)}>{fix.label}</button>;
+  if (fix.go) return <button className="small" aria-label={`${fix.label}: ${title}`} onClick={() => onGo(fix.go!)}>{fix.label}</button>;
   const run = fixAction(fix, ctx ?? undefined, confirm, runs, onFixed);
-  if (run) return <button className="small" title={run.hint} disabled={run.running} onClick={run.go}>{run.running ? run.busyLabel : `${run.label}…`}</button>;
-  return <button className="small" onClick={() => navigator.clipboard.writeText(fix.text)}>Copy commands</button>;
+  if (run) return <button className="small" title={run.hint} aria-label={`${run.running ? run.busyLabel : `${run.label}…`}: ${title}`} aria-disabled={run.running || undefined} onClick={run.go}>{run.running ? run.busyLabel : `${run.label}…`}</button>;
+  return <button className="small" aria-label={`Copy commands: ${title}`} onClick={() => navigator.clipboard.writeText(fix.text)}>Copy commands</button>;
 }

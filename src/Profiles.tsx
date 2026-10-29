@@ -62,7 +62,7 @@ export default function Profiles({ profiles, reload, openNew = false, kubeOn = (
   // The same action the Kubernetes page offers: start the VM with Kubernetes on (a running VM restarts first).
   async function turnOnKubernetes(p: Profile) {
     const warn = p.status === "Running" ? " The VM restarts, so running containers stop for a minute and start again." : "";
-    if (!(await confirm(`Turn on Kubernetes for "${p.name}"?${warn}`, "Turn on"))) return;
+    if (!(await confirm(`Turn on Kubernetes for "${p.name}"?${warn}`, "Turn on", { safe: true }))) return;
     if (await act(p.name, "turning on Kubernetes", "apply_resources", { opts: { name: p.name, kubernetes: true } as StartOpts, restart: p.status === "Running" })) onKubeAsked?.(p.name);
   }
 

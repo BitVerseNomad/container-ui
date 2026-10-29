@@ -4,6 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { Profile, ctxFor } from "./api";
 import { usePoll } from "./hooks";
 import { Banner, Empty } from "./ui";
+import { Icon } from "./ui/icons";
 import Shell, { Tab } from "./Shell";
 import PageHeader from "./ui/PageHeader";
 import Containers, { VmState } from "./Containers";
@@ -135,7 +136,12 @@ export default function App() {
     ) : tab === "Doctor" ? (
       // Until the tool check answers, an empty Doctor could read as an all-clear on a Mac with nothing installed.
       !env ? null : toolsMissing ? (
-        <Empty title="Install Colima and Docker first">The checks need both. The Containers screen installs them with one click.</Empty>
+        <div className="blank">
+          <span className="blank-icon"><Icon name="download" size={28} /></span>
+          <h2>Install Colima and Docker first</h2>
+          <p className="hint">The checks need both.</p>
+          <span className="actions-inline"><button className="primary" onClick={() => setTab("Containers")}>Install them</button></span>
+        </div>
       ) : (
         <Doctor ctx={ctx} setup={setup} doc={doc} onProfiles={() => setTab("Profiles")} onGo={(page) => setTab(page)} onOpen={(name) => { setDetailId(name); setTab("Containers"); }} />
       )
