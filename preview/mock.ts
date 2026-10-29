@@ -1,7 +1,7 @@
 // Simulated backend for the browser preview. Same commands as the Rust side, fake data.
-type Ev = { payload: string };
+type Ev = { payload: unknown };
 const listeners: Record<string, Set<(e: Ev) => void>> = {};
-const emit = (name: string, payload: string) => listeners[name]?.forEach((cb) => cb({ payload }));
+const emit = (name: string, payload: unknown) => listeners[name]?.forEach((cb) => cb({ payload }));
 export const listen = async <T,>(name: string, cb: (e: { payload: T }) => void) => {
   (listeners[name] ??= new Set()).add(cb as never);
   return () => void listeners[name].delete(cb as never);
@@ -61,8 +61,8 @@ const SHOP = new Set(["api", "worker", "report-job", "web", "db", "queue", "cach
 const BREW_PLUGINS = "/opt/homebrew/lib/docker/cli-plugins";
 const deadLink = (name: string) => ({ name, target: `/Applications/Docker.app/Contents/Resources/cli-plugins/${name}`, broken: true });
 const setup = scenario === "desktop"
-  ? { plugins: [deadLink("docker-buildx"), deadLink("docker-compose"), deadLink("docker-scout")], brew_plugin_dir: BREW_PLUGINS, brew_plugins: ["docker-compose"], extra_dirs: [] as string[], creds_store: "desktop" as string | null, creds_helper_found: false, contexts: [{ name: "colima", current: false }, { name: "desktop-linux", current: true }], autostart: "none", testcontainers_host: "unix:///Users/me/.docker/run/docker.sock" as string | null, testcontainers_override: false, shell_profile: "~/.zshrc", docker_desktop_installed: false }
-  : { plugins: [] as { name: string; target: string; broken: boolean }[], brew_plugin_dir: BREW_PLUGINS, brew_plugins: ["docker-buildx", "docker-compose"], extra_dirs: [BREW_PLUGINS], creds_store: null as string | null, creds_helper_found: true, contexts: [{ name: "colima", current: true }], autostart: "started", testcontainers_host: null as string | null, testcontainers_override: true, shell_profile: "~/.zshrc", docker_desktop_installed: false };
+  ? { plugins: [deadLink("docker-buildx"), deadLink("docker-compose"), deadLink("docker-scout")], brew_plugin_dir: BREW_PLUGINS, brew_plugins: ["docker-compose"], extra_dirs: [] as string[], creds_store: "desktop" as string | null, creds_helper_found: false, contexts: [{ name: "colima", current: false }, { name: "desktop-linux", current: true }], autostart: "none", testcontainers_host: "unix:///Users/me/.docker/run/docker.sock" as string | null, testcontainers_override: false, shell_profile: "~/.zshrc", docker_desktop_installed: false, docker_desktop_data: true }
+  : { plugins: [] as { name: string; target: string; broken: boolean }[], brew_plugin_dir: BREW_PLUGINS, brew_plugins: ["docker-buildx", "docker-compose"], extra_dirs: [BREW_PLUGINS], creds_store: null as string | null, creds_helper_found: true, contexts: [{ name: "colima", current: true }], autostart: "started", testcontainers_host: null as string | null, testcontainers_override: true, shell_profile: "~/.zshrc", docker_desktop_installed: false, docker_desktop_data: false };
 if (scenario === "mismatch") setup.contexts = [{ name: "colima", current: false }, { name: "colima-work", current: true }];
 // Kubernetes on the docker runtime: each pod shows up as k8s_ containers that the cluster owns.
 if (scenario === "k8spods") {
@@ -179,6 +179,14 @@ function dockerCmd(args: string[]): string {
   throw `mock: unsupported docker command: ${args.join(" ")}`;
 }
 
+// Docker Desktop for "Bring them over": ?dd=closed (installed, not open), ?dd=gone (removed, disk left), ?dd=fail (uploads fails), else running.
+const dd = typeof location !== "undefined" ? new URLSearchParams(location.search).get("dd") ?? "running" : "running";
+const desktop = { installed: dd !== "gone", running: dd === "running" || dd === "fail", disk_bytes: 30 * GB };
+const ddVolumes: [string, string][] = [["shop_db", "412MB"], ["redis-data", "18MB"], ["uploads", "2.1GB"], ["b".repeat(64), "36B"]];
+const ddImages = [{ Repository: "acme/api", Tag: "dev", Size: "1.2GB" }, { Repository: "postgres", Tag: "16", Size: "438MB" }, { Repository: "<none>", Tag: "<none>", Size: "90MB" }];
+let stopCopy = false;
+const MB = (s: string) => parseFloat(s) * (s.endsWith("GB") ? 1e9 : 1e6);
+
 async function progress(event: string, steps: [string, number][]) { for (const [l, ms] of steps) { await sleep(ms); emit(event, l); } }
 
 export async function invoke<T>(cmd: string, a: Record<string, any> = {}): Promise<T> {
@@ -189,6 +197,19 @@ export async function invoke<T>(cmd: string, a: Record<string, any> = {}): Promi
     case "list_profiles": return db.profiles.map((p) => ({ ...p })) as T; // fresh objects per call, like the real IPC
     case "docker": { const args: string[] = a.args.filter((x: string) => x !== "--format" && x !== "{{json .}}"); const i = a.args.indexOf("--format"); return dockerCmd(i > 0 && (a.args[0] === "image" || (a.args[0] === "inspect" && a.args[i + 1] !== "{{json .}}")) ? a.args : args) as T; }
     case "docker_check": return undefined as T;
+    case "desktop_state": return { ...desktop } as T;
+    case "open_docker_desktop": if (!desktop.installed) throw "Docker Desktop isn't installed"; setTimeout(() => { desktop.running = true; }, 2500); return undefined as T;
+    case "desktop_docker": if (a.args[0] === "ps") return JSON.stringify({ Names: "shop-db-1", Mounts: "shop_db" }) as T; return (a.args[0] === "system" ? JSON.stringify({ Images: [], Containers: [], BuildCache: [], Volumes: ddVolumes.map(([Name, Size]) => ({ Name, Size })) }) : ddImages.map((r) => JSON.stringify(r)).join("\n")) as T;
+    case "desktop_start": ((window as any).__started ??= []).push(...a.names); return undefined as T;
+    case "desktop_copy_stop": stopCopy = a.stop; return undefined as T;
+    case "desktop_copy": {
+      if (a.kind === "volume" && db.volumes.includes(a.name)) throw `Colima already has a volume called ${a.name}, so it was left alone.`;
+      if (a.name === "uploads" && dd === "fail") throw "docker: Error response from daemon: no space left on device";
+      const size = MB(a.kind === "volume" ? ddVolumes.find(([n]) => n === a.name)![1] : ddImages.find((r) => `${r.Repository}:${r.Tag}` === a.name)!.Size);
+      for (let f = 0.2; f < 1; f += 0.2) { await sleep(250); if (stopCopy) throw "Stopped."; emit("desktop-progress", { name: a.name, bytes: Math.round(size * f) }); }
+      if (a.kind === "volume") db.volumes.push(a.name); else { const [repo, tag] = a.name.split(":"); db.images.unshift({ Repository: repo, Tag: tag, Size: "142MB", ID: hex(12), CreatedSince: "1 second ago" }); }
+      return size as T;
+    }
     case "docker_pull": {
       if (a.image === "ghcr.io/acme/private:1") {
         await progress("pull-progress", [["1: Pulling from acme/private", 200]]);

@@ -2,6 +2,14 @@
 
 Newest first. Older entries record what was true when they were written; later entries supersede them (the Overview, for example, was replaced by the Containers home screen).
 
+## Bring Docker Desktop's volumes and images over
+- **One button instead of a command to paste.** Doctor's "Your Docker Desktop volumes and images stay behind" opens a panel. It lists Docker Desktop's named volumes (picked) and tagged images (not picked, since Colima downloads them again) with their sizes, then copies them one at a time, volumes first, with progress and Stop.
+- **Docker Desktop keeps its copy.** Volumes are read through a read-only mount and images with `docker save`. A volume Colima already has is never replaced; when Colima's is under half the size, the row shows both sizes and says to remove the empty one first.
+- **No half copies.** A container writing to a picked volume (running, paused or restarting) is stopped first, after a confirm. The summary names it, and one click starts it again. A failed or stopped copy removes its helper containers and the half-made volume. The copy is kept only when both sides have the same number of files and folders.
+- **Before and after.** A free-space estimate warns when the picks won't fit. A full disk says so in plain words, with Open Profiles as the main button. The row also shows when Docker Desktop is closed (Open Docker Desktop) or removed with its 30 GiB disk left behind (Download, Check again). After a copy, the Doctor row moves to the passing checks.
+- **Every confirm returns focus** to the button that opened it, and a drawer's Close stays focusable while it waits.
+- **Scorecard**: rounds 8 to 10, same six reviewers. Product 8, 8.5, 9; UX 8, 9, 9.5; visual 8, 8.5, 9; engineering 7, 8.5, 9; daily user 9, 9.5, 9.5; accessibility 7.5, 9, 9. No round has run against a real Docker Desktop yet.
+
 ## Round 4: the cause of a crash loop, Compose projects in reach
 - **A crash loop names its cause.** The container page reads the last log lines and shows the error behind the restarts. A line whose cause it knows wins over the last error line, with what to do: "Nothing is mounted at /data/in, so /data/in/4182.png isn't there. Mount the folder that has it at /data/in", or that localhost inside a container is the container itself.
 - **Compose projects has its own button** on the Containers toolbar, with the count. It stays under New too.

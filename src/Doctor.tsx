@@ -2,6 +2,7 @@ import { useMemo, useState, useSyncExternalStore } from "react";
 import { Profile, docker } from "./api";
 import { usePoll } from "./hooks";
 import { useSetup, useSetupActions } from "./Setup";
+import BringOver from "./BringOver";
 import ConnectionTest from "./ConnectionTest";
 import { FixRuns, Go, fixAction, useFixRuns } from "./FixIt";
 import { doctor } from "./lib/doctor";
@@ -84,7 +85,8 @@ type Props = {
 
 // Every check in one place: setup, containers, networks, images, storage and the VM. Nothing changes until a click.
 export default function Doctor({ ctx, setup, doc, onProfiles, onGo, onOpen }: Props) {
-  const actions = useSetupActions({ reload: setup.reload, profile: setup.profile, onProfiles, rc: setup.rc });
+  const [bringing, setBringing] = useState(false);
+  const actions = useSetupActions({ reload: setup.reload, profile: setup.profile, onProfiles, onBring: () => setBringing(true), rc: setup.rc });
   const mutedKeys = useMuted();
   const [testing, setTesting] = useState(false);
   const [checking, setChecking] = useState(false);
@@ -166,7 +168,7 @@ export default function Doctor({ ctx, setup, doc, onProfiles, onGo, onOpen }: Pr
       {actions.log}
       {todo > 0 && (
         <section aria-label="Needs action">
-          <div className="doctor-group-head"><h3 className="doctor-group">Needs action</h3>{actions.fixAll(plan, sAction.filter((f) => f.fix && f.fix.kind !== "copy" && f.fix.kind !== "profiles"), todo)}</div>
+          <div className="doctor-group-head"><h3 className="doctor-group">Needs action</h3>{actions.fixAll(plan, sAction.filter((f) => f.fix && f.fix.kind !== "copy" && f.fix.kind !== "profiles" && f.fix.kind !== "bring"), todo)}</div>
           <ul className="findings">{[...sAction.map(setupRow), ...eAction.map(item)]}</ul>
         </section>
       )}
@@ -209,6 +211,7 @@ export default function Doctor({ ctx, setup, doc, onProfiles, onGo, onOpen }: Pr
         </details>
       )}
       {testing && ctx && <ConnectionTest ctx={ctx} onClose={() => setTesting(false)} />}
+      {bringing && <BringOver ctx={ctx ?? ""} onClose={() => setBringing(false)} onDone={() => void Promise.all([setup.reload(), doc.reload()])} onProfiles={() => { setBringing(false); onProfiles(); }} />}
     </div>
   );
 }

@@ -671,3 +671,27 @@ td .status-text.fixing, td .status-text.fixed, td .fix-failed { white-space: nor
 .cmd-entry > span { display: block; }
 .cmd-entry code { overflow-wrap: anywhere; }
 .cmd-said { flex: none; font-weight: 600; }
+
+/* Bring over from Docker Desktop: one line per volume or image, the bar under the one being copied. */
+.group > .bring-list { align-self: stretch; }
+.bring-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.bring-item .check { display: flex; flex-direction: row; align-items: center; width: 100%; gap: 8px; margin: 0; font-size: 12px; color: var(--muted); }
+.bring-mark { display: inline-grid; place-items: center; width: 16px; height: 16px; flex: 0 0 16px; color: var(--muted); }
+.bring-mark input[type="checkbox"] { margin: 0; }
+.bring-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; }
+.bring-size { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.bring-item .bar, .bring-why, .bring-note { margin: 4px 0 0 24px; }
+.bring-item.failed .bring-size { color: var(--dot-bad); }
+.bring-why.raw { font: 12px ui-monospace, "SF Mono", Menlo, monospace; }
+.bring-result { font-size: 13px; color: var(--ink); }
+.bring-result p { margin: 0; display: flex; gap: 6px; align-items: flex-start; }
+.bring-result.ok .icon, .bring-result.ok svg { color: var(--dot-ok); flex: 0 0 auto; margin-top: 2px; }
+.bring-result.bad svg { color: var(--dot-bad); flex: 0 0 auto; margin-top: 2px; }
+.bring-result code, .bring-result .tick { font: 12px ui-monospace, "SF Mono", Menlo, monospace; }
+.bring-result > button { margin: 6px 0 0 20px; }
+.drawer h4[tabindex="-1"]:focus { outline: none; }
+.drawer .actions .bring-pick { margin-right: auto; align-self: center; }
+/* macOS puts the default button last, on the right. */
+.drawer .actions .primary { order: 2; }
+.bring-note code { font: 12px ui-monospace, "SF Mono", Menlo, monospace; }
+.drawer .actions button[aria-disabled="true"], .drawer-head button[aria-disabled="true"] { opacity: .5; cursor: default; }

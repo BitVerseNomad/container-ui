@@ -19,6 +19,7 @@ const AFTER_DESKTOP: SetupReport = {
   testcontainers_override: true,
   shell_profile: "~/.zshrc",
   docker_desktop_installed: false,
+  docker_desktop_data: false,
 };
 const HEALTHY: SetupReport = { ...AFTER_DESKTOP, plugins: [], brew_plugins: ["docker-buildx", "docker-compose"], extra_dirs: [BREW], autostart: "started", contexts: [{ name: "colima", current: true }] };
 const vm = { cpus: 4, memory: 8 * 1024 ** 3 };
@@ -150,10 +151,10 @@ test("given Docker Desktop's context is still listed, when checked, then an info
   const findings = setupFindings({ ...HEALTHY, contexts: [{ name: "colima", current: true }, { name: "desktop-linux", current: false }] }, vm);
   const f = findings.find((x) => x.id === "desktop_data")!;
   assert.equal(f.status, "info");
-  assert.equal(f.title, "Your Docker Desktop images and volumes stay behind");
-  assert.match(f.detail, /Colima starts empty/);
-  assert.equal(f.command, 'docker run --rm -v VOLUME:/data -v "$PWD":/backup alpine tar czf /backup/VOLUME.tgz -C /data .');
-  assert.deepEqual(f.fix, { kind: "copy", text: f.command, label: "Copy the export command" });
+  assert.equal(f.title, "Your Docker Desktop volumes and images stay behind");
+  assert.match(f.detail, /Colima starts empty\. Bring your volumes over before the first `docker compose up`/);
+  assert.equal(f.command, undefined);
+  assert.deepEqual(f.fix, { kind: "bring", label: "Bring them over" });
   assert.equal(needsAttention(findings), 0);
   assert.deepEqual(fixAllPlan(findings), []);
 });
@@ -196,4 +197,14 @@ test("given nobody uses Testcontainers, when checked, then the missing override 
 test("given the file points elsewhere and the override is missing, when the fix is offered, then its steps name both changes", () => {
   const f = setupFindings({ ...HEALTHY, testcontainers_host: "unix:///x.sock", testcontainers_override: false }, vm).find((x) => x.id === "testcontainers")!;
   assert.equal(f.steps!.length, 2);
+});
+
+test("given Docker Desktop is removed but its disk is left, when checked, then the bring-over row still shows", () => {
+  const f = setupFindings({ ...HEALTHY, docker_desktop_data: true }, vm).find((x) => x.id === "desktop_data");
+  assert.equal(f?.fix?.kind, "bring");
+});
+
+test("given the volumes were brought over, when checked, then the row passes and offers nothing", () => {
+  const f = setupFindings({ ...HEALTHY, docker_desktop_data: true }, vm, "default", true).find((x) => x.id === "desktop_data")!;
+  assert.deepEqual([f.status, f.title, f.fix], ["ok", "Docker Desktop volumes are in Colima", undefined]);
 });

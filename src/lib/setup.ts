@@ -15,13 +15,15 @@ export type SetupReport = {
   testcontainers_override: boolean;
   shell_profile: string;
   docker_desktop_installed: boolean;
+  docker_desktop_data: boolean;
 };
 export type FixId = "plugins" | "creds_store" | "autostart_on" | "autostart_restart" | "autostart_off" | "use_colima_context" | "testcontainers";
 export type SetupFix =
   | { kind: "fix"; id: FixId; label: string }
   | { kind: "install"; names: string[]; label: string; then: FixId }
   | { kind: "profiles"; label: string }
-  | { kind: "copy"; text: string; label: string };
+  | { kind: "copy"; text: string; label: string }
+  | { kind: "bring"; label: string };
 export type SetupFinding = {
   id: "compose" | "buildx" | "leftovers" | "creds" | "context" | "autostart" | "resources" | "testcontainers" | "desktop_data";
   status: "ok" | "warn" | "fail" | "info";
@@ -82,7 +84,8 @@ function pluginFinding(r: SetupReport, plugin: "docker-compose" | "docker-buildx
 
 export const contextFor = (profile: string) => (profile === "default" ? "colima" : `colima-${profile}`);
 
-export function setupFindings(r: SetupReport, vm: VmSize, profile = "default"): SetupFinding[] {
+// brought: the user already brought Docker Desktop volumes over with the app, so the row turns to a pass.
+export function setupFindings(r: SetupReport, vm: VmSize, profile = "default", brought = false): SetupFinding[] {
   const want = contextFor(profile);
   const out = [pluginFinding(r, "docker-compose"), pluginFinding(r, "docker-buildx")];
   // Both plugins share one link fix: show it on the first card, point to it from the second.
@@ -169,18 +172,17 @@ export function setupFindings(r: SetupReport, vm: VmSize, profile = "default"): 
       fix: tcFix,
     });
 
-  if (r.contexts.some((c) => c.name === "desktop-linux")) {
-    const exportCmd = 'docker run --rm -v VOLUME:/data -v "$PWD":/backup alpine tar czf /backup/VOLUME.tgz -C /data .';
-    out.push({
-      id: "desktop_data",
-      status: "info",
-      title: "Your Docker Desktop images and volumes stay behind",
-      detail: "Colima starts empty. Databases in Docker Desktop volumes are not here. Export each volume while Docker Desktop is the current context, then import it into Colima the same way in reverse.",
-      steps: ["Replace VOLUME with a name from `docker volume ls`.", "To import, run `docker context use colima`, then the same command with `tar xzf /backup/VOLUME.tgz -C /data` at the end."],
-      command: exportCmd,
-      fix: { kind: "copy", text: exportCmd, label: "Copy the export command" },
-    });
-  }
+  // The app copies them (src/BringOver.tsx); Docker Desktop keeps its copy. The disk outlives the app and its context.
+  if (r.contexts.some((c) => c.name === "desktop-linux") || r.docker_desktop_data)
+    out.push(brought
+      ? { id: "desktop_data", status: "ok", title: "Docker Desktop volumes are in Colima", detail: "Docker Desktop still has its copy." }
+      : {
+          id: "desktop_data",
+          status: "info",
+          title: "Your Docker Desktop volumes and images stay behind",
+          detail: "Colima starts empty. Bring your volumes over before the first `docker compose up`, or Compose makes new empty ones.",
+          fix: { kind: "bring", label: "Bring them over" },
+        });
   return out;
 }
 

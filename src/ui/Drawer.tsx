@@ -1,12 +1,14 @@
-import { KeyboardEvent, ReactNode, useEffect, useRef } from "react";
+import { KeyboardEvent, ReactNode, useEffect, useId, useRef } from "react";
 
-type Props = { label: string; title: ReactNode; onClose: () => void; closeDisabled?: boolean; children: ReactNode };
+// closeWhy: said with a Close that waits, so the reason is heard, not only a dimmed button.
+type Props = { label: string; title: ReactNode; onClose: () => void; closeDisabled?: boolean; closeWhy?: string; children: ReactNode };
 
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 // A modal side panel: focus moves in on open, Tab stays inside, Escape closes, focus returns to the opener.
-export default function Drawer({ label, title, onClose, closeDisabled = false, children }: Props) {
+export default function Drawer({ label, title, onClose, closeDisabled = false, closeWhy, children }: Props) {
   const ref = useRef<HTMLDivElement>(null);
+  const whyId = useId();
   // Captured during the first render: an `autoFocus` child steals focus before any effect runs.
   const opener = useRef<HTMLElement | null>(document.activeElement as HTMLElement | null);
 
@@ -52,7 +54,9 @@ export default function Drawer({ label, title, onClose, closeDisabled = false, c
       <div ref={ref} className="drawer" role="dialog" aria-modal="true" aria-label={label} onKeyDown={onKeyDown}>
         <div className="drawer-head">
           <h3>{title}</h3>
-          <button disabled={closeDisabled} onClick={onClose}>Close</button>
+          {/* aria-disabled keeps Close in the Tab order while it waits, so focus has a place to stay. */}
+          <button aria-disabled={closeDisabled || undefined} aria-describedby={closeDisabled && closeWhy ? whyId : undefined} title={closeDisabled ? closeWhy : undefined} onClick={() => !closeDisabled && onClose()}>Close</button>
+          {closeDisabled && closeWhy && <span id={whyId} className="sr-only">{closeWhy}</span>}
         </div>
         {children}
       </div>

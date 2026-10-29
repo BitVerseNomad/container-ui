@@ -37,17 +37,22 @@ export function planText(plan: PlanStep[], rc = "your shell profile") {
 }
 const ICON = { ok: "check", warn: "alert", fail: "close", info: "info" } as const;
 
+// Set by the Bring over panel after a copy, so the Doctor row stops saying the data stayed behind.
+const BROUGHT = "colima-ui.broughtOver";
+export const broughtOver = () => { try { return localStorage.getItem(BROUGHT) === "1"; } catch { return false; } };
+export const markBroughtOver = () => { try { localStorage.setItem(BROUGHT, "1"); } catch { /* the row just stays */ } };
+
 export function useSetup(profile: Profile | null) {
   const { data, error, reload } = usePoll(() => invoke<SetupReport>("setup_report"), [], 60_000);
   const vm = profile?.status === "Running" ? { cpus: profile.cpus, memory: profile.memory } : null;
   const name = profile?.name ?? "default";
-  const findings = data ? sortFindings(setupFindings(data, vm, name)) : null;
+  const findings = data ? sortFindings(setupFindings(data, vm, name, broughtOver())) : null;
   return { findings, error, reload, profile: name, rc: data?.shell_profile };
 }
 
 // Runs the setup fixes. Each fix shows its command and runs only on a click; the Doctor page places the rows.
-type Opts = { reload: () => void | Promise<unknown>; profile: string; onProfiles: () => void; rc?: string };
-export function useSetupActions({ reload, profile, onProfiles, rc = "your shell profile" }: Opts) {
+type Opts = { reload: () => void | Promise<unknown>; profile: string; onProfiles: () => void; onBring?: () => void; rc?: string };
+export function useSetupActions({ reload, profile, onProfiles, onBring, rc = "your shell profile" }: Opts) {
   const [busy, setBusy] = useState<string | null>(null);
   const [installing, setInstalling] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
@@ -63,6 +68,7 @@ export function useSetupActions({ reload, profile, onProfiles, rc = "your shell 
     const fix = f.fix;
     if (!fix) return;
     if (fix.kind === "profiles") return onProfiles();
+    if (fix.kind === "bring") return onBring?.();
     if (fix.kind === "copy") {
       await navigator.clipboard.writeText(fix.text);
       return setCopied(f.id);
@@ -162,6 +168,7 @@ export function useSetupActions({ reload, profile, onProfiles, rc = "your shell 
     const fix = f.fix;
     // A copy fix needs the steps beside it to make sense, so the panel sends you to the Doctor for it.
     if (!fix || fix.kind === "copy") return null;
+    if (fix.kind === "bring" && !onBring) return null;
     const changes = fix.kind === "fix" || fix.kind === "install";
     const what = [f.title, ...(f.steps ?? []), f.command].filter(Boolean).join("\n");
     const go = async () => (!changes || (await confirm(what, fix.label, { safe: true }))) && act(f);

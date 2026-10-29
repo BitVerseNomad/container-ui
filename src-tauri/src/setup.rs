@@ -38,6 +38,8 @@ pub struct SetupReport {
     // The shell profile the fix edits, as ~/..., so the confirm can name it before the click.
     shell_profile: String,
     docker_desktop_installed: bool,
+    // Docker Desktop's VM disk is still on the Mac, even when the app and its context are gone.
+    docker_desktop_data: bool,
 }
 
 fn home() -> PathBuf {
@@ -269,6 +271,7 @@ pub fn report() -> SetupReport {
         shell_profile: shell_profile().0.display().to_string().replacen(&home().display().to_string(), "~", 1),
         testcontainers_override: std::env::var(TC_OVERRIDE).map_or(false, |v| v == "/var/run/docker.sock") || std::fs::read_to_string(shell_profile().0).map_or(false, |t| has_override(&t)),
         docker_desktop_installed: Path::new(DESKTOP_APP).exists(),
+        docker_desktop_data: home().join(crate::desktop::DESKTOP_DISK).exists(),
     }
 }
 

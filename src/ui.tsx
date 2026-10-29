@@ -9,9 +9,12 @@ export const useConfirm = () => useContext(ConfirmCtx);
 export function ConfirmProvider({ children }: { children: ReactNode }) {
   const [req, setReq] = useState<{ message: string; label: string; safe?: boolean } | null>(null);
   const resolver = useRef<(ok: boolean) => void>();
+  // Focus goes back where it was, so a keyboard or VoiceOver user lands on the button that asked.
+  const opener = useRef<HTMLElement | null>(null);
   const ask = useCallback<Ask>(
     (message, label = "Remove", opts) =>
       new Promise((resolve) => {
+        opener.current = document.activeElement as HTMLElement | null;
         resolver.current = resolve;
         setReq({ message, label, safe: opts?.safe });
       }),
@@ -20,6 +23,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
   const close = (ok: boolean) => {
     resolver.current?.(ok);
     setReq(null);
+    opener.current?.focus?.();
   };
   return (
     <ConfirmCtx.Provider value={ask}>
