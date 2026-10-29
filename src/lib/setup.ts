@@ -23,7 +23,9 @@ export type SetupFix =
   | { kind: "install"; names: string[]; label: string; then: FixId }
   | { kind: "profiles"; label: string }
   | { kind: "copy"; text: string; label: string }
-  | { kind: "bring"; label: string };
+  | { kind: "bring"; label: string }
+  // Restarts the VM with a bigger size (apply_resources); cpus and memory (GiB) are what it gets.
+  | { kind: "resize"; cpus: number; memory: number; label: string };
 export type SetupFinding = {
   id: "compose" | "buildx" | "leftovers" | "creds" | "context" | "autostart" | "resources" | "testcontainers" | "desktop_data";
   status: "ok" | "warn" | "fail" | "info";
@@ -34,8 +36,12 @@ export type SetupFinding = {
   // Plain English lines (config edits and the like), shown as a short list above the box.
   steps?: string[];
   fix?: SetupFix;
+  // A second, quieter way, for people who want something other than the one-click fix.
+  more?: { kind: "profiles"; label: string };
 };
 export type VmSize = { cpus: number; memory: number } | null;
+
+import { macWords, resizeTo, sizeWords } from "./vmSize.ts";
 
 const DESKTOP_APP = "/Applications/Docker.app/";
 const GIB = 1024 ** 3;
@@ -85,7 +91,9 @@ function pluginFinding(r: SetupReport, plugin: "docker-compose" | "docker-buildx
 export const contextFor = (profile: string) => (profile === "default" ? "colima" : `colima-${profile}`);
 
 // brought: the user already brought Docker Desktop volumes over with the app, so the row turns to a pass.
-export function setupFindings(r: SetupReport, vm: VmSize, profile = "default", brought = false): SetupFinding[] {
+// pick: the size this Mac would start a new VM with (src/lib/vmSize.ts), and hostMemory the Mac's memory in bytes,
+// for the small-VM row's one click.
+export function setupFindings(r: SetupReport, vm: VmSize, profile = "default", brought = false, pick: { cpus: number; memory: number } | null = null, hostMemory?: number): SetupFinding[] {
   const want = contextFor(profile);
   const out = [pluginFinding(r, "docker-compose"), pluginFinding(r, "docker-buildx")];
   // Both plugins share one link fix: show it on the first card, point to it from the second.
@@ -140,8 +148,19 @@ export function setupFindings(r: SetupReport, vm: VmSize, profile = "default", b
 
   if (vm) {
     const gib = Math.round(vm.memory / GIB);
+    const to = resizeTo(vm, pick, hostMemory);
+    // The sentence names the numbers the button offers, or why there is no button.
+    const mac = hostMemory ? `Your Mac has ${macWords(hostMemory)}` : "";
+    const detail = to
+      ? `That is Colima's default. ${mac ? `${mac}, so` : "On this Mac"} the VM can have ${sizeWords(to)} and leave the rest for macOS.`
+      : mac
+        ? `That is Colima's default. ${mac}, so a bigger VM would slow the Mac down. Change it in Profiles if a build or database needs more.`
+        : "That is Colima's default. Builds and databases often need 4 CPUs and 8 GiB.";
+    const warn = { id: "resources", status: "warn", title: `The VM has ${vm.cpus} CPUs and ${gib} GiB`, detail } as const;
     if (vm.cpus <= 2 || vm.memory <= 2 * GIB)
-      out.push({ id: "resources", status: "warn", title: `The VM has ${vm.cpus} CPUs and ${gib} GiB`, detail: "That is Colima's default. Builds and databases often need 4 CPUs and 8 GiB.", fix: { kind: "profiles", label: "Change in Profiles" } });
+      out.push(to
+        ? { ...warn, command: `colima stop ${profile}\ncolima start ${profile} --cpu ${to.cpus} --memory ${to.memory}`, fix: { kind: "resize", ...to, label: `Give it ${to.cpus} CPUs and ${to.memory} GiB` }, more: { kind: "profiles", label: "Change in Profiles" } }
+        : { ...warn, fix: { kind: "profiles", label: "Change in Profiles" } });
     else out.push({ id: "resources", status: "ok", title: `The VM has ${vm.cpus} CPUs and ${gib} GiB`, detail: "Enough for most local stacks." });
   }
 

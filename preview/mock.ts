@@ -10,7 +10,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const hex = (n: number) => Array.from({ length: n }, () => "0123456789abcdef"[Math.floor(Math.random() * 16)]).join("");
 const GB = 1024 ** 3;
 
-type Ctr = { error?: string; labels?: string; health?: string; healthOut?: string; streak?: number; restarts?: number; exitCode?: number; oom?: boolean; networks: string[]; exposed?: number[]; id: string; name: string; image: string; state: string; ports: [number, number][]; mounts: { Type: string; Name?: string; Source: string; Destination: string; RW: boolean }[]; env: string[]; born: number; cpu: number; mem: number };
+type Ctr = { restart?: string; error?: string; labels?: string; health?: string; healthOut?: string; streak?: number; restarts?: number; exitCode?: number; oom?: boolean; networks: string[]; exposed?: number[]; id: string; name: string; image: string; state: string; ports: [number, number][]; mounts: { Type: string; Name?: string; Source: string; Destination: string; RW: boolean }[]; env: string[]; born: number; cpu: number; mem: number };
 const now = Date.now();
 const db = {
   profiles: [{ name: "default", status: "Running", arch: "aarch64", cpus: 4, memory: 8 * GB, disk: 100 * GB, runtime: "docker", address: "192.168.5.2" }],
@@ -57,12 +57,25 @@ const env: Record<string, any> = {
 };
 // Containers started by `docker compose up` in ~/code/shop; kafka and kafka-ui were run by hand.
 const SHOP = new Set(["api", "worker", "report-job", "web", "db", "queue", "cache"]);
+// What Compose v2 writes on each container: api needs a healthy db, worker needs queue, web needs api.
+const SHOP_DEPS: Record<string, string> = { api: "db:service_healthy:false", worker: "queue:service_started:false", web: "api:service_started:false" };
 // Setup check: healthy by default; "desktop" is what a Mac looks like right after Docker Desktop is removed.
 const BREW_PLUGINS = "/opt/homebrew/lib/docker/cli-plugins";
 const deadLink = (name: string) => ({ name, target: `/Applications/Docker.app/Contents/Resources/cli-plugins/${name}`, broken: true });
 const setup = scenario === "desktop"
   ? { plugins: [deadLink("docker-buildx"), deadLink("docker-compose"), deadLink("docker-scout")], brew_plugin_dir: BREW_PLUGINS, brew_plugins: ["docker-compose"], extra_dirs: [] as string[], creds_store: "desktop" as string | null, creds_helper_found: false, contexts: [{ name: "colima", current: false }, { name: "desktop-linux", current: true }], autostart: "none", testcontainers_host: "unix:///Users/me/.docker/run/docker.sock" as string | null, testcontainers_override: false, shell_profile: "~/.zshrc", docker_desktop_installed: false, docker_desktop_data: true }
   : { plugins: [] as { name: string; target: string; broken: boolean }[], brew_plugin_dir: BREW_PLUGINS, brew_plugins: ["docker-buildx", "docker-compose"], extra_dirs: [BREW_PLUGINS], creds_store: null as string | null, creds_helper_found: true, contexts: [{ name: "colima", current: true }], autostart: "started", testcontainers_host: null as string | null, testcontainers_override: true, shell_profile: "~/.zshrc", docker_desktop_installed: false, docker_desktop_data: false };
+// Right after Docker Desktop, the VM is still Colima's default size, and Compose gave db and queue a restart setting.
+// resize=fail: the bigger size doesn't fit in the Mac's free memory, so the restart fails and leaves the VM stopped.
+const resize = typeof location !== "undefined" ? new URLSearchParams(location.search).get("resize") : null;
+let startFail = typeof location !== "undefined" && new URLSearchParams(location.search).get("start") === "fail";
+if (scenario === "desktop") {
+  Object.assign(db.profiles[0], { cpus: 2, memory: 2 * GB });
+  const policy: Record<string, string> = { db: "unless-stopped", queue: "always", worker: "on-failure" };
+  db.ctrs.forEach((c) => { c.restart = policy[c.name]; });
+  // pods=1: Kubernetes runs a pod too; it comes back on its own after a restart.
+  if (new URLSearchParams(location.search).get("pods") === "1") db.ctrs.push({ restart: "always", labels: "io.kubernetes.pod.name=coredns-6799fbcd5-xk2p8,io.kubernetes.pod.namespace=kube-system", networks: [], id: hex(64), name: "k8s_coredns_coredns-6799fbcd5-xk2p8_kube-system_0", image: "rancher/mirrored-coredns-coredns:1.11.3", state: "running", ports: [], mounts: [], env: [], born: now - 36e5, cpu: 0.1, mem: 20e6 });
+}
 if (scenario === "mismatch") setup.contexts = [{ name: "colima", current: false }, { name: "colima-work", current: true }];
 // Kubernetes on the docker runtime: each pod shows up as k8s_ containers that the cluster owns.
 if (scenario === "k8spods") {
@@ -84,7 +97,8 @@ if (["none", "missing", "partial", "nobrew"].includes(scenario)) db.profiles = [
 const ipOf = (c: Ctr, net: string) => `172.${net === "bridge" ? 17 : 18 + Math.max(0, db.networks.indexOf(net) - 3)}.0.${2 + db.ctrs.indexOf(c)}`;
 // A check can make the next `docker run` of one container fail, to see Fix put the old one back.
 let failRun: string | null = null;
-const find = (id: string) => db.ctrs.find((c) => c.id.startsWith(id) || c.name === id);
+// A name wins over an id prefix: a random hex id can start with "db" (that made the resize check flaky).
+const find = (id: string) => db.ctrs.find((c) => c.name === id) ?? db.ctrs.find((c) => c.id.startsWith(id));
 const lines = (rows: object[]) => rows.map((r) => JSON.stringify(r)).join("\n");
 const fmtPorts = (c: Ctr) => c.state === "running" ? [...c.ports.map(([h, p]) => `0.0.0.0:${h}->${p}/tcp`), ...(c.exposed ?? []).filter((e) => !c.ports.some(([, p]) => p === e)).map((e) => `${e}/tcp`)].join(", ") : "";
 const status = (c: Ctr) => (c.state === "running" ? `Up 2 hours${c.health ? ` (${c.health === "starting" ? "health: starting" : c.health})` : ""}` : c.state === "paused" ? "Up 2 hours (Paused)" : `Exited (${c.exitCode ?? 0}) 3 hours ago`);
@@ -114,7 +128,7 @@ function dfLines(): string {
 function dockerCmd(args: string[]): string {
   const [cmd, sub] = args;
   switch (cmd) {
-    case "ps": { if (args.includes("-q")) return db.ctrs.map((c) => c.id.slice(0, 12)).join("\n"); const f = args.find((a) => a.startsWith("network="))?.slice(8); return lines(db.ctrs.filter((c) => !f || c.networks.includes(f)).map((c) => ({ ID: c.id.slice(0, 12), Names: c.name, Image: c.image, State: c.state, Status: status(c), Ports: fmtPorts(c), Labels: c.labels ?? (SHOP.has(c.name) ? `com.docker.compose.project=shop,com.docker.compose.project.working_dir=/Users/me/code/shop,com.docker.compose.service=${c.name}` : "") }))) }
+    case "ps": { if (args.includes("-q")) return db.ctrs.map((c) => c.id.slice(0, 12)).join("\n"); const f = args.find((a) => a.startsWith("network="))?.slice(8); return lines(db.ctrs.filter((c) => !f || c.networks.includes(f)).map((c) => ({ ID: c.id.slice(0, 12), Names: c.name, Image: c.image, State: c.state, Status: status(c), Ports: fmtPorts(c), Labels: c.labels ?? (SHOP.has(c.name) ? `com.docker.compose.project=shop,com.docker.compose.project.working_dir=/Users/me/code/shop,com.docker.compose.project.config_files=/Users/me/code/shop/compose.yaml,com.docker.compose.service=${c.name}${SHOP_DEPS[c.name] ? `,com.docker.compose.depends_on=${SHOP_DEPS[c.name]}` : ""}` : "") }))) }
     case "images": return lines(db.images);
     case "events": {
       const t = Math.floor(Date.now() / 1000);
@@ -160,11 +174,20 @@ function dockerCmd(args: string[]): string {
     case "logs": { if (args.includes("--since") && !args.includes("--until")) return "" as T; const c = find(args[args.length - 1])!; const t = new Date().toISOString(); const base = logLines(c); return Array.from({ length: 160 }, (_, i) => `${t.slice(0, 17)}${String(i % 60).padStart(2, "0")}Z ${base[i % base.length]}`).join("\n") + "\n"; }
     case "rename": { const c = find(args[1]); if (!c) throw `Error response from daemon: No such container: ${args[1]}`; c.name = args[2]; return ""; }
     case "inspect": if (args.includes("--format")) { const ref = args[args.length - 1]; const c = find(ref); if (!c) throw `Error: No such object: ${ref}`; return args[args.indexOf("--format") + 1] === "{{.Name}}" ? `/${c.name}\n` : `${c.state === "running"} ${c.restarts ?? 0} \n`; }
-    { const many = args.slice(1).map((i) => find(i)!).filter(Boolean); return JSON.stringify(many.map((c) => ({ Id: c.id, Image: `sha256:${c.image}`, Name: `/${c.name}`, Created: new Date(c.born).toISOString(), Path: c.image.startsWith("mysql") ? "docker-entrypoint.sh" : "/docker-entrypoint.sh", Args: ["mysqld"], State: { Status: c.state, Running: c.state !== "exited", Paused: c.state === "paused", ExitCode: c.exitCode ?? 0, Error: c.error ?? "", OOMKilled: !!c.oom, StartedAt: new Date(c.born).toISOString(), ...(c.health ? { Health: { Status: c.health, FailingStreak: c.streak ?? 0, Log: c.healthOut ? [{ ExitCode: 1, Output: c.healthOut }] : [] } } : {}) }, RestartCount: c.restarts ?? 0, Config: { Image: c.image, Env: c.env, ExposedPorts: Object.fromEntries([...c.ports.map(([, p]) => p), ...(c.exposed ?? [])].map((p) => [`${p}/tcp`, {}])) }, HostConfig: { NetworkMode: c.networks[0] ?? "bridge", RestartPolicy: { Name: "no" } }, NetworkSettings: { Ports: Object.fromEntries(c.ports.map(([h, p]) => [`${p}/tcp`, [{ HostIp: "0.0.0.0", HostPort: String(h) }]])), Networks: Object.fromEntries(c.networks.map((n) => [n, { IPAddress: ipOf(c, n), Aliases: n === "bridge" ? null : [c.name, c.id.slice(0, 12)] }])) }, Mounts: c.mounts }))); }
+    { const many = args.slice(1).map((i) => find(i)!).filter(Boolean); return JSON.stringify(many.map((c) => ({ Id: c.id, Image: `sha256:${c.image}`, Name: `/${c.name}`, Created: new Date(c.born).toISOString(), Path: c.image.startsWith("mysql") ? "docker-entrypoint.sh" : "/docker-entrypoint.sh", Args: ["mysqld"], State: { Status: c.state, Running: c.state !== "exited", Paused: c.state === "paused", ExitCode: c.exitCode ?? 0, Error: c.error ?? "", OOMKilled: !!c.oom, StartedAt: new Date(c.born).toISOString(), ...(c.health ? { Health: { Status: c.health, FailingStreak: c.streak ?? 0, Log: c.healthOut ? [{ ExitCode: 1, Output: c.healthOut }] : [] } } : {}) }, RestartCount: c.restarts ?? 0, Config: { Image: c.image, Env: c.env, ExposedPorts: Object.fromEntries([...c.ports.map(([, p]) => p), ...(c.exposed ?? [])].map((p) => [`${p}/tcp`, {}])) }, HostConfig: { NetworkMode: c.networks[0] ?? "bridge", RestartPolicy: { Name: c.restart ?? "no" } }, NetworkSettings: { Ports: Object.fromEntries(c.ports.map(([h, p]) => [`${p}/tcp`, [{ HostIp: "0.0.0.0", HostPort: String(h) }]])), Networks: Object.fromEntries(c.networks.map((n) => [n, { IPAddress: ipOf(c, n), Aliases: n === "bridge" ? null : [c.name, c.id.slice(0, 12)] }])) }, Mounts: c.mounts }))); }
     case "system": if (args.includes("-v")) { const sz: Record<string, string> = { "mysql-data": "412MB", "redis-data": "18MB", "pgdata-old": "1.2GB" }; return JSON.stringify({ Images: [], Containers: [], BuildCache: [], Volumes: db.volumes.map((Name) => ({ Name, Links: db.ctrs.filter((c) => c.mounts.some((x) => x.Name === Name)).length, Size: sz[Name] ?? (Name.startsWith("a") ? "36B" : "4kB") })) }); } return dfLines();
     case "stats": {
       if (args[args.length - 1] === "--no-stream") return lines(db.ctrs.filter((c) => c.state === "running").map((c) => ({ Name: c.name, CPUPerc: `${c.cpu.toFixed(2)}%`, MemUsage: `${(c.mem / 2 ** 20).toFixed(1)}MiB / 7.7GiB` }))); const c = find(args[args.length - 1])!; c.cpu = Math.max(0.1, c.cpu + (Math.random() - 0.45)); return lines([{ CPUPerc: `${c.cpu.toFixed(2)}%`, MemUsage: `${(c.mem / 2 ** 20).toFixed(1)}MiB / 7.7GiB`, NetIO: "1.2kB / 648B", BlockIO: "0B / 4.1kB", PIDs: "29" }]); }
-    case "start": case "stop": case "restart": case "pause": case "unpause": { const cs = args.slice(1).map((x) => find(x)!); for (const c of cs) c.state = cmd === "stop" ? "exited" : cmd === "pause" ? "paused" : "running"; return cs.map((c) => c.id).join("\n"); }
+    case "start": case "stop": case "restart": case "pause": case "unpause": {
+      if (cmd === "start") { ((window as any).__dockerStarted ??= []).push(args.slice(1)); ((window as any).__dbHealthAtStart ??= []).push(db.ctrs.find((c) => c.name === "db")?.health ?? null); }
+      // start=fail: web's port is taken, once. docker starts the others and names the one it couldn't on its last line.
+      const blocked = cmd === "start" && startFail && args.includes("web");
+      const cs = args.slice(1).map((x) => find(x)!).filter((c) => !(blocked && c.name === "web"));
+      for (const c of cs) c.state = cmd === "stop" ? "exited" : cmd === "pause" ? "paused" : "running";
+      // db has a health check: it reports healthy a moment after it starts.
+      if (cmd === "start") cs.filter((c) => c.name === "db").forEach((c) => { c.health = "starting"; setTimeout(() => { c.health = "healthy"; }, 700); });
+      if (blocked) { startFail = false; throw "Error response from daemon: driver failed programming external connectivity on endpoint shop-web-1: Bind for 0.0.0.0:8080 failed: port is already allocated\nError: failed to start containers: web"; }
+      return cs.map((c) => c.id).join("\n"); }
     case "rm": { const gone = args.slice(1).filter((a) => !a.startsWith("-")).map((x) => find(x)); db.ctrs = db.ctrs.filter((c) => !gone.includes(c)); return args.slice(1).filter((a) => !a.startsWith("-")).join("\n"); }
     case "run": {
       const name = args[args.indexOf("--name") + 1]; const image = args[args.length - 1];
@@ -292,6 +315,28 @@ export async function invoke<T>(cmd: string, a: Record<string, any> = {}): Promi
       return undefined as T;
     }
     case "start_profile": case "apply_resources": {
+      // A restart for a new size stops the VM first, as the real command does; Docker then brings back only the
+      // containers whose restart setting says so.
+      if (cmd === "apply_resources") {
+        const p = db.profiles.find((x) => x.name === a.opts.name)!;
+        if (a.restart) {
+          await progress("colima-progress", [[`INFO[0000] stopping colima [profile=${p.name}]`, 300], ["INFO[0001] stopping ...   context=docker", 300], ["INFO[0003] stopping ...   context=vm", 300], ["INFO[0004] done", 200]]);
+          p.status = "Stopped";
+        }
+        const wasUp = a.restart ? db.ctrs.filter((c) => c.state === "running") : [];
+        wasUp.forEach((c) => { c.state = "exited"; });
+        await progress("colima-progress", [[`INFO[0000] starting colima [profile=${p.name}]`, 300], ["INFO[0000] runtime: docker", 200], ["INFO[0001] starting ...   context=vm", 500]]);
+        // 8 GiB and more don't fit in this Mac's free memory; one step down does.
+        if (resize === "fail" && (a.opts.memory ?? 0) >= 8) throw `INFO[0001] starting ...   context=vm\nFATA[0009] error starting vm: error at 'starting': exit status 1: not enough memory to allocate ${a.opts.memory}GiB`;
+        await progress("colima-progress", [["INFO[0012] provisioning ...   context=docker", 400], ["INFO[0014] starting ...   context=docker", 300], ["INFO[0016] done", 200]]);
+        Object.assign(p, { status: "Running" });
+        if (a.opts.cpus) p.cpus = a.opts.cpus;
+        if (a.opts.memory) p.memory = a.opts.memory * GB;
+        if (a.opts.kubernetes) k8sOn = true;
+        // Docker starts again only the containers whose restart setting says so.
+        wasUp.forEach((c) => { if (c.restart === "always" || c.restart === "unless-stopped") c.state = "running"; });
+        return undefined as T;
+      }
       if (scenario === "failed" || scenario === "stuck") {
         await progress("colima-progress", [['time="2026-10-04T12:00:00Z" level=info msg="starting colima"', 200], ["INFO[0002] provisioning ...   context=docker", 400]]);
         throw 'time="2026-10-04T12:00:00Z" level=info msg="starting colima"\nINFO[0002] provisioning ...   context=docker\nFATA[0009] error starting vm: exit status 1';

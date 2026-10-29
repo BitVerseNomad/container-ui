@@ -256,7 +256,7 @@ const CHECKS: Check[] = [
       const heavy = apps.filter((a) => (a.running || a.exitCode === 137) && /(^|\/)(elasticsearch|opensearch|kafka|cp-kafka|cp-server|sonarqube|clickhouse-server)(:|$)/.test(a.image));
       if (!heavy.length) return [];
       const names = heavy.map((a) => a.name).join(", ");
-      return [{ id: "vm-memory", key: "vm-memory", area: "VM", severity: "know", level: "warn", title: `The VM has ${Math.round(vmMemory / GIB)} GiB of memory for ${names}`, detail: `${names} usually need 4 GiB or more. With less, they get stopped for running out of memory or slow everything down. Give the VM more memory in Profiles.`, fix: { label: "Open Profiles", text: "", go: "Profiles" } }];
+      return [{ id: "vm-memory", key: "vm-memory", area: "VM", severity: "know", level: "warn", title: `The VM has ${Math.round(vmMemory / GIB)} GiB of memory for ${names}`, detail: `${names} usually need 4 GiB or more. With less, they get stopped for running out of memory or slow everything down.`, fix: { label: "Give the VM more memory", text: "", resize: true } }];
     },
   },
   {

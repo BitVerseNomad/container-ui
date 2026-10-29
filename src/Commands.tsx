@@ -10,8 +10,8 @@ import { useFixRuns } from "./FixIt";
 export const useActivity = () => useSyncExternalStore(activity.subscribe, activity.snapshot);
 // A recall waits until you answer it; a plain one goes after a few seconds.
 const SHOW_MS = 6000;
-const what = (kind: string) => ({ rm: "remove", rmi: "remove", "compose up": "start", "compose stop": "stop", "compose restart": "restart", "compose down": "take down", "compose build": "rebuild", "compose pull": "update the images of", prune: "clean up", exec: "open a shell in", debug: "open a toolbox shell next to" } as Record<string, string>)[kind] ?? kind;
-const PAST: Record<string, string> = { start: "Started", stop: "Stopped", restart: "Restarted", rm: "Removed", rmi: "Removed", pause: "Paused", unpause: "Resumed", "compose up": "Started", "compose stop": "Stopped", "compose restart": "Restarted", "compose down": "Took down", delete: "Deleted", force_stop: "Stopped", force_restart: "Restarted", exec: "Opened a shell in", "compose build": "Rebuilt", "compose pull": "Updated the images of", prune: "Cleaned up" };
+const what = (kind: string) => ({ rm: "remove", rmi: "remove", "compose up": "start", "compose stop": "stop", "compose restart": "restart", "compose down": "take down", "compose build": "rebuild", "compose pull": "update the images of", prune: "clean up", exec: "open a shell in", debug: "open a toolbox shell next to", apply_resources: "apply new settings to" } as Record<string, string>)[kind] ?? kind;
+const PAST: Record<string, string> = { start: "Started", stop: "Stopped", restart: "Restarted", rm: "Removed", rmi: "Removed", pause: "Paused", unpause: "Resumed", "compose up": "Started", "compose stop": "Stopped", "compose restart": "Restarted", "compose down": "Took down", delete: "Deleted", force_stop: "Stopped", force_restart: "Restarted", exec: "Opened a shell in", "compose build": "Rebuilt", "compose pull": "Updated the images of", prune: "Cleaned up", apply_resources: "Applied new settings to" };
 // "Stopped web", "Couldn't stop web": what happened, before the command that did it.
 const said = (e: Entry) => {
   if (!e.what) return null;
@@ -32,7 +32,8 @@ function Copy({ text, label }: { text: string; label: string }) {
 
 export function CommandToast({ onOpenLog }: { onOpenLog: () => void }) {
   const { entries } = useActivity();
-  const last = entries[0];
+  // The newest entry that wants a toast; a quiet one (the VM size fix) is reported by its own row.
+  const last = entries.find((e) => !e.quiet);
   const [gone, setGone] = useState<number | null>(null);
   useEffect(() => {
     if (!last || last.recall || last.ok === null) return;

@@ -21,6 +21,9 @@ import { useEnv } from "./useEnv";
 import { useComposeScan } from "./useComposeScan";
 import { contextNames, kubernetesOn } from "./lib/kubeNav";
 import { ranVm } from "./lib/activity";
+import { useComposeRun } from "./ComposeProjects";
+import { ResizeAnnouncer, ResizeProvider, RunVm, resizing, useHeld, useResize } from "./Resize";
+import { useHost } from "./useHostSize";
 
 // The profile a VM operation runs on: start takes { opts: { name } }, the others { name }.
 const opName = (vm: VmState) => { const a = vm.last?.args as { name?: string; opts?: { name?: string } } | undefined; return a?.opts?.name ?? a?.name; };
@@ -81,15 +84,21 @@ export default function App() {
   const doc = useDoctor(ctx, current);
   const [logOpen, setLogOpen] = useState(false);
   const mutedKeys = useMuted();
-  const doctorTodo = groups(setup.findings ?? [], doc.report, mutedKeys).todo;
+  // Held while the VM restarts for a new size, so the badge doesn't drop and come back.
+  const doctorTodo = useHeld(groups(setup.findings ?? [], doc.report, mutedKeys).todo);
   const toolsMissing = !!env && (!env.colima || !env.docker);
 
   // Starts or stops a VM from any tab (Empty states, the sidebar switcher). It switches to that profile and
   // shows the progress on Containers, where the VM strip lives.
   // A Fix renames and recreates containers; stopping the VM halfway would leave a NAME-old behind.
   const fixing = useFixRuns().some((r) => r.step != null);
+  // A Compose run talks to Docker inside the VM; stopping the VM under it leaves the project half started.
+  const composeBusy = !!useComposeRun().busy;
+  // A resize runs from the click until its containers run again; after its VM part, vm.op is free but Docker is not.
+  const resizeBusy = resizing(useResize());
+  const vmLocked = vm.op !== null || fixing || composeBusy || resizeBusy;
   async function vmFromAnywhere(name: string, op: "starting" | "stopping", restart = false) {
-    if (fixing) return;
+    if (fixing || composeBusy || resizeBusy) return;
     setActive(name);
     setDetailId(null);
     setTab("Containers");
@@ -103,6 +112,24 @@ export default function App() {
     }
     reload();
   }
+  // The VM size fix's runner (src/Resize.tsx): the same VM state as every other VM button, so the sidebar, the VM
+  // strip and container actions lock and show it, wherever the user goes meanwhile. Its failure is shown where it
+  // was started, with a smaller size to try, so it isn't also a start-failure card here.
+  const runVm: RunVm = async (op, cmd, args) => {
+    const last = { op, cmd, args };
+    setVm({ op, failure: null, last });
+    try {
+      await ranVm(cmd, args, () => invoke(cmd, args), true);
+      return null;
+    } catch (e) {
+      return String(e);
+    } finally {
+      // Read the VM's new status before letting go of the lock, so no screen flashes "stopped" in between.
+      await reload().catch(() => {});
+      setVm({ op: null, failure: null, last });
+    }
+  };
+  const { host, pick } = useHost();
   const startFromAnywhere = () => (current ? vmFromAnywhere(current.name, "starting") : setTab("Containers"));
   // A failure card belongs to the profile it happened on; switching away clears it (unless an operation is still running).
   const switchTo = (name: string) => {
@@ -187,13 +214,16 @@ export default function App() {
     );
 
   return (
-    <Shell onCommands={() => setLogOpen(true)} badges={{ Doctor: doctorTodo }} hidden={kubeOn ? [] : ["Kubernetes"]} nav={tab} onNav={(t) => { setDetailId(null); setPullOnOpen(false); setNewProfileOnOpen(false); setTab(t); }} profiles={profiles} active={active} onSelect={switchTo} onVm={vmFromAnywhere} onRestart={(name) => vmFromAnywhere(name, "starting", true)} vmBusy={vm.op !== null || fixing} vmOp={vm.op && opName(vm) ? { name: opName(vm)!, op: vm.op } : null} onNewProfile={() => { setDetailId(null); setNewProfileOnOpen(true); setTab("Profiles"); }}>
+    <ResizeProvider value={{ profile: current, host, pick, runVm, containers: doc.containers, locked: vmLocked, vmBusy: vm.op !== null, onProfiles: () => setTab("Profiles") }}>
+    <Shell onCommands={() => setLogOpen(true)} badges={{ Doctor: doctorTodo }} hidden={kubeOn ? [] : ["Kubernetes"]} nav={tab} onNav={(t) => { setDetailId(null); setPullOnOpen(false); setNewProfileOnOpen(false); setTab(t); }} profiles={profiles} active={active} onSelect={switchTo} onVm={vmFromAnywhere} onRestart={(name) => vmFromAnywhere(name, "starting", true)} vmBusy={vmLocked} vmOp={vm.op && opName(vm) ? { name: opName(vm)!, op: vm.op } : null} onNewProfile={() => { setDetailId(null); setNewProfileOnOpen(true); setTab("Profiles"); }}>
       {!(tab === "Containers" && detailId) && <PageHeader title={tab} />}
       <Banner error={error} />
       <Banner error={appError} onClose={() => setAppError(null)} />
       {page}
       <CommandToast onOpenLog={() => setLogOpen(true)} />
+      <ResizeAnnouncer />
       {logOpen && <CommandLog onClose={() => setLogOpen(false)} />}
     </Shell>
+    </ResizeProvider>
   );
 }

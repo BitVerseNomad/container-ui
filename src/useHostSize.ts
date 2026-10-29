@@ -2,11 +2,14 @@ import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Host, firstVmSize } from "./lib/vmSize";
 
-// The VM size this Mac should start with; null until the backend answers.
-export function useHostSize() {
-  const [size, setSize] = useState<{ cpus: number; memory: number } | null>(null);
+// The Mac's cores and memory, and the VM size it should start with; null until the backend answers.
+export function useHost() {
+  const [host, setHost] = useState<Host | null>(null);
   useEffect(() => {
-    invoke<Host>("host_resources").then((h) => setSize(firstVmSize(h))).catch(() => setSize(null));
+    invoke<Host>("host_resources").then(setHost).catch(() => setHost(null));
   }, []);
-  return size;
+  return { host, pick: host ? firstVmSize(host) : null };
 }
+
+// The VM size this Mac should start with; null until the backend answers.
+export const useHostSize = () => useHost().pick;

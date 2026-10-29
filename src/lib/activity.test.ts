@@ -77,6 +77,8 @@ test("Given a VM button, when logged, then the line is the colima command the ba
   assert.equal(colimaLine("start_profile", { opts: { name: "work", cpus: 4, memory: 8 } }), "colima start work --cpu 4 --memory 8");
   assert.equal(colimaLine("force_restart_profile", { name: "default" }), "colima stop --force default && colima start default");
   assert.equal(colimaLine("vm_log_tail", { name: "default" }), null);
+  assert.equal(colimaLine("apply_resources", { opts: { name: "default", cpus: 6, memory: 8 }, restart: true }), "colima stop default && colima start default --cpu 6 --memory 8");
+  assert.equal(colimaLine("apply_resources", { opts: { name: "dev", memory: 4 }, restart: false }), "colima start dev --memory 4");
 });
 
 test("given a container start and a remove, when logged, then only the start can run again, and it runs the same work", async () => {
@@ -91,4 +93,13 @@ test("given a container start and a remove, when logged, then only the start can
   await start.again!();
   assert.equal(runs, 2);
   assert.equal(a.snapshot().entries[0].cmd, "docker --context colima start web");
+});
+
+test("Given a quiet command (the VM size fix reports in its own row), when recorded, then it is in the log but marked quiet and never asks for recall", async () => {
+  const a = createActivity(memory());
+  for (let i = 0; i < 3; i++) await a.ran("start", "docker start web", async () => "", "web", true);
+  const [e] = a.snapshot().entries;
+  assert.equal(e.cmd, "docker start web");
+  assert.equal(e.quiet, true);
+  assert.equal(e.recall, false);
 });

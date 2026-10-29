@@ -695,3 +695,25 @@ td .status-text.fixing, td .status-text.fixed, td .fix-failed { white-space: nor
 .drawer .actions .primary { order: 2; }
 .bring-note code { font: 12px ui-monospace, "SF Mono", Menlo, monospace; }
 .drawer .actions button[aria-disabled="true"], .drawer-head button[aria-disabled="true"] { opacity: .5; cursor: default; }
+
+/* The VM size fix (src/Resize.tsx): progress and result sit under the row's title, in ink, only the icon colored. */
+.finding-mark { margin-top: 1px; }
+.resize-status { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; margin-top: 4px; }
+.resize-status:empty { display: none; }
+.resize-status .actions-inline { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.resize-status .out-more { margin-top: 0; }
+.resize-result { display: flex; gap: 6px; align-items: flex-start; margin: 0; color: var(--ink); font-size: 13px; border-radius: 4px; }
+.resize-result svg, .finding .resize-result svg { flex: none; margin-top: 2px; }
+.resize-result.ok svg, .finding .resize-result.ok svg { color: var(--dot-ok); }
+.resize-result.bad svg, .finding .resize-result.bad svg { color: var(--dot-bad); }
+/* Focus lands here from the app after each step; the ring shows for keyboard users, not after a mouse click. */
+.resize-result[tabindex]:focus { outline: none; }
+.resize-result[tabindex]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* Kept clear of the command toast at the bottom of the window. */
+.resize-status, .resize-status .resize-result, .resize-status button { scroll-margin-bottom: 88px; }
+.resize-why { margin: 0; }
+.vm-line { margin-left: 4px; }
+/* Locked while the VM changes: the look says so, not only the screen reader. */
+.app button.small[aria-disabled=true], .finding-actions button[aria-disabled=true], .resize-or button[aria-disabled=true], .resize-status button[aria-disabled=true], .problem-line button:disabled { opacity: .55; cursor: default; }
+.resize-or { display: inline-flex; flex-direction: column; gap: 4px; align-items: flex-end; }
+.resize-or .actions-inline { display: flex; gap: 8px; align-items: center; }

@@ -1,4 +1,4 @@
-import { useMemo, useState, useSyncExternalStore } from "react";
+import { useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Profile, docker } from "./api";
 import { usePoll } from "./hooks";
 import { useSetup, useSetupActions } from "./Setup";
@@ -19,6 +19,7 @@ import Menu from "./ui/Menu";
 import type { MenuItem } from "./ui/Menu";
 import { Icon } from "./ui/icons";
 import Ticks from "./ui/Ticks";
+import { ResizeButton, ResizeOr, ResizeStatus, resizing, useHeld, useResize, useResizeEnv } from "./Resize";
 
 const ICON = { ok: "check", warn: "alert", fail: "close", info: "info" } as const;
 
@@ -47,15 +48,19 @@ export function useDoctor(ctx: string | null, profile: Profile | null) {
     // A NAME-old is a leftover only once its Fix has stopped; mid-Fix it is the step the Fix is on.
     return { ...r, findings: r.findings.filter((f) => !(f.id === "fix-leftover" && f.subject && busy(runs, f.subject))) };
   }, [ctx, facts.data, profile?.arch, profile?.memory, running, mutedKeys, runs]);
-  return { report, error: facts.error, reload: facts.reload };
+  // containers: the raw inspect output, so the VM size fix can say which containers start again after a restart.
+  // Held while the VM restarts for a new size: the checks can't run then, and their rows would vanish and come back.
+  return { report: useHeld(report), error: facts.error, reload: facts.reload, containers: useHeld(facts.data?.containers) };
 }
 
 // What the page shows in each group. todo is the one problem count in the app: the sidebar badge and this page's
 // summary both show it. A problem about one container is left out of it, because the Containers screen shows it
 // under that container's row; it is listed here too, under its own heading, uncounted.
 export function groups(setupFindings: SetupFinding[], report: Report | null, mutedKeys: ReadonlySet<string>) {
-  const live = (report?.findings ?? []).filter((f) => !mutedKeys.has(f.key));
-  // The general "small VM" note says less than the one naming what won't fit, so only one shows.
+  // The general "small VM" note says less than the one naming what won't fit, so only one shows: the named one,
+  // unless the general one can fix it in one click (its new size clears both).
+  const sized = setupFindings.some((f) => f.id === "resources" && f.fix?.kind === "resize");
+  const live = (report?.findings ?? []).filter((f) => !mutedKeys.has(f.key) && !(sized && f.id === "vm-memory"));
   const vmNamed = live.some((f) => f.id === "vm-memory");
   const sf = setupFindings.filter((f) => !(vmNamed && f.id === "resources"));
   const sAction = sf.filter((f) => f.status === "fail" || f.status === "warn");
@@ -87,12 +92,25 @@ type Props = {
 export default function Doctor({ ctx, setup, doc, onProfiles, onGo, onOpen }: Props) {
   const [bringing, setBringing] = useState(false);
   const actions = useSetupActions({ reload: setup.reload, profile: setup.profile, onProfiles, onBring: () => setBringing(true), rc: setup.rc });
+  const rs = useResize();
   const mutedKeys = useMuted();
   const [testing, setTesting] = useState(false);
   const [checking, setChecking] = useState(false);
 
-  const { sAction, onHome, sKnow, sPassed, eAction, eKnow, hidden, todo } = groups(setup.findings ?? [], doc.report, mutedKeys);
-  const plan = fixAllPlan(setup.findings ?? []);
+  // While the VM restarts the checks hold still. After it, the size row stays where it was, with its result, until
+  // Dismiss; a failed restart leaves the VM stopped, which has no size row, so the last one is kept for it.
+  const shown = useHeld(setup.findings ?? []);
+  const lastSize = useRef<SetupFinding | undefined>(undefined);
+  const liveSize = shown.find((f) => f.id === "resources");
+  if (liveSize) lastSize.current = liveSize;
+  const sizeRun = rs.from === "setup" && (!!rs.progress || !!rs.outcome);
+  const sizeRow = sizeRun ? liveSize ?? lastSize.current : undefined;
+  const g = groups(shown, doc.report, mutedKeys);
+  const { onHome, sKnow, eAction, eKnow, hidden, todo } = g;
+  const at = g.sAction.findIndex((f) => f.id === "testcontainers");
+  const sAction = !sizeRow || g.sAction.includes(sizeRow) ? g.sAction : at < 0 ? [...g.sAction, sizeRow] : [...g.sAction.slice(0, at), sizeRow, ...g.sAction.slice(at)];
+  const sPassed = g.sPassed.filter((f) => f !== sizeRow);
+  const plan = fixAllPlan(shown);
   const passed = [...sPassed.map((f) => ({ t: f.title, setup: f.id as string })), ...(doc.report?.passed ?? []).map((t) => ({ t, setup: undefined }))];
 
   async function recheck() {
@@ -101,8 +119,9 @@ export default function Doctor({ ctx, setup, doc, onProfiles, onGo, onOpen }: Pr
     setChecking(false);
   }
 
+  // The page's one green button: Fix all when it shows, else each failure's fix, or the VM size fix on its own.
   const setupRow = (f: SetupFinding) => (
-    actions.row(f, f.status === "fail" && plan.length <= 1)
+    f === sizeRow || f.fix?.kind === "resize" ? <SizeRow key={f.id} f={f} primary={plan.length <= 1} onProfiles={onProfiles} /> : actions.row(f, f.status === "fail" && plan.length <= 1)
   );
   const listed = [...eAction, ...onHome, ...eKnow];
   const item = (f: Finding) => {
@@ -133,6 +152,7 @@ export default function Doctor({ ctx, setup, doc, onProfiles, onGo, onOpen }: Pr
             </span>
           )}
           <span className="hint"><Ticks text={f.detail} /></span>
+          {f.fix?.resize && <ResizeStatus from={`doctor:${f.key}`} />}
           {f.fix?.text && !f.fix.go && !elsewhere && (
             <details className="how">
               <summary><Icon name="chevron" size={12} />Or run it yourself<span className="sr-only">: {f.title}</span></summary>
@@ -142,7 +162,10 @@ export default function Doctor({ ctx, setup, doc, onProfiles, onGo, onOpen }: Pr
           )}
         </div>
         <span className="finding-actions">
-          {elsewhere ? null : f.fix ? <DoctorFix fix={f.fix} title={f.title} ctx={ctx} onGo={onGo} onFixed={() => doc.reload()} /> : f.subject ? <button className="small" onClick={() => onOpen(f.subject!)}>Open {f.subject}</button> : null}
+          {elsewhere ? null : f.fix?.resize ? (
+            <ResizeOr from={`doctor:${f.key}`} title={f.title} need="memory" alsoStart={f.subject ? [f.subject] : []} noStatus vmWords
+              fallback={f.subject ? <button className="small" onClick={() => onOpen(f.subject!)}>Open {f.subject}</button> : <button className="small" onClick={() => onGo("Profiles")}>Open Profiles</button>} />
+          ) : f.fix ? <DoctorFix fix={f.fix} title={f.title} ctx={ctx} onGo={onGo} onFixed={() => doc.reload()} /> : f.subject ? <button className="small" onClick={() => onOpen(f.subject!)}>Open {f.subject}</button> : null}
           <Menu label={`More actions for ${f.title}`} className="more" items={more}><Icon name="more" size={16} /></Menu>
         </span>
       </li>
@@ -156,7 +179,7 @@ export default function Doctor({ ctx, setup, doc, onProfiles, onGo, onOpen }: Pr
     <div className="setup doctor">
       <div className="doctor-head">
         <p className="hint">
-          {summary}{ctx ? "" : " Start the VM to also check containers, networks, images and storage."}
+          {summary}{ctx || resizing(rs) ? "" : " Start the VM to also check containers, networks, images and storage."}
         </p>
         <span className="finding-actions">
           <button className="small" disabled={checking} onClick={recheck}>{checking ? "Checking…" : "Run checks again"}</button>
@@ -168,7 +191,7 @@ export default function Doctor({ ctx, setup, doc, onProfiles, onGo, onOpen }: Pr
       {actions.log}
       {todo > 0 && (
         <section aria-label="Needs action">
-          <div className="doctor-group-head"><h3 className="doctor-group">Needs action</h3>{actions.fixAll(plan, sAction.filter((f) => f.fix && f.fix.kind !== "copy" && f.fix.kind !== "profiles" && f.fix.kind !== "bring"), todo)}</div>
+          <div className="doctor-group-head"><h3 className="doctor-group">Needs action</h3>{/* Only fixes that edit settings: Bring over copies data and the VM size fix restarts the VM, so each asks on its own. */}{actions.fixAll(plan, sAction.filter((f) => f.fix?.kind === "fix" || f.fix?.kind === "install"), todo)}</div>
           <ul className="findings">{[...sAction.map(setupRow), ...eAction.map(item)]}</ul>
         </section>
       )}
@@ -221,8 +244,45 @@ export default function Doctor({ ctx, setup, doc, onProfiles, onGo, onOpen }: Pr
 function DoctorFix({ fix, title, ctx, onGo, onFixed }: { fix: NonNullable<Finding["fix"]>; title: string; ctx: string | null; onGo: (page: Go) => void; onFixed: () => void }) {
   const confirm = useConfirm();
   const runs = useFixRuns();
+  // A Fix replaces containers; while the VM stops or restarts there is no Docker to replace them in.
+  const vmBusy = !!useResizeEnv()?.vmBusy;
   if (fix.go) return <button className="small" aria-label={`${fix.label}: ${title}`} onClick={() => onGo(fix.go!)}>{fix.label}</button>;
   const run = fixAction(fix, ctx ?? undefined, confirm, runs, onFixed);
-  if (run) return <button className="small" title={run.hint} aria-label={`${run.running ? run.busyLabel : `${run.label}…`}: ${title}`} aria-disabled={run.running || undefined} onClick={run.go}>{run.running ? run.busyLabel : `${run.label}…`}</button>;
+  if (run) return <button className="small" title={run.hint} aria-label={`${run.running ? run.busyLabel : `${run.label}…`}: ${title}`} aria-disabled={run.running || vmBusy || undefined} onClick={() => !vmBusy && run.go()}>{run.running ? run.busyLabel : `${run.label}…`}</button>;
   return <button className="small" aria-label={`Copy commands: ${title}`} onClick={() => navigator.clipboard.writeText(fix.text)}>Copy commands</button>;
+}
+
+// The VM size row: one button that restarts the VM with a better size, and the run's progress and result under its
+// title. While the VM restarts a spinner takes the icon's place, as on the Containers screen.
+function SizeRow({ f, primary, onProfiles }: { f: SetupFinding; primary: boolean; onProfiles: () => void }) {
+  const s = useResize();
+  const mine = s.from === "setup";
+  const busy = mine && !!s.progress;
+  const fix = f.fix?.kind === "resize" ? f.fix : null;
+  const open = f.status !== "ok";
+  const o = mine ? s.outcome : null;
+  return (
+    <li className={`finding ${f.status}`} data-setup={f.id}>
+      {busy ? <span className="mark finding-mark" aria-hidden="true"><span className="spin" /></span> : <Icon name={ICON[f.status]} />}
+      <div>
+        <b>{f.title}</b>
+        {/* While a result shows, it is the row's one sentence. */}
+        {!o && <span className="hint"><Ticks text={f.detail} /></span>}
+        {open && f.more && <span className="hint">Other numbers? <button className="link" aria-label={`${f.more.label}: ${f.title}`} onClick={onProfiles}>{f.more.label}</button></span>}
+        {open && f.command && !(mine && s.outcome) && (
+          <details className="how">
+            <summary><Icon name="chevron" size={12} />What it does<span className="sr-only">: {f.title}</span></summary>
+            <pre className="cmd">{f.command}</pre>
+          </details>
+        )}
+        <ResizeStatus from="setup" />
+      </div>
+      {fix && !(mine && s.outcome) && (
+        <span className="finding-actions">
+          <ResizeButton from="setup" size={{ cpus: fix.cpus, memory: fix.memory }} title={f.title} primary={primary} />
+          <span className="more-slot" aria-hidden="true" />
+        </span>
+      )}
+    </li>
+  );
 }

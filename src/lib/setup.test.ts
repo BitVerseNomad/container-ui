@@ -75,11 +75,35 @@ test("given Colima does not start at login, when checked, then it is a suggestio
   assert.deepEqual(f.fix, { kind: "fix", id: "autostart_on", label: "Start at login" });
 });
 
-test("given the default 2 CPU, 2 GiB VM, when checked, then it warns and points at Profiles", () => {
+test("given the default 2 CPU, 2 GiB VM and no bigger size to offer, when checked, then it warns and points at Profiles", () => {
   const f = byId(HEALTHY, { cpus: 2, memory: 2 * 1024 ** 3 }).get("resources")!;
   assert.equal(f.status, "warn");
   assert.match(f.title, /2 CPUs and 2 GiB/);
   assert.deepEqual(f.fix, { kind: "profiles", label: "Change in Profiles" });
+  assert.equal(f.more, undefined);
+  assert.match(setupFindings(HEALTHY, { cpus: 2, memory: 2 * 1024 ** 3 }, "default", false, { cpus: 2, memory: 2 }, 8 * 1024 ** 3).find((x) => x.id === "resources")!.detail, /Your Mac has 8 GB, so a bigger VM would slow the Mac down/);
+});
+
+test("given the default 2 CPU, 2 GiB VM on a Mac that can give it 6 and 8, when checked, then one click resizes it and Profiles is the other way", () => {
+  const f = setupFindings(HEALTHY, { cpus: 2, memory: 2 * 1024 ** 3 }, "work", false, { cpus: 6, memory: 8 }, 32 * 1024 ** 3).find((x) => x.id === "resources")!;
+  assert.equal(f.status, "warn");
+  assert.equal(f.detail, "That is Colima's default. Your Mac has 32 GB, so the VM can have 6 CPUs and 8 GiB and leave the rest for macOS.");
+  assert.deepEqual(f.fix, { kind: "resize", cpus: 6, memory: 8, label: "Give it 6 CPUs and 8 GiB" });
+  assert.deepEqual(f.more, { kind: "profiles", label: "Change in Profiles" });
+  assert.equal(f.command, "colima stop work\ncolima start work --cpu 6 --memory 8");
+});
+
+test("given a resize is offered, when Fix all is planned, then it is left out because it restarts the VM", () => {
+  const all = setupFindings(AFTER_DESKTOP, { cpus: 2, memory: 2 * 1024 ** 3 }, "default", false, { cpus: 6, memory: 8 });
+  assert.ok(all.some((f) => f.fix?.kind === "resize"));
+  assert.ok(fixAllPlan(all).every((s) => s.kind === "install" || s.id !== ("resize" as never)));
+  assert.equal(fixAllPlan(all).length, fixAllPlan(setupFindings(AFTER_DESKTOP, { cpus: 2, memory: 2 * 1024 ** 3 })).length);
+});
+
+test("given the VM was resized to 6 CPUs and 8 GiB, when checked again, then the row passes with the new size", () => {
+  const f = setupFindings(HEALTHY, { cpus: 6, memory: 8 * 1024 ** 3 }, "default", false, { cpus: 6, memory: 8 }).find((x) => x.id === "resources")!;
+  assert.equal(f.status, "ok");
+  assert.equal(f.title, "The VM has 6 CPUs and 8 GiB");
 });
 
 test("given Testcontainers is pinned to Docker Desktop's socket, when checked, then it warns with the Colima socket", () => {

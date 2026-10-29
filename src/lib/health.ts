@@ -13,7 +13,8 @@ export type Replace = { name: string; createNetwork?: string; run: string[]; con
 // app can also do it itself (Fix), in order.
 // connect: one click joins containers to a network (adding a network takes nothing away). go: a page that has the fix.
 export type Connect = { network: string; create: boolean; containers: string[] };
-export type ProblemFix = { label: string; text: string; note?: string; steps?: Replace[]; confirm?: string; connect?: Connect; go?: "Profiles" | "Images" };
+// resize: the fix is a bigger VM, which the app gives in one click where it can pick a size (src/Resize.tsx).
+export type ProblemFix = { label: string; text: string; note?: string; steps?: Replace[]; confirm?: string; connect?: Connect; go?: "Profiles" | "Images"; resize?: boolean };
 // id is the check's id ("oom", "kafka-localhost", "localhost-target"...), stable so a finding can be muted.
 export type Problem = { id: string; level: "bad" | "warn"; title: string; short?: string; detail: string; fix?: ProblemFix };
 
@@ -58,7 +59,7 @@ export function parseState(json: string): State | null {
 export function problemsFor(s: State): Problem[] {
   const out: Problem[] = [];
   if (!s.running && s.oomKilled) {
-    out.push({ id: "oom", level: "bad", title: "Ran out of memory", detail: `${s.name} used more memory than it was allowed. Give the VM more memory (Profiles, Edit) or lower the app's memory use, then start it again.` });
+    out.push({ id: "oom", level: "bad", title: "Ran out of memory", detail: `${s.name} used more memory than it was allowed. Give the VM more memory or lower the app's memory use, then start it again.`, fix: { label: "Give the VM more memory", text: "", resize: true } });
   } else if (!s.running && s.exitCode !== 0 && s.exitCode !== 143) {
     out.push({ id: "crashed", level: "bad", title: "Stopped with an error", detail: `${s.name} ${exitCodeMeaning(s.exitCode)} (exit code ${s.exitCode}). The logs usually say why.` });
   }

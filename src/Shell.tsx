@@ -29,7 +29,7 @@ type Props = {
   onRestart?: (name: string) => void;
   vmBusy: boolean;
   // the VM operation in flight, so the switcher says "Starting…" instead of the last known state
-  vmOp?: { name: string; op: "starting" | "stopping" } | null;
+  vmOp?: { name: string; op: "starting" | "stopping" | "restarting" } | null;
   children: ReactNode;
   // a count shown next to a nav item, e.g. problems that need action
   badges?: Partial<Record<Tab, number>>;
@@ -49,7 +49,7 @@ export default function Shell({ nav, onNav, profiles, active, onSelect, onNewPro
   const [folded, setFolded] = useState(readFolded);
   const fold = () => setFolded((f) => { saveFolded(!f); return !f; });
   // While a start or stop runs, say so instead of the last state Colima reported.
-  const shown = (p: Profile) => (vmOp?.name === p.name ? (vmOp.op === "starting" ? "Starting…" : "Stopping…") : p.status);
+  const shown = (p: Profile) => (vmOp?.name === p.name ? (vmOp.op === "starting" ? "Starting…" : vmOp.op === "restarting" ? "Restarting…" : "Stopping…") : p.status);
   return (
     <div className={folded ? "shell folded" : "shell"}>
       <div className="sidebar">

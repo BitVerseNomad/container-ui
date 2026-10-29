@@ -99,7 +99,7 @@ check(await p.getByRole("button", { name: /Needs attention/ }).count() === 0 && 
 check(await p.getByRole("checkbox").count() === 0 && await p.getByRole("region", { name: "Selected containers" }).count() === 0, "running: no checkboxes and no bulk bar");
 check(await p.locator(".toolbar").getByRole("button", { name: /^Compose projects/ }).count() === 0 && await p.locator(".home .vm-note").count() === 0 && !/Free space|reclaim/i.test(await text(p, ".home")), "running: no Compose projects button, no terminal note, no free-space nudge on home");
 check(await noHScroll(p), "running: no sideways scroll");
-check(await p.locator(".sr-only[role=status]").count() === 1 && await p.locator(".sr-only[role=alert]").count() === 1, "running: both live regions exist from the first render");
+check(await p.locator(".sr-only[role=status]:not([data-resize-announcer])").count() === 1 && await p.locator(".sr-only[role=alert]:not([data-resize-announcer])").count() === 1, "running: both live regions exist from the first render");
 await p.screenshot({ path: "/tmp/home-running.png" });
 check(p.errors.length === 0, `running: no page errors ${p.errors.join("|")}`);
 await p.close();

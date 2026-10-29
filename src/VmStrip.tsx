@@ -14,10 +14,10 @@ type Props = {
   note?: ReactNode;
   profile: Profile;
   totals: Totals;
-  op: "starting" | "stopping" | null;
+  op: "starting" | "stopping" | "restarting" | null;
   failure: string | null;
   // which operation produced `failure`; a failed stop needs different words and a different fix
-  failedOp?: "starting" | "stopping";
+  failedOp?: "starting" | "stopping" | "restarting";
   onStart: () => void;
   // the stopped card below has the Start button, so the strip leaves it out
   startInCard?: boolean;
@@ -28,6 +28,9 @@ type Props = {
   onForceStop: () => void;
   // A container fix is running: a VM restart in the middle would leave its container half replaced.
   fixing?: boolean;
+  // The VM size fix's own line ("Restarting the VM with 6 CPUs and 8 GiB… about a minute"). Its page reports the
+  // run, so the strip only says this: no Cancel (it would leave the containers stopped) and no Colima output.
+  line?: string;
 };
 
 function Use({ label, value, part }: { label: string; value: string; part: number }) {
@@ -40,7 +43,7 @@ function Use({ label, value, part }: { label: string; value: string; part: numbe
   );
 }
 
-export default function VmStrip({ profile, totals, op, failure, failedOp, onStart, startInCard, onRetry, onStop, onRestart, onForce, onForceStop, note, fixing }: Props) {
+export default function VmStrip({ profile, totals, op, failure, failedOp, onStart, startInCard, onRetry, onStop, onRestart, onForce, onForceStop, note, fixing, line }: Props) {
   const running = profile.status === "Running";
   const t = totals ?? { cores: 0, memBytes: 0, diskBytes: 0 };
   const busy = op !== null;
@@ -54,13 +57,14 @@ export default function VmStrip({ profile, totals, op, failure, failedOp, onStar
     ? { title: `Couldn't stop ${profile.name}`, detail: "Colima didn't answer in time, so the VM may still be running. Force stop shuts it down without waiting; your containers and images stay.", line: undefined, fix: "force_stop" as const }
     : explainStartFailure(failure, profile.name, log);
   // A failed stop leaves the VM as it was, so show its real state, not "Failed".
-  const state = op === "starting" ? "Starting…" : op === "stopping" ? "Stopping…" : failure && !stopFailed ? "Failed" : profile.status;
+  const state = op === "starting" ? "Starting…" : op === "restarting" ? "Restarting…" : op === "stopping" ? "Stopping…" : failure && !stopFailed ? "Failed" : profile.status;
   const dot = stopFailed ? "warn" : running && !failure ? "on" : failure ? "bad" : "";
   return (
     <div className="vm-strip-wrap">
       <div className="vm-strip">
-        <span className={`sdot ${dot}`} aria-hidden="true" />
+        {op ? <span className="mark" aria-hidden="true"><span className="spin" /></span> : <span className={`sdot ${dot}`} aria-hidden="true" />}
         <span className="hint vm-state">{state}</span>
+        {busy && line && <span className="hint vm-line">{line}</span>}
         {running && !busy && (
           <span className="uses">
             <Use label="CPU" value={`${t.cores.toFixed(1)} of ${profile.cpus} cores`} part={fraction(t.cores, profile.cpus)} />
@@ -69,7 +73,7 @@ export default function VmStrip({ profile, totals, op, failure, failedOp, onStar
           </span>
         )}
         <span className="vm-actions">
-          {busy ? (
+          {busy && line ? null : busy ? (
             <button onClick={() => invoke("cancel_vm_op").catch(() => {})}>Cancel</button>
           ) : running && !failure ? (
             <>
@@ -95,7 +99,7 @@ export default function VmStrip({ profile, totals, op, failure, failedOp, onStar
           </span>
         </div>
       )}
-      <OutputLog event="colima-progress" active={busy} failure={why ? null : failure} collapsed={!!why} />
+      {!line && <OutputLog event="colima-progress" active={busy} failure={why ? null : failure} collapsed={!!why} />}
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { Profile } from "./api";
 import { usePoll } from "./hooks";
 import { PlanStep, SetupFinding, SetupReport, fixAllPlan, setupFindings, sortFindings } from "./lib/setup";
+import { useHost } from "./useHostSize";
 import { Icon } from "./ui/icons";
 import OutputLog from "./ui/OutputLog";
 import { useConfirm } from "./ui";
@@ -46,11 +47,13 @@ export function useSetup(profile: Profile | null) {
   const { data, error, reload } = usePoll(() => invoke<SetupReport>("setup_report"), [], 60_000);
   const vm = profile?.status === "Running" ? { cpus: profile.cpus, memory: profile.memory } : null;
   const name = profile?.name ?? "default";
-  const findings = data ? sortFindings(setupFindings(data, vm, name, broughtOver())) : null;
-  return { findings, error, reload, profile: name, rc: data?.shell_profile };
+  const { host, pick } = useHost();
+  const findings = data ? sortFindings(setupFindings(data, vm, name, broughtOver(), pick, host?.memory)) : null;
+  return { findings, error, reload, profile: name, rc: data?.shell_profile, vm };
 }
 
 // Runs the setup fixes. Each fix shows its command and runs only on a click; the Doctor page places the rows.
+// The VM size fix (kind "resize") is not run here: src/Resize.tsx runs it, because it outlives this page.
 type Opts = { reload: () => void | Promise<unknown>; profile: string; onProfiles: () => void; onBring?: () => void; rc?: string };
 export function useSetupActions({ reload, profile, onProfiles, onBring, rc = "your shell profile" }: Opts) {
   const [busy, setBusy] = useState<string | null>(null);
@@ -63,10 +66,10 @@ export function useSetupActions({ reload, profile, onProfiles, onBring, rc = "yo
   // How many steps the last run had, so a run that stopped says "2 of 4", never "Done".
   const [planned, setPlanned] = useState(0);
   const confirm = useConfirm();
-
   async function act(f: SetupFinding) {
     const fix = f.fix;
     if (!fix) return;
+    if (fix.kind === "resize") return;
     if (fix.kind === "profiles") return onProfiles();
     if (fix.kind === "bring") return onBring?.();
     if (fix.kind === "copy") {
@@ -109,12 +112,15 @@ export function useSetupActions({ reload, profile, onProfiles, onBring, rc = "yo
     const fix = open ? f.fix : undefined;
     const copy = fix?.kind === "copy";
     const how = open && (f.steps?.length || f.command);
+    const off = busy !== null;
+    const label = busy === f.id ? "Working…" : copied === f.id ? "Copied" : fix?.label;
     return (
       <li key={f.id} className={`finding ${f.status}`} data-setup={f.id}>
         <Icon name={ICON[f.status]} />
         <div>
           <b>{f.title}</b>
           <span className="hint"><Ticks text={f.detail} /></span>
+          {open && f.more && <span className="hint">Other numbers? <button className="link" aria-label={`${f.more.label}: ${f.title}`} onClick={onProfiles}>{f.more.label}</button></span>}
           {how && (
             <details className="how">
               <summary><Icon name="chevron" size={12} />{copy ? "Show the steps" : "What it does"}<span className="sr-only">: {f.title}</span></summary>
@@ -126,8 +132,8 @@ export function useSetupActions({ reload, profile, onProfiles, onBring, rc = "yo
         {/* The empty slot is where a container problem has its "…", so every button ends on one edge. */}
         {fix && <span className="finding-actions">
           {/* aria-disabled keeps focus on the button while it works, so VoiceOver stays where you were. */}
-          <button className={primary && !copy ? "small primary" : "small"} title={f.command && !copy ? `Runs: ${f.command}` : undefined} aria-label={`${busy === f.id ? "Working…" : copied === f.id ? "Copied" : fix.label}: ${f.title}`} aria-disabled={busy !== null || undefined} onClick={() => busy === null && act(f)}>
-            {busy === f.id ? "Working…" : copied === f.id ? "Copied" : fix.label}
+          <button className={primary && !copy ? "small primary" : "small"} title={f.command && !copy ? `Runs: ${f.command}` : undefined} aria-label={`${label}: ${f.title}`} aria-disabled={off || undefined} onClick={() => !off && act(f)}>
+            {label}
           </button>
           <span className="more-slot" aria-hidden="true" />
         </span>}

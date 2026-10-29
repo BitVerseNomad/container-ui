@@ -59,6 +59,8 @@ test("an out-of-memory kill is reported as such, and only when Docker says so", 
   const oom = problemsFor(parseState(insp({ Running: false, Status: "exited", ExitCode: 137, OOMKilled: true }))!);
   assert.equal(oom[0].id, "oom");
   assert.match(oom[0].detail, /memory/i);
+  assert.equal(oom[0].fix?.resize, true);
+  assert.doesNotMatch(oom[0].detail, /Profiles, Edit/);
   assert.equal(oom.some((x) => x.id === "crashed"), false);
   const killed = problemsFor(parseState(insp({ Running: false, Status: "exited", ExitCode: 137, OOMKilled: false }))!);
   assert.equal(killed[0].id, "crashed");

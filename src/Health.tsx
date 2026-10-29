@@ -3,6 +3,7 @@ import { Line, ago } from "./lib/events";
 import { Problem, State, problemsFor } from "./lib/health";
 import Ticks from "./ui/Ticks";
 import FixIt from "./FixIt";
+import { ResizeOr } from "./Resize";
 
 export const stripHealth = (status: string) => status.replace(/\s*\((?:un)?healthy\)|\s*\(health: starting\)/, "");
 
@@ -53,7 +54,9 @@ export function HealthPanel({ state, extra = [], onLogs, ctx, onFixed }: { state
         <div key={p.id} className={`problem-line ${p.level}`}>
           <b>{p.title}</b>
           <div className="hint"><Ticks text={p.detail} /></div>
-          {p.fix ? (
+          {p.fix?.resize ? (
+            <ResizeOr from={`detail:${state.name}:${p.id}`} title={`${p.title}, ${state.name}`} need="memory" alsoStart={[state.name]} primary vmWords fallback={onLogs && <button onClick={onLogs}>Open the logs</button>} />
+          ) : p.fix ? (
             <FixIt fix={p.fix} ctx={ctx} onFixed={onFixed} />
           ) : (
             onLogs && <button onClick={onLogs}>Open the logs</button>

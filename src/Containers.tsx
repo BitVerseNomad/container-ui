@@ -23,6 +23,7 @@ import VmStrip from "./VmStrip";
 import { useHostSize } from "./useHostSize";
 import RunPicker from "./RunPicker";
 import RunPanel from "./RunPanel";
+import { ResizeOr, resizeLine, resizeState, resizing, useResize } from "./Resize";
 import ComposeProjects, { composeRunState, runCompose, useComposeRun } from "./ComposeProjects";
 import type { Action } from "./ComposeProjects";
 import ComposeLogs from "./ComposeLogs";
@@ -37,9 +38,10 @@ import { describe } from "./lib/fixRun";
 import { busy as fixBusy, dismiss, runFor } from "./lib/fixStore";
 import type { Run } from "./lib/fixStore";
 
-type VmOp = { op: "starting" | "stopping"; cmd: string; args: Record<string, unknown> };
+// "restarting": the VM size fix (src/Resize.tsx), a stop and a start with new settings.
+type VmOp = { op: "starting" | "stopping" | "restarting"; cmd: string; args: Record<string, unknown> };
 // `last` lives here, not in this screen, so Retry still repeats the right command after the screen remounts.
-export type VmState = { op: "starting" | "stopping" | null; failure: string | null; last?: VmOp };
+export type VmState = { op: VmOp["op"] | null; failure: string | null; last?: VmOp };
 type C = { ID: string; Names: string; Image: string; State: string; Status: string; Ports: string; Labels?: string };
 // From this many apps a search field earns its place; below it the list is the search.
 const SEARCH_AT = 7;
@@ -66,6 +68,9 @@ type Props = {
   onReport: () => void;
 };
 
+// The main button's label each row last showed, kept across tabs, so a VM size change doesn't flip it while it runs.
+const seenVerb = new Map<string, "Start" | "Stop">();
+
 export default function Containers({ profile, ctx, vm, onVm, reload, detailId, setDetailId, onPull, onProfiles, compose, onImages, onKubernetes, report, onReport }: Props) {
   const runs = useFixRuns();
   const confirm = useConfirm();
@@ -86,7 +91,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
   const [said, setSaidNow] = useState({ status: "", alert: "" });
   // Cleared first, so the same words twice in a row ("shop restarted") are still read the second time.
   const setSaid = (next: { status: string; alert: string }) => { setSaidNow({ status: "", alert: "" }); setTimeout(() => setSaidNow(next), 50); };
-  async function vmAct(op: "starting" | "stopping", cmd: string, args: Record<string, unknown>) {
+  async function vmAct(op: VmOp["op"], cmd: string, args: Record<string, unknown>) {
     const last = { op, cmd, args };
     onVm({ op, failure: null, last });
     try {
@@ -162,7 +167,19 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
   }, [composeRun.failed, apps]);
 
   // One rule for every button on a row: nothing else is changing it right now.
-  const canAct = (a: App<C>) => !composeRunState().busy && vm.op === null && !pending.has(a.key) && !a.rows.some((c) => fixBusy(runs, c.Names));
+  // While the VM restarts for a new size and its containers start again, nothing here may touch them.
+  const rs = useResize();
+  // When a resize has started everything again, read the list at once: the next poll would show "Stopped" for a moment.
+  // Until that read is back the rows keep saying Restarting…, so none shows "Stopped" for a moment.
+  const wasResizing = useRef(false);
+  const [settling, setSettling] = useState(false);
+  useEffect(() => {
+    if (wasResizing.current && !resizing(rs)) { setSettling(true); void containers.reload().finally(() => setSettling(false)); }
+    wasResizing.current = resizing(rs);
+  }, [rs]); // eslint-disable-line react-hooks/exhaustive-deps
+  // The render right after the run ends comes before that effect, so it counts too.
+  const holding = resizing(rs) || settling || wasResizing.current;
+  const canAct = (a: App<C>) => !composeRunState().busy && vm.op === null && resizeState().progress === null && !pending.has(a.key) && !a.rows.some((c) => fixBusy(runs, c.Names));
 
   async function act(a: App<C>, args: string[], p: Pending | null, done: string) {
     if (!canAct(a) || !ctx) return;
@@ -286,8 +303,12 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
     const phrase = prefix ? said.replace(/^(It|Its) /, "").replace(/^./, (ch) => ch.toLowerCase()) : said.replace(/^Its (.)/, (_, ch: string) => ch.toUpperCase());
     const text = `${who}${r ? "The fix didn't finish. " : ""}${phrase}`;
     // "Fix" only where the app really repairs it; otherwise the button says what it does.
-    const action = one ? (
-      <button className="small primary" aria-label={`${r ? "Try the fix again" : one.label}: ${p.short ?? p.title}, ${c.Names}`} onClick={one.go}>{r ? "Try again" : names.length > 1 ? `Fix ${names.join(" and ")}…` : `${one.label}…`}</button>
+    // A container that ran out of memory: the one-click bigger VM, which starts it again after.
+    const action = fix?.resize ? (
+      <ResizeOr from={`home:${c.Names}:${p.id}`} title={`${p.short ?? p.title}, ${c.Names}`} need="memory" alsoStart={[c.Names]} fallback={see} noProfiles vmWords />
+    ) : one ? (
+      // A Fix replaces containers; while the VM stops or restarts there is no Docker to replace them in.
+      <button className="small primary" aria-label={`${r ? "Try the fix again" : one.label}: ${p.short ?? p.title}, ${c.Names}`} aria-disabled={vm.op !== null || resizing(rs) || undefined} title={vm.op || resizing(rs) ? "Waits for the VM" : undefined} onClick={() => vm.op === null && !resizing(rs) && one.go()}>{r ? "Try again" : names.length > 1 ? `Fix ${names.join(" and ")}…` : `${one.label}…`}</button>
     ) : fix?.go === "Images" ? (
       <button className="small" onClick={onImages}>Open Images</button>
     ) : see;
@@ -346,7 +367,10 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
     const { state, up, of } = appState(a.rows);
     const pend = pending.get(a.key);
     const mine = !!composeRun.busy && inDir(a, composeRun.busy.dir) && a.files.length > 0;
-    const changing = pend?.word ?? (mine ? ING[composeRun.busy!.action] : null);
+    // A VM size change restarts everything at once: the state column says so, and the button keeps the label the
+    // user last saw, locked, until the list shows the real state again.
+    const withVm = holding && !kube;
+    const changing = withVm ? "Restarting…" : pend?.word ?? (mine ? ING[composeRun.busy!.action] : null);
     const expanded = open.has(a.key) || (!!term && isProject && a.rows.some(hit));
     const issues = problemsOf(a.rows);
     const word = kube ? `${a.rows.length} container${a.rows.length === 1 ? "" : "s"}` : changing ?? (state === "partly" ? `${up} of ${of} running` : state === "running" ? "Running" : "Stopped");
@@ -354,7 +378,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
     const mark = changing ? "busy" : !kube && issues.some((i) => i.p) ? markOf(issues) : kube || state === "running" ? "on" : state === "partly" ? "part" : "off";
     const ports = (isProject ? a.rows : single ? [single] : []).filter((c) => c.State === "running").flatMap((c) => portLinksFromPs(c.Ports).filter((l) => isWebPort(l.containerPort, l.port)));
     const web = ports[0];
-    const lock = !canAct(a);
+    const lock = !canAct(a) || withVm;
     const startIt = () => (isProject
       ? project(a, "up", { target: "running", word: "Starting…", since: Date.now() }, `${a.name} started`)
       : act(a, ["start", single!.ID], { target: "running", word: "Starting…", since: Date.now() }, `${a.name} started`));
@@ -362,7 +386,9 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
       ? project(a, "stop", { target: "stopped", word: "Stopping…", since: Date.now() }, `${a.name} stopped`)
       : act(a, ["stop", single!.ID], { target: "stopped", word: "Stopping…", since: Date.now() }, `${a.name} stopped`));
     // Anything running means the main button stops it; starting the rest of a partly running project is in its menu.
-    const verb = up > 0 ? "Stop" : "Start";
+    const live = up > 0 ? "Stop" : "Start";
+    if (!withVm) seenVerb.set(a.key, live);
+    const verb = withVm ? seenVerb.get(a.key) ?? live : live;
     // One button element whose label changes, so keyboard focus stays put through Start, Starting… and Stop.
     const main = kube ? (
       onKubernetes ? <button className="main" onClick={onKubernetes} aria-label="Open the Kubernetes tab">Open</button> : <span />
@@ -375,7 +401,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
         aria-describedby={lock && !changing ? `why-${a.key}` : undefined}
         onClick={() => { if (!lock) void (verb === "Stop" ? stopIt() : startIt()); }}
       >
-        {changing ?? verb}
+        {withVm ? verb : changing ?? verb}
       </button>
     );
     const failure = failed.get(a.key);
@@ -473,6 +499,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
           onStart={start}
           onRetry={() => (vm.last ? vmAct(vm.last.op, vm.last.cmd, vm.last.args) : start())}
           fixing={runs.some((r) => r.step != null)}
+          line={vm.op === "restarting" ? resizeLine(rs) || undefined : undefined}
           onStop={() => vmAct("stopping", "stop_profile", { name: profile.name })}
           onRestart={() => vmAct("starting", "restart_profile", { name: profile.name })}
           onForce={() => vmAct("starting", "force_restart_profile", { name: profile.name })}

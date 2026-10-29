@@ -50,7 +50,7 @@ await p.waitForSelector(".setup .finding[data-setup]", { timeout: 3000 }).catch(
 await p.waitForFunction((n) => new RegExp(`^${n} things need action`).test(document.querySelector(".doctor-head .hint")?.textContent ?? ""), badgeN, { timeout: 3000 }).catch(() => {});
 check(new RegExp(`^${badgeN} problems? needs? action`).test(await p.locator(".doctor-head .hint").innerText()), "desktop: the page summary equals the badge's count");
 const s = await statuses(p);
-check(s[0] === "fail" && s.indexOf("fail") < s.indexOf("ok"), "desktop: failures sorted first");
+check(s[0] === "fail" && (s.indexOf("ok") < 0 || s.indexOf("fail") < s.indexOf("ok")), "desktop: failures sorted first");
 check(await p.locator(".setup details.how").count() > 0 && await p.locator(".setup details.how").evaluateAll((d) => d.every((x) => !x.open)), "desktop: commands sit in collapsed details until asked for");
 await p.locator(".setup details.how > summary").evaluateAll((l) => l.forEach((x) => x.click()));
 check(/rm ~\/\.docker\/cli-plugins\/docker-buildx/.test(await p.locator(".setup").innerText()), "desktop: shows the exact command before fixing");
@@ -63,8 +63,8 @@ check(/\d+ checks? pass/.test(await p.locator(".setup details.passing summary").
 const tc = p.locator('.setup [data-setup="testcontainers"]');
 check(await tc.getByRole("button", { name: /^Point to Colima: Testcontainers/ }).count() === 1 && !/Copy/.test(await tc.innerText()), "desktop: Testcontainers is fixed by the app, nothing to copy");
 check(await tc.locator(".hint > code", { hasText: "~/.testcontainers.properties" }).count() === 1, "desktop: file names and settings are in the code font");
-check(await p.getByRole("button", { name: /^Fix \d+ (of \d+|problems)$/ }).count() === 1, "desktop: one Fix all for the setup problems");
-await p.getByRole("button", { name: /^Fix \d+ (of \d+|problems)$/ }).click();
+check(await p.getByRole("button", { name: /^Fix \d+ (of \d+ )?problems$/ }).count() === 1, "desktop: one Fix all for the setup problems");
+await p.getByRole("button", { name: /^Fix \d+ (of \d+ )?problems$/ }).click();
 const dlg = await p.getByRole("alertdialog").innerText().catch(() => "");
 check(/A backup is kept of ~\/\.docker\/config\.json, ~\/\.testcontainers\.properties and ~\/\.zshrc\./.test(dlg), "desktop: Fix all asks first, and names every file it backs up");
 check(/Point Testcontainers to Colima/.test(dlg) && /Switch the docker command to Colima/.test(dlg), "desktop: the confirm lists what each step does");
@@ -72,7 +72,7 @@ check(!/danger-fill/.test(await p.getByRole("alertdialog").getByRole("button", {
 await p.getByRole("alertdialog").getByRole("button", { name: "Cancel" }).click();
 await p.waitForTimeout(400);
 check((await statuses(p)).includes("fail"), "desktop: Cancel changes nothing");
-await p.getByRole("button", { name: /^Fix \d+ (of \d+|problems)$/ }).click();
+await p.getByRole("button", { name: /^Fix \d+ (of \d+ )?problems$/ }).click();
 await p.getByRole("alertdialog").getByRole("button", { name: "Fix them", exact: true }).click();
 await p.waitForTimeout(3500);
 check((await statuses(p)).every((x) => x !== "fail"), "desktop: every failure clears after its fix");
@@ -83,9 +83,10 @@ check(await res.locator("details").evaluate((d) => !d.open).catch(() => false) &
 const rows = await p.locator(".setup .finding.info[data-setup]").allInnerTexts();
 check(rows.some((t) => /doesn't start at login/.test(t)), "desktop: Fix all leaves the start-at-login info row alone");
 check(!/Colima starts at login/.test(await p.locator(".setup").innerText()), "desktop: start at login stayed off after Fix all");
-const left = (await statuses(p)).filter((x) => x === "warn").length;
-check(left === 0 && await p.locator(".setup section .finding.warn[data-setup]").count() === 0, "desktop: after Fix all no setup warning is left, Testcontainers included");
-check(await p.getByRole("button", { name: /^Fix \d+ (of \d+|problems)$/ }).count() === 0, "desktop: Fix all goes away when nothing is left to fix");
+// The VM size is the one warning Fix all leaves: it restarts the VM, so it has its own button and confirm.
+const left = await p.locator(".setup section .finding.warn[data-setup]").evaluateAll((els) => els.map((e) => e.dataset.setup));
+check(left.join(",") === "resources", `desktop: after Fix all the only setup warning left is the VM size, Testcontainers included (${left.join(",")})`);
+check(await p.getByRole("button", { name: /^Fix \d+ (of \d+ )?problems$/ }).count() === 0, "desktop: Fix all goes away when nothing is left to fix");
 const after = (/^(\d+) problems? needs? action/.exec(await p.locator(".doctor-head .hint").innerText()) ?? [])[1] ?? "0";
 const afterBadge = (/^Doctor, (\d+) problems?$/.exec(await p.locator('.sidebar nav button[aria-label^="Doctor"]').getAttribute("aria-label") ?? "") ?? [])[1] ?? "0";
 check(after === afterBadge, `desktop: after the fixes the badge and the summary still agree (${afterBadge} and ${after})`);

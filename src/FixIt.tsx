@@ -5,6 +5,7 @@ import { useConfirm } from "./ui";
 import { Icon } from "./ui/icons";
 import type { Problem } from "./lib/health";
 import { describe } from "./lib/fixRun";
+import { useResizeEnv } from "./Resize";
 import { busy, dismiss, runFor, snapshot, startConnect, startFix, subscribe } from "./lib/fixStore";
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -51,6 +52,7 @@ export function fixAction(fix: Fix, ctx: string | undefined, confirm: Confirm, r
 export default function FixIt({ fix, ctx, onFixed, onGo }: { fix: NonNullable<Problem["fix"]>; ctx?: string; onFixed?: (name: string) => void; onGo?: (page: Go) => void }) {
   const confirm = useConfirm();
   const runs = useFixRuns();
+  const vmBusy = !!useResizeEnv()?.vmBusy;
   if (fix.go) return onGo ? <span className="actions-inline"><button onClick={() => onGo(fix.go!)}>{fix.label}</button></span> : null;
   const run = fixAction(fix, ctx, confirm, runs, onFixed);
   const canRun = !!run;
@@ -69,7 +71,7 @@ export default function FixIt({ fix, ctx, onFixed, onGo }: { fix: NonNullable<Pr
   return (
     <>
       <span className="actions-inline">
-        <button className="primary" disabled={run.running} onClick={run.go}>{run.running ? run.busyLabel : run.label}</button>
+        <button className="primary" disabled={run.running || vmBusy} title={vmBusy ? "Waits for the VM" : undefined} onClick={run.go}>{run.running ? run.busyLabel : run.label}</button>
         <span className="hint">{run.hint}</span>
       </span>
       <details className="fix-commands">

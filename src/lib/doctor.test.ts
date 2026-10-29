@@ -85,10 +85,11 @@ test("Given databases with no volume, an unnamed one, or a named one, when check
   assert.match(r.findings.find((f) => f.subject === "none" && f.id === "db-volume")!.detail, /-v none-data:\/var\/lib\/postgresql/);
 });
 
-test("Given a 2 GB VM running Elasticsearch, when checked, then it points to Profiles", () => {
+test("Given a 2 GB VM running Elasticsearch, when checked, then its fix is the one-click bigger VM", () => {
   const r = doctor({ ctx: "colima", vmMemory: 2 * 1024 ** 3, containers: [c({ name: "es", image: "elasticsearch:8.15.0" })] });
   const f = r.findings.find((x) => x.id === "vm-memory")!;
-  assert.equal(f.fix?.go, "Profiles");
+  assert.equal(f.fix?.resize, true);
+  assert.doesNotMatch(f.detail, /Profiles/);
   assert.ok(!doctor({ ctx: "colima", vmMemory: 8 * 1024 ** 3, containers: [c({ name: "es", image: "elasticsearch:8.15.0" })] }).findings.some((x) => x.id === "vm-memory"));
 });
 
