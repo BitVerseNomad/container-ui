@@ -16,6 +16,7 @@ import ConnectionTest from "./ConnectionTest";
 import { ActivityList, HealthPanel } from "./Health";
 import { FixStatus, useFixRuns } from "./FixIt";
 import { busy } from "./lib/fixStore";
+import { useDockerLocked } from "./dockerLock";
 import { Problem, parseState, problemsFor } from "./lib/health";
 import { crashLead } from "./lib/crashLead";
 
@@ -37,6 +38,7 @@ export default function ContainerDetail({ ctx, id, appProblems, onBack, onReplac
   const { data: c, error, reload } = usePoll(async () => JSON.parse(await docker(ctx, ["inspect", id]))[0] as Inspect, [ctx, id]);
 
   async function act(args: string[], done?: () => void) {
+    if (locked) return;
     try {
       await commands.ran(args[0], dockerLine(ctx, args.map((a) => (a === id ? name : a))), () => docker(ctx, args), name);
       setErr(null);
@@ -48,6 +50,9 @@ export default function ContainerDetail({ ctx, id, appProblems, onBack, onReplac
   }
 
   const name = c?.Name.replace(/^\//, "") ?? "Container";
+  // The VM, a resize, a Bring over copy, a Compose run or a Fix on this container is changing Docker right now.
+  const locked = useDockerLocked([name]);
+  const wait = locked || undefined;
   const paused = !!c?.State.Paused;
   const running = !!c?.State.Running && !paused;
   const raw = paused ? "paused" : c?.State.Status ?? "";
@@ -86,21 +91,22 @@ export default function ContainerDetail({ ctx, id, appProblems, onBack, onReplac
             {running && (
               <>
                 <button onClick={() => openShell(ctx, name).catch((e) => setErr(e instanceof Error ? e.message : String(e)))}>Open a shell</button>
-                <button onClick={() => act(["restart", id])}>Restart</button>
-                <button onClick={() => act(["stop", id])}>Stop</button>
-                <button onClick={() => act(["pause", id])}>Pause</button>
+                <button aria-disabled={wait} onClick={() => act(["restart", id])}>Restart</button>
+                <button aria-disabled={wait} onClick={() => act(["stop", id])}>Stop</button>
+                <button aria-disabled={wait} onClick={() => act(["pause", id])}>Pause</button>
               </>
             )}
             {paused && (
               <>
-                <button onClick={() => act(["unpause", id])}>Resume</button>
-                <button onClick={() => act(["stop", id])}>Stop</button>
+                <button aria-disabled={wait} onClick={() => act(["unpause", id])}>Resume</button>
+                <button aria-disabled={wait} onClick={() => act(["stop", id])}>Stop</button>
               </>
             )}
-            {!running && !paused && <button onClick={() => act(["start", id])}>Start</button>}
-            <button className="danger" onClick={async () => (await confirm(`Remove container "${name}"?`)) && act(["rm", "-f", id], onBack)}>
+            {!running && !paused && <button aria-disabled={wait} onClick={() => act(["start", id])}>Start</button>}
+            <button className="danger" aria-disabled={wait} onClick={async () => !locked && (await confirm(`Remove container "${name}"?`)) && act(["rm", "-f", id], onBack)}>
               Remove
             </button>
+            {locked && <span className="hint">Waits for what is changing Docker now.</span>}
           </div>
         )}
       </header>

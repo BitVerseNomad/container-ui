@@ -14,6 +14,7 @@ import type { ComposeProject } from "./lib/composeScan";
 import { rank } from "./lib/fuzzy";
 import { activity, dockerLine } from "./lib/activity";
 import { useFixRuns } from "./FixIt";
+import { bringBusy, useBringBusy } from "./bringBusy";
 
 type Ctr = { State: string; Labels?: string; Names?: string; Ports?: string };
 export type Action = "up" | "stop" | "restart" | "down" | "build" | "pull";
@@ -44,7 +45,7 @@ const NO_COMPOSE = /'compose' is not a docker command|unknown command "compose"|
 // so both show the same run in progress. The caller asks first for Down and checks no Fix is running.
 // Returns false when another run held the lock and nothing ran.
 export async function runCompose(ctx: string, p: Pick<ComposeProject, "dir" | "files" | "name">, action: Action, containers: Ctr[]): Promise<boolean> {
-  if (state.busy) return false;
+  if (state.busy || bringBusy()) return false;
   setRun({ busy: { dir: p.dir, action }, failed: null });
   try {
     await activity.ran(`compose ${action}`, typed(p.dir, action, ctx), () => invoke<void>("compose_action", { context: ctx, file: `${p.dir}/${p.files[0]}`, action }), p.name);
@@ -86,7 +87,10 @@ export default function ComposeProjects({ ctx, scan, containers, attention, onCl
   // One project at a time, as the backend allows; its output shows under it.
   const { busy, failed } = useComposeRun();
   // A Fix renames a container to NAME-old; compose acting on the project then would remove or restart that copy.
-  const fixing = useFixRuns().some((r) => r.step != null);
+  // A Bring over copy holds Docker too; Compose waits for it the same way.
+  const bringing = useBringBusy();
+  const fixRunning = useFixRuns().some((r) => r.step != null);
+  const fixing = fixRunning || bringing;
   const cut = (scan.paths?.length ?? 0) > SHOWN_MAX;
   // Added folders first, so the cut never hides one the user just added.
   const listed = useMemo(() => [...new Set([...(scan.pinned ?? []), ...(scan.paths ?? []).slice(0, SHOWN_MAX)])], [scan.pinned, scan.paths]);
@@ -134,7 +138,7 @@ export default function ComposeProjects({ ctx, scan, containers, attention, onCl
   return (
     <Drawer label="Compose projects" title={<>Compose projects</>} onClose={onClose}>
       <p className="hint">Every folder in your home with a Compose file. Missing one? Add its folder.</p>
-      {fixing && <p className="hint">Wait for the fix to finish before starting or stopping a project.</p>}
+      {fixing && <p className="hint">{bringing ? "Wait for the copy from Docker Desktop to finish" : "Wait for the fix to finish"} before starting or stopping a project.</p>}
       <div className="inline">
         <label className="search-field">
           <Icon name="search" size={14} />
@@ -161,7 +165,7 @@ export default function ComposeProjects({ ctx, scan, containers, attention, onCl
           // A failed Start may leave a network or some services behind; Down is offered then, as the note says.
           const leftovers = failed?.dir === p.dir && !mine;
           const btn = (a: Action, kind?: "primary" | "danger") => (
-            <button className={kind} disabled={!!busy || fixing} title={fixing ? "Wait for the fix to finish" : typed(p.dir, a, ctx)} aria-label={`${VERB[a][0]} ${p.name}`} onClick={() => run(p, a)}>
+            <button className={kind} disabled={!!busy || fixing} title={fixing ? (bringing ? "Wait for the copy from Docker Desktop to finish" : "Wait for the fix to finish") : typed(p.dir, a, ctx)} aria-label={`${VERB[a][0]} ${p.name}`} onClick={() => run(p, a)}>
               {mine && busy?.action === a ? VERB[a][1] : label(a)}
             </button>
           );

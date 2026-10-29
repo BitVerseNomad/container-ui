@@ -128,7 +128,7 @@ function dfLines(): string {
 function dockerCmd(args: string[]): string {
   const [cmd, sub] = args;
   switch (cmd) {
-    case "ps": { if (args.includes("-q")) return db.ctrs.map((c) => c.id.slice(0, 12)).join("\n"); const f = args.find((a) => a.startsWith("network="))?.slice(8); return lines(db.ctrs.filter((c) => !f || c.networks.includes(f)).map((c) => ({ ID: c.id.slice(0, 12), Names: c.name, Image: c.image, State: c.state, Status: status(c), Ports: fmtPorts(c), Labels: c.labels ?? (SHOP.has(c.name) ? `com.docker.compose.project=shop,com.docker.compose.project.working_dir=/Users/me/code/shop,com.docker.compose.project.config_files=/Users/me/code/shop/compose.yaml,com.docker.compose.service=${c.name}${SHOP_DEPS[c.name] ? `,com.docker.compose.depends_on=${SHOP_DEPS[c.name]}` : ""}` : "") }))) }
+    case "ps": { if (args.includes("-q")) return db.ctrs.map((c) => c.id.slice(0, 12)).join("\n"); const f = args.find((a) => a.startsWith("network="))?.slice(8); return lines(db.ctrs.filter((c) => !f || c.networks.includes(f)).map((c) => ({ ID: c.id.slice(0, 12), Names: c.name, Image: c.image, State: c.state, Status: status(c), Ports: fmtPorts(c), Mounts: c.mounts.map((m) => m.Name ?? m.Source).join(","), Labels: c.labels ?? (SHOP.has(c.name) ? `com.docker.compose.project=shop,com.docker.compose.project.working_dir=/Users/me/code/shop,com.docker.compose.project.config_files=/Users/me/code/shop/compose.yaml,com.docker.compose.service=${c.name}${SHOP_DEPS[c.name] ? `,com.docker.compose.depends_on=${SHOP_DEPS[c.name]}` : ""}` : "") }))) }
     case "images": return lines(db.images);
     case "events": {
       const t = Math.floor(Date.now() / 1000);
@@ -175,7 +175,7 @@ function dockerCmd(args: string[]): string {
     case "rename": { const c = find(args[1]); if (!c) throw `Error response from daemon: No such container: ${args[1]}`; c.name = args[2]; return ""; }
     case "inspect": if (args.includes("--format")) { const ref = args[args.length - 1]; const c = find(ref); if (!c) throw `Error: No such object: ${ref}`; return args[args.indexOf("--format") + 1] === "{{.Name}}" ? `/${c.name}\n` : `${c.state === "running"} ${c.restarts ?? 0} \n`; }
     { const many = args.slice(1).map((i) => find(i)!).filter(Boolean); return JSON.stringify(many.map((c) => ({ Id: c.id, Image: `sha256:${c.image}`, Name: `/${c.name}`, Created: new Date(c.born).toISOString(), Path: c.image.startsWith("mysql") ? "docker-entrypoint.sh" : "/docker-entrypoint.sh", Args: ["mysqld"], State: { Status: c.state, Running: c.state !== "exited", Paused: c.state === "paused", ExitCode: c.exitCode ?? 0, Error: c.error ?? "", OOMKilled: !!c.oom, StartedAt: new Date(c.born).toISOString(), ...(c.health ? { Health: { Status: c.health, FailingStreak: c.streak ?? 0, Log: c.healthOut ? [{ ExitCode: 1, Output: c.healthOut }] : [] } } : {}) }, RestartCount: c.restarts ?? 0, Config: { Image: c.image, Env: c.env, ExposedPorts: Object.fromEntries([...c.ports.map(([, p]) => p), ...(c.exposed ?? [])].map((p) => [`${p}/tcp`, {}])) }, HostConfig: { NetworkMode: c.networks[0] ?? "bridge", RestartPolicy: { Name: c.restart ?? "no" } }, NetworkSettings: { Ports: Object.fromEntries(c.ports.map(([h, p]) => [`${p}/tcp`, [{ HostIp: "0.0.0.0", HostPort: String(h) }]])), Networks: Object.fromEntries(c.networks.map((n) => [n, { IPAddress: ipOf(c, n), Aliases: n === "bridge" ? null : [c.name, c.id.slice(0, 12)] }])) }, Mounts: c.mounts }))); }
-    case "system": if (args.includes("-v")) { const sz: Record<string, string> = { "mysql-data": "412MB", "redis-data": "18MB", "pgdata-old": "1.2GB" }; return JSON.stringify({ Images: [], Containers: [], BuildCache: [], Volumes: db.volumes.map((Name) => ({ Name, Links: db.ctrs.filter((c) => c.mounts.some((x) => x.Name === Name)).length, Size: sz[Name] ?? (Name.startsWith("a") ? "36B" : "4kB") })) }); } return dfLines();
+    case "system": if (args.includes("-v")) { const sz: Record<string, string> = { "mysql-data": "412MB", "redis-data": "18MB", "pgdata-old": "1.2GB", ...colimaSizes }; return JSON.stringify({ Images: [], Containers: [], BuildCache: [], Volumes: db.volumes.map((Name) => ({ Name, Links: db.ctrs.filter((c) => c.mounts.some((x) => x.Name === Name)).length, Size: sz[Name] ?? (Name.startsWith("a") ? "36B" : "4kB") })) }); } return dfLines();
     case "stats": {
       if (args[args.length - 1] === "--no-stream") return lines(db.ctrs.filter((c) => c.state === "running").map((c) => ({ Name: c.name, CPUPerc: `${c.cpu.toFixed(2)}%`, MemUsage: `${(c.mem / 2 ** 20).toFixed(1)}MiB / 7.7GiB` }))); const c = find(args[args.length - 1])!; c.cpu = Math.max(0.1, c.cpu + (Math.random() - 0.45)); return lines([{ CPUPerc: `${c.cpu.toFixed(2)}%`, MemUsage: `${(c.mem / 2 ** 20).toFixed(1)}MiB / 7.7GiB`, NetIO: "1.2kB / 648B", BlockIO: "0B / 4.1kB", PIDs: "29" }]); }
     case "start": case "stop": case "restart": case "pause": case "unpause": {
@@ -203,8 +203,17 @@ function dockerCmd(args: string[]): string {
 }
 
 // Docker Desktop for "Bring them over": ?dd=closed (installed, not open), ?dd=gone (removed, disk left), ?dd=fail (uploads fails), else running.
+// ?dd=replace: `compose up` already ran in Colima, so Colima's shop_db is a 12 MB empty one that shop-db-1 runs on.
+// ?dd=replacefail: the same, and the copy into it fails midway, so Colima's copy is put back from the backup.
+// ?dd=replacebig: Colima's shop_db is 90 MB, bigger than a fresh one, so it is listed but not picked.
 const dd = typeof location !== "undefined" ? new URLSearchParams(location.search).get("dd") ?? "running" : "running";
-const desktop = { installed: dd !== "gone", running: dd === "running" || dd === "fail", disk_bytes: 30 * GB };
+const desktop = { installed: dd !== "gone", running: ["running", "fail", "replace", "replacefail", "replacebig"].includes(dd), disk_bytes: 30 * GB };
+const colimaSizes: Record<string, string> = {};
+if (dd.startsWith("replace")) {
+  db.volumes.push("shop_db");
+  colimaSizes.shop_db = dd === "replacebig" ? "90MB" : "12MB";
+  db.ctrs.push({ networks: ["bridge"], id: hex(64), name: "shop-db-1", image: "postgres:16", state: "running", ports: [], mounts: [{ Type: "volume", Name: "shop_db", Source: "/var/lib/docker/volumes/shop_db/_data", Destination: "/var/lib/postgresql/data", RW: true }], env: ["POSTGRES_PASSWORD=dev"], born: now - 6e5, cpu: 0.4, mem: 40e6 });
+}
 const ddVolumes: [string, string][] = [["shop_db", "412MB"], ["redis-data", "18MB"], ["uploads", "2.1GB"], ["b".repeat(64), "36B"]];
 const ddImages = [{ Repository: "acme/api", Tag: "dev", Size: "1.2GB" }, { Repository: "postgres", Tag: "16", Size: "438MB" }, { Repository: "<none>", Tag: "<none>", Size: "90MB" }];
 let stopCopy = false;
@@ -223,14 +232,43 @@ export async function invoke<T>(cmd: string, a: Record<string, any> = {}): Promi
     case "desktop_state": return { ...desktop } as T;
     case "open_docker_desktop": if (!desktop.installed) throw "Docker Desktop isn't installed"; setTimeout(() => { desktop.running = true; }, 2500); return undefined as T;
     case "desktop_docker": if (a.args[0] === "ps") return JSON.stringify({ Names: "shop-db-1", Mounts: "shop_db" }) as T; return (a.args[0] === "system" ? JSON.stringify({ Images: [], Containers: [], BuildCache: [], Volumes: ddVolumes.map(([Name, Size]) => ({ Name, Size })) }) : ddImages.map((r) => JSON.stringify(r)).join("\n")) as T;
-    case "desktop_start": ((window as any).__started ??= []).push(...a.names); return undefined as T;
+    case "desktop_start": ((window as any).__started ??= []).push(...a.names.map((n: string) => (a.context ? `${a.context}/${n}` : n))); return undefined as T;
+    case "desktop_replace": {
+      ((window as any).__replaced ??= []).push({ ...a });
+      const users = db.ctrs.filter((c) => c.state === "running" && c.mounts.some((m) => m.Name === a.name));
+      users.forEach((c) => { c.state = "exited"; });
+      const size = MB(ddVolumes.find(([n]) => n === a.name)![1]);
+      const back = { backup: a.backup, not_started: [] as string[] };
+      let stoppedNow = false;
+      const step = async (s: string) => { emit("desktop-step", { name: a.name, step: s }); await sleep(250); };
+      await step("backup");
+      await step("empty");
+      emit("desktop-step", { name: a.name, step: "copy" });
+      for (let f = 0.2; f < 1; f += 0.2) {
+        await sleep(250);
+        if (stopCopy) { stoppedNow = true; break; }
+        if (dd === "replacefail" && f > 0.5) break;
+        emit("desktop-progress", { name: a.name, bytes: Math.round(size * f) });
+      }
+      await step(stoppedNow || dd === "replacefail" ? "restore" : "check");
+      // Starting a database takes a moment; long enough for the step to be seen.
+      if (users.length) { emit("desktop-step", { name: a.name, step: "start" }); await sleep(1500); }
+      users.forEach((c) => { c.state = "running"; c.born = Date.now(); });
+      if (stoppedNow) return { ...back, ok: false, bytes: 0, colima: "restored", why: "Stopped." } as T;
+      if (dd === "replacefail") { db.volumes.push(a.backup); colimaSizes[a.backup] = colimaSizes[a.name]; }
+      if (dd === "replacefail") return { ...back, ok: false, bytes: 0, colima: "restored", why: "docker: Error response from daemon: write /to/base/16384/2619: input/output error" } as T;
+      db.volumes.push(a.backup);
+      colimaSizes[a.backup] = colimaSizes[a.name];
+      colimaSizes[a.name] = ddVolumes.find(([n]) => n === a.name)![1];
+      return { ...back, ok: true, bytes: size, colima: "replaced", why: "" } as T;
+    }
     case "desktop_copy_stop": stopCopy = a.stop; return undefined as T;
     case "desktop_copy": {
       if (a.kind === "volume" && db.volumes.includes(a.name)) throw `Colima already has a volume called ${a.name}, so it was left alone.`;
       if (a.name === "uploads" && dd === "fail") throw "docker: Error response from daemon: no space left on device";
       const size = MB(a.kind === "volume" ? ddVolumes.find(([n]) => n === a.name)![1] : ddImages.find((r) => `${r.Repository}:${r.Tag}` === a.name)!.Size);
       for (let f = 0.2; f < 1; f += 0.2) { await sleep(250); if (stopCopy) throw "Stopped."; emit("desktop-progress", { name: a.name, bytes: Math.round(size * f) }); }
-      if (a.kind === "volume") db.volumes.push(a.name); else { const [repo, tag] = a.name.split(":"); db.images.unshift({ Repository: repo, Tag: tag, Size: "142MB", ID: hex(12), CreatedSince: "1 second ago" }); }
+      if (a.kind === "volume") { db.volumes.push(a.name); colimaSizes[a.name] = ddVolumes.find(([n]) => n === a.name)![1]; } else { const [repo, tag] = a.name.split(":"); db.images.unshift({ Repository: repo, Tag: tag, Size: "142MB", ID: hex(12), CreatedSince: "1 second ago" }); }
       return size as T;
     }
     case "docker_pull": {

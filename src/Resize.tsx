@@ -5,10 +5,9 @@
 // container button lock and follow it. Its commands go to All commands without a toast: the row reports the run.
 import { ReactNode, createContext, useContext, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Profile, ctxFor, docker, dockerJson } from "./api";
-import { composeRunState } from "./ComposeProjects";
+import { dockerLocked } from "./dockerLock";
 import { activity, dockerLine } from "./lib/activity";
 import { parseLabels } from "./lib/compose";
-import { snapshot as fixRuns } from "./lib/fixStore";
 import type { Host, RestartPlan, RunningRow } from "./lib/vmSize";
 import { KUBE_BACK, confirmText, doneText, explainResize, nameList, notStarted, planRestart, resizeTo, sizeWords, startReason, stepDown, withoutKube } from "./lib/vmSize";
 import { useConfirm } from "./ui";
@@ -68,7 +67,6 @@ export function useResizeTarget(need: "any" | "memory" = "any"): Size | null {
 type Inspected = { Name?: string; State?: { Running?: boolean }; Config?: { Labels?: Record<string, string> | null } };
 const fromInspect = (containers?: unknown[]): RunningRow[] | null =>
   containers ? (containers as Inspected[]).filter((c) => c.State?.Running).map((c) => ({ name: (c.Name ?? "").replace(/^\//, ""), labels: c.Config?.Labels ?? {} })) : null;
-const fixing = () => fixRuns().some((r) => r.step != null);
 
 // The VM part: stop, start with the size, then start what was running. Each step ends with focus on its result.
 async function restart(env: ResizeEnv, size: Size, pressed: string) {
@@ -157,7 +155,7 @@ export async function askResize(env: ResizeEnv, confirm: ReturnType<typeof useCo
   const shown = known ? withoutKube(known) : null;
   if (!(await confirm(confirmText(size, shown?.rows.length ?? null, was, shown?.kube), "Restart the VM", { safe: true }))) return;
   // The confirm waited for a click; something else may have started meanwhile. Checked again, then claimed at once.
-  if (state.progress || composeRunState().busy || fixing()) return;
+  if (dockerLocked()) return;
   set({ ...IDLE, tick: state.tick, from, profile: p.name, was, target: size, progress: "restarting", pressed: "main" });
   // Read now, not from the last check: the list the app starts again must be exactly what is running.
   const ctx = ctxFor(p.name);

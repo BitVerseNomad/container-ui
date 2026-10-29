@@ -1173,7 +1173,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             list_profiles, docker, docker_check, docker_pull, env_check, install_tools, network_probe, kubectl, open_terminal, start_profile, apply_resources,
             stop_profile, force_stop_profile, restart_profile, force_restart_profile, delete_profile, cancel_vm_op, host_resources, vm_log_tail, open_url, pick_folder, setup_report, setup_fix, find_compose_files, reveal_compose, compose_action, cancel_compose, compose_logs, compose_in_folder, container_shell,
-            desktop::desktop_state, desktop::desktop_docker, desktop::desktop_copy, desktop::desktop_copy_stop, desktop::desktop_start, desktop::open_docker_desktop
+            desktop::desktop_state, desktop::desktop_docker, desktop::desktop_copy, desktop::desktop_copy_stop, desktop::desktop_start, desktop::desktop_replace, desktop::open_docker_desktop
         ])
         .run(tauri::generate_context!())
         .expect("error while running Colima UI");

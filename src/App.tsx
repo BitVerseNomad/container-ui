@@ -22,7 +22,9 @@ import { useComposeScan } from "./useComposeScan";
 import { contextNames, kubernetesOn } from "./lib/kubeNav";
 import { ranVm } from "./lib/activity";
 import { useComposeRun } from "./ComposeProjects";
-import { ResizeAnnouncer, ResizeProvider, RunVm, resizing, useHeld, useResize } from "./Resize";
+import { ResizeAnnouncer, ResizeProvider, RunVm, useHeld, useResize } from "./Resize";
+import { useBringBusy } from "./bringBusy";
+import { dockerLocked, setVmBusy } from "./dockerLock";
 import { useHost } from "./useHostSize";
 
 // The profile a VM operation runs on: start takes { opts: { name } }, the others { name }.
@@ -43,7 +45,9 @@ export default function App() {
   const [detailId, setDetailId] = useState<string | null>(null);
   const [pullOnOpen, setPullOnOpen] = useState(false);
   const [newProfileOnOpen, setNewProfileOnOpen] = useState(false);
-  const [vm, setVm] = useState<VmState>({ op: null, failure: null });
+  const [vm, setVmState] = useState<VmState>({ op: null, failure: null });
+  // Every change goes through here, so the lock store (dockerLock) always holds the same vm.op as the screen.
+  const setVm = (next: VmState) => { setVmBusy(next.op !== null); setVmState(next); };
   const { env, recheck } = useEnv();
   const compose = useComposeScan();
   const { data, error, reload } = usePoll(() => invoke<Profile[]>("list_profiles"), []);
@@ -90,15 +94,16 @@ export default function App() {
 
   // Starts or stops a VM from any tab (Empty states, the sidebar switcher). It switches to that profile and
   // shows the progress on Containers, where the VM strip lives.
-  // A Fix renames and recreates containers; stopping the VM halfway would leave a NAME-old behind.
-  const fixing = useFixRuns().some((r) => r.step != null);
-  // A Compose run talks to Docker inside the VM; stopping the VM under it leaves the project half started.
-  const composeBusy = !!useComposeRun().busy;
-  // A resize runs from the click until its containers run again; after its VM part, vm.op is free but Docker is not.
-  const resizeBusy = resizing(useResize());
-  const vmLocked = vm.op !== null || fixing || composeBusy || resizeBusy;
+  // A Fix renames and recreates containers, a Compose run or a Bring over copy talks to Docker inside the VM, and a
+  // resize holds Docker until its containers run again: stopping the VM under any of them leaves things half done.
+  // These subscribe App to each; dockerLocked is the one rule that combines them.
+  useFixRuns();
+  useComposeRun();
+  useResize();
+  useBringBusy();
+  const vmLocked = dockerLocked();
   async function vmFromAnywhere(name: string, op: "starting" | "stopping", restart = false) {
-    if (fixing || composeBusy || resizeBusy) return;
+    if (dockerLocked()) return;
     setActive(name);
     setDetailId(null);
     setTab("Containers");

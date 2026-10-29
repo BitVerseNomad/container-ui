@@ -11,6 +11,7 @@ import { parseDiskUsage } from "./lib/disk";
 import { hostArch } from "./lib/guided";
 import { muted, setMuted, subscribeMuted } from "./lib/muted";
 import { busy } from "./lib/fixStore";
+import { useDockerLocked } from "./dockerLock";
 import { fixAllPlan } from "./lib/setup";
 import { biggerFix } from "./lib/sharedFix";
 import type { SetupFinding } from "./lib/setup";
@@ -19,7 +20,7 @@ import Menu from "./ui/Menu";
 import type { MenuItem } from "./ui/Menu";
 import { Icon } from "./ui/icons";
 import Ticks from "./ui/Ticks";
-import { ResizeButton, ResizeOr, ResizeStatus, resizing, useHeld, useResize, useResizeEnv } from "./Resize";
+import { ResizeButton, ResizeOr, ResizeStatus, resizing, useHeld, useResize } from "./Resize";
 
 const ICON = { ok: "check", warn: "alert", fail: "close", info: "info" } as const;
 
@@ -244,11 +245,11 @@ export default function Doctor({ ctx, setup, doc, onProfiles, onGo, onOpen }: Pr
 function DoctorFix({ fix, title, ctx, onGo, onFixed }: { fix: NonNullable<Finding["fix"]>; title: string; ctx: string | null; onGo: (page: Go) => void; onFixed: () => void }) {
   const confirm = useConfirm();
   const runs = useFixRuns();
-  // A Fix replaces containers; while the VM stops or restarts there is no Docker to replace them in.
-  const vmBusy = !!useResizeEnv()?.vmBusy;
+  // A Fix replaces containers; it waits while the VM, a resize, a copy or Compose is changing Docker.
+  useDockerLocked();
   if (fix.go) return <button className="small" aria-label={`${fix.label}: ${title}`} onClick={() => onGo(fix.go!)}>{fix.label}</button>;
   const run = fixAction(fix, ctx ?? undefined, confirm, runs, onFixed);
-  if (run) return <button className="small" title={run.hint} aria-label={`${run.running ? run.busyLabel : `${run.label}…`}: ${title}`} aria-disabled={run.running || vmBusy || undefined} onClick={() => !vmBusy && run.go()}>{run.running ? run.busyLabel : `${run.label}…`}</button>;
+  if (run) return <button className="small" title={run.hint} aria-label={`${run.running ? run.busyLabel : `${run.label}…`}: ${title}`} aria-disabled={run.running || run.locked || undefined} onClick={() => !run.locked && run.go()}>{run.running ? run.busyLabel : `${run.label}…`}</button>;
   return <button className="small" aria-label={`Copy commands: ${title}`} onClick={() => navigator.clipboard.writeText(fix.text)}>Copy commands</button>;
 }
 

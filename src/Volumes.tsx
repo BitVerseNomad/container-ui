@@ -4,6 +4,11 @@ import { usePoll } from "./hooks";
 import { Banner, Empty, useConfirm } from "./ui";
 import IconButton from "./ui/IconButton";
 import { isAnonymous, unusedAnonymous, volumeUsage } from "./lib/volumes";
+import { backupOf } from "./lib/bringOver";
+import { dockerLocked, useDockerLocked } from "./dockerLock";
+
+// While a copy or replace runs, a removed volume could be the backup a restore needs.
+const WAIT = "Waits for what is changing Docker now.";
 import { parseVolumeSizes } from "./lib/events";
 import { formatBytes } from "./containerInfo";
 
@@ -20,8 +25,11 @@ export default function Volumes({ ctx }: { ctx: string }) {
   // The exact shape of `docker system df -v --format json` is unverified; if it can't be read, sizes show a dash.
   const sizes = usePoll(async () => parseVolumeSizes(await docker(ctx, ["system", "df", "-v", "--format", "json"]).catch(() => "")), [ctx], 30000);
   const [err, setErr] = useState<string | null>(null);
+  const locked = useDockerLocked();
 
   async function act(args: string[]) {
+    // Checked again after the confirm: a copy may have started while it was open.
+    if (dockerLocked()) return setErr(WAIT);
     try {
       await docker(ctx, args);
       setErr(null);
@@ -41,8 +49,10 @@ export default function Volumes({ ctx }: { ctx: string }) {
         <button
           className="danger"
           disabled={loose.length === 0}
+          aria-disabled={locked || undefined}
+          aria-describedby={locked ? "volumes-wait" : undefined}
           onClick={async () =>
-            (await confirm(
+            !locked && (await confirm(
               `Remove ${loose.length} unused anonymous volume${loose.length > 1 ? "s" : ""}? These are unnamed volumes that no container uses. Named volumes are never removed here.`,
               "Remove",
             )) && act(["volume", "rm", ...loose])
@@ -50,6 +60,7 @@ export default function Volumes({ ctx }: { ctx: string }) {
         >
           Remove unused anonymous ({loose.length})
         </button>
+        {locked && <span id="volumes-wait" className="hint">{WAIT}</span>}
       </div>
       <Banner error={error ?? usage.error ?? err} onClose={() => setErr(null)} />
       {data && data.length === 0 && <Empty title="No volumes">Volumes created by your containers will show up here.</Empty>}
@@ -63,7 +74,11 @@ export default function Volumes({ ctx }: { ctx: string }) {
               const by = used.get(v.Name) ?? [];
               return (
                 <tr key={v.Name}>
-                  <td className="mono clip" title={v.Name}>{isAnonymous(v.Name) ? `${v.Name.slice(0, 12)}… (anonymous)` : v.Name}</td>
+                  <td className="mono clip" title={v.Name}>
+                    {isAnonymous(v.Name) ? `${v.Name.slice(0, 12)}… (anonymous)` : v.Name}
+                    {/* A backup Bring over made: easy to find, and to remove once the data is checked. */}
+                    {backupOf(v.Name) && <span className="volume-backup">{backupOf(v.Name)}</span>}
+                  </td>
                   <td>{v.Driver}</td>
                   <td className={by.length ? "in-use" : ""}>
                     {usage.data === null ? "…" : by.length ? `In use by ${by.length} container${by.length > 1 ? "s" : ""}: ${by.join(", ")}` : "Not used"}
@@ -75,6 +90,7 @@ export default function Volumes({ ctx }: { ctx: string }) {
                       icon="trash"
                       danger
                       disabled={by.length > 0}
+                      waiting={locked ? WAIT : undefined}
                       onClick={async () => (await confirm(`Remove volume ${v.Name}? Its data is lost.`)) && act(["volume", "rm", v.Name])}
                     />
                   </td>

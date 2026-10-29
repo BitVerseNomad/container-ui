@@ -5,7 +5,7 @@ import { useConfirm } from "./ui";
 import { Icon } from "./ui/icons";
 import type { Problem } from "./lib/health";
 import { describe } from "./lib/fixRun";
-import { useResizeEnv } from "./Resize";
+import { dockerLocked, useDockerLocked } from "./dockerLock";
 import { busy, dismiss, runFor, snapshot, startConnect, startFix, subscribe } from "./lib/fixStore";
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -20,23 +20,28 @@ type Runs = ReturnType<typeof useFixRuns>;
 
 // The one-click part of a fix (Replace or Connect), shared by the full Fix and the Containers row's button.
 // Null when the app can't run it, so the caller offers the commands instead.
+// locked: something else is changing Docker (the VM, a resize, a copy, Compose, another Fix on these containers).
 export function fixAction(fix: Fix, ctx: string | undefined, confirm: Confirm, runs: Runs, onFixed?: (name: string) => void) {
   if (!ctx) return null;
   if (fix.connect) {
     const c = fix.connect;
     const running = c.containers.some((n) => busy(runs, n));
+    const locked = !running && dockerLocked(c.containers);
     const go = async () => {
+      if (locked) return;
       const what = `${c.create ? `Create the network ${c.network} and connect` : `Connect`} ${c.containers.join(" and ")}${c.create ? "" : ` to ${c.network}`}? Their other networks stay as they are.`;
       if (running || !(await confirm(what, "Connect", { safe: true }))) return;
       startConnect(c, (args) => docker(ctx, args), (r) => r.ok && onFixed?.(c.containers[0]));
     };
-    return { label: "Connect", busyLabel: "Connecting…", running, go, hint: `Adds ${c.containers.join(" and ")} to ${c.network}. Nothing is restarted.` };
+    return { label: "Connect", busyLabel: "Connecting…", running, locked, go, hint: `Adds ${c.containers.join(" and ")} to ${c.network}. Nothing is restarted.` };
   }
   if (!fix.steps) return null;
   const steps = fix.steps;
   const names = steps.map((s) => s.name);
   const running = names.some((n) => busy(runs, n));
+  const locked = !running && dockerLocked(names);
   const go = async () => {
+    if (locked) return;
     if (running || !(await confirm(fix.confirm ?? `Replace ${names.join(" and ")}?`, names.length > 1 ? "Replace both" : "Replace", { safe: true }))) return;
     startFix(
       steps,
@@ -46,13 +51,14 @@ export function fixAction(fix: Fix, ctx: string | undefined, confirm: Confirm, r
       (r) => r.ok && onFixed?.(names[names.length - 1]),
     );
   };
-  return { label: names.length > 1 ? `Fix ${names.join(" and ")}` : "Fix", busyLabel: "Fixing…", running, go, hint: names.length > 1 ? `Replaces ${names.join(", then ")}.` : `Replaces ${names[0]}.` };
+  return { label: names.length > 1 ? `Fix ${names.join(" and ")}` : "Fix", busyLabel: "Fixing…", running, locked, go, hint: names.length > 1 ? `Replaces ${names.join(", then ")}.` : `Replaces ${names[0]}.` };
 }
 
 export default function FixIt({ fix, ctx, onFixed, onGo }: { fix: NonNullable<Problem["fix"]>; ctx?: string; onFixed?: (name: string) => void; onGo?: (page: Go) => void }) {
   const confirm = useConfirm();
   const runs = useFixRuns();
-  const vmBusy = !!useResizeEnv()?.vmBusy;
+  // Re-renders when what fixAction's lock reads changes.
+  useDockerLocked();
   if (fix.go) return onGo ? <span className="actions-inline"><button onClick={() => onGo(fix.go!)}>{fix.label}</button></span> : null;
   const run = fixAction(fix, ctx, confirm, runs, onFixed);
   const canRun = !!run;
@@ -71,7 +77,7 @@ export default function FixIt({ fix, ctx, onFixed, onGo }: { fix: NonNullable<Pr
   return (
     <>
       <span className="actions-inline">
-        <button className="primary" disabled={run.running || vmBusy} title={vmBusy ? "Waits for the VM" : undefined} onClick={run.go}>{run.running ? run.busyLabel : run.label}</button>
+        <button className="primary" disabled={run.running || run.locked} title={run.locked ? "Waits for what is changing Docker now" : undefined} onClick={run.go}>{run.running ? run.busyLabel : run.label}</button>
         <span className="hint">{run.hint}</span>
       </span>
       <details className="fix-commands">

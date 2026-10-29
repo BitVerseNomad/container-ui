@@ -3,7 +3,9 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { Profile, ctxFor, docker, dockerJson, openUrl } from "./api";
 import { formatBytes } from "./containerInfo";
-import { Item, Outcome, defaultPick, diskFull, doneText, fits, inventory, key, nearlyEmpty, order, picked, plainError, toStop, whatText } from "./lib/bringOver";
+import { Item, Outcome, Replaced, backupName, defaultPick, diskFull, doneLines, fits, inventory, key, order, picked, plainError, replaceNote, replaceSize, replaceable, stopQuestion, toStop, toStopColima, unpickedNote, whatText, writeError } from "./lib/bringOver";
+import { useResizeEnv } from "./Resize";
+import { setBringBusy } from "./bringBusy";
 import { parseDiskUsage } from "./lib/disk";
 import { markBroughtOver } from "./Setup";
 import { useConfirm } from "./ui";
@@ -13,7 +15,24 @@ import { Icon } from "./ui/icons";
 
 type DesktopState = { installed: boolean; running: boolean; disk_bytes: number };
 type Props = { ctx: string; onClose: () => void; onDone: () => void; onProfiles: () => void };
-type Row = { state: "waiting" | "copying" | "done" | "failed"; bytes: number; why?: string };
+// step: a replace's current step (backup, empty, copy, check, restore, start); none for a plain copy.
+type Row = { state: "waiting" | "copying" | "done" | "failed"; bytes: number; why?: string; step?: string };
+// What desktop_replace answers: the outcome of replacing Colima's nearly empty copy.
+type ReplaceResult = Replaced & { ok: boolean; bytes: number; why: string; not_started: string[] };
+type Result = { lines: string[]; failed: Outcome[]; halted: string[]; colimaHalted: string[]; started: { desktop?: string; colima?: string } };
+
+const ticks = (names: string[]) => names.map((n) => `\`${n}\``).join(" and ");
+const stoppedIn = (names: string[], where: string) => `${ticks(names)} ${names.length === 1 ? "is" : "are"} stopped in ${where}.`;
+// The result's lines, with what each side's Start button changed.
+const resultLines = (r: Result) => [
+  ...r.lines,
+  r.halted.length ? stoppedIn(r.halted, "Docker Desktop") : r.started.desktop ?? "",
+  r.colimaHalted.length ? stoppedIn(r.colimaHalted, "Colima") : r.started.colima ?? "",
+].filter(Boolean);
+// The restore-failed alert was already said in its own words; the summary doesn't repeat it.
+const alarmSet = (failed: Outcome[]) => failed.some((o) => o.replaced?.colima === "in-backup");
+// What a replace is doing, in the size column.
+const STEP: Record<string, string> = { backup: "Backing up Colima's copy…", empty: "Emptying…", check: "Checking…", restore: "Putting Colima's copy back…" };
 
 const DOWNLOAD = "https://www.docker.com/products/docker-desktop/";
 const DF = ["system", "df", "-v", "--format", "json"];
@@ -29,11 +48,18 @@ export default function BringOver({ ctx, onClose, onDone, onProfiles }: Props) {
   const [rows, setRows] = useState<Map<string, Row>>(new Map());
   const [busy, setBusy] = useState(false);
   const [opening, setOpening] = useState(false);
-  // halted: Docker Desktop containers the copy stopped, so the line can say so and start them again.
-  const [result, setResult] = useState<{ text: string; failed: Outcome[]; halted: string[] } | null>(null);
+  // halted: Docker Desktop containers the copy stopped, so the line can say so and start them again. colimaHalted:
+  // Colima containers a replace stopped that didn't start again on their own (or were left stopped on purpose).
+  // started: the line that replaces "is stopped in …" once that side's Start button worked.
+  const [result, setResult] = useState<Result | null>(null);
   const [free, setFree] = useState<number | null>(null);
-  const [restarting, setRestarting] = useState(false);
-  const ids = { result: useId(), hint: useId() };
+  // After a write error inside Colima, restarting the VM comes first. It goes through the app's VM runner, so every
+  // other VM button locks and follows it. idle, running, done, or the error text.
+  const env = useResizeEnv();
+  const [vmRestart, setVmRestart] = useState<string>("idle");
+  // Which side's Start button is running; both wait while either does.
+  const [restarting, setRestarting] = useState<"desktop" | "colima" | null>(null);
+  const ids = { result: useId(), hint: useId(), note: useId() };
   const [error, setError] = useState<string | null>(null);
   // Read by screen readers as it happens: what is being copied, and each failure the moment it fails.
   const [said, setSaid] = useState("");
@@ -57,13 +83,15 @@ export default function BringOver({ ctx, onClose, onDone, onProfiles }: Props) {
     }
   }
 
-  async function read() {
+  // keep: the picks to hold on to after a run, so a box the user cleared stays clear and a failed one stays picked.
+  async function read(keep?: Set<string>) {
     setSaid("Reading Docker Desktop…");
-    const [desktopDf, desktopImages, desktopRunning, colimaDf, have] = await Promise.all([
+    const [desktopDf, desktopImages, desktopRunning, colimaDf, colimaPs, have] = await Promise.all([
       invoke<string>("desktop_docker", { args: DF }),
       invoke<string>("desktop_docker", { args: ["images", "--format", "json"] }),
       invoke<string>("desktop_docker", { args: ["ps", "--filter", "status=running", "--format", "json"] }).catch(() => ""),
       docker(ctx, DF).catch(() => ""),
+      docker(ctx, ["ps", "-a", "--format", "{{json .}}"]).catch(() => ""),
       dockerJson<{ Repository: string; Tag: string }>(ctx, ["images"]),
     ]);
     // The VM's disk minus what Docker uses: an estimate, but enough to warn before a long copy fails.
@@ -71,10 +99,10 @@ export default function BringOver({ ctx, onClose, onDone, onProfiles }: Props) {
     const disk = profiles.find((p) => ctxFor(p.name) === ctx)?.disk;
     const used = parseDiskUsage(df).reduce((n, r) => n + (r.size ?? 0), 0);
     setFree(disk && df ? Math.max(0, disk - used) : null);
-    const inv = inventory({ desktopDf, desktopImages, desktopRunning, colimaDf, colimaImages: have.map((i) => `${i.Repository}:${i.Tag}`) });
+    const inv = inventory({ desktopDf, desktopImages, desktopRunning, colimaDf, colimaPs, colimaImages: have.map((i) => `${i.Repository}:${i.Tag}`) });
     setItems(inv.items);
     setUnnamed(inv.unnamed);
-    setPick(defaultPick(inv.items));
+    setPick(keep ? new Set(inv.items.map(key).filter((k) => keep.has(k))) : defaultPick(inv.items));
     setSaid(`Docker Desktop has ${inv.items.length} volumes and images.`);
   }
 
@@ -82,9 +110,16 @@ export default function BringOver({ ctx, onClose, onDone, onProfiles }: Props) {
     void check();
     const off = listen<{ name: string; bytes: number }>("desktop-progress", (e) => {
       const at = current.current;
-      if (at && at.endsWith(`:${e.payload.name}`)) setRows((m) => new Map(m).set(at, { state: "copying", bytes: e.payload.bytes }));
+      if (at && at.endsWith(`:${e.payload.name}`)) setRows((m) => new Map(m).set(at, { ...m.get(at), state: "copying", bytes: e.payload.bytes }));
     });
-    return () => void off.then((f) => f());
+    const offStep = listen<{ name: string; step: string }>("desktop-step", (e) => {
+      const at = current.current;
+      if (at && at.endsWith(`:${e.payload.name}`)) setRows((m) => new Map(m).set(at, { state: "copying", bytes: 0, step: e.payload.step }));
+      // The steps that protect Colima's data are said out loud, so a screen reader hears the backup happen.
+      if (e.payload.step === "backup") setSaid(`Backing up Colima's copy of ${e.payload.name}`);
+      if (e.payload.step === "restore") setSaid(`Putting Colima's copy of ${e.payload.name} back`);
+    });
+    return () => { void off.then((f) => f()); void offStep.then((f) => f()); };
   }, []);
 
   // Docker Desktop takes a while to start; look again every 2 seconds for up to 2 minutes.
@@ -107,70 +142,124 @@ export default function BringOver({ ctx, onClose, onDone, onProfiles }: Props) {
   async function bring() {
     const todo = order(picked(items ?? [], pick));
     const stopping = toStop(todo);
-    if (stopping.length) {
-      const who = stopping.join(" and ");
-      const ok = await confirm(`Stop ${who} in Docker Desktop?\nThey write to the volumes being copied, and a database copied while it runs may not start. You can start them again in Docker Desktop after.`, "Stop and bring over", { safe: true });
+    const stoppingHere = toStopColima(todo);
+    // Named before the confirm, so the confirm and the result say the same backup.
+    const now = new Date();
+    const backups = new Map(todo.filter(replaceable).map((i) => [key(i), backupName(i.name, now)]));
+    const replaces = todo.filter(replaceable).map((item) => ({ item, backup: backups.get(key(item))! }));
+    if (stopping.length || stoppingHere.length || replaces.length) {
+      const ok = await confirm(stopQuestion(stopping, stoppingHere, replaces), stopping.length || stoppingHere.length ? "Stop and bring over" : "Replace and bring over", { safe: true });
       if (!ok) return;
     }
     stopped.current = false;
     await invoke("desktop_copy_stop", { stop: false });
     setBusy(true);
+    setBringBusy(true);
     setResult(null);
     setAlarm("");
     setRows(new Map(todo.map((i) => [key(i), { state: "waiting", bytes: 0 }])));
     const outcomes: Outcome[] = [];
     const tried: Item[] = [];
-    for (const item of todo) {
-      if (stopped.current) break;
-      tried.push(item);
-      current.current = key(item);
-      setSaid(`Copying ${item.name}`);
-      setRows((m) => new Map(m).set(key(item), { state: "copying", bytes: 0 }));
-      try {
-        const bytes = await invoke<number>("desktop_copy", { kind: item.kind, name: item.name, context: ctx, stopUsers: item.users.length > 0 });
-        outcomes.push({ item, ok: true, bytes });
-        setRows((m) => new Map(m).set(key(item), { state: "done", bytes }));
-      } catch (e) {
-        const why = String(e);
-        if (stopped.current) {
-          setRows((m) => new Map(m).set(key(item), { state: "waiting", bytes: 0 }));
-          break;
+    const leftStopped: string[] = [];
+    try {
+      for (const item of todo) {
+        if (stopped.current) break;
+        tried.push(item);
+        current.current = key(item);
+        setSaid(`Copying ${item.name}`);
+        setRows((m) => new Map(m).set(key(item), { state: "copying", bytes: 0 }));
+        try {
+          if (replaceable(item)) {
+            const stopUsers = item.users.length > 0 || (item.colimaUsers ?? []).length > 0;
+            const r = await invoke<ReplaceResult>("desktop_replace", { name: item.name, context: ctx, backup: backups.get(key(item)), stopUsers, bytes: Math.round(item.bytes) });
+            leftStopped.push(...r.not_started.filter((n) => !leftStopped.includes(n)));
+            const replaced = { colima: r.colima, backup: r.backup };
+            if (r.ok) {
+              outcomes.push({ item, ok: true, bytes: r.bytes, replaced });
+              setRows((m) => new Map(m).set(key(item), { state: "done", bytes: r.bytes }));
+              continue;
+            }
+            // Stopped, and Colima's copy is as it was: nothing to report for this one.
+            if (stopped.current && r.colima !== "in-backup") {
+              setRows((m) => new Map(m).set(key(item), { state: "waiting", bytes: 0 }));
+              break;
+            }
+            outcomes.push({ item, ok: false, why: r.why, replaced });
+            setRows((m) => new Map(m).set(key(item), { state: "failed", bytes: 0, why: r.why }));
+            const still = r.not_started.length ? ` ${r.not_started.map((n) => `\`${n}\``).join(" and ")} ${r.not_started.length === 1 ? "stays" : "stay"} stopped.` : "";
+            setAlarm(plain(r.colima === "in-backup" ? `\`${item.name}\` failed. Colima's copy is safe in \`${r.backup}\`.${still}` : `${item.name} failed: ${plainError(r.why)}`));
+            // Something went wrong inside Colima; the rest waits for the user instead of running into it too.
+            break;
+          }
+          const bytes = await invoke<number>("desktop_copy", { kind: item.kind, name: item.name, context: ctx, stopUsers: item.users.length > 0, bytes: Math.round(item.bytes) });
+          outcomes.push({ item, ok: true, bytes });
+          setRows((m) => new Map(m).set(key(item), { state: "done", bytes }));
+        } catch (e) {
+          const why = String(e);
+          if (stopped.current) {
+            setRows((m) => new Map(m).set(key(item), { state: "waiting", bytes: 0 }));
+            break;
+          }
+          outcomes.push({ item, ok: false, why });
+          setRows((m) => new Map(m).set(key(item), { state: "failed", bytes: 0, why }));
+          setAlarm(`${item.name} failed: ${plainError(why)}`);
         }
-        outcomes.push({ item, ok: false, why });
-        setRows((m) => new Map(m).set(key(item), { state: "failed", bytes: 0, why }));
-        setAlarm(`${item.name} failed: ${plainError(why)}`);
       }
+    } finally {
+      setBringBusy(false);
     }
     current.current = null;
     const failed = outcomes.filter((o) => !o.ok);
     const halted = toStop(tried);
-    const text = `${doneText(outcomes, stopped.current)}${halted.length ? ` ${halted.map((n) => `\`${n}\``).join(" and ")} ${halted.length === 1 ? "is" : "are"} stopped in Docker Desktop.` : ""}`;
+    // Not reached because a replace failed (a Stop says so itself); they stay picked for the retry.
+    const untried = stopped.current ? [] : todo.filter((i) => !tried.includes(i));
+    if (untried.length) setRows((m) => { const n = new Map(m); untried.forEach((i) => n.delete(key(i))); return n; });
+    // Colima's containers a replace stopped and started itself (not when Colima's copy is only in the backup).
+    const restarted = [...new Set(outcomes.filter((o) => o.replaced && o.replaced.colima !== "in-backup").flatMap((o) => o.item.colimaUsers ?? []))].filter((n) => !leftStopped.includes(n));
+    const lines = doneLines(outcomes, stopped.current, untried, restarted);
     // Read the lists again before showing the end, so the button never flashes the old picks.
-    await read().catch(() => {});
+    await read(pick).catch(() => {});
     setBusy(false);
-    setResult({ text, failed, halted });
+    const next = { lines, failed, halted, colimaHalted: leftStopped, started: {} };
+    setResult(next);
     // A failure is announced at once; a success is read with the button that now has focus, so it is heard once.
-    if (failed.length) setAlarm(plain(text));
+    if (failed.length && !alarmSet(failed)) setAlarm(plain(resultLines(next).join(" ")));
     setSaid("");
     if (outcomes.some((o) => o.ok)) markBroughtOver();
     onDone();
     setTimeout(() => action.current?.focus(), 0);
   }
 
-  async function startAgain(names: string[]) {
-    setRestarting(true);
+  // inColima: the containers are Colima's (a replace left them stopped), not Docker Desktop's.
+  async function startAgain(names: string[], inColima = false) {
+    const side = inColima ? "colima" : "desktop";
+    const where = inColima ? "Colima" : "Docker Desktop";
+    setRestarting(side);
     try {
-      await invoke("desktop_start", { names });
+      await invoke("desktop_start", inColima ? { names, context: ctx } : { names });
       // The button that had focus goes away; focus returns to the action button and the change is said.
-      setSaid(`${names.join(" and ")} ${names.length === 1 ? "is" : "are"} running again in Docker Desktop.`);
+      const running = `${names.join(" and ")} ${names.length === 1 ? "is" : "are"} running again in ${where}.`;
+      setSaid(running);
       setTimeout(() => action.current?.focus(), 0);
-      setResult((r) => r && { ...r, text: r.text.replace(/ `[^.]*` (is|are) stopped in Docker Desktop\./, ` ${names.join(" and ")} ${names.length === 1 ? "is" : "are"} running again in Docker Desktop.`), halted: [] });
+      setResult((r) => r && { ...r, started: { ...r.started, [side]: running }, ...(inColima ? { colimaHalted: [] } : { halted: [] }) });
     } catch (e) {
-      setAlarm(`${names.join(" and ")} didn't start: ${String(e).split("\n")[0]}`);
-      setResult((r) => r && { ...r, text: `${r.text} ${names.join(" and ")} didn't start: ${String(e).split("\n")[0]}` });
+      const why = `${names.join(" and ")} didn't start in ${where}: ${String(e).split("\n")[0]}`;
+      setAlarm(why);
+      setResult((r) => r && { ...r, lines: [...r.lines, why] });
     } finally {
-      setRestarting(false);
+      setRestarting(null);
     }
+  }
+
+  async function restartVm() {
+    if (!env?.profile || env.locked || vmRestart === "running") return;
+    setVmRestart("running");
+    setSaid("Restarting the VM. This takes about a minute.");
+    const err = await env.runVm("restarting", "restart_profile", { name: env.profile.name });
+    setVmRestart(err ? `The VM didn't restart: ${err.split("\n")[0]}` : "done");
+    setSaid(err ? "" : "The VM restarted. Try again when you're ready.");
+    if (err) setAlarm(`The VM didn't restart: ${err.split("\n")[0]}`);
+    setTimeout(() => action.current?.focus(), 0);
   }
 
   async function stop() {
@@ -181,20 +270,29 @@ export default function BringOver({ ctx, onClose, onDone, onProfiles }: Props) {
   const toggle = (i: Item) => setPick((s) => { const n = new Set(s); n.has(key(i)) ? n.delete(key(i)) : n.add(key(i)); return n; });
   const chosen = picked(items ?? [], pick);
   const total = chosen.reduce((n, i) => n + i.bytes, 0);
+  // A replace also keeps Colima's old copy, as a backup, on the same disk.
+  const room = total + chosen.filter(replaceable).reduce((n, i) => n + (i.colimaBytes ?? 0), 0);
   const vols = (items ?? []).filter((i) => i.kind === "volume");
   const imgs = (items ?? []).filter((i) => i.kind === "image");
   const full = result?.failed.some((o) => !o.ok && diskFull(o.why));
-  const tight = !fits(total, free);
-  // The picks are exactly what just failed: the button says it is a retry.
-  const retry = !!result?.failed.length && chosen.length > 0 && chosen.every((i) => result.failed.some((o) => key(o.item) === key(i)));
+  const tight = !fits(room, free);
+  // The picks hold something that just failed: the button says it is a retry (with what wasn't reached, if picked).
+  const retry = !!result?.failed.length && chosen.some((i) => result.failed.some((o) => key(o.item) === key(i)));
 
+  const codes = (names: string[]) => names.map((u, n) => <span key={u}>{n ? " and " : ""}<code>{u}</code></span>);
+  const stepText = (i: Item, step: string) => (step === "start" ? `Starting ${(i.colimaUsers ?? []).join(" and ")}…` : STEP[step]);
   const line = (i: Item) => {
     const r = rows.get(key(i));
-    const settled = i.inColima || r?.state === "done";
-    const status = r?.state === "copying" ? `${formatBytes(r.bytes)} of about ${formatBytes(i.bytes)}`
+    const swap = replaceable(i);
+    const settled = (i.inColima && !swap) || r?.state === "done";
+    // A replace shows its step; bytes and the bar only while Docker Desktop's data streams in.
+    const streaming = r?.state === "copying" && (!r.step || r.step === "copy");
+    const status = r?.state === "copying" && !streaming ? stepText(i, r.step!)
+      : streaming ? `${formatBytes(r!.bytes)} of about ${formatBytes(i.bytes)}`
       : r?.state === "done" ? "Copied"
       : r?.state === "failed" ? "Failed"
       : r?.state === "waiting" && busy ? "Waiting"
+      : swap ? replaceSize(i, pick.has(key(i)))
       : i.inColima ? "Already in Colima" : formatBytes(i.bytes);
     const pct = r ? Math.min(99, Math.round((r.bytes / (i.bytes || 1)) * 100)) : 0;
     // Checkboxes only while the user is picking. During a run: a spinner on the one copying, a ring on those waiting;
@@ -207,15 +305,16 @@ export default function BringOver({ ctx, onClose, onDone, onProfiles }: Props) {
     return (
       <li key={key(i)} className={`bring-item${r ? ` ${r.state}` : ""}${settled ? " settled" : ""}`}>
         <Line className="check">
-          <span className="bring-mark mark">{mark ?? <input type="checkbox" checked={pick.has(key(i))} disabled={busy} onChange={() => toggle(i)} />}</span>
+          <span className="bring-mark mark">{mark ?? <input type="checkbox" checked={pick.has(key(i))} disabled={busy} aria-describedby={swap && !r ? `${ids.note}-${i.name}` : undefined} onChange={() => toggle(i)} />}</span>
           <span className="bring-name" title={i.name}>{i.name}</span>
           <span className="hint bring-size">{r?.state === "failed" && <Icon name="close" size={12} />} {status}</span>
         </Line>
-        {r?.state === "copying" && <div className="bar" role="progressbar" aria-label={`Copying ${i.name}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} aria-valuetext={status}><i style={{ width: `${pct}%` }} /></div>}
+        {streaming && <div className="bar" role="progressbar" aria-label={`Copying ${i.name}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} aria-valuetext={status}><i style={{ width: `${pct}%` }} /></div>}
         {/* Docker's own words stay in the code font; a message the app wrote does not. */}
-        {r?.state === "failed" && <p className={`hint bring-why${plainError(r.why ?? "") === (r.why ?? "").split("\n")[0] ? " raw" : ""}`}>{plainError(r.why ?? "")}</p>}
-        {nearlyEmpty(i) && !r && <p className="hint bring-note">Colima's {i.name} is only {formatBytes(i.colimaBytes ?? 0)}; Docker Desktop's is {formatBytes(i.bytes)}. Remove Colima's in Volumes, then bring this one over.</p>}
-        {!i.inColima && !r && pick.has(key(i)) && i.users.length > 0 && <p className="hint bring-note">{i.users.map((u, n) => <span key={u}>{n ? " and " : ""}<code>{u}</code></span>)} {i.users.length === 1 ? "uses" : "use"} it in Docker Desktop and will be stopped first, for a clean copy.</p>}
+        {r?.state === "failed" && <Why why={r.why ?? ""} />}
+        {/* One note: picked, who stops where; not picked, what picking it would do. */}
+        {swap && !r && <p id={`${ids.note}-${i.name}`} className="hint bring-note"><Ticks text={pick.has(key(i)) ? replaceNote(i) : unpickedNote(i)} /></p>}
+        {!i.inColima && !r && pick.has(key(i)) && i.users.length > 0 && <p className="hint bring-note">{codes(i.users)} {i.users.length === 1 ? "uses" : "use"} it in Docker Desktop and will be stopped first, for a clean copy.</p>}
       </li>
     );
   };
@@ -224,10 +323,14 @@ export default function BringOver({ ctx, onClose, onDone, onProfiles }: Props) {
   const label = retry ? `Try ${chosen.map((i) => i.name).join(" and ")} again (${formatBytes(total)})` : `Bring ${whatText(chosen)} over (${formatBytes(total)})`;
   // When the disk is full or too small, the way out is a bigger disk; the copy stays one click away.
   const roomFirst = !busy && chosen.length > 0 && (full || tight);
+  const writeErr = !!result?.failed.some((o) => !o.ok && writeError(o.why));
+  // After a write error the VM restart is the main button; the retry stays beside it.
+  const restartFirst = !busy && writeErr && vmRestart !== "done";
+  const nextStep = !writeErr ? "" : vmRestart === "done" ? "The VM restarted. Try again." : vmRestart === "idle" || vmRestart === "running" ? "Restart the VM, then try again." : vmRestart;
   const button = busy
     ? { label: "Stop", primary: false, go: stop, off: false }
     : chosen.length
-      ? { label, primary: !roomFirst, go: bring, off: false }
+      ? { label, primary: !roomFirst && !restartFirst, go: bring, off: false }
       : result
         ? { label: "Done", primary: true, go: onClose, off: false }
         : { label: "Bring over", primary: true, go: () => {}, off: true };
@@ -278,12 +381,15 @@ export default function BringOver({ ctx, onClose, onDone, onProfiles }: Props) {
             <ul className="bring-list" role="list">{imgs.map(line)}</ul>
           </div>
         )}
-        {!result && <p className="hint">Docker Desktop keeps its copy. Nothing Colima already has is replaced. A container that writes to a picked volume is stopped first.</p>}
+        {!result && <p className="hint">Docker Desktop keeps its copy. {vols.some(replaceable) ? "Colima's copy is backed up before it is replaced." : "Nothing Colima already has is replaced."} A container that writes to a picked volume is stopped first.</p>}
         {tight && !busy && free !== null && <p className="hint bring-room">These need about {formatBytes(total)}; Colima has about {formatBytes(free)} free.</p>}
         {result && (
           <div id={ids.result} className={`bring-result${result.failed.length ? " bad" : " ok"}`}>
-            <p><Icon name={result.failed.length ? "alert" : "check"} size={14} /> <span><Ticks text={result.text} /></span></p>
-            {result.halted.length > 0 && <button className="small" aria-disabled={restarting || undefined} onClick={() => !restarting && startAgain(result.halted)}>{restarting ? `Starting ${result.halted.join(" and ")}…` : `Start ${result.halted.join(" and ")} again`}</button>}
+            {[...resultLines(result), nextStep].filter(Boolean).map((l, n) => <p key={n}>{n === 0 && <Icon name={result.failed.length ? "alert" : "check"} size={14} />}<span><Ticks text={l} /></span></p>)}
+            {/* Under the line that asks for it; the retry stays the panel's own button. */}
+            {restartFirst && <button className="small primary" aria-disabled={vmRestart === "running" || !!env?.locked || undefined} onClick={() => void restartVm()}>{vmRestart === "running" ? "Restarting the VM…" : "Restart the VM"}</button>}
+            {result.halted.length > 0 && <button className="small" aria-disabled={!!restarting || undefined} onClick={() => !restarting && startAgain(result.halted)}>{restarting === "desktop" ? `Starting ${result.halted.join(" and ")}…` : `Start ${result.halted.join(" and ")} in Docker Desktop`}</button>}
+            {result.colimaHalted.length > 0 && <button className="small" aria-disabled={!!restarting || undefined} onClick={() => !restarting && startAgain(result.colimaHalted, true)}>{restarting === "colima" ? `Starting ${result.colimaHalted.join(" and ")}…` : `Start ${result.colimaHalted.join(" and ")} in Colima`}</button>}
           </div>
         )}
         <div className="actions">
@@ -300,5 +406,21 @@ export default function BringOver({ ctx, onClose, onDone, onProfiles }: Props) {
       <p className="sr-only" role="alert">{alarm}</p>
       {body}
     </Drawer>
+  );
+}
+
+// A failure in plain words. Docker's own text, when it says something else, is behind Show output.
+function Why({ why }: { why: string }) {
+  const said = plainError(why);
+  const raw = why.split("\n")[0];
+  if (said === raw) return <p className="hint bring-why raw">{said}</p>;
+  return (
+    <div className="bring-why">
+      <p className="hint">{said}</p>
+      <details className="how bring-output">
+        <summary><Icon name="chevron" size={12} />Show output</summary>
+        <pre>{why}</pre>
+      </details>
+    </div>
   );
 }

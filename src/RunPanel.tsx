@@ -8,6 +8,7 @@ import { rememberWritable, wasWritable } from "./lib/folderMemory";
 import { Banner } from "./ui";
 import Drawer from "./ui/Drawer";
 import { Icon } from "./ui/icons";
+import { useDockerLocked } from "./dockerLock";
 
 type Props = { ctx: string; image: string; arch?: string; onClose: () => void; onRan: (id: string) => void };
 type Ctr = { Names: string; State: string; Ports: string };
@@ -43,6 +44,8 @@ export default function RunPanel({ ctx, image, arch, onClose, onRan }: Props) {
   const [volumeNames, setVolumeNames] = useState<string[]>([]);
   const [showCmd, setShowCmd] = useState(false);
   const [busy, setBusy] = useState(false);
+  // Nothing new starts while the VM, a resize, a Bring over copy, a Compose run or a Fix is changing Docker.
+  const locked = useDockerLocked();
   const [errors, setErrors] = useState<string[]>([]);
   const [dockerError, setDockerError] = useState<string | null>(null);
   const hasPreset = presetEnv(image) !== "";
@@ -81,6 +84,7 @@ export default function RunPanel({ ctx, image, arch, onClose, onRan }: Props) {
   const built = buildRunArgs({ image, name: finalName, ports, volumes, env, exposeAll, network });
 
   async function run() {
+    if (locked) return;
     if (!built.ok) {
       setErrors(built.errors);
       return;
@@ -259,7 +263,7 @@ export default function RunPanel({ ctx, image, arch, onClose, onRan }: Props) {
 
       <div className="actions">
         <button disabled={busy} onClick={onClose}>Cancel</button>
-        <button className="primary" disabled={busy} onClick={run}>{busy ? "Starting…" : "Run"}</button>
+        <button className="primary" disabled={busy} aria-disabled={locked || undefined} title={locked ? "Waits for what is changing Docker now" : undefined} onClick={run}>{busy ? "Starting…" : "Run"}</button>
       </div>
     </Drawer>
   );

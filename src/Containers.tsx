@@ -23,7 +23,9 @@ import VmStrip from "./VmStrip";
 import { useHostSize } from "./useHostSize";
 import RunPicker from "./RunPicker";
 import RunPanel from "./RunPanel";
-import { ResizeOr, resizeLine, resizeState, resizing, useResize } from "./Resize";
+import { ResizeOr, resizeLine, resizing, useResize } from "./Resize";
+import { useBringBusy } from "./bringBusy";
+import { dockerLocked } from "./dockerLock";
 import ComposeProjects, { composeRunState, runCompose, useComposeRun } from "./ComposeProjects";
 import type { Action } from "./ComposeProjects";
 import ComposeLogs from "./ComposeLogs";
@@ -179,7 +181,9 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
   }, [rs]); // eslint-disable-line react-hooks/exhaustive-deps
   // The render right after the run ends comes before that effect, so it counts too.
   const holding = resizing(rs) || settling || wasResizing.current;
-  const canAct = (a: App<C>) => !composeRunState().busy && vm.op === null && resizeState().progress === null && !pending.has(a.key) && !a.rows.some((c) => fixBusy(runs, c.Names));
+  // Read here so the rows re-render when a Bring over copy starts or ends.
+  useBringBusy();
+  const canAct = (a: App<C>) => !dockerLocked(a.rows.map((c) => c.Names)) && !pending.has(a.key);
 
   async function act(a: App<C>, args: string[], p: Pending | null, done: string) {
     if (!canAct(a) || !ctx) return;
@@ -308,7 +312,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
       <ResizeOr from={`home:${c.Names}:${p.id}`} title={`${p.short ?? p.title}, ${c.Names}`} need="memory" alsoStart={[c.Names]} fallback={see} noProfiles vmWords />
     ) : one ? (
       // A Fix replaces containers; while the VM stops or restarts there is no Docker to replace them in.
-      <button className="small primary" aria-label={`${r ? "Try the fix again" : one.label}: ${p.short ?? p.title}, ${c.Names}`} aria-disabled={vm.op !== null || resizing(rs) || undefined} title={vm.op || resizing(rs) ? "Waits for the VM" : undefined} onClick={() => vm.op === null && !resizing(rs) && one.go()}>{r ? "Try again" : names.length > 1 ? `Fix ${names.join(" and ")}…` : `${one.label}…`}</button>
+      <button className="small primary" aria-label={`${r ? "Try the fix again" : one.label}: ${p.short ?? p.title}, ${c.Names}`} aria-disabled={one.locked || undefined} title={one.locked ? "Waits for what is changing Docker now" : undefined} onClick={() => !one.locked && one.go()}>{r ? "Try again" : names.length > 1 ? `Fix ${names.join(" and ")}…` : `${one.label}…`}</button>
     ) : fix?.go === "Images" ? (
       <button className="small" onClick={onImages}>Open Images</button>
     ) : see;
