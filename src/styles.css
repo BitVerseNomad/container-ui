@@ -753,3 +753,21 @@ td .status-text.fixing, td .status-text.fixed, td .fix-failed { white-space: nor
 .finding.limit .limit-actions .actions-inline { justify-self: end; margin-right: calc(28px + 6px); }
 /* A limit line's button sits in a wrapper that only tracks focus (useLimitFlip); it adds no box of its own. */
 .limit-action { display: contents; }
+
+/* Round 36: paths and addresses in a VM change's lines show in the code font; "Or run it yourself" for a VM change is one
+   line of code in the row's own text, not a dark block; a good result in the Doctor is its own row. */
+.resize-status code, .problem code, .how-cmd code { font: 12px ui-monospace, "SF Mono", Menlo, monospace; overflow-wrap: anywhere; }
+.finding .how-cmd { margin: 6px 0 0; font-size: 12px; line-height: 1.5; }
+ul.findings.result-row { margin: 0; }
+/* The Doctor keeps a status line mounted for a result shown as its own row. With nothing visible in it, it leaves the
+   column (the page's gap between blocks would add a blank step under the success row) but stays in the page for a reader. */
+.resize-orphan:not(:has(.resize-result, .resize-progress)) { position: absolute; width: 1px; height: 1px; overflow: hidden; }
+.finding code, .problem-line code, .resize-result code { overflow-wrap: anywhere; }
+/* A failed folder change on home: the words on top across the full width, the buttons in one row under them, at the
+   right; one filled button, the quiet link last. */
+.problem.result.stopped > .resize-status { flex-direction: column; align-items: stretch; gap: 8px; }
+.problem.result.stopped .resize-result { flex: none; }
+.problem.result.stopped .resize-actions { justify-content: flex-end; padding-left: 0; }
+.problem.result.stopped .out-more { padding-left: 20px; }
+/* A few lines to add to a file, in the row's own text: light, small, no dark block. */
+.finding pre.code-lines { margin: 6px 0; padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--card); color: var(--ink); font: 12px/1.5 ui-monospace, "SF Mono", Menlo, monospace; overflow-x: auto; white-space: pre; }

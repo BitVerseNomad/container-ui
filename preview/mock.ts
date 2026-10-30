@@ -97,6 +97,34 @@ if (scenario === "doctor") db.ctrs.push(
   { networks: ["bridge"], exposed: [6379], id: hex(64), name: "sessions", image: "redis:7", state: "running", ports: [], mounts: [], env: [], born: now - 8e5, cpu: 0.1, mem: 8e6 },
   { networks: ["devnet"], exposed: [5432], exitCode: 1, id: hex(64), name: "pg", image: "postgres:16", state: "exited", ports: [], mounts: [], env: [], born: now - 7e5, cpu: 0, mem: 0 },
 );
+// Mounts and network (round 35). Flags, each its own picture:
+// &unshared=1: the profile shares only ~/work, and web binds ~/code/web (an empty folder in the VM).
+// &rofs=1: the profile shares ~/code read-only, and importer writes to ~/code/docs.
+// &bind=1: web binds ~/code/web, which the default profile shares (home). &flowmounts=1: colima.yaml lists its folders in a
+// style the app doesn't read. &sshfs=1: folders are shared with sshfs on a vz VM. &dns=1 / &vpn=1: the VM can't look up names (vpn: a tunnel is up).
+// &missing=1: that folder is on a disk the Mac no longer has, so the backend refuses before it stops anything.
+// &proxy=1: the Mac has a system proxy the VM doesn't. &pullfail=1: an image pull times out (the proxy line shows only after one).
+// &vmfail=1: a start with a folder the profile did not have fails (the new list stays saved, as Colima does); starting
+// with the folders it had works. &stuckdns=1 (with &dns=1): a restart does not fix the name lookup.
+const flag = (k: string) => typeof location !== "undefined" && new URLSearchParams(location.search).get(k) === "1";
+const cfgMock = { mountType: flag("sshfs") ? "sshfs" : "virtiofs", mounts: [] as { path: string; writable: boolean }[], env: {} as Record<string, string> };
+let dnsBroken = flag("dns") || flag("vpn");
+
+if (flag("unshared")) {
+  cfgMock.mounts = [{ path: "/Users/me/work", writable: true }];
+  const web = db.ctrs.find((c) => c.name === "web")!;
+  web.mounts = [...web.mounts, { Type: "bind", Source: flag("missing") ? "/Volumes/missing" : "/Users/me/code/web", Destination: "/usr/share/nginx/html", RW: true }];
+}
+if (flag("bind")) {
+  const web = db.ctrs.find((c) => c.name === "web")!;
+  web.mounts = [...web.mounts, { Type: "bind", Source: "/Users/me/code/web", Destination: "/usr/share/nginx/html", RW: true }];
+}
+if (flag("rofs")) {
+  cfgMock.mounts = [{ path: "/Users/me/code", writable: false }];
+  db.ctrs.push({ networks: ["devnet"], id: hex(64), name: "importer", image: "acme/importer:1.0", state: "running", ports: [], mounts: [{ Type: "bind", Source: "/Users/me/code/docs", Destination: "/out", RW: true }], env: [], born: now - 6e5, cpu: 0.1, mem: 30e6, restart: "always" });
+}
+// The folders the profile had when the page loaded: a start with these works even when `vmfail` is on.
+const startedWith = JSON.stringify(cfgMock.mounts);
 if (scenario === "nonet") { db.networks = ["bridge", "host", "none"]; db.ctrs.forEach((c) => { c.networks = ["bridge"]; }); }
 // empty=1: no containers yet, as on the first day after switching (with scenario=desktop: Docker Desktop's data is still there).
 // brought=1: an earlier run already brought the data over.
@@ -113,7 +141,9 @@ const lines = (rows: object[]) => rows.map((r) => JSON.stringify(r)).join("\n");
 const fmtPorts = (c: Ctr) => c.state === "running" ? [...c.ports.map(([h, p]) => `0.0.0.0:${h}->${p}/tcp`), ...(c.exposed ?? []).filter((e) => !c.ports.some(([, p]) => p === e)).map((e) => `${e}/tcp`)].join(", ") : "";
 const status = (c: Ctr) => (c.state === "running" ? `Up 2 hours${c.health ? ` (${c.health === "starting" ? "health: starting" : c.health})` : ""}` : c.state === "paused" ? "Up 2 hours (Paused)" : `Exited (${c.exitCode ?? 0}) 3 hours ago`);
 // worker crash-loops (7 restarts), so its logs say why; the rest look healthy.
-const logLines = (c: Ctr) => c.image.startsWith("acme/worker")
+const logLines = (c: Ctr) => c.name === "importer" && flag("rofs")
+  ? ["importer 1.0 starting", "reading /out/queue.csv", "ERROR write /out/report.csv: Read-only file system", "retrying in 5s"]
+  : c.image.startsWith("acme/worker")
   ? ["worker 2.0 starting, queue=redis://queue:6379", "connected to queue, waiting for jobs", "job 4182 picked up: resize-images", "ERROR job 4182 failed: open /data/in/4182.png: no such file or directory", "fatal: too many failed jobs in a row, exiting with code 1"]
   : c.image.startsWith("mysql")
   ? ["[Server] /usr/sbin/mysqld (mysqld 8.4.3) starting as process 1", "[Server] InnoDB initialization has started", "[Server] InnoDB initialization has ended", "[Server] X Plugin ready for connections. Bind-address: '::' port: 33060", "[Server] ready for connections. Version: '8.4.3'  port: 3306"]
@@ -299,6 +329,7 @@ export async function invoke<T>(cmd: string, a: Record<string, any> = {}): Promi
       return size as T;
     }
     case "docker_pull": {
+      if (flag("pullfail")) { await progress("pull-progress", [["Using default tag: latest", 150]]); throw `Error response from daemon: Get "https://registry-1.docker.io/v2/": net/http: request canceled while waiting for connection (Client.Timeout exceeded)`; }
       if (a.image === "ghcr.io/acme/private:1") {
         await progress("pull-progress", [["1: Pulling from acme/private", 200]]);
         throw `Error response from daemon: Head "https://ghcr.io/v2/acme/private/manifests/1": unauthorized`;
@@ -377,6 +408,34 @@ export async function invoke<T>(cmd: string, a: Record<string, any> = {}): Promi
         if (n.startsWith("docker-") && !setup.brew_plugins.includes(n)) setup.brew_plugins.push(n);
       }
       await progress("brew-progress", [["==> Summary", 150]]);
+      return undefined as T;
+    }
+    case "colima_config": return { home: "/Users/me", yaml: flag("flowmounts") ? `vmType: vz\nmountType: ${cfgMock.mountType}\nmounts: [{location: ~/work, writable: true}]\nenv: {}\n` : `vmType: vz\nmountType: ${cfgMock.mountType}\nmounts: ${cfgMock.mounts.length ? "" : "[]"}\n${cfgMock.mounts.map((m) => `  - location: ${m.path}\n    writable: ${m.writable}\n`).join("")}env: ${Object.keys(cfgMock.env).length ? "" : "{}"}\n${Object.entries(cfgMock.env).map(([k, v]) => `  ${k}: ${v}\n`).join("")}` } as T;
+    case "network_facts": return {
+      proxy: flag("proxy") ? "<dictionary> {\n  HTTPEnable : 1\n  HTTPPort : 8080\n  HTTPProxy : proxy.corp\n  HTTPSEnable : 1\n  HTTPSPort : 8080\n  HTTPSProxy : proxy.corp\n}\n" : "<dictionary> {\n}\n",
+      interfaces: `lo0: flags=8049<UP> mtu 16384\n\tinet 127.0.0.1 netmask 0xff000000\nutun0: flags=8051<UP> mtu 1500\n\tinet6 fe80::1%utun0 prefixlen 64\n${flag("vpn") ? "utun4: flags=8051<UP> mtu 1380\n\tinet 10.8.0.6 --> 10.8.0.6 netmask 0xffffffff\n" : ""}en0: flags=8863<UP> mtu 1500\n\tinet 192.168.1.20 netmask 0xffffff00\n`,
+    } as T;
+    case "vm_dns_probe": return (dnsBroken ? "failed" : "resolved") as T;
+    case "reveal_vm_log": (window as any).__revealedLog = a.name; return undefined as T;
+    // The folder, proxy and plain-restart changes: the VM stops, starts with the new setting, and Docker brings back only
+    // the containers whose restart setting says so. The backend refuses a folder that isn't on the Mac before it stops anything.
+    case "apply_mounts": case "apply_env": {
+      const p = db.profiles.find((x) => x.name === a.name)!;
+      if (cmd === "apply_mounts" && (a.mounts as { path: string }[]).some((m) => m.path === "/Volumes/missing")) throw `Nothing changed: /Volumes/missing is not a folder on this Mac, so it can't be shared.`;
+      // restart: false is a VM that is already stopped (after a failed start): it is only started.
+      const stopFirst = a.restart !== false || a.force === true;
+      if (stopFirst) await progress("colima-progress", [[`INFO[0000] stopping colima [profile=${p.name}]`, 300], ["INFO[0004] done", 200]]);
+      p.status = "Stopped";
+      const wasUp = db.ctrs.filter((c) => c.state === "running");
+      wasUp.forEach((c) => { c.state = "exited"; });
+      await progress("colima-progress", [[`INFO[0000] starting colima [profile=${p.name}]`, 300], ["INFO[0001] starting ...   context=vm", 500]]);
+      // Colima saves the new setting before it starts the VM, so it stays saved when the start fails.
+      if (cmd === "apply_mounts") cfgMock.mounts = a.mounts; else cfgMock.env = Object.fromEntries(a.env as [string, string][]);
+      if (flag("vmfail") && JSON.stringify(cfgMock.mounts) !== startedWith) throw 'INFO[0001] starting ...   context=vm\nFATA[0009] error starting vm: exit status 1';
+      await progress("colima-progress", [["INFO[0016] done", 200]]);
+      p.status = "Running";
+      wasUp.forEach((c) => { if (c.restart === "always" || c.restart === "unless-stopped") c.state = "running"; });
+      (window as any).__vmChange = { cmd, args: JSON.parse(JSON.stringify(a)) };
       return undefined as T;
     }
     case "start_profile": case "apply_resources": {
@@ -488,7 +547,7 @@ export async function invoke<T>(cmd: string, a: Record<string, any> = {}): Promi
     case "force_stop_profile": { await progress("colima-progress", [['level=info msg="stopping colima (forced)"', 300]]); db.profiles.find((x) => x.name === a.name)!.status = "Stopped"; return undefined as T; }
     case "force_restart_profile": { await progress("colima-progress", [['level=info msg="stopping colima (forced)"', 300], ['level=info msg="done"', 300]]); db.profiles.find((x) => x.name === a.name)!.status = "Running"; return undefined as T; }
     case "stop_profile": case "restart_profile": {
-      if (scenario === "stopfail" && cmd === "stop_profile") throw "FATA[0003] could not stop the VM: timeout"; await progress("colima-progress", [[`level=info msg="stopping colima"`, 300], ['level=info msg="done"', 500]]); db.profiles.find((x) => x.name === a.name)!.status = cmd === "stop_profile" ? "Stopped" : "Running"; return undefined as T; }
+      if (scenario === "stopfail" && cmd === "stop_profile") throw "FATA[0003] could not stop the VM: timeout"; await progress("colima-progress", [[`level=info msg="stopping colima"`, 300], ['level=info msg="done"', 500]]); db.profiles.find((x) => x.name === a.name)!.status = cmd === "stop_profile" ? "Stopped" : "Running"; if (cmd === "restart_profile") { if (!flag("stuckdns")) dnsBroken = false; (window as any).__vmChange = { cmd, args: JSON.parse(JSON.stringify(a)) }; } return undefined as T; }
     case "delete_profile": db.profiles = db.profiles.filter((x) => x.name !== a.name); return undefined as T;
     case "open_url": { if (/^https:\/\//.test(a.url)) { ((window as any).__opened ??= []).push(a.url); return undefined as T; } throw "Preview only: localhost links don't open here."; }
   }

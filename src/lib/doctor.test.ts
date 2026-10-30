@@ -218,3 +218,125 @@ test("Given a running container whose name ends in -old, when checked, then it i
   assert.ok(!r.findings.some((x) => x.id === "fix-leftover"));
   assert.ok(r.passed.includes("No container is left over from an unfinished Fix"));
 });
+
+// Mounts and network (round 35). The profile as Colima writes it, and what the Mac says.
+import { parseColimaConfig } from "./colimaConfig.ts";
+const HOME = "/Users/me";
+const profile = (extra = "") => ({ config: parseColimaConfig(`vmType: vz\nmountType: virtiofs\nmounts: []\nenv: {}\n${extra}`), home: HOME });
+const bind = (source: string, rw = true) => ({ Type: "bind", Source: source, Destination: "/data", RW: rw });
+
+test("Given a container that binds a Mac folder outside every share, when checked, then it says the folder is empty in the VM and offers to share it", () => {
+  const r = doctor({ ctx: "colima", containers: [c({ name: "etl", image: "my/etl", mounts: [bind("/Volumes/data/in")] })], colima: profile() });
+  const f = r.findings.find((x) => x.id === "mount-unshared")!;
+  assert.equal(f.subject, "etl");
+  assert.equal(f.severity, "action");
+  assert.equal(f.short, "Sees an empty `/Volumes/data/in` (not shared with Colima)");
+  assert.match(f.detail, /Colima only shares `~` with the VM/);
+  assert.match(f.detail, /empty folder/);
+  assert.deepEqual(f.fix?.vm, { kind: "mounts", mounts: [{ path: HOME, writable: true }, { path: "/Volumes/data/in", writable: true }], before: [{ path: HOME, writable: true }], what: "/Volumes/data/in", makeWritable: false });
+  assert.equal(f.fix?.text, "colima stop default\ncolima start default --mount /Users/me:w --mount /Volumes/data/in:w");
+  assert.equal(r.byContainer.get("etl")?.[0].id, "mount-unshared");
+});
+
+test("Given a folder inside home, a VM folder and a stopped container, when checked, then no folder is flagged and the check passes", () => {
+  const r = doctor({ ctx: "colima", containers: [c({ name: "api", image: "my/api", mounts: [bind("/Users/me/code/api"), bind("/var/lib/x")] }), c({ name: "old", image: "x", running: false, mounts: [bind("/Volumes/gone")] })], colima: profile() });
+  assert.ok(!r.findings.some((f) => f.id === "mount-unshared"));
+  assert.ok(r.passed.includes("Every Mac folder a container uses is shared with the VM"));
+});
+
+test("Given no profile facts, when checked, then the mount checks are left out, not shown as passed", () => {
+  const r = doctor({ ctx: "colima", containers: [c({ name: "etl", image: "x", mounts: [bind("/Volumes/data")] })] });
+  assert.ok(!r.findings.some((f) => f.id.startsWith("mount")));
+  assert.ok(!r.passed.some((p) => /Mac folder|virtiofs|read-only/.test(p)));
+});
+
+test("Given an unshared folder in a profile with a folder that can't be carried over, when checked, then it explains and offers no button", () => {
+  const p = { config: parseColimaConfig("mounts:\n  - location: ~/a\n    writable: true\n    mountPoint: /b\n"), home: HOME };
+  const f = doctor({ ctx: "colima", containers: [c({ name: "etl", image: "x", mounts: [bind("/Volumes/data")] })], colima: p }).findings.find((x) => x.id === "mount-unshared")!;
+  assert.equal(f.fix, undefined);
+  assert.match(f.detail, /different path inside the VM/);
+});
+
+const RO = { config: parseColimaConfig("vmType: vz\nmountType: virtiofs\nmounts:\n  - location: ~/code\n    writable: false\n"), home: HOME };
+const ROFS = "2026-10-30T10:00:00Z write /data/out.txt: Read-only file system";
+
+test("Given a container that writes to a read-only share and its log says so, when checked, then it offers to make that share writable", () => {
+  const containers = [c({ name: "api", image: "x", mounts: [bind("/Users/me/code/api")] }), c({ name: "ro", image: "x", mounts: [bind("/Users/me/code/docs", false)] })];
+  const r = doctor({ ctx: "colima-work", containers, colima: RO, rofsLogs: { api: ROFS, ro: ROFS } });
+  const f = r.findings.filter((x) => x.id === "mount-readonly");
+  assert.equal(f.length, 1, "the container whose mount is :ro never writes, so it is not blamed");
+  assert.equal(f[0].subject, "api");
+  assert.equal(f[0].short, "Can't write to `~/code/api` (shared read-only)");
+  assert.match(f[0].detail, /log says "Read-only file system" for \/data/);
+  assert.equal(f[0].fix?.vm?.kind, "mounts");
+  assert.equal(f[0].fix?.text, "colima stop work\ncolima start work --mount /Users/me/code:w");
+});
+
+test("Given a read-only share and a container that may write, when its log does not say read-only, then nothing is flagged", () => {
+  const containers = [c({ name: "api", image: "x", mounts: [bind("/Users/me/code/api")] })];
+  for (const rofsLogs of [{ api: "listening on 8080" }, { api: "" }, {}, { api: "other /elsewhere: Read-only file system" }]) {
+    const r = doctor({ ctx: "colima", containers, colima: RO, rofsLogs });
+    assert.ok(!r.findings.some((x) => x.id === "mount-readonly"), JSON.stringify(rofsLogs));
+  }
+  const unread = doctor({ ctx: "colima", containers, colima: RO });
+  assert.ok(!unread.findings.some((x) => x.id === "mount-readonly") && !unread.passed.some((t) => /read-only/.test(t)), "logs not read: the check is left out, not passed");
+});
+
+test("Given sshfs on a vz VM, when a container uses a Mac folder, then it is worth knowing with no button at all", () => {
+  const p = { config: parseColimaConfig("vmType: vz\nmountType: sshfs\nmounts: []\n"), home: HOME };
+  const using = [c({ name: "api", image: "x", mounts: [bind("/Users/me/code/api")] })];
+  const f = doctor({ ctx: "colima", containers: using, colima: p }).findings.find((x) => x.id === "mount-slow")!;
+  assert.equal(f.severity, "know");
+  assert.match(f.detail, /can't change the sharing type of a VM that already exists/);
+  assert.equal(f.fix, undefined);
+  assert.ok(!doctor({ ctx: "colima", containers: [], colima: p }).findings.some((x) => x.id === "mount-slow"), "no container uses a folder, so the slow way is not felt");
+  assert.ok(!doctor({ ctx: "colima", containers: using, colima: { config: parseColimaConfig("vmType: qemu\nmountType: sshfs\n"), home: HOME } }).findings.some((x) => x.id === "mount-slow"));
+});
+
+test("Given a folder list the app can't read, when a container uses a Mac folder, then it says so and claims nothing about what is shared", () => {
+  const flow = { config: parseColimaConfig("mounts: [{location: ~/code, writable: true}]\n"), home: HOME };
+  const using = [c({ name: "api", image: "x", mounts: [bind("/Volumes/data/in")] })];
+  const r = doctor({ ctx: "colima", containers: using, colima: flow });
+  const f = r.findings.find((x) => x.id === "mount-unreadable")!;
+  assert.equal(f.severity, "know");
+  assert.equal(f.fix, undefined);
+  assert.match(f.detail, /can't read your shared folders/);
+  assert.ok(!r.findings.some((x) => x.id === "mount-unshared" || x.id === "mount-readonly"));
+  assert.ok(!r.passed.includes("Every Mac folder a container uses is shared with the VM"));
+  assert.ok(!doctor({ ctx: "colima", containers: [], colima: flow }).findings.some((x) => x.id === "mount-unreadable"));
+});
+
+test("Given the VM can't look up names, when checked, then it offers a restart, and names the VPN when one is on", () => {
+  const plain = doctor({ ctx: "colima", containers: [], dns: false, net: { proxy: { http: null, https: null, auto: false }, vpn: [] } }).findings.find((x) => x.id === "dns-vm")!;
+  assert.equal(plain.fix?.vm?.kind, "restart");
+  assert.equal(plain.fix?.text, "colima restart default");
+  assert.equal(plain.severity, "action");
+  const vpn = doctor({ ctx: "colima", containers: [], dns: false, net: { proxy: { http: null, https: null, auto: false }, vpn: ["utun4"] } }).findings;
+  assert.ok(vpn.some((x) => x.id === "vpn-route" && /utun4/.test(x.detail)) && !vpn.some((x) => x.id === "dns-vm"));
+});
+
+test("Given names resolve or the probe did not answer, when checked, then nothing is flagged and only a real answer counts as passed", () => {
+  assert.ok(doctor({ ctx: "colima", containers: [], dns: true }).passed.includes("The VM can look up names"));
+  const unknown = doctor({ ctx: "colima", containers: [] });
+  assert.ok(!unknown.passed.includes("The VM can look up names") && !unknown.findings.some((x) => /dns|vpn/.test(x.id)));
+});
+
+test("Given a Mac proxy the VM doesn't have, when no pull has failed, then nothing is said, since a proxy alone proves nothing", () => {
+  const net = { proxy: { http: "http://proxy.corp:8080", https: null, auto: false }, vpn: [] };
+  const r = doctor({ ctx: "colima", containers: [], net, colima: profile() });
+  assert.ok(!r.findings.some((x) => x.id === "proxy-not-passed"));
+  assert.ok(r.passed.includes("No image pull has failed on the network while the Mac uses a proxy"));
+});
+
+test("Given a Mac proxy the VM doesn't have and a pull that timed out, when checked, then it is worth knowing, in code font, with no button", () => {
+  const net = { proxy: { http: "http://proxy.corp:8080", https: null, auto: false }, vpn: [] };
+  const f = doctor({ ctx: "colima", containers: [], net, colima: profile(), pullFailure: "dial tcp 1.2.3.4:443: i/o timeout" }).findings.find((x) => x.id === "proxy-not-passed")!;
+  assert.equal(f.severity, "know");
+  assert.equal(f.title, "Your Mac uses the proxy `proxy.corp:8080`, and the VM doesn't");
+  assert.match(f.detail, /Add these lines to `~\/\.colima\/default\/colima\.yaml`, then restart the VM:/);
+  assert.equal(f.fix, undefined);
+  const had = doctor({ ctx: "colima", containers: [], net, colima: { config: parseColimaConfig("env:\n  https_proxy: http://x:1\n"), home: HOME }, pullFailure: "i/o timeout" });
+  assert.ok(!had.findings.some((x) => x.id === "proxy-not-passed"));
+  const pacOnly = doctor({ ctx: "colima", containers: [], net: { proxy: { http: null, https: null, auto: true }, vpn: [] }, colima: profile(), pullFailure: "i/o timeout" });
+  assert.ok(!pacOnly.findings.some((x) => x.id === "proxy-not-passed"), "a proxy found only as an auto-config file is not read");
+});

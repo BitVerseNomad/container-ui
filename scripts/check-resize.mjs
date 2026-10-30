@@ -1,5 +1,5 @@
 // Doctor's VM size row resizes the VM in one click (run after: node scripts/build-preview.mjs). Needs playwright resolvable.
-// SHOTS=<dir> also saves a screenshot of each state (r34-*.png). Every state's picture must differ (md5).
+// SHOTS=<dir> also saves a screenshot of each state (r39-*.png). Every state's picture must differ (md5).
 import { createRequire } from "node:module";
 import path from "node:path";
 import { createHash } from "node:crypto";
@@ -11,7 +11,7 @@ const shots = process.env.SHOTS;
 let failed = 0;
 const check = (cond, m) => { if (!cond) failed++; console.log(cond ? "ok" : "FAIL", m); };
 const md5s = new Map();
-const shot = async (p, name) => { const b = await p.screenshot(shots ? { path: path.join(shots, `r34-${name}.png`) } : {}); md5s.set(name, createHash("md5").update(b).digest("hex")); };
+const shot = async (p, name) => { const b = await p.screenshot(shots ? { path: path.join(shots, `r39-${name}.png`) } : {}); md5s.set(name, createHash("md5").update(b).digest("hex")); };
 
 const browser = await chromium.launch();
 async function open(query, doctor = true, viewport = { width: 980, height: 640 }) {
@@ -76,7 +76,7 @@ await dialog(p).getByRole("button", { name: "Restart the VM" }).click();
 await p.waitForTimeout(400);
 check(await row(p).locator(".mark .spin").count() === 1, "running: a spinner takes the row's icon");
 check(/Restarting the VM with 6 CPUs and 8 GiB… about a minute/.test(await row(p).innerText()), "running: the row says what is happening and how long");
-check(/Restarting the VM with 6 CPUs and 8 GiB/.test(await row(p).locator("[role=status]").innerText()), "running: one status line says it to VoiceOver");
+check(/Restarting the VM with 6 CPUs and 8 GiB/.test(await row(p).locator("[role=status]").first().innerText()), "running: one status line says it to VoiceOver");
 check(await p.locator(".setup > .out-log, .doctor-head ~ .out-log").count() === 0 && await row(p).locator("details.out-more").evaluate((d) => !d.open), "running: Colima's output is folded inside the row, not a dark block above");
 const btn = row(p).getByRole("button", { name: /^Restarting…/ });
 check(await btn.count() === 1 && await btn.getAttribute("aria-disabled") === "true", "running: the pressed button stays, says Restarting…, and is locked");

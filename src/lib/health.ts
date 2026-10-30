@@ -1,6 +1,8 @@
 // Health, restarts and exit codes, turned into plain-language problems.
 // Exit-code meanings are from Docker's own run.go (125, 126, 127) and the 128 + signal convention; see docs/research/2026-10-09-observability.md.
 
+import type { VmChange } from "./vmChange.ts";
+
 export type Health = { status: "starting" | "healthy" | "unhealthy"; streak: number; lastOutput: string; lastExit: number | null };
 // memLimit: the container's own memory limit in bytes (HostConfig.Memory, 0 = none). composeFile: the first file of
 // its config_files label (an override can come after it, in composeFiles); service: its Compose service.
@@ -18,7 +20,9 @@ export type Connect = { network: string; create: boolean; containers: string[] }
 // resize: the fix is a bigger VM, which the app gives in one click where it can pick a size (src/Resize.tsx).
 // reveal: the project's Compose file, shown in Finder when its project is listed (else See why only). apply: start
 // that one service again with `docker compose up -d <service>`, so Compose recreates it with the file's new limit.
-export type ProblemFix = { label: string; text: string; note?: string; steps?: Replace[]; confirm?: string; connect?: Connect; go?: "Profiles" | "Images"; resize?: boolean; reveal?: string; apply?: Apply };
+// vm: a change that restarts the VM (share a folder, restart for the Mac's network, the Mac's proxy), run by the app
+// through the same runner as the size change (src/Resize.tsx, src/lib/vmChange.ts).
+export type ProblemFix = { label: string; text: string; note?: string; steps?: Replace[]; confirm?: string; connect?: Connect; go?: "Profiles" | "Images"; resize?: boolean; reveal?: string; apply?: Apply; vm?: VmChange };
 // limit: what the container was killed at (bytes); where: how the line names the file(s) ("`compose.yaml`").
 export type Apply = { file: string; service: string; limit: number; where: string };
 // id is the check's id ("oom", "kafka-localhost", "localhost-target"...), stable so a finding can be muted.

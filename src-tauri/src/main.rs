@@ -805,6 +805,198 @@ async fn apply_resources(app: tauri::AppHandle, opts: StartOpts, restart: bool) 
     colima_stream(app, steps).await
 }
 
+// ---- Folders shared with the VM, the Mac's network, and the VM's name lookup ----
+// The page reads the profile's saved settings (colima.yaml) as text and works out what is shared. Only reading here:
+// the file is never written by the app, `colima start` saves it. The profile name passes the same rule as every
+// other command, so the path can't leave ~/.colima.
+#[derive(Serialize)]
+struct ColimaConfig {
+    home: String,
+    yaml: String,
+}
+
+fn config_path(home: &str, name: &str) -> std::path::PathBuf {
+    std::path::PathBuf::from(home).join(".colima").join(name).join("colima.yaml")
+}
+
+#[tauri::command]
+fn colima_config(name: String) -> Result<ColimaConfig, String> {
+    profile(&name)?;
+    let home = std::env::var("HOME").unwrap_or_default();
+    // A profile file is a few KB; the first 64 KB is plenty and a huge or odd file is never read whole.
+    let mut yaml = String::new();
+    if let Ok(f) = std::fs::File::open(config_path(&home, &name)) {
+        let mut buf = Vec::new();
+        let _ = f.take(64 << 10).read_to_end(&mut buf);
+        yaml = String::from_utf8_lossy(&buf).into_owned();
+    }
+    Ok(ColimaConfig { home, yaml })
+}
+
+#[derive(Serialize)]
+struct NetworkFacts {
+    proxy: String,
+    interfaces: String,
+}
+
+fn read_only_text(bin: &str, args: &[&str]) -> String {
+    let mut cmd = Command::new(bin);
+    cmd.args(args);
+    match output_with_deadline(cmd, Duration::from_secs(5)) {
+        Ok((true, out, _)) => String::from_utf8_lossy(&out[..out.len().min(64 << 10)]).into_owned(),
+        _ => String::new(),
+    }
+}
+
+// `scutil --proxy` prints the system proxy settings and `ifconfig` the interfaces. Both only read.
+#[tauri::command]
+async fn network_facts() -> Result<NetworkFacts, String> {
+    tauri::async_runtime::spawn_blocking(|| NetworkFacts { proxy: read_only_text("/usr/sbin/scutil", &["--proxy"]), interfaces: read_only_text("/sbin/ifconfig", &[]) })
+        .await
+        .map_err(|e| e.to_string())
+}
+
+// The one name the check looks up: the host Docker pulls images from.
+const DNS_PROBE_HOST: &str = "registry-1.docker.io";
+const DNS_PROBE_DEADLINE: Duration = Duration::from_secs(25);
+
+fn dns_probe_args(name: &str) -> Vec<String> {
+    ["ssh", "--profile", name, "--", "getent", "hosts", DNS_PROBE_HOST].iter().map(|s| s.to_string()).collect()
+}
+
+// getent exits 0 with the address when the name resolves and 2 when it doesn't. Anything else (ssh couldn't connect,
+// colima failed, the deadline hit) says nothing about names, so it is "unknown", never "failed".
+fn dns_verdict(code: Option<i32>, stdout: &str) -> &'static str {
+    match code {
+        Some(0) if !stdout.trim().is_empty() => "resolved",
+        Some(2) => "failed",
+        _ => "unknown",
+    }
+}
+
+// Asks the VM to look up one fixed name with `colima ssh -- getent hosts <name>`: read-only, nothing is created
+// or changed in the VM. Skipped (unknown) while a VM operation runs, since the VM is down or busy then.
+#[tauri::command]
+async fn vm_dns_probe(name: String) -> Result<String, String> {
+    profile(&name)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        if matches!(VM_LOCK.try_lock(), Err(TryLockError::WouldBlock)) {
+            return "unknown".to_string();
+        }
+        let mut cmd = Command::new(find_bin("colima"));
+        cmd.args(dns_probe_args(&name)).env("PATH", path_env());
+        match run_with_deadline(cmd, DNS_PROBE_DEADLINE) {
+            Ok((Some(status), out, _)) => dns_verdict(status.code(), &String::from_utf8_lossy(&out)).to_string(),
+            _ => "unknown".to_string(),
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())
+}
+
+#[derive(Deserialize, Clone)]
+struct MountSpec {
+    path: String,
+    writable: bool,
+}
+
+// A folder the VM may share: absolute and plain (no dots, doubled slashes, commas or quotes; Colima reads the flag as
+// CSV), not the Mac's root or system folders, and never another user's. Under the home folder it is never hidden
+// (~/.ssh) or ~/Library. Same rule as src/lib/mounts.ts.
+fn mount_ok(path: &str, home: &str) -> bool {
+    const SYSTEM: &[&str] = &["System", "usr", "bin", "sbin", "etc", "var", "Library", "Applications", "cores", "dev", "private/etc", "private/var"];
+    if home.is_empty() || !path.starts_with('/') || path == "/" || path.chars().any(|c| c.is_control() || matches!(c, ',' | '"' | ':')) {
+        return false;
+    }
+    if path.split('/').skip(1).any(|c| c.is_empty() || c == "." || c == "..") {
+        return false;
+    }
+    let rest = &path[1..];
+    if SYSTEM.iter().any(|s| rest == *s || rest.starts_with(&format!("{s}/"))) {
+        return false;
+    }
+    if path == home {
+        return true;
+    }
+    if let Some(inner) = path.strip_prefix(&format!("{home}/")) {
+        let first = inner.split('/').next().unwrap_or("");
+        return !first.to_lowercase().starts_with("library") && inner.split('/').all(|c| !c.starts_with('.'));
+    }
+    !path.starts_with("/Users/") && path.split('/').count() >= 3
+}
+
+// Colima refuses two folders when one path starts with the other; refused here first, before anything stops.
+fn mounts_overlap(paths: &[&str]) -> bool {
+    paths.iter().enumerate().any(|(i, a)| paths[i + 1..].iter().any(|b| a.starts_with(b) || b.starts_with(a)))
+}
+
+// `colima start NAME --mount PATH[:w] ...` replaces the whole list, so the page sends the full one. Every check runs
+// before the VM is stopped, so a refusal changes nothing; the messages start with "Nothing changed" for that reason.
+// stop: false when the VM is already stopped (Try again after a failed start).
+fn mounts_steps(name: &str, mounts: &[MountSpec], home: &str, is_dir: impl Fn(&str) -> bool, stop: bool) -> Result<Vec<Vec<String>>, String> {
+    if mounts.is_empty() || mounts.len() > 32 {
+        return Err("Nothing changed: the list of folders to share is empty or too long.".into());
+    }
+    for m in mounts {
+        if !mount_ok(&m.path, home) {
+            return Err(format!("Nothing changed: {} can't be shared from the app.", m.path));
+        }
+        if !is_dir(&m.path) {
+            return Err(format!("Nothing changed: {} is not a folder on this Mac, so it can't be shared.", m.path));
+        }
+    }
+    if mounts_overlap(&mounts.iter().map(|m| m.path.as_str()).collect::<Vec<_>>()) {
+        return Err("Nothing changed: Colima can't share two folders when one name starts like the other.".into());
+    }
+    let mut start = vec!["start".to_string(), name.to_string()];
+    for m in mounts {
+        start.extend(["--mount".to_string(), if m.writable { format!("{}:w", m.path) } else { m.path.clone() }]);
+    }
+    Ok(if stop { vec![vec!["stop".to_string(), name.to_string()], start] } else { vec![start] })
+}
+
+#[tauri::command]
+async fn apply_mounts(app: tauri::AppHandle, name: String, mounts: Vec<MountSpec>, restart: Option<bool>, force: Option<bool>) -> Result<(), String> {
+    profile(&name)?;
+    let home = std::env::var("HOME").unwrap_or_default();
+    let steps = mounts_steps(&name, &mounts, &home, |p| std::path::Path::new(p).is_dir(), restart.unwrap_or(true))?;
+    colima_stream(app, if force.unwrap_or(false) { forced(steps, &name) } else { steps }).await
+}
+
+// The way back after a failed start: stop by force first (a half-up Lima instance can swallow a plain start), as
+// force_restart_profile does, then the same start.
+fn forced(steps: Vec<Vec<String>>, name: &str) -> Vec<Vec<String>> {
+    let mut out = vec![vec!["stop".to_string(), "--force".to_string(), name.to_string()]];
+    out.extend(steps.into_iter().filter(|s| s.first().map(String::as_str) != Some("stop")));
+    out
+}
+
+// The VM's own environment (the Mac's proxy): `--env` replaces the saved map, so the page sends it whole. Names are
+// plain variable names, values have no comma, quote or control character, and the ones that change how programs load
+// code are refused.
+fn env_steps(name: &str, env: &[(String, String)], stop: bool) -> Result<Vec<Vec<String>>, String> {
+    if env.is_empty() || env.len() > 32 {
+        return Err("Nothing changed: the list of settings is empty or too long.".into());
+    }
+    let mut start = vec!["start".to_string(), name.to_string()];
+    for (k, v) in env {
+        let key_ok = k.chars().next().map_or(false, |c| c.is_ascii_alphabetic() || c == '_') && k.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
+        let risky = k.starts_with("LD_") || k.starts_with("DYLD_") || matches!(k.as_str(), "PATH" | "BASH_ENV" | "ENV" | "IFS" | "SHELL");
+        if !key_ok || risky || v.len() > 512 || v.chars().any(|c| c.is_control() || matches!(c, ',' | '"')) {
+            return Err(format!("Nothing changed: the setting {k} can't be passed from the app."));
+        }
+        start.extend(["--env".to_string(), format!("{k}={v}")]);
+    }
+    Ok(if stop { vec![vec!["stop".to_string(), name.to_string()], start] } else { vec![start] })
+}
+
+#[tauri::command]
+async fn apply_env(app: tauri::AppHandle, name: String, env: Vec<(String, String)>, restart: Option<bool>, force: Option<bool>) -> Result<(), String> {
+    profile(&name)?;
+    let steps = env_steps(&name, &env, restart.unwrap_or(true))?;
+    colima_stream(app, if force.unwrap_or(false) { forced(steps, &name) } else { steps }).await
+}
+
 #[tauri::command]
 async fn stop_profile(app: tauri::AppHandle, name: String) -> Result<(), String> {
     profile(&name)?;
@@ -883,6 +1075,23 @@ fn vm_log_tail(name: String) -> Result<String, String> {
     let text = tail_bytes(&lima_dir(&name).join("ha.stderr.log"), 64 << 10);
     let lines: Vec<&str> = text.lines().collect();
     Ok(lines[lines.len().saturating_sub(60)..].join("\n"))
+}
+
+// The VM's own log, where Colima's one-line error doesn't say why: shown in Finder (it is a file in ~/.colima, read by
+// the user in their own editor). Only reveals; nothing is opened, written or sent. None of this runs a command that
+// changes anything.
+fn vm_log_path(name: &str) -> Result<std::path::PathBuf, String> {
+    if !profile_name_ok(name) {
+        return Err(format!("Invalid profile name: \"{name}\""));
+    }
+    let path = lima_dir(name).join("ha.stderr.log");
+    if path.is_file() { Ok(path) } else { Err("The VM has no log yet.".into()) }
+}
+
+#[tauri::command]
+fn reveal_vm_log(name: String) -> Result<(), String> {
+    let path = vm_log_path(&name)?;
+    Command::new("/usr/bin/open").args(["-R"]).arg(path).spawn().map(|_| ()).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -1502,7 +1711,7 @@ fn main() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             list_profiles, docker, docker_check, docker_pull, env_check, install_tools, network_probe, kubectl, open_terminal, start_profile, apply_resources,
-            stop_profile, force_stop_profile, restart_profile, force_restart_profile, delete_profile, cancel_vm_op, host_resources, vm_log_tail, open_url, pick_folder, setup_report, setup_fix, find_compose_files, reveal_compose, compose_editor, open_compose, compose_config, compose_action, cancel_compose, compose_logs, compose_in_folder, container_shell,
+            stop_profile, force_stop_profile, restart_profile, colima_config, network_facts, vm_dns_probe, apply_mounts, apply_env, force_restart_profile, delete_profile, cancel_vm_op, host_resources, vm_log_tail, reveal_vm_log, open_url, pick_folder, setup_report, setup_fix, find_compose_files, reveal_compose, compose_editor, open_compose, compose_config, compose_action, cancel_compose, compose_logs, compose_in_folder, container_shell,
             desktop::desktop_state, desktop::desktop_docker, desktop::desktop_copy, desktop::desktop_copy_stop, desktop::desktop_start, desktop::desktop_replace, desktop::open_docker_desktop
         ])
         .run(tauri::generate_context!())
@@ -2373,5 +2582,97 @@ mod tests {
         assert!(safe("--all").is_err());
         assert!(safe("").is_err());
         assert!(safe("nginx:1.27").is_ok());
+    }
+
+    // ---- round 35: folders shared with the VM, the Mac's network, the VM's name lookup ----
+    fn mount(path: &str, writable: bool) -> MountSpec {
+        MountSpec { path: path.to_string(), writable }
+    }
+
+    #[test]
+    fn given_a_profile_name_when_its_config_path_is_built_then_it_is_inside_colima_and_bad_names_are_refused() {
+        assert_eq!(config_path("/Users/me", "work"), std::path::PathBuf::from("/Users/me/.colima/work/colima.yaml"));
+        assert!(colima_config("../x".into()).is_err());
+        assert!(colima_config("-h".into()).is_err());
+    }
+
+    #[test]
+    fn given_the_dns_probe_when_its_arguments_are_built_then_it_is_one_fixed_read_only_lookup_in_that_profile() {
+        assert_eq!(dns_probe_args("work"), ["ssh", "--profile", "work", "--", "getent", "hosts", "registry-1.docker.io"]);
+    }
+
+    #[test]
+    fn given_getent_results_when_judged_then_only_a_clear_not_found_is_a_failure() {
+        assert_eq!(dns_verdict(Some(0), "2600:1f18::1 registry-1.docker.io\n"), "resolved");
+        assert_eq!(dns_verdict(Some(0), ""), "unknown");
+        assert_eq!(dns_verdict(Some(2), ""), "failed");
+        assert_eq!(dns_verdict(Some(255), ""), "unknown", "ssh could not connect");
+        assert_eq!(dns_verdict(Some(1), ""), "unknown", "colima itself failed");
+        assert_eq!(dns_verdict(None, ""), "unknown", "killed at the deadline");
+    }
+
+    #[test]
+    fn given_folders_when_checked_for_sharing_then_system_folders_other_users_hidden_and_odd_paths_are_refused() {
+        let home = "/Users/me";
+        for ok in ["/Users/me", "/Users/me/code/api", "/Users/me/My Apps/x", "/Volumes/data/in", "/opt/data/x"] {
+            assert!(mount_ok(ok, home), "{ok}");
+        }
+        for bad in ["/", "/Users", "/Users/other/x", "/Users/me/Library/x", "/Users/me/library", "/Users/me/.ssh", "/etc/x", "/System/x", "/private/etc/x", "/Volumes", "/a,b/c", "/a\"b/c", "rel/x", "/Users/me/../x", "/Users//me", "/Users/me/a:b", "/Users/me/a\nb"] {
+            assert!(!mount_ok(bad, home), "{bad}");
+        }
+        assert!(!mount_ok("/Users/me", ""), "no home known");
+    }
+
+    #[test]
+    fn given_the_full_list_when_the_steps_are_built_then_the_vm_stops_then_starts_with_every_folder_and_writable_ones_end_in_w() {
+        let steps = mounts_steps("work", &[mount("/Users/me", true), mount("/Volumes/data/in", false)], "/Users/me", |_| true, true).unwrap();
+        assert_eq!(steps[0], ["stop", "work"]);
+        assert_eq!(steps[1], ["start", "work", "--mount", "/Users/me:w", "--mount", "/Volumes/data/in"]);
+        assert_eq!(steps.len(), 2);
+        let stopped = mounts_steps("work", &[mount("/Users/me", true)], "/Users/me", |_| true, false).unwrap();
+        assert_eq!(stopped, vec![["start", "work", "--mount", "/Users/me:w"]], "a VM that is already stopped is only started");
+    }
+
+    #[test]
+    fn given_a_refused_list_when_the_steps_are_built_then_nothing_would_stop_and_the_message_says_so() {
+        let home = "/Users/me";
+        let err = |m: &[MountSpec], dir: bool| mounts_steps("work", m, home, move |_| dir, true).unwrap_err();
+        assert!(err(&[], true).starts_with("Nothing changed"));
+        assert!(err(&[mount("/etc", true)], true).starts_with("Nothing changed"));
+        assert!(err(&[mount("/Volumes/a", true), mount("/Volumes/ab", true)], true).contains("starts like"));
+        assert!(err(&[mount("/Volumes/file.txt", true)], false).contains("not a folder"));
+        assert!(err(&[mount("/Volumes/a,b", true)], true).starts_with("Nothing changed"));
+    }
+
+    #[test]
+    fn given_the_saved_settings_when_the_env_steps_are_built_then_each_is_its_own_flag_and_odd_ones_are_refused() {
+        let env = vec![("TZ".to_string(), "UTC".to_string()), ("HTTP_PROXY".to_string(), "http://proxy.corp:8080".to_string())];
+        let steps = env_steps("default", &env, true).unwrap();
+        assert_eq!(steps[0], ["stop", "default"]);
+        assert_eq!(steps[1], ["start", "default", "--env", "TZ=UTC", "--env", "HTTP_PROXY=http://proxy.corp:8080"]);
+        for (k, v) in [("LD_PRELOAD", "x"), ("PATH", "/x"), ("1BAD", "x"), ("A-B", "x"), ("OK", "a,b"), ("OK", "a\"b"), ("OK", "a\nb")] {
+            assert!(env_steps("default", &[(k.to_string(), v.to_string())], true).unwrap_err().starts_with("Nothing changed"), "{k}={v}");
+        }
+        assert!(env_steps("default", &[], true).is_err());
+        assert_eq!(env_steps("default", &env, false).unwrap(), vec![steps[1].clone()], "a stopped VM is only started");
+    }
+
+    #[test]
+    fn given_a_profile_name_when_the_vm_log_is_asked_for_then_only_a_real_profile_with_a_log_resolves() {
+        for bad in ["", "-a", ".hidden", "../x", "a/b", "a b"] {
+            assert!(super::vm_log_path(bad).unwrap_err().starts_with("Invalid profile name"), "{bad:?}");
+        }
+        assert!(super::lima_dir("default").ends_with(".colima/_lima/colima"));
+        assert!(super::lima_dir("work").join("ha.stderr.log").ends_with("_lima/colima-work/ha.stderr.log"));
+        assert_eq!(super::vm_log_path("no-such-profile-zz9").unwrap_err(), "The VM has no log yet.");
+    }
+
+    #[test]
+    fn given_the_way_back_when_forced_then_it_stops_by_force_once_and_starts_with_the_old_list() {
+        let plain = super::mounts_steps("work", &[mount("/Users/me", true)], "/Users/me", |_| true, true).unwrap();
+        let f = super::forced(plain, "work");
+        assert_eq!(f, vec![vec!["stop", "--force", "work"], vec!["start", "work", "--mount", "/Users/me:w"]]);
+        let already_stopped = super::mounts_steps("work", &[mount("/Users/me", true)], "/Users/me", |_| true, false).unwrap();
+        assert_eq!(super::forced(already_stopped, "work"), f);
     }
 }

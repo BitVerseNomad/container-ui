@@ -1,6 +1,6 @@
 // Home says what is down: under a partly running project, what is only stopped (no problem line of its own) shares
 // one plain line, last, so every container "N of M running" is short of is on a line (run after:
-// node scripts/build-preview.mjs). Needs playwright resolvable. SHOTS=dir saves r34-<state>.png; every picture must differ.
+// node scripts/build-preview.mjs). Needs playwright resolvable. SHOTS=dir saves r39-<state>.png; every picture must differ.
 import { createRequire } from "node:module";
 import path from "node:path";
 import { createHash } from "node:crypto";
@@ -12,7 +12,7 @@ const shots = process.env.SHOTS;
 let failed = 0;
 const check = (cond, m) => { if (!cond) failed++; console.log(cond ? "ok" : "FAIL", m); };
 const md5s = new Map();
-const shot = async (el, state) => md5s.set(state, createHash("md5").update(await el.screenshot(shots ? { path: path.join(shots, `r34-${state}.png`) } : {})).digest("hex"));
+const shot = async (el, state) => md5s.set(state, createHash("md5").update(await el.screenshot(shots ? { path: path.join(shots, `r39-${state}.png`) } : {})).digest("hex"));
 
 const browser = await chromium.launch();
 async function open(query) {

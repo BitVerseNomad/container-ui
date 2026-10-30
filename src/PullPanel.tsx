@@ -7,6 +7,7 @@ import { Banner } from "./ui";
 import Drawer from "./ui/Drawer";
 import { Icon } from "./ui/icons";
 import OutputLog from "./ui/OutputLog";
+import { notePullFailure, notePullOk } from "./lib/netEvidence";
 
 // `searchFor` opens the panel already searching Docker Hub, for a name the user typed elsewhere.
 type Props = { ctx: string; onClose: () => void; onPulled: () => void; onRun: (image: string) => void; searchFor?: string };
@@ -69,9 +70,11 @@ export default function PullPanel({ ctx, onClose, onPulled, onRun, searchFor }: 
     setFailure(null);
     try {
       await invoke("docker_pull", { context: ctx, image: target });
+      notePullOk();
       setDone(target);
       onPulled();
     } catch (e) {
+      notePullFailure(String(e));
       setFailure(String(e));
     } finally {
       setPulling(false);

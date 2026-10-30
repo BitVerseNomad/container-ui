@@ -35,10 +35,12 @@ export default function Profiles({ profiles, reload, openNew = false, kubeOn = (
   useEffect(() => {
     if (openNew) openForm();
   }, [openNew]); // eslint-disable-line react-hooks/exhaustive-deps
-  const [newName, setNewName] = useState("default");
-  // The form opens on a name that is free, so it never starts with an error showing.
+  // The form opens on a name that is free, so it never starts with an error showing. The free name follows the list of
+  // profiles (it may still be arriving when the form opens) until the user types their own.
+  const [typedName, setTypedName] = useState<string | null>(null);
+  const newName = typedName ?? (["default", "dev", "work", "test"].find((n) => !profiles.some((p) => p.name === n)) ?? "profile2");
   function openForm() {
-    setNewName(["default", "dev", "work", "test"].find((n) => !profiles.some((p) => p.name === n)) ?? "profile2");
+    setTypedName(null);
     dialog.current?.showModal();
   }
   const taken = profiles.some((p) => p.name === newName.trim());
@@ -146,7 +148,7 @@ export default function Profiles({ profiles, reload, openNew = false, kubeOn = (
           }}
         >
           <h3>New profile</h3>
-          <label>Name<input name="name" value={newName} onChange={(e) => setNewName(e.target.value)} required pattern="[a-zA-Z0-9_-]+" /></label>
+          <label>Name<input name="name" value={newName} onChange={(e) => setTypedName(e.target.value)} required pattern="[a-zA-Z0-9_-]+" /></label>
           {taken && <p className="hint err">A profile named "{newName}" already exists. Use Edit on it instead.</p>}
           <label>CPUs<input key={size?.cpus} name="cpus" type="number" min={1} defaultValue={size?.cpus ?? 2} /></label>
           <label>Memory (GiB)<input key={size?.memory} name="memory" type="number" min={1} defaultValue={size?.memory ?? 4} /></label>

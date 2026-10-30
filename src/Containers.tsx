@@ -27,7 +27,9 @@ import RunPanel from "./RunPanel";
 import { isListed, useLimitFlip, useOpenCompose, useServiceLimit } from "./Health";
 import { flipSaid, raisedLine } from "./lib/composeLimit";
 import type { ProblemFix } from "./lib/health";
-import { ResizeOr, ResizeStatus, resizeLine, resizing, useResize } from "./Resize";
+import { undoLabel, wayBackNote } from "./lib/vmChange";
+import type { VmChange } from "./lib/vmChange";
+import { ResizeOr, ResizeStatus, VmChangeOr, addChangeRefresh, clearWayBack, resizeLine, resizing, startWayBack, useResize, useResizeEnv, wayBackApplies } from "./Resize";
 import { useBringBusy } from "./bringBusy";
 import { dockerLocked } from "./dockerLock";
 import ComposeProjects, { composeRunState, runCompose, useComposeRun } from "./ComposeProjects";
@@ -113,6 +115,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
     onVm({ op, failure: null, last });
     try {
       await ranVm(cmd, args, () => invoke(cmd, args));
+      if (op === "starting") clearWayBack();
       onVm({ op: null, failure: null, last });
     } catch (e) {
       onVm({ op: null, failure: String(e), last });
@@ -121,7 +124,9 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
   }
   const size = useHostSize();
   // An existing profile keeps its saved size; only the very first VM is sized from the Mac.
-  const start = () => vmAct("starting", "start_profile", { opts: profile ? { name: profile.name } : { name: "default", ...size } });
+  // Start VM is always a plain start of what is saved. While the saved list is the one that just failed, the stopped
+  // card offers the way back next to it, as its own button (see `back`).
+  const start = () => { vmAct("starting", "start_profile", { opts: profile ? { name: profile.name } : { name: "default", ...size } }); };
 
   const all = useMemo(() => containers.data ?? [], [containers.data]);
   const runInfoByName = useMemo(() => runInfo(inspected ?? []), [inspected]);
@@ -199,11 +204,28 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
   const wasResizing = useRef(false);
   const [settling, setSettling] = useState(false);
   useEffect(() => {
-    if (wasResizing.current && !resizing(rs)) { setSettling(true); void containers.reload().finally(() => setSettling(false)); }
+    // A VM change reads the list itself before its result shows (see addChangeRefresh), so there is nothing to settle.
+    if (wasResizing.current && !resizing(rs) && !rs.change) { setSettling(true); void containers.reload().finally(() => setSettling(false)); }
     wasResizing.current = resizing(rs);
   }, [rs]); // eslint-disable-line react-hooks/exhaustive-deps
-  // The render right after the run ends comes before that effect, so it counts too.
-  const holding = resizing(rs) || settling || wasResizing.current;
+  // The render right after the run ends comes before that effect, so it counts too. A VM change's result shows only
+  // after a read made once everything ran again, so no row says Restarting… next to a done result.
+  const holding = resizing(rs) || (!rs.change && (settling || wasResizing.current));
+  const containersRef = useRef(containers.reload);
+  containersRef.current = containers.reload;
+  useEffect(() => addChangeRefresh(async () => { await containersRef.current(); }), []);
+  const env = useResizeEnv();
+  // The change whose list is still saved after a failed start, read again from colima.yaml each time the card shows.
+  const [back, setBack] = useState<VmChange | null>(null);
+  const stoppedName = !running && profile ? profile.name : null;
+  useEffect(() => {
+    if (!stoppedName || vm.op) { setBack(null); return; }
+    let live = true;
+    void wayBackApplies(stoppedName).then((c) => { if (live) setBack(c); });
+    return () => { live = false; };
+  }, [stoppedName, vm.op, rs.card, rs.outcome]);
+  // Once the VM runs and no change result is waiting (a failed one briefly sees the old status), nothing is left to go back to.
+  useEffect(() => { if (running && !resizing(rs) && !rs.outcome) clearWayBack(); }, [running, rs]); // eslint-disable-line react-hooks/exhaustive-deps
   // Volumes a first `compose up` made empty here while Docker Desktop holds the data, read once (desktopOffer).
   const offer = useDesktopOffer();
   const gaps = onBring && offer.ctx === ctx ? offer.gaps : [];
@@ -336,6 +358,8 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
   // A search that finds nothing may be for a project that was never started, which only the Compose panel lists.
   const projectHits = term ? composeDirs.filter((d) => score(d.slice(d.lastIndexOf("/") + 1), term) > 0).length : 0;
 
+  // The failure card stays mounted through the way back, so the good result lands where focus already is.
+  const failedChange = rs.card && !!rs.outcome && rs.from?.startsWith("home:") === true;
   const problemsOf = (rows: C[]) => rows.flatMap((c) => {
     const p = problems.get(c.Names)?.[0];
     const run = runFor(runs, c.Names);
@@ -366,7 +390,8 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
     const said = p.short ?? p.title;
     // The line sits under the container's name, so "Its health check is failing" is "Health check is failing",
     // and after "api · " it is "health check is failing".
-    const phrase = prefix ? said.replace(/^(It|Its) /, "").replace(/^./, (ch) => ch.toLowerCase()) : said.replace(/^Its (.)/, (_, ch: string) => ch.toUpperCase());
+    // A folder line keeps its "Its": "api · its folder ~/code/api isn't shared with Colima".
+    const phrase = p.id.startsWith("mount-") ? (prefix ? said.replace(/^./, (ch) => ch.toLowerCase()) : said) : prefix ? said.replace(/^(It|Its) /, "").replace(/^./, (ch) => ch.toLowerCase()) : said.replace(/^Its (.)/, (_, ch: string) => ch.toUpperCase());
     const text = `${who}${r ? "The fix didn't finish. " : ""}${phrase}`;
     // "Fix" only where the app really repairs it; otherwise the button says what it does.
     // A container that ran out of memory: the one-click bigger VM, which starts it again after.
@@ -379,11 +404,14 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
         onOpenFail={(alert) => setSaid({ status: "", alert })}
         onSay={(status) => setSaid({ status, alert: "" })} />;
     }
-    const action = fix?.reveal ? see : fix?.resize ? (
+    const action = fix?.reveal ? see : fix?.vm ? (
+      // Share the folder (or make it writable): the VM restarts and what ran starts again; the result stays under the row.
+      <VmChangeOr from={`home:${c.Names}:${p.id}`} change={fix.vm} title={`${said}, ${c.Names}`} noStatus={failedChange} />
+    ) : fix?.resize ? (
       <ResizeOr from={`home:${c.Names}:${p.id}`} title={`${p.short ?? p.title}, ${c.Names}`} need="memory" alsoStart={[c.Names]} fallback={see} noProfiles vmWords />
     ) : one ? (
       // A Fix replaces containers; while the VM stops or restarts there is no Docker to replace them in.
-      <button className="small primary" aria-label={`${r ? "Try the fix again" : one.label}: ${p.short ?? p.title}, ${c.Names}`} aria-disabled={one.locked || undefined} title={one.locked ? "Waits for what is changing Docker now" : undefined} onClick={() => !one.locked && one.go()}>{r ? "Try again" : names.length > 1 ? `Fix ${names.join(" and ")}…` : `${one.label}…`}</button>
+      <button className="small primary" aria-label={`${r ? "Try again" : one.label}: ${plain(p.short ?? p.title)}, ${c.Names}`} aria-disabled={one.locked || undefined} title={one.locked ? "Waits for what is changing Docker now" : undefined} onClick={() => !one.locked && one.go()}>{r ? "Try again" : names.length > 1 ? `Fix ${names.join(" and ")}…` : `${one.label}…`}</button>
     ) : fix?.go === "Images" ? (
       <button className="small" onClick={onImages}>Open Images</button>
     ) : see;
@@ -464,7 +492,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
     // A bigger VM asked for from an out-of-memory line: once that container runs, its line is gone, and the result
     // stays on its own row under the project until Dismiss. A failure keeps the line, and the result stays in it.
     const resizedName = rs.from?.startsWith("home:") ? rs.from.split(":")[1] : null;
-    const resizedHere = !!resizedName && (!!rs.outcome || !!rs.progress) && a.rows.some((c) => c.Names === resizedName) && !issues.some((i) => i.c.Names === resizedName && i.p?.fix?.resize);
+    const resizedHere = !!resizedName && (!!rs.outcome || !!rs.progress) && a.rows.some((c) => c.Names === resizedName) && !issues.some((i) => i.c.Names === resizedName && (i.p?.fix?.resize || i.p?.fix?.vm));
     const word = kube ? `${a.rows.length} container${a.rows.length === 1 ? "" : "s"}` : changing ?? (state === "partly" ? `${up} of ${of} running` : state === "running" ? "Running" : "Stopped");
     // The mark column alone answers "is anything broken?": a problem wins over running or stopped.
     const mark = changing ? "busy" : !kube && issues.some((i) => i.p) ? markOf(issues) : kube || state === "running" ? "on" : state === "partly" ? "part" : "off";
@@ -557,7 +585,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
             action={<button className="small" aria-label={downWords.label} aria-disabled={lock || undefined} onClick={() => { if (!lock) void act(a, ["start", ...down.map((c) => c.ID)], { target: "running", word: "Starting…", since: Date.now(), ids: down.map((c) => c.ID) }, downWords.done); }}>{downWords.button}</button>}
           />
         )}
-        {resizedHere && <div className="problem result"><ResizeStatus from={rs.from!} /></div>}
+        {resizedHere && !failedChange && <div className="problem result"><ResizeStatus from={rs.from!} /></div>}
         {isProject && expanded && (
           <ul className="svc" id={`svc-${a.key}`} aria-label={`Services of ${a.name}`}>
             {a.rows.filter((c) => !term || hit(c) || score(a.name, term) > 0).map((c) => {
@@ -613,9 +641,14 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
         />
       )}
 
-      {!running && !vm.op && !vm.failure && (
-        <Blank title={<>The VM &ldquo;{profile.name}&rdquo; is stopped</>} body="Your containers, images and volumes are kept inside it.">
-          <button className="primary" onClick={start}>Start VM</button>
+      {/* A change that stopped the VM and couldn't start it again (a folder, the proxy): what happened comes first. While
+          it shows, the card's Start VM is hidden: it would start the same saved list that just failed. The one filled
+          button is "Start with the folders you had". */}
+      {failedChange && <div className="problem result stopped"><ResizeStatus from={rs.from!} title={`The VM ${profile.name} is stopped`} after={() => setTimeout(() => document.querySelector<HTMLElement>("[data-stopped-primary]")?.focus(), 0)} /></div>}
+      {!running && !vm.op && !vm.failure && !failedChange && (
+        <Blank title={<>The VM &ldquo;{profile.name}&rdquo; is stopped</>} body="Your containers, images and volumes are kept inside it." note={back ? wayBackNote(back) : undefined}>
+          <button className={back ? undefined : "primary"} data-stopped-primary={back ? undefined : ""} onClick={start}>Start VM</button>
+          {back && env && <button className="primary" data-stopped-primary="" onClick={() => void startWayBack(env)}>{undoLabel(back)}</button>}
         </Blank>
       )}
 
@@ -747,12 +780,13 @@ function Line({ level, text, title, action }: { level: "bad" | "warn" | "ok" | "
   );
 }
 
-function Blank({ title, body, children }: { title: ReactNode; body: string; children: ReactNode }) {
+function Blank({ title, body, note, children }: { title: ReactNode; body: string; note?: string; children: ReactNode }) {
   return (
     <div className="blank">
       <span className="blank-icon"><Icon name="box" size={32} /></span>
       <h2>{title}</h2>
       <p className="hint">{body}</p>
+      {note && <p className="hint"><Ticks text={note} /></p>}
       <div className="actions-inline">{children}</div>
     </div>
   );

@@ -1,5 +1,5 @@
 // "Bring over" from home: the empty state, the New menu, and the line under a project whose volume came up empty
-// (run after: node scripts/build-preview.mjs). Needs playwright resolvable. SHOTS=dir saves r34-<state>.png.
+// (run after: node scripts/build-preview.mjs). Needs playwright resolvable. SHOTS=dir saves r39-<state>.png.
 import { createRequire } from "node:module";
 import path from "node:path";
 import { createHash } from "node:crypto";
@@ -28,10 +28,10 @@ async function open(query) {
 // Every state's md5 is kept: two states that save the same picture mean one of them shows the wrong thing.
 const md5s = new Map();
 const keep = (state, buf) => { const h = createHash("md5").update(buf).digest("hex"); md5s.set(state, h); return h; };
-const shot = async (p, state) => keep(state, await p.screenshot(shots ? { path: path.join(shots, `r34-${state}.png`) } : {}));
+const shot = async (p, state) => keep(state, await p.screenshot(shots ? { path: path.join(shots, `r39-${state}.png`) } : {}));
 // One row on its own, for states that share a screen (Doctor's rows both fit in one viewport, so a page shot of each
 // after scrolling to it was the same picture).
-const shotOf = async (el, state) => keep(state, await el.screenshot(shots ? { path: path.join(shots, `r34-${state}.png`) } : {}));
+const shotOf = async (el, state) => keep(state, await el.screenshot(shots ? { path: path.join(shots, `r39-${state}.png`) } : {}));
 const headClose = (p) => panel(p).locator(".drawer-head button");
 const describedBy = (b) => b.evaluate((el) => (el.getAttribute("aria-describedby") ?? "").split(" ").map((id) => document.getElementById(id)?.textContent ?? "").join(" ").trim());
 const blankButtons = (p) => p.locator(".blank .actions-inline button").evaluateAll((b) => b.map((x) => `${x.textContent}${x.classList.contains("primary") ? "*" : ""}`));

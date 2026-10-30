@@ -9,13 +9,22 @@ import { parseState, problemsFor } from "./health.ts";
 import type { Problem } from "./health.ts";
 import type { DiskRow } from "./disk.ts";
 import { shellQuote } from "./composeScan.ts";
+import type { ColimaConfig } from "./colimaConfig.ts";
+import { UNREADABLE_MOUNTS } from "./colimaConfig.ts";
+import { binds, covering, mountPlan, readOnlyWrites, rofsFor, sharesOf, slowMountType, tilde, unshared } from "./mounts.ts";
+import type { Share } from "./mounts.ts";
+import { vmHasProxy } from "./netFacts.ts";
+import type { Proxy } from "./netFacts.ts";
+import { changeCommand, changeLabel } from "./vmChange.ts";
+import type { VmChange } from "./vmChange.ts";
 
 export type Area = "Setup" | "Containers" | "Network" | "Images" | "Storage" | "VM";
 // action: something is broken or about to be. know: works, but costs you later.
 export type Severity = "action" | "know";
 // key is stable across runs (profile, check, container, and the setting when there is one), so a finding can be
 // muted without also hiding a different problem in the same container later.
-export type Finding = Problem & { key: string; area: Area; severity: Severity; subject?: string; health?: boolean };
+// code: lines to add somewhere, shown as a short block under the detail; after: the sentence under that block.
+export type Finding = Problem & { code?: string; after?: string; key: string; area: Area; severity: Severity; subject?: string; health?: boolean };
 export type Facts = {
   containers: unknown[];
   ctx: string;
@@ -23,6 +32,17 @@ export type Facts = {
   hostArch?: string; // arm64 or amd64
   vmMemory?: number; // bytes
   disk?: DiskRow[];
+  // The profile's saved settings (folders shared, VM type, environment) and the Mac's home folder.
+  colima?: { config: ColimaConfig; home: string };
+  // The Mac's proxy settings and its VPN tunnels.
+  net?: { proxy: Proxy; vpn: string[] };
+  // Whether the VM could look up a name just now; left out when not asked or not answered.
+  dns?: boolean;
+  // The recent log of each running container that writes into a folder the VM shares read-only, by container name.
+  // Left out when not asked.
+  rofsLogs?: Record<string, string>;
+  // The error of the last image pull that failed the way a blocked network fails (timeout, connection refused).
+  pullFailure?: string;
 };
 // byContainer has every finding about a container; extra leaves out crash and health ones, which the
 // container page already works out from its own state.
@@ -271,7 +291,153 @@ const CHECKS: Check[] = [
       return [{ id: "disk", key: "disk", area: "Storage", severity: "know", level: "warn", title: `About ${Math.round(free / GB)} GB can be freed`, detail: "Unused images and build cache take this much of the VM's disk. Images shows what each part is and clears it; volumes are never touched.", fix: { label: "Open Images to free it", text: "", go: "Images" } }];
     },
   },
+  {
+    // A container binds a Mac folder the VM doesn't share. In the VM that path doesn't exist, so Docker makes an empty
+    // folder there, and the container runs with no files: a start that works and an app that finds nothing.
+    // Needs the shared list to be readable: when it isn't, nothing is claimed (mount-unreadable says so).
+    id: "mount-unshared",
+    area: "Storage",
+    passed: "Every Mac folder a container uses is shared with the VM",
+    needs: (f) => !!f.colima && f.colima.config.mounts !== null,
+    run: ({ apps, colima, ctx }) => {
+      const { config, home } = colima!;
+      const shares = sharesOf(config, home)!;
+      return unshared(binds(apps), shares).map((u) => {
+        const a = apps.find((x) => x.name === u.app)!;
+        const t = tilde(u.source, home);
+        const plan = mountPlan(config, home, u.source, !u.readOnly);
+        return about(a, {
+          id: "mount-unshared",
+          keyPart: u.source,
+          area: "Storage",
+          severity: "action",
+          title: `${a.name} uses \`${t}\`, which Colima doesn't share`,
+          short: `Sees an empty \`${t}\` (not shared with Colima)`,
+          detail: `\`${t}\` is on your Mac, but Colima only shares ${sharedWords(shares, home)} with the VM. Docker made an empty folder with that name inside the VM, so ${a.name} sees no files. Sharing the folder fixes it for every container.${"why" in plan ? ` ${plan.why}` : ""}`,
+          fix: "change" in plan ? vmFix(plan.change, ctx) : undefined,
+        });
+      });
+    },
+  },
+  {
+    // The profile's folder list is in a shape the app doesn't read (flow style, a key it doesn't know). It says so
+    // once, and only when a running container uses a Mac folder, and it offers no change: a guess here could drop folders.
+    id: "mount-unreadable",
+    area: "Storage",
+    passed: "No running container needs a Mac folder the app can't check",
+    needs: (f) => !!f.colima && f.colima.config.mounts === null,
+    run: ({ apps }) => {
+      const uses = binds(apps);
+      if (!uses.length) return [];
+      return [{ id: "mount-unreadable", key: "mount-unreadable", area: "Storage", severity: "know", level: "warn", title: "The app can't read which folders Colima shares", detail: `${UNREADABLE_MOUNTS} A container that uses a Mac folder may see it empty if Colima doesn't share it.` }];
+    },
+  },
+  {
+    // The container writes (its mount is not :ro) into a folder the VM shares read-only. Only when its own log says
+    // so: "Read-only file system" for that mount. A container that never writes there is fine.
+    id: "mount-readonly",
+    area: "Storage",
+    passed: "No container reports writing to a folder the VM shares read-only",
+    needs: (f) => !!f.colima && f.colima.config.mounts !== null && f.rofsLogs !== undefined,
+    run: ({ apps, colima, rofsLogs, ctx }) => {
+      const { config, home } = colima!;
+      const shares = sharesOf(config, home)!;
+      return readOnlyWrites(binds(apps), shares).filter((u) => rofsFor(rofsLogs?.[u.app] ?? "", u.dest)).map((u) => {
+        const a = apps.find((x) => x.name === u.app)!;
+        const t = tilde(u.source, home);
+        const share = covering(u.source, shares)!;
+        const plan = mountPlan(config, home, share.path, true);
+        return about(a, {
+          id: "mount-readonly",
+          keyPart: u.source,
+          area: "Storage",
+          severity: "action",
+          title: `${a.name} can't write to \`${t}\`, which the VM shares read-only`,
+          short: `Can't write to \`${t}\` (shared read-only)`,
+          detail: `${a.name}'s log says "Read-only file system" for ${u.dest}. Colima shares \`${tilde(share.path, home)}\` read-only, and ${a.name} is set to change files there.${"why" in plan ? ` ${plan.why}` : ""}`,
+          fix: "change" in plan ? vmFix(plan.change, ctx) : undefined,
+        });
+      });
+    },
+  },
+  {
+    // sshfs and 9p are the slow ways to share folders; virtiofs needs the vz VM type, which this one has. A VM keeps
+    // the mount type it was created with, so there is nothing to click: a new profile starts with virtiofs. It is
+    // said only when a running container uses a Mac folder, which is when the slow way is felt.
+    id: "mount-slow",
+    area: "Storage",
+    passed: "Folders are shared the fast way, or no container uses one",
+    needs: (f) => !!f.colima?.config.mountType,
+    run: ({ colima, apps }) => {
+      const type = colima!.config.mountType;
+      if (!slowMountType(colima!.config) || !binds(apps).length) return [];
+      return [{ id: "mount-slow", key: "mount-slow", area: "Storage", severity: "know", level: "warn", title: `Folders are shared the slow way (${type})`, detail: `A running container uses a Mac folder, and this VM shares folders with ${type}. virtiofs is faster and works with this VM type, but Colima can't change the sharing type of a VM that already exists. A new profile starts with virtiofs; moving there means running your containers again.` }];
+    },
+  },
+  {
+    // The Mac's VPN can leave the VM's name lookup (which follows the Mac's resolver) stuck on the old network.
+    id: "dns-vm",
+    area: "Network",
+    passed: "The VM can look up names",
+    needs: (f) => f.dns !== undefined,
+    run: ({ dns, net, ctx }) => {
+      if (dns !== false) return [];
+      const vpn = net?.vpn ?? [];
+      const change: VmChange = { kind: "restart", why: vpn.length ? "vpn" : "dns" };
+      return [{
+        id: vpn.length ? "vpn-route" : "dns-vm",
+        key: vpn.length ? "vpn-route" : "dns-vm",
+        area: "Network",
+        severity: "action",
+        level: "bad",
+        title: vpn.length ? "A VPN is on, and the VM can't look up names" : "The VM can't look up names",
+        detail: `Containers can't reach anything by name, so pulls and web calls fail.${vpn.length ? ` Your Mac has a VPN connection (${vpn.join(", ")}), which often leaves the VM on the old network.` : ""} The VM follows the Mac's name lookup, so restarting it picks up the current network. If it still fails, check ${vpn.length ? "your VPN's DNS" : "the Mac's network"}.`,
+        fix: vmFix(change, ctx),
+      }];
+    },
+  },
+  {
+    // The Mac's proxy settings are not read by Colima: Lima passes a proxy only from the environment it was started in.
+    // Said only after a pull failed the way a blocked network fails (timeout, connection refused) while the Mac has a
+    // proxy set; a proxy alone proves nothing. A proxy found only as an auto-config file (PAC) is not read by the app,
+    // so it never fires. No button: the app's own proxy step (apply_env) waits on a check on a real Mac behind a proxy.
+    id: "proxy-not-passed",
+    area: "Network",
+    passed: "No image pull has failed on the network while the Mac uses a proxy",
+    needs: (f) => !!f.net && !!f.colima,
+    run: ({ net, colima, pullFailure, ctx }) => {
+      const p = net!.proxy;
+      if ((!p.http && !p.https) || !pullFailure || vmHasProxy(colima!.config.env)) return [];
+      const where = [p.http, p.https].filter(Boolean)[0]!.replace(/^http:\/\//, "");
+      return [{
+        id: "proxy-not-passed",
+        key: "proxy-not-passed",
+        area: "Network",
+        severity: "know",
+        level: "warn",
+        title: `Your Mac uses the proxy \`${where}\`, and the VM doesn't`,
+        detail: `An image pull just failed on the network. Your Mac sends web traffic through \`${where}\`, but Colima doesn't read that setting, so the VM goes out directly, which fails on a network that only allows the proxy. Add these lines to \`${tilde(`${colima!.home}/.colima/${profileOf(ctx)}/colima.yaml`, colima!.home)}\`, then restart the VM:`,
+        code: `env:\n  HTTPS_PROXY: ${p.https ?? p.http}\n  HTTP_PROXY: ${p.http ?? p.https}`,
+        after: "If `colima.yaml` already has an `env:` section, add the two lines inside it.",
+      }];
+    },
+  },
 ];
+
+// The profile a context belongs to, for the commands the page shows.
+const profileOf = (ctx: string) => (ctx === "colima" ? "default" : ctx.replace(/^colima-/, ""));
+const sharedWords = (shares: Share[], home: string) => (shares.length === 1 ? `\`${tilde(shares[0].path, home)}\`` : shares.map((s) => `\`${tilde(s.path, home)}\``).join(", ").replace(/, ([^,]*)$/, " and $1"));
+// A change that restarts the VM, with the commands the app runs, for "Or run it yourself".
+function vmFix(change: VmChange, ctx: string): Problem["fix"] {
+  const q = (x: string) => (/^[\w@%+=:,./-]+$/.test(x) ? x : shellQuote(x));
+  const name = q(profileOf(ctx));
+  const { cmd, args } = changeCommand(change, profileOf(ctx));
+  const start = `colima start ${name}`;
+  const text = cmd === "restart_profile" ? `colima restart ${name}` : cmd === "apply_mounts"
+    ? `colima stop ${name}\n${start} ${(args.mounts as { path: string; writable: boolean }[]).map((m) => `--mount ${q(m.path + (m.writable ? ":w" : ""))}`).join(" ")}`
+    : `colima stop ${name}\n${start} ${(args.env as [string, string][]).map(([k, v]) => `--env ${q(`${k}=${/^(http|https)_proxy$/i.test(k) ? v : "…"}`)}`).join(" ")}`;
+  return { label: changeLabel(change).replace(/…$/, ""), text, vm: change, ...(change.kind === "restart" ? {} : { note: "Colima saves the new setting in the profile when it starts." }) };
+}
 
 // Crash and health titles are written for the container's own page ("Its health check is failing"). A page that
 // lists every container needs the name in them.
