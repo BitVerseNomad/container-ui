@@ -6,7 +6,8 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 
 const require = createRequire(import.meta.url);
-const { chromium } = require("playwright");
+// PW_ENGINE=webkit runs the same check in the engine the app ships with.
+const chromium = require("playwright")[process.env.PW_ENGINE || "chromium"];
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const shots = process.env.SHOTS;
 let failed = 0;

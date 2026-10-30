@@ -2,7 +2,8 @@
 import { createRequire } from "node:module";
 import path from "node:path";
 const require = createRequire(import.meta.url);
-const { chromium } = require("playwright");
+// PW_ENGINE=webkit runs the same check in the engine the app ships with.
+const chromium = require("playwright")[process.env.PW_ENGINE || "chromium"];
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 let failed = 0;
 const check = (c, m) => { console.log(c ? "ok" : "FAIL", m); if (!c) failed++; };

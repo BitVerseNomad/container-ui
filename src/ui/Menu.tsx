@@ -47,7 +47,9 @@ export default function Menu({ label, children, items, primary, className, align
         {children}
       </button>
       {open && (
-        <div className={align === "left" ? "menu-pop left" : "menu-pop"} role="menu" aria-label={label}>
+        // WebKit (the app's WKWebView) does not focus a button on mousedown: focus would leave the menu, onBlur
+        // would close it, and the click would never arrive. Keeping focus where it is lets the click land.
+        <div className={align === "left" ? "menu-pop left" : "menu-pop"} role="menu" aria-label={label} onMouseDown={(e) => e.preventDefault()}>
           {items.map((it) => (
             <div key={it.label} role="none" className={it.divider ? "menu-row menu-divider" : "menu-row"}>
               <button
