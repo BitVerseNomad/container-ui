@@ -27,7 +27,7 @@ const shop = await appRow("shop").innerText();
 check(/api · health check is failing/i.test(shop), "home: an unhealthy container shows a plain reason, under its project row with its name");
 check(/ran out of memory/i.test(shop), "home: an out-of-memory stop is called out");
 check(/worker · keeps restarting/i.test(shop), "home: a container that keeps restarting is called out");
-check(!/web ·/.test(shop) && await appRow("shop").locator(".problem").count() === 3, "home: healthy containers carry no problem line");
+check(!/web ·/.test(shop) && await appRow("shop").locator(".problem:not(.off)").count() === 3 && await appRow("shop").locator(".problem.off").count() === 1, "home: healthy containers carry no problem line (cache, simply stopped, has the one plain line)");
 const markOf = (r) => r.locator(".mark").first().getAttribute("class");
 check(/\bbad\b/.test(await markOf(appRow("kafka-ui"))) && /\bwarn\b/.test(await markOf(appRow("kafka"))) && /\bbad\b/.test(await markOf(appRow("shop"))), "home: the mark follows the worst problem (kafka-ui and shop red, kafka amber)");
 await appRow("shop").locator(".app-name").click();

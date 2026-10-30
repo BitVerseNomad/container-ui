@@ -47,7 +47,7 @@ await shot(p, "picked");
 await go(p).click();
 const dialog = p.getByRole("alertdialog");
 const ask = (await dialog.innerText().catch(() => "")).split("\n").map((l) => l.trim()).filter(Boolean);
-check(ask[0] === "Stop these for a clean copy?" && ask[1] === "shop-db-1 in Docker Desktop. You can start it again from here after." && ask[2] === "shop-db-1 in Colima. It starts again on its own after.", `confirm: each side on its own line (${ask.slice(0, 3).join(" | ")})`);
+check(ask[0] === "Stop these for a clean copy?" && ask[1] === "shop-db-1 in Docker Desktop. You can start it again from here afterwards." && ask[2] === "shop-db-1 in Colima. It starts again on its own after.", `confirm: each side on its own line (${ask.slice(0, 3).join(" | ")})`);
 check(ask.some((l) => /^Colima's shop_db \(11\.4 MiB\) is replaced\. It's kept as shop_db-colima-backup-\d{8}-\d{4} first\.$/.test(l)), "confirm: says what is replaced and the backup's name");
 check(await dialog.locator("code").count() >= 4 && await dialog.locator("code").first().evaluate((c) => getComputedStyle(c).whiteSpace) === "nowrap", "confirm: names are in the code font and never break");
 await shot(p, "confirm");

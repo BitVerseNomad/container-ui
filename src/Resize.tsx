@@ -9,7 +9,7 @@ import { dockerLocked } from "./dockerLock";
 import { activity, dockerLine } from "./lib/activity";
 import { parseLabels } from "./lib/compose";
 import type { Host, RestartPlan, RunningRow } from "./lib/vmSize";
-import { KUBE_BACK, confirmText, doneText, explainResize, nameList, notStarted, planRestart, resizeTo, sizeWords, startReason, stepDown, withoutKube } from "./lib/vmSize";
+import { KUBE_BACK, confirmText, doneText, failLine, explainResize, nameList, notStarted, planWith, resizeTo, sizeWords, startReason, stepDown, stepUp, withoutKube } from "./lib/vmSize";
 import { useConfirm } from "./ui";
 import { Icon } from "./ui/icons";
 import OutputLog from "./ui/OutputLog";
@@ -29,15 +29,16 @@ export const useResizeEnv = () => useContext(Env);
 // pressed: the button whose step is running, so it says so instead of going away.
 // plan: what was running before the restart, and how to start it again; count: how many containers that is.
 // short: the reason on the result line; long: the help behind See why, when there is more to say.
-type Failed = { name: string; short: string; long: string | null };
+type Failed = { name: string; short: string | null; long: string | null; memory?: boolean };
 type Outcome =
   | { kind: "done"; text: string; failed: Failed[]; slow: string[] }
   | { kind: "failed"; text: string; step: Size | null; tried: Size; stopped: boolean }
   | { kind: "refused"; text: string };
-// kube: how many running containers Kubernetes owns (left to it, not counted).
-export type ResizeState = { from: string | null; profile: string; target: Size | null; was: Size | null; plan: RestartPlan; count: number; kube: number; progress: "restarting" | "starting" | null; outcome: Outcome | null; pressed: string | null; tick: number };
+// kube: how many running containers Kubernetes owns (left to it, not counted). extra: a container that stopped for
+// lack of memory (the line the resize was started from); started once the rest runs again, and said by name.
+export type ResizeState = { from: string | null; profile: string; target: Size | null; was: Size | null; plan: RestartPlan; count: number; kube: number; extra: string[]; late: string[]; progress: "restarting" | "starting" | null; outcome: Outcome | null; pressed: string | null; tick: number };
 const NONE: RestartPlan = { waves: [], healthy: [] };
-const IDLE: ResizeState = { from: null, profile: "default", target: null, was: null, plan: NONE, count: 0, kube: 0, progress: null, outcome: null, pressed: null, tick: 0 };
+const IDLE: ResizeState = { from: null, profile: "default", target: null, was: null, plan: NONE, count: 0, kube: 0, extra: [], late: [], progress: null, outcome: null, pressed: null, tick: 0 };
 let state = IDLE;
 const subs = new Set<() => void>();
 const set = (next: Partial<ResizeState>) => { state = { ...state, ...next }; subs.forEach((f) => f()); };
@@ -89,7 +90,7 @@ async function startWave(ctx: string, names: string[]): Promise<Failed[]> {
   const args = ["start", ...names];
   return activity.ran("start", dockerLine(ctx, args), () => docker(ctx, args), nameList(names), true).then(
     () => [],
-    (e: unknown) => notStarted(String(e), names).map((name) => ({ name, ...startReason(String(e), name) })),
+    (e: unknown) => notStarted(String(e), names).map((name) => ({ name, ...startReason(String(e), name, state.target?.memory) })),
   );
 }
 
@@ -125,12 +126,17 @@ async function startAgain(plan: RestartPlan, pressed: string) {
     const needed = wave.filter((n) => plan.healthy.includes(n) && !failed.some((f) => f.name === n));
     if (needed.length) slow.push(...(await untilHealthy(ctx, needed)));
   }
+  // Last, after the usual waves: an out-of-memory container whose compose labels couldn't be read.
+  if (state.late.length) failed.push(...(await startWave(ctx, state.late)));
   finish(failed, slow);
 }
 
-const failLine = (f: Failed) => `${f.name} didn't start: ${f.short}.`;
 const slowLine = (slow: string[]) => (slow.length ? ` ${nameList(slow)} ${slow.length === 1 ? "wasn't" : "weren't"} healthy after a minute; what needs ${slow.length === 1 ? "it" : "them"} was started anyway.` : "");
-const finish = (failed: Failed[], slow: string[] = []) => set({ progress: null, pressed: null, outcome: { kind: "done", text: doneText(state.target!, state.count, failed.length) + (state.kube ? ` ${KUBE_BACK}` : "") + slowLine(slow), failed, slow }, tick: state.tick + 1 });
+const finish = (failed: Failed[], slow: string[] = []) => {
+  const names = failed.map((f) => f.name);
+  const main = failed.filter((f) => !state.extra.includes(f.name)).length;
+  set({ progress: null, pressed: null, outcome: { kind: "done", text: doneText(state.target!, state.count, main, state.was, state.extra.filter((n) => !names.includes(n))) + (state.kube ? ` ${KUBE_BACK}` : "") + slowLine(slow), failed, slow }, tick: state.tick + 1 });
+};
 
 // One container that didn't start, tried again on its own.
 async function startOne(name: string) {
@@ -142,7 +148,7 @@ async function startOne(name: string) {
   const left = o.failed.filter((f) => f.name !== name);
   await activity.ran("start", dockerLine(ctx, args), () => docker(ctx, args), name, true).then(
     () => finish(left),
-    (e: unknown) => finish([...left, { name, ...startReason(String(e), name) }]),
+    (e: unknown) => finish([...left, { name, ...startReason(String(e), name, state.target?.memory) }]),
   );
 }
 
@@ -166,7 +172,11 @@ export async function askResize(env: ResizeEnv, confirm: ReturnType<typeof useCo
   if (!read) return set({ progress: null, pressed: null, outcome: { kind: "refused", text: "Couldn't read which containers are running, so the VM wasn't restarted." }, tick: state.tick + 1 });
   const { rows, kube } = withoutKube(read);
   const extra = alsoStart.filter((n) => !rows.some((r) => r.name === n));
-  set({ plan: planRestart([...rows, ...extra.map((name) => ({ name, labels: {} }))]), count: rows.length + extra.length, kube });
+  // The out-of-memory container still exists, exited: its labels put it in its depends_on place.
+  const inspected = !extra.length ? [] : await docker(ctx, ["inspect", ...extra])
+    .then((out) => (JSON.parse(out) as { Name: string; Config?: { Labels?: Record<string, string> | null } }[]).map((c) => ({ name: c.Name.replace(/^\//, ""), labels: c.Config?.Labels ?? {} })))
+    .catch(() => null);
+  set({ ...planWith(rows, extra, inspected), kube, extra });
   await restart(env, size, "main");
 }
 
@@ -193,8 +203,20 @@ export function ResizeButton({ from, size, title, primary, alsoStart, vmWords }:
 // One line: what happened, and each container that didn't start with its reason.
 const resultText = (o: Outcome) => `${o.text}${o.kind === "failed" && o.stopped ? " The VM is stopped." : ""}${o.kind === "done" ? o.failed.map((f) => ` ${failLine(f)}`).join("") : ""}`;
 const isBad = (o: Outcome) => o.kind !== "done" || o.failed.length > 0;
-const progressText = (s: ResizeState) => (!s.progress || !s.target ? "" : s.progress === "restarting" ? `Restarting the VM with ${sizeWords(s.target)}… about a minute` : `Starting ${s.count === 1 ? "the container" : `your ${s.count} containers`} again…`);
+const progressText = (s: ResizeState) => (!s.progress || !s.target ? "" : s.progress === "restarting" ? `Restarting the VM with ${sizeWords(s.target)}… about a minute` : "Starting everything that was running…");
 export const resizeLine = (s: ResizeState) => progressText(s);
+
+// Where focus goes after Dismiss: the next row's first button a keyboard can reach (not the hidden chevron), else this
+// row's name, else the Doctor's first button, else the page heading. Never the page top.
+export const REACHABLE = 'button:not([aria-hidden="true"]):not([tabindex="-1"]):not([hidden])';
+export function afterDismiss(box: HTMLElement): HTMLElement | null {
+  const row = box.closest("li");
+  const next = row?.nextElementSibling?.querySelector<HTMLElement>(REACHABLE) ?? row?.querySelector<HTMLElement>(".app-name") ?? document.querySelector<HTMLElement>(".doctor-head button");
+  if (next) return next;
+  const h1 = document.querySelector<HTMLElement>("main h1");
+  if (h1 && !h1.hasAttribute("tabindex")) h1.tabIndex = -1;
+  return h1;
+}
 
 // Progress and result, under the title of whatever started the run. Progress goes to one polite status line;
 // each result is said once, by moving focus to it. Kept in view above the command toast.
@@ -205,6 +227,10 @@ export function ResizeStatus({ from, after }: { from: string; after?: () => void
   const line = useRef<HTMLParagraphElement>(null);
   const seen = useRef(s.tick);
   const mine = s.from === from;
+  // Shown in a new place (the line it was in went away when the container ran): it takes focus if nothing has it.
+  useEffect(() => {
+    if (mine && s.outcome && (!document.activeElement || document.activeElement === document.body)) line.current?.focus({ preventScroll: true });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     shownOn.set(from, (shownOn.get(from) ?? 0) + 1);
     return () => { shownOn.set(from, (shownOn.get(from) ?? 1) - 1); };
@@ -223,13 +249,13 @@ export function ResizeStatus({ from, after }: { from: string; after?: () => void
   );
   const o = mine ? s.outcome : null;
   const [whyOpen, setWhyOpen] = useState<string | null>(null);
+  // After a memory failure the next size up from the one just tried, if one fits.
+  const next = s.target ? stepUp(s.target, env?.host?.memory) : null;
   const dismiss = () => {
-    // Focus goes on to the next thing to do, not to the page top.
-    const row = box.current?.closest("li");
-    const next = row?.nextElementSibling?.querySelector<HTMLElement>("button") ?? document.querySelector<HTMLElement>(".doctor-head button");
+    const to = box.current ? afterDismiss(box.current) : null;
     dismissResize();
     after?.();
-    next?.focus();
+    to?.focus();
   };
   return (
     <div className="resize-status" ref={box}>
@@ -237,14 +263,16 @@ export function ResizeStatus({ from, after }: { from: string; after?: () => void
       {progress && <p className="hint resize-progress" aria-hidden="true">{progress}</p>}
       {o && (
         <p ref={line} tabIndex={-1} className={`resize-result ${isBad(o) ? "bad" : "ok"}`}>
-          <Icon name={isBad(o) ? "alert" : "check"} size={14} />
+          <Icon name={isBad(o) ? "close" : "check"} size={14} />
           <span>{resultText(o)}</span>
         </p>
       )}
       {o && env && (
         <span className="actions-inline resize-actions">
           {o.kind === "done" && o.failed.map((f) => [
-            btn(`start:${f.name}`, `Start ${f.name}`, "Starting…", () => void startOne(f.name)),
+            // Out of memory again: Start would fail the same way, so the way to more memory comes first.
+            f.memory ? (next ? <ResizeButton key={`more:${f.name}`} from={from} size={next} title={`${f.name} didn't start`} alsoStart={[f.name]} vmWords /> : <button key={`prof:${f.name}`} className="small" aria-label={`Change in Profiles: ${f.name} didn't start`} onClick={env.onProfiles}>Change in Profiles</button>)
+              : btn(`start:${f.name}`, `Start ${f.name}`, "Starting…", () => void startOne(f.name)),
             f.long && <button key={`why:${f.name}`} className="small" aria-expanded={whyOpen === f.name} aria-controls={`resize-why-${f.name}`} aria-label={`See why ${f.name} didn't start`} onClick={() => setWhyOpen((x) => (x === f.name ? null : f.name))}>See why</button>,
           ])}
           {o.kind === "failed" && o.step && btn("step", `Try ${sizeWords(o.step)}`, "Restarting…", () => void restart(env, o.step!, "step"), true)}

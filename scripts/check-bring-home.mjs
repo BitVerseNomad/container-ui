@@ -1,5 +1,5 @@
 // "Bring over" from home: the empty state, the New menu, and the line under a project whose volume came up empty
-// (run after: node scripts/build-preview.mjs). Needs playwright resolvable. SHOTS=dir saves r23-<state>.png.
+// (run after: node scripts/build-preview.mjs). Needs playwright resolvable. SHOTS=dir saves r34-<state>.png.
 import { createRequire } from "node:module";
 import path from "node:path";
 import { createHash } from "node:crypto";
@@ -28,10 +28,10 @@ async function open(query) {
 // Every state's md5 is kept: two states that save the same picture mean one of them shows the wrong thing.
 const md5s = new Map();
 const keep = (state, buf) => { const h = createHash("md5").update(buf).digest("hex"); md5s.set(state, h); return h; };
-const shot = async (p, state) => keep(state, await p.screenshot(shots ? { path: path.join(shots, `r23-${state}.png`) } : {}));
+const shot = async (p, state) => keep(state, await p.screenshot(shots ? { path: path.join(shots, `r34-${state}.png`) } : {}));
 // One row on its own, for states that share a screen (Doctor's rows both fit in one viewport, so a page shot of each
 // after scrolling to it was the same picture).
-const shotOf = async (el, state) => keep(state, await el.screenshot(shots ? { path: path.join(shots, `r23-${state}.png`) } : {}));
+const shotOf = async (el, state) => keep(state, await el.screenshot(shots ? { path: path.join(shots, `r34-${state}.png`) } : {}));
 const headClose = (p) => panel(p).locator(".drawer-head button");
 const describedBy = (b) => b.evaluate((el) => (el.getAttribute("aria-describedby") ?? "").split(" ").map((id) => document.getElementById(id)?.textContent ?? "").join(" ").trim());
 const blankButtons = (p) => p.locator(".blank .actions-inline button").evaluateAll((b) => b.map((x) => `${x.textContent}${x.classList.contains("primary") ? "*" : ""}`));
@@ -116,7 +116,7 @@ check(await shop.locator(".problem").first().innerText().then((t) => /nearly emp
 check(await shop.locator(".problem", { hasText: "nearly empty" }).locator("code").first().innerText().catch(() => "") === "shop_db", "morning: the volume name is in the code font");
 const gapButton = p.getByRole("button", { name: "Bring it over: shop_db from Docker Desktop" });
 check(await gapButton.count() === 1 && (await gapButton.innerText()).trim() === "Bring it over…", "morning: one volume, so the button says Bring it over…, and its name starts with those words");
-check(/, 4 problems$/.test(await shop.locator(".app-name").getAttribute("aria-label")), `morning: the row's problem count includes the line (${await shop.locator(".app-name").getAttribute("aria-label")})`);
+check(/, 4 problems, 1 stopped$/.test(await shop.locator(".app-name").getAttribute("aria-label")), `morning: the row counts the volume line with the problems and the stopped cache apart (${await shop.locator(".app-name").getAttribute("aria-label")})`);
 check(await badge(p) === "7", `morning: Doctor's badge counts it (${await badge(p)})`);
 check(await p.locator(".vm-note").count() === 0 && await p.locator(".setup-strip").count() === 0, "morning: no VM note and no setup strip");
 const before = await shopCount();
@@ -223,7 +223,7 @@ const askTitle = (await ask.locator("#confirm-title").innerText().catch(() => ""
 const askBody = (await ask.locator("#confirm-body p, #confirm-body li").allInnerTexts().catch(() => [])).map((t) => t.trim());
 const notice = ask.locator("#confirm-body p.confirm-notice");
 check(/shop_db/.test(picks2) && askTitle === "Bring uploads over?", `both: the confirm names what comes over (${picks2} | ${askTitle || "no confirm"})`);
-check(askBody[0] === "files-1 in Docker Desktop is stopped first, so the copy is clean. You can start it again from here after.", `both: the body says who stops first (${askBody[0]})`);
+check(askBody[0] === "files-1 in Docker Desktop is stopped first, so the copy is clean. You can start it again from here afterwards.", `both: the body says who stops first (${askBody[0]})`);
 check(askBody[askBody.length - 1] === "shop_db isn't replaced: Colima's copy grew to 300.4 MiB since we checked." && await notice.count() === 1 && await notice.locator("svg").count() === 1, `both: the grown one is last, as a notice with a warning mark (${askBody[askBody.length - 1]})`);
 check(await ask.getByRole("button", { name: "Stop and bring over" }).count() === 1, "both: the button stays Stop and bring over");
 check(((await panel(p).locator('[role="alert"]').first().textContent()) ?? "") === "", "both: no alert is said under the confirm");

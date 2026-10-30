@@ -425,7 +425,17 @@ fn wait_bounded(child: &mut std::process::Child, limit: Duration) -> Option<std:
     }
 }
 
-pub(crate) fn output_with_deadline(mut cmd: Command, deadline: std::time::Duration) -> std::io::Result<(bool, Vec<u8>, Vec<u8>)> {
+pub(crate) fn output_with_deadline(cmd: Command, deadline: std::time::Duration) -> std::io::Result<(bool, Vec<u8>, Vec<u8>)> {
+    let (status, o, mut e) = run_with_deadline(cmd, deadline)?;
+    if status.is_none() {
+        e.extend_from_slice(format!("\nStopped after {}s with no answer. Docker or Colima may be stuck; try restarting the VM.", deadline.as_secs()).as_bytes());
+    }
+    Ok((status.map_or(false, |s| s.success()), o, e))
+}
+
+// The same run, saying plainly whether it ended (Some, with its exit status) or was killed at the deadline (None),
+// and adding no words of its own to stderr.
+pub(crate) fn run_with_deadline(mut cmd: Command, deadline: std::time::Duration) -> std::io::Result<(Option<std::process::ExitStatus>, Vec<u8>, Vec<u8>)> {
     use std::process::Stdio;
     // Own process group, so the kill below also reaches limactl or a credential helper holding the pipes.
     let mut child = cmd.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).process_group(0).spawn()?;
@@ -444,11 +454,7 @@ pub(crate) fn output_with_deadline(mut cmd: Command, deadline: std::time::Durati
         }
         std::thread::sleep(std::time::Duration::from_millis(20));
     };
-    let (o, mut e) = (out.join().unwrap_or_default(), err.join().unwrap_or_default());
-    if status.is_none() {
-        e.extend_from_slice(format!("\nStopped after {}s with no answer. Docker or Colima may be stuck; try restarting the VM.", deadline.as_secs()).as_bytes());
-    }
-    Ok((status.map_or(false, |s| s.success()), o, e))
+    Ok((status, out.join().unwrap_or_default(), err.join().unwrap_or_default()))
 }
 
 async fn exec(bin: &'static str, args: Vec<String>, merge_stderr: bool) -> Result<String, String> {
@@ -1022,14 +1028,264 @@ async fn find_compose_files() -> Result<Vec<String>, String> {
     .map_err(|e| e.to_string())?
 }
 
-// Shows one Compose file in Finder. Only a file the scan would list is accepted.
+// Which file Open and Show may reach: one the scan would list, and so must the real file behind it (symlinks
+// resolved): a regular file, still in an ordinary home folder, still named like a Compose file. Returns the real path,
+// so `open` gets the file that was checked, not a name that could be swapped for something else.
+fn compose_real_path(path: &str, home: &str) -> Result<String, String> {
+    let refuse = || "Only a Compose file in your home folder can be opened".to_string();
+    if compose_paths(path, home) != [path] {
+        return Err(refuse());
+    }
+    let real = std::fs::canonicalize(path).map_err(|_| refuse())?;
+    if !std::fs::metadata(&real).map_err(|_| refuse())?.is_file() {
+        return Err(refuse());
+    }
+    let real_home = std::fs::canonicalize(home).map_err(|_| refuse())?;
+    let (real, real_home) = (real.to_str().ok_or_else(refuse)?.to_string(), real_home.to_str().ok_or_else(refuse)?);
+    if !real.starts_with(&format!("{real_home}/")) {
+        // The name passed the check, so a folder above it is a link that leads out of home.
+        let name = path.rsplit('/').next().unwrap_or("compose.yaml");
+        return Err(format!("{name} is in a linked folder outside your home, so it can't be opened from here"));
+    }
+    if compose_paths(&real, real_home) != [real.as_str()] {
+        return Err(refuse());
+    }
+    Ok(real)
+}
+
+// Apps never handed a Compose file, even when the Mac's default for YAML says so: they run what they open (terminals,
+// script runners) or are not editors at all. A short list on purpose: anything else that is set as the default for
+// YAML is what the user chose to edit it with.
+const EDITOR_DENY: [&str; 12] = [
+    "com.apple.terminal", "com.googlecode.iterm2", "com.apple.scripteditor2", "com.apple.automator", "com.apple.installer",
+    "com.apple.archiveutility", "dev.warp.warp-stable", "net.kovidgoyal.kitty", "com.github.wez.wezterm", "org.alacritty",
+    "com.mitchellh.ghostty", "com.apple.shortcuts",
+];
+
+// Which app opens a Compose file. yaml_editor: the app registered to EDIT YAML (public.yaml, editor role); plain_editor:
+// the one registered to edit plain text. The first one that looks like an app and isn't refused above is used, as
+// `-b <bundle id>` (so the file opens as a document in it even if it were a script); with neither, TextEdit by its
+// bundle id. Never bare `open -t`: that is whatever the plain-text default is (it can be iTerm), past the deny list.
+fn looks_like_editor(id: &str) -> bool {
+    let bundle = id.split('.').count() >= 2 && id.starts_with(|c: char| c.is_ascii_alphanumeric()) && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-');
+    bundle && !EDITOR_DENY.contains(&id.to_ascii_lowercase().as_str())
+}
+fn pick_editor(yaml_editor: Option<&str>, plain_editor: Option<&str>) -> Option<String> {
+    [yaml_editor, plain_editor].into_iter().flatten().find(|id| looks_like_editor(id)).map(String::from)
+}
+const TEXTEDIT: &str = "com.apple.TextEdit";
+fn editor_args(real: &str, pick: Option<&str>) -> Vec<String> {
+    vec!["-b".into(), pick.unwrap_or(TEXTEDIT).into(), real.into()]
+}
+
+// "textedit" when the app that opens it is TextEdit (whose smart quotes break YAML, so the page says how to turn them
+// off first), by its bundle id. "editor" otherwise.
+fn opens_in(args: &[String]) -> &'static str {
+    if args.get(1).map_or(false, |id| id.eq_ignore_ascii_case(TEXTEDIT)) { "textedit" } else { "editor" }
+}
+
+// LaunchServices: the default app a content type opens with in a role (editor 0x4).
+const ROLE_EDITOR: u32 = 0x4;
+#[cfg(target_os = "macos")]
+mod launch_services {
+    use std::ffi::{c_char, c_void, CStr, CString};
+    #[link(name = "CoreServices", kind = "framework")]
+    extern "C" {
+        fn LSCopyDefaultRoleHandlerForContentType(content_type: *const c_void, role: u32) -> *const c_void;
+        fn LSCopyApplicationURLsForBundleIdentifier(bundle_id: *const c_void, error: *mut *const c_void) -> *const c_void;
+    }
+    #[link(name = "CoreFoundation", kind = "framework")]
+    extern "C" {
+        fn CFStringCreateWithCString(alloc: *const c_void, s: *const c_char, encoding: u32) -> *const c_void;
+        fn CFStringGetCString(s: *const c_void, buf: *mut c_char, size: isize, encoding: u32) -> u8;
+        fn CFRelease(cf: *const c_void);
+        fn CFArrayGetCount(array: *const c_void) -> isize;
+        fn CFArrayGetValueAtIndex(array: *const c_void, index: isize) -> *const c_void;
+        fn CFURLCopyLastPathComponent(url: *const c_void) -> *const c_void;
+    }
+    const UTF8: u32 = 0x0800_0100;
+    // SAFETY: reads a CFString into a String; the caller still owns it.
+    unsafe fn read(s: *const c_void) -> Option<String> {
+        let mut buf = [0 as c_char; 512];
+        (CFStringGetCString(s, buf.as_mut_ptr(), buf.len() as isize, UTF8) != 0).then(|| CStr::from_ptr(buf.as_ptr()).to_string_lossy().into_owned())
+    }
+    // The app's name as Finder shows it ("Cursor" for Cursor.app), from the first app LaunchServices has for the id.
+    pub fn app_name(bundle_id: &str) -> Option<String> {
+        let id = CString::new(bundle_id).ok()?;
+        // SAFETY: the id string, the URL array and the copied name are each released once; the URL is borrowed from
+        // the array and read before the array is released. The error out-parameter is not requested (null).
+        unsafe {
+            let cf_id = CFStringCreateWithCString(std::ptr::null(), id.as_ptr(), UTF8);
+            if cf_id.is_null() {
+                return None;
+            }
+            let urls = LSCopyApplicationURLsForBundleIdentifier(cf_id, std::ptr::null_mut());
+            CFRelease(cf_id);
+            if urls.is_null() {
+                return None;
+            }
+            let name = if CFArrayGetCount(urls) > 0 {
+                let last = CFURLCopyLastPathComponent(CFArrayGetValueAtIndex(urls, 0));
+                let n = if last.is_null() { None } else { let n = read(last); CFRelease(last); n };
+                n
+            } else {
+                None
+            };
+            CFRelease(urls);
+            name.map(|n| n.strip_suffix(".app").unwrap_or(&n).to_string()).filter(|n| !n.is_empty())
+        }
+    }
+    pub fn handler(content_type: &str, role: u32) -> Option<String> {
+        let uti = CString::new(content_type).ok()?;
+        // SAFETY: plain CoreFoundation calls; the type string and the copied handler are each released once.
+        unsafe {
+            let ty = CFStringCreateWithCString(std::ptr::null(), uti.as_ptr(), UTF8);
+            if ty.is_null() {
+                return None;
+            }
+            let id = LSCopyDefaultRoleHandlerForContentType(ty, role);
+            CFRelease(ty);
+            if id.is_null() {
+                return None;
+            }
+            let mut buf = [0 as c_char; 256];
+            let got = CFStringGetCString(id, buf.as_mut_ptr(), buf.len() as isize, UTF8) != 0;
+            CFRelease(id);
+            got.then(|| CStr::from_ptr(buf.as_ptr()).to_string_lossy().into_owned())
+        }
+    }
+}
+// The name people see for the app `open` was given (its .app's name), TextEdit for TextEdit's bundle id, or
+// "an editor" when it can't be told.
+fn app_name_of(args: &[String], lookup: impl Fn(&str) -> Option<String>) -> String {
+    match args.get(1) {
+        Some(id) if id.eq_ignore_ascii_case(TEXTEDIT) => lookup(id).unwrap_or_else(|| "TextEdit".into()),
+        Some(id) => lookup(id).unwrap_or_else(|| "an editor".into()),
+        None => "an editor".into(),
+    }
+}
+#[cfg(target_os = "macos")]
+fn app_display_name(bundle_id: &str) -> Option<String> {
+    launch_services::app_name(bundle_id)
+}
+#[cfg(not(target_os = "macos"))]
+fn app_display_name(_bundle_id: &str) -> Option<String> {
+    None
+}
+#[cfg(target_os = "macos")]
+fn type_editor(content_type: &str) -> Option<String> {
+    launch_services::handler(content_type, ROLE_EDITOR)
+}
+#[cfg(not(target_os = "macos"))]
+fn type_editor(_content_type: &str) -> Option<String> {
+    None
+}
+
+// The `open` arguments for one checked file, and whether that will be TextEdit. A lookup only: nothing opens.
+fn compose_open_plan(real: &str) -> (Vec<String>, &'static str) {
+    let plain = type_editor("public.plain-text");
+    let args = editor_args(real, pick_editor(type_editor("public.yaml").as_deref(), plain.as_deref()).as_deref());
+    let how = opens_in(&args);
+    (args, how)
+}
+
+// How one `open` run ended. Failed holds what macOS said on stderr.
+#[derive(Debug, PartialEq)]
+enum OpenRun { Done, TimedOut, Failed(String) }
+const OPEN_DEADLINE: Duration = Duration::from_secs(30);
+// The page reads these two prefixes: still opening (not an error), or couldn't open with macOS's reason after the colon.
+const STILL_OPENING: &str = "STILL_OPENING";
+const OPEN_FAILED: &str = "OPEN_FAILED:";
+
+// How one `open` ended: killed at the deadline (None) is still opening, never a failure; a failure keeps only what
+// macOS said.
+fn open_run(status: Option<bool>, stderr: &str) -> OpenRun {
+    match status {
+        None => OpenRun::TimedOut,
+        Some(true) => OpenRun::Done,
+        Some(false) => OpenRun::Failed(stderr.to_string()),
+    }
+}
+
+// Only an app that is gone (a stale LaunchServices record) is worth a second try with TextEdit; a
+// cancelled "downloaded from the internet" dialog, say, must not land the file in TextEdit.
+fn app_missing(stderr: &str) -> bool {
+    stderr.contains("Unable to find application") || stderr.contains("LSCopyApplicationURLsForBundleIdentifier")
+}
+
+// One `open` run, then (only when the chosen app can't be found, and it wasn't TextEdit already) one more with TextEdit. A run that
+// is still going at the deadline is left alone and not retried. run: one `open` with those arguments (tests fake it).
+// A failure is OPEN_FAILED:<the app it tried>\n<macOS's first line>. app_name: a bundle id's display name (tests fake it).
+fn open_with_fallback(first: Vec<String>, run: impl Fn(&[String]) -> Result<OpenRun, String>, app_name: impl Fn(&[String]) -> String) -> Result<Vec<String>, String> {
+    let fail = |args: &[String], e: &str| format!("{OPEN_FAILED}{}\n{}", app_name(args), e.lines().map(str::trim).find(|l| !l.is_empty()).unwrap_or("").trim_end_matches('.'));
+    match run(&first)? {
+        OpenRun::Done => Ok(first),
+        OpenRun::TimedOut => Err(STILL_OPENING.into()),
+        OpenRun::Failed(e) if app_missing(&e) && opens_in(&first) != "textedit" => {
+            let plain = editor_args(&first[2], None);
+            match run(&plain)? {
+                OpenRun::Done => Ok(plain),
+                OpenRun::TimedOut => Err(STILL_OPENING.into()),
+                OpenRun::Failed(e) => Err(fail(&plain, &e)),
+            }
+        }
+        OpenRun::Failed(e) => Err(fail(&first, &e)),
+    }
+}
+
+// Shows one Compose file in Finder.
 #[tauri::command]
 fn reveal_compose(path: String) -> Result<(), String> {
     let home = std::env::var("HOME").unwrap_or_default();
-    if compose_paths(&path, &home) != [path.as_str()] {
-        return Err("Only a Compose file in your home folder can be shown".into());
-    }
-    Command::new("/usr/bin/open").args(["-R", &path]).spawn().map(|_| ()).map_err(|e| e.to_string())
+    let real = compose_real_path(&path, &home)?;
+    Command::new("/usr/bin/open").args(["-R", &real]).spawn().map(|_| ()).map_err(|e| e.to_string())
+}
+
+// Which app Open would use for this file ("textedit" or "editor"), so the page can say the smart quotes hint before
+// it opens. Checks the path like Open does; opens nothing.
+// how: "textedit" or "editor"; app: the name Open's button shows ("Open in Cursor"), none when it can't be told.
+#[derive(Serialize, Debug, PartialEq)]
+struct EditorPlan {
+    how: &'static str,
+    app: Option<String>,
+}
+fn editor_plan(args: &[String], how: &'static str, lookup: impl Fn(&str) -> Option<String>) -> EditorPlan {
+    let app = app_name_of(args, lookup);
+    EditorPlan { how, app: (app != "an editor").then_some(app) }
+}
+
+#[tauri::command]
+async fn compose_editor(path: String) -> Result<EditorPlan, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let home = std::env::var("HOME").unwrap_or_default();
+        let real = compose_real_path(&path, &home)?;
+        let (args, how) = compose_open_plan(&real);
+        Ok(editor_plan(&args, how, app_display_name))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+// Opens one Compose file in the editor the Mac uses for YAML (never `open <file>` alone, which would run a script or
+// app that took the file's place), so its memory limit can be raised. Returns where it opened ("textedit" or
+// "editor"), which differs from compose_editor only after the retry.
+#[tauri::command]
+async fn open_compose(path: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let home = std::env::var("HOME").unwrap_or_default();
+        let real = compose_real_path(&path, &home)?;
+        let (first, _) = compose_open_plan(&real);
+        let run = |args: &[String]| {
+            let mut cmd = Command::new("/usr/bin/open");
+            cmd.args(args);
+            let (status, _, err) = run_with_deadline(cmd, OPEN_DEADLINE).map_err(|e| e.to_string())?;
+            Ok(open_run(status.map(|s| s.success()), &String::from_utf8_lossy(&err)))
+        };
+        let used = open_with_fallback(first, run, |args| app_name_of(args, app_display_name))?;
+        Ok(opens_in(&used).to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 // ---- Running a Compose project, as `cd <folder> && docker compose <action>` would ----
@@ -1063,10 +1319,63 @@ fn compose_args(context: &str, file: &str, action: &str, home: &str) -> Result<(
     Ok((dir, args))
 }
 
+// One service started again with `docker compose up -d --no-deps <service>`, so Compose recreates it with the
+// file's current settings (a new memory limit applies only to a recreated container) and leaves the services it
+// depends on as they are (no rerun of a finished job, no start of a db the user stopped). The name must be one of
+// the project's own services: no free text reaches argv.
+fn compose_service_args(context: &str, file: &str, service: &str, services: &[String], home: &str) -> Result<(String, Vec<String>), String> {
+    let (dir, mut args) = compose_args(context, file, "up", home)?;
+    let shaped = !service.is_empty() && !service.starts_with('-') && service.chars().all(|c| c.is_ascii_alphanumeric() || "._-".contains(c));
+    if !shaped || !services.iter().any(|s| s == service) {
+        return Err(format!("{NOT_STARTED}\"{service}\" is not a service of this project"));
+    }
+    args.extend(["--no-deps".to_string(), service.to_string()]);
+    Ok((dir, args))
+}
+
+// Said before an error when nothing ran (a check before Compose refused), so the page doesn't say part of the
+// project may have been created.
+const NOT_STARTED: &str = "Not started: ";
+
+// The project's services: `config --services` with every profile (`--profile '*'`, so a service behind a profile
+// counts), or without it when that Compose is too old for '*'; plus any service a container of this project already
+// carries in its label (it exists, so it is the project's).
+// The name Compose gives a project with no `name:` of its own: the folder's name, lowercased, keeping only a-z, 0-9,
+// _ and -, with no leading _ or -. With `name:` set, the labeled fallback finds nothing, which is safe: it is only a fallback.
+fn default_project_name(dir: &str) -> String {
+    let name: String = dir.rsplit('/').next().unwrap_or("").to_lowercase().chars().filter(|c| c.is_ascii_alphanumeric() || *c == '_' || *c == '-').collect();
+    // compose-go also drops leading _ and - (a project name must start with a letter or digit).
+    name.trim_start_matches(['_', '-']).to_string()
+}
+
+fn project_services(all_profiles: Option<&str>, active: Option<&str>, labeled: &str) -> Vec<String> {
+    let mut v: Vec<String> = all_profiles.or(active).unwrap_or("").lines().chain(labeled.lines()).map(|l| l.trim().to_string()).filter(|l| !l.is_empty()).collect();
+    v.sort();
+    v.dedup();
+    v
+}
+
 #[tauri::command]
-async fn compose_action(app: tauri::AppHandle, context: String, file: String, action: String) -> Result<(), String> {
+async fn compose_action(app: tauri::AppHandle, context: String, file: String, action: String, service: Option<String>) -> Result<(), String> {
     let home = std::env::var("HOME").unwrap_or_default();
-    let (dir, args) = compose_args(&context, &file, &action, &home)?;
+    let (dir, args) = match service.as_deref() {
+        None => compose_args(&context, &file, &action, &home)?,
+        Some(svc) => {
+            if action != "up" {
+                return Err(format!("\"docker compose {action}\" of one service is not available from the app"));
+            }
+            let (dir, list) = compose_args(&context, &file, "up", &home).map_err(|e| format!("{NOT_STARTED}{e}"))?;
+            let ctx_args = || vec![list[0].clone(), list[1].clone()];
+            let with = |tail: &[&str]| { let mut a = ctx_args(); a.extend(tail.iter().map(|s| s.to_string())); a };
+            let all = exec_in("docker", with(&["compose", "--profile", "*", "config", "--services"]), false, Some(dir.clone())).await.ok();
+            let active = if all.is_none() { exec_in("docker", with(&["compose", "config", "--services"]), false, Some(dir.clone())).await.ok() } else { None };
+            let labeled = exec_in("docker", with(&["ps", "-a", "--filter", &format!("label=com.docker.compose.project.working_dir={dir}"), "--filter", &format!("label=com.docker.compose.project={}", default_project_name(&dir)), "--format", "{{.Label \"com.docker.compose.service\"}}"]), false, None).await.unwrap_or_default();
+            if all.is_none() && active.is_none() && labeled.trim().is_empty() {
+                return Err(format!("{NOT_STARTED}docker compose couldn't read this project's file"));
+            }
+            compose_service_args(&context, &file, svc, &project_services(all.as_deref(), active.as_deref(), &labeled), &home)?
+        }
+    };
     tauri::async_runtime::spawn_blocking(move || {
         let _guard = match COMPOSE_LOCK.try_lock() {
             Ok(g) => g,
@@ -1081,6 +1390,27 @@ async fn compose_action(app: tauri::AppHandle, context: String, file: String, ac
 }
 
 // The last lines of every service in the project, as Compose prints them (services interleaved). A read, so it doesn't wait for a run in progress.
+// The project's settings as Compose resolves them (every profile, overrides merged), as JSON: the page reads one
+// service's current memory limit and what it depends on. A read, for a listed file only.
+#[tauri::command]
+async fn compose_config(context: String, file: String) -> Result<String, String> {
+    let home = std::env::var("HOME").unwrap_or_default();
+    let (dir, list) = compose_args(&context, &file, "up", &home)?;
+    let args = vec![list[0].clone(), list[1].clone(), "compose".into(), "--profile".into(), "*".into(), "config".into(), "--format".into(), "json".into()];
+    match exec_in("docker", args, false, Some(dir.clone())).await {
+        Ok(out) => Ok(out),
+        Err(e) if config_retry_plain(&e) => exec_in("docker", vec![list[0].clone(), list[1].clone(), "compose".into(), "config".into(), "--format".into(), "json".into()], false, Some(dir)).await,
+        Err(e) => Err(e),
+    }
+}
+
+// An older Compose without `--profile *` says so; only then is plain `config` worth a second try. Any other error
+// (a broken compose.yaml, a missing variable) is the real answer and is returned as it is.
+fn config_retry_plain(err: &str) -> bool {
+    let e = err.to_ascii_lowercase();
+    e.contains("unknown flag") || e.contains("profile")
+}
+
 #[tauri::command]
 async fn compose_logs(context: String, file: String, since: Option<String>) -> Result<String, String> {
     let home = std::env::var("HOME").unwrap_or_default();
@@ -1172,7 +1502,7 @@ fn main() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             list_profiles, docker, docker_check, docker_pull, env_check, install_tools, network_probe, kubectl, open_terminal, start_profile, apply_resources,
-            stop_profile, force_stop_profile, restart_profile, force_restart_profile, delete_profile, cancel_vm_op, host_resources, vm_log_tail, open_url, pick_folder, setup_report, setup_fix, find_compose_files, reveal_compose, compose_action, cancel_compose, compose_logs, compose_in_folder, container_shell,
+            stop_profile, force_stop_profile, restart_profile, force_restart_profile, delete_profile, cancel_vm_op, host_resources, vm_log_tail, open_url, pick_folder, setup_report, setup_fix, find_compose_files, reveal_compose, compose_editor, open_compose, compose_config, compose_action, cancel_compose, compose_logs, compose_in_folder, container_shell,
             desktop::desktop_state, desktop::desktop_docker, desktop::desktop_copy, desktop::desktop_copy_stop, desktop::desktop_start, desktop::desktop_replace, desktop::open_docker_desktop
         ])
         .run(tauri::generate_context!())
@@ -1214,6 +1544,244 @@ mod tests {
         ] {
             assert!(super::compose_args(ctx, file, action, "/Users/me").is_err(), "{ctx} {file} {action}");
         }
+    }
+
+    #[test]
+    fn given_one_service_when_started_again_then_only_a_service_the_project_lists_is_added_to_up() {
+        let services = vec!["api".to_string(), "report-job".to_string()];
+        let (dir, args) = super::compose_service_args("colima", "/Users/me/code/shop/compose.yaml", "report-job", &services, "/Users/me").unwrap();
+        assert_eq!(dir, "/Users/me/code/shop");
+        assert_eq!(args, vec!["--context", "colima", "compose", "up", "-d", "--no-deps", "report-job"]);
+        for bad in ["web", "-d", "--build", "report-job extra", "report-job;rm", "", "../x"] {
+            assert!(super::compose_service_args("colima", "/Users/me/code/shop/compose.yaml", bad, &services, "/Users/me").is_err(), "{bad}");
+        }
+        let odd = vec!["--build".to_string()];
+        assert!(super::compose_service_args("colima", "/Users/me/code/shop/compose.yaml", "--build", &odd, "/Users/me").is_err(), "a listed name still can't be a flag");
+        assert!(super::compose_service_args("colima", "/Users/me/code/shop/secrets.txt", "api", &services, "/Users/me").is_err());
+        assert!(super::compose_service_args("colima", "/Users/me/code/shop/compose.yaml", "web", &services, "/Users/me").unwrap_err().starts_with(super::NOT_STARTED), "a refused name says nothing ran");
+    }
+
+    #[test]
+    fn given_profiles_when_the_services_are_listed_then_every_profile_counts_and_a_labeled_container_is_enough() {
+        // `--profile '*'` worked: a service behind a profile is the project's.
+        assert_eq!(super::project_services(Some("api\nreport-job\n"), None, ""), vec!["api", "report-job"]);
+        // An older Compose: only the active profiles, plus what a container of this project already carries.
+        assert_eq!(super::project_services(None, Some("api\n"), "report-job\napi\n"), vec!["api", "report-job"]);
+        assert!(super::project_services(None, None, "").is_empty());
+    }
+
+    #[test]
+    fn given_a_compose_file_when_opened_then_only_a_listed_file_reaches_open() {
+        for bad in ["/Users/me/code/shop/secrets.txt", "/Users/me/.ssh/compose.yaml", "/Users/other/compose.yaml", "-a", "/Applications/Terminal.app", "code/compose.yaml"] {
+            assert!(super::compose_real_path(bad, "/Users/me").is_err(), "{bad}");
+        }
+    }
+
+    // A fake home folder on disk, so symlinks and folders are real.
+    fn compose_home(name: &str) -> (std::path::PathBuf, String) {
+        let home = std::env::temp_dir().join(format!("colima-ui-open-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&home);
+        std::fs::create_dir_all(home.join("code/shop")).unwrap();
+        let home = std::fs::canonicalize(&home).unwrap();
+        let s = home.to_str().unwrap().to_string();
+        (home, s)
+    }
+
+    #[test]
+    fn given_a_regular_compose_file_when_checked_then_its_real_path_is_what_open_gets() {
+        let (home, h) = compose_home("file");
+        let file = home.join("code/shop/compose.yaml");
+        std::fs::write(&file, "services: {}\n").unwrap();
+        let f = file.to_str().unwrap();
+        assert_eq!(super::compose_real_path(f, &h).unwrap(), f);
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn given_a_compose_yaml_that_links_to_a_script_when_opened_then_it_is_refused() {
+        let (home, h) = compose_home("link");
+        let script = home.join("code/shop/run.command");
+        std::fs::write(&script, "#!/bin/sh\necho hi\n").unwrap();
+        let link = home.join("code/shop/compose.yaml");
+        std::os::unix::fs::symlink(&script, &link).unwrap();
+        assert!(super::compose_real_path(link.to_str().unwrap(), &h).is_err());
+        assert!(super::compose_real_path(link.to_str().unwrap(), &h).is_err());
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn given_a_compose_yaml_that_links_outside_home_when_opened_then_it_is_refused() {
+        let (home, h) = compose_home("out");
+        let outside = std::env::temp_dir().join(format!("colima-ui-open-outside-{}.yaml", std::process::id()));
+        std::fs::write(&outside, "services: {}\n").unwrap();
+        let link = home.join("code/shop/compose.yaml");
+        std::os::unix::fs::symlink(&outside, &link).unwrap();
+        assert!(super::compose_real_path(link.to_str().unwrap(), &h).is_err());
+        let _ = std::fs::remove_file(&outside);
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn given_compose_config_fails_when_deciding_to_retry_then_only_a_profile_or_unknown_flag_error_retries() {
+        assert!(super::config_retry_plain("unknown flag: --profile"));
+        assert!(super::config_retry_plain("invalid profile name \"*\""));
+        assert!(!super::config_retry_plain("yaml: line 3: mapping values are not allowed in this context"));
+        assert!(!super::config_retry_plain("required variable DB_PASSWORD is missing a value"));
+    }
+
+    #[test]
+    fn given_a_project_folder_when_its_default_name_is_taken_then_it_matches_what_compose_labels() {
+        assert_eq!(super::default_project_name("/Users/me/code/shop"), "shop");
+        assert_eq!(super::default_project_name("/Users/me/code/My Shop.v2"), "myshopv2");
+        assert_eq!(super::default_project_name("/Users/me/code/report_job-2"), "report_job-2");
+        assert_eq!(super::default_project_name("/Users/me/code/_-shop"), "shop");
+        assert_eq!(super::default_project_name("/Users/me/code/.shop"), "shop");
+    }
+
+    #[test]
+    fn given_an_app_registered_to_edit_yaml_when_a_compose_file_is_opened_then_it_opens_in_that_app_as_a_document() {
+        let f = "/Users/me/code/shop/compose.yaml";
+        assert_eq!(super::editor_args(f, super::pick_editor(Some("com.microsoft.VSCode"), Some("com.apple.TextEdit")).as_deref()), vec!["-b", "com.microsoft.VSCode", f]);
+        assert_eq!(super::pick_editor(Some("dev.zed.Zed"), None).as_deref(), Some("dev.zed.Zed"));
+        assert_eq!(super::pick_editor(Some("com.sublimetext.4"), Some("com.apple.TextEdit")).as_deref(), Some("com.sublimetext.4"));
+    }
+
+    #[test]
+    fn given_no_yaml_editor_when_opened_then_the_plain_text_editor_is_used_and_only_then_the_default_text_editor() {
+        let f = "/Users/me/code/shop/compose.yaml";
+        assert_eq!(super::pick_editor(None, Some("com.barebones.BBEdit")).as_deref(), Some("com.barebones.BBEdit"));
+        assert_eq!(super::pick_editor(Some("com.apple.Terminal"), Some("com.apple.TextEdit")).as_deref(), Some("com.apple.TextEdit"), "a refused YAML app falls to the plain-text editor");
+        assert_eq!(super::editor_args(f, super::pick_editor(None, None).as_deref()), vec!["-b", "com.apple.TextEdit", f], "never bare -t");
+        // The plain-text default is iTerm and nothing edits YAML: iTerm is refused, TextEdit by bundle id, named TextEdit.
+        let args = super::editor_args(f, super::pick_editor(None, Some("com.googlecode.iterm2")).as_deref());
+        assert_eq!(args, vec!["-b", "com.apple.TextEdit", f]);
+        assert_eq!(super::opens_in(&args), "textedit");
+        assert_eq!(super::editor_plan(&args, super::opens_in(&args), |_| None).app.as_deref(), Some("TextEdit"));
+    }
+
+    #[test]
+    fn given_a_terminal_or_script_runner_registered_when_opened_then_it_is_refused() {
+        for bad in ["com.apple.Terminal", "com.googlecode.iterm2", "com.apple.ScriptEditor2", "com.mitchellh.ghostty", "", "notabundle", "com.x/../y", "-a", "-x.y"] {
+            assert_eq!(super::pick_editor(Some(bad), Some(bad)), None, "{bad}");
+        }
+    }
+
+    #[test]
+    fn given_the_app_that_opens_it_when_it_is_textedit_by_bundle_id_or_the_fallback_then_the_page_is_told_textedit() {
+        let f = "/Users/me/code/shop/compose.yaml";
+        assert_eq!(super::opens_in(&super::editor_args(f, Some("com.apple.TextEdit"))), "textedit");
+        assert_eq!(super::opens_in(&super::editor_args(f, Some("com.apple.textedit"))), "textedit", "any case");
+        assert_eq!(super::opens_in(&super::editor_args(f, Some("com.microsoft.VSCode"))), "editor");
+        assert_eq!(super::opens_in(&super::editor_args(f, None)), "textedit");
+    }
+
+    // Reads this Mac's real setting (a LaunchServices lookup, nothing opened): cargo test -- --ignored given_this_mac
+    #[test]
+    #[ignore]
+    fn given_this_mac_when_the_yaml_editor_is_read_then_a_registered_editor_is_used() {
+        let (yaml, plain) = (super::type_editor("public.yaml"), super::type_editor("public.plain-text"));
+        let args = super::editor_args("/Users/me/x/compose.yaml", super::pick_editor(yaml.as_deref(), plain.as_deref()).as_deref());
+        println!("public.yaml editor: {yaml:?}; plain-text editor: {plain:?}; open would get: {args:?}; opens in: {}", super::opens_in(&args));
+        assert_eq!(args[0], "-b", "this Mac has an editor registered (Cursor for YAML)");
+        println!("its name: {:?}", super::app_display_name(&args[1]));
+        assert!(super::app_display_name(&args[1]).is_some());
+    }
+
+    #[test]
+    fn given_open_b_cant_find_the_app_when_opening_then_it_retries_once_with_the_text_editor() {
+        let f = "/Users/me/code/shop/compose.yaml";
+        let first = || vec!["-b".to_string(), "com.gone.Editor".to_string(), f.to_string()];
+        let tried = std::cell::RefCell::new(Vec::new());
+        let missing = super::OpenRun::Failed("Unable to find application with bundle identifier com.gone.Editor".into());
+        let used = super::open_with_fallback(first(), |a| { tried.borrow_mut().push(a[1].clone()); Ok(if a[1] == "com.apple.TextEdit" { super::OpenRun::Done } else { super::OpenRun::Failed("Unable to find application with bundle identifier com.gone.Editor".into()) }) }, |a: &[String]| super::app_name_of(a, |id| (id == "com.microsoft.VSCode").then(|| "Visual Studio Code".to_string()))).unwrap();
+        assert_eq!(used, vec!["-b", "com.apple.TextEdit", f], "the retry is TextEdit by bundle id, never -t");
+        assert_eq!(tried.borrow().len(), 2);
+        let te = || vec!["-b".to_string(), "com.apple.TextEdit".to_string(), f.to_string()];
+        let once = std::cell::RefCell::new(0);
+        let gone = super::open_with_fallback(te(), |_| { *once.borrow_mut() += 1; Ok(super::OpenRun::Failed("Unable to find application named TextEdit".into())) }, |a: &[String]| super::app_name_of(a, |_| None)).unwrap_err();
+        assert_eq!((*once.borrow(), gone.as_str()), (1, "OPEN_FAILED:TextEdit\nUnable to find application named TextEdit"), "TextEdit itself gone: no second try");
+        assert_eq!(missing, super::OpenRun::Failed("Unable to find application with bundle identifier com.gone.Editor".into()));
+        assert!(super::app_missing("_LSCopyApplicationURLsForBundleIdentifier failed"));
+        assert_eq!(super::open_with_fallback(first(), |_| Ok(super::OpenRun::Done), |a: &[String]| super::app_name_of(a, |id| (id == "com.microsoft.VSCode").then(|| "Visual Studio Code".to_string()))).unwrap(), first(), "worked first time: no retry");
+    }
+
+    #[test]
+    fn given_open_fails_for_another_reason_when_opening_then_there_is_no_retry_and_macos_reason_is_returned() {
+        let f = "/Users/me/code/shop/compose.yaml";
+        let first = || vec!["-b".to_string(), "com.microsoft.VSCode".to_string(), f.to_string()];
+        let tried = std::cell::RefCell::new(0);
+        let err = super::open_with_fallback(first(), |_| { *tried.borrow_mut() += 1; Ok(super::OpenRun::Failed("The application can't be opened.\n-128".into())) }, |a: &[String]| super::app_name_of(a, |id| (id == "com.microsoft.VSCode").then(|| "Visual Studio Code".to_string()))).unwrap_err();
+        assert_eq!(err, "OPEN_FAILED:Visual Studio Code\nThe application can't be opened", "names the app it tried");
+        assert_eq!(*tried.borrow(), 1, "a cancelled dialog is not retried in TextEdit");
+        assert_eq!(super::open_with_fallback(vec!["-b".into(), "com.apple.TextEdit".into(), f.into()], |_| Ok(super::OpenRun::Failed(String::new())), |a: &[String]| super::app_name_of(a, |id| (id == "com.microsoft.VSCode").then(|| "Visual Studio Code".to_string()))).unwrap_err(), "OPEN_FAILED:TextEdit\n");
+    }
+
+    #[test]
+    fn given_open_ended_or_was_killed_when_read_then_only_a_kill_is_still_opening() {
+        assert_eq!(super::open_run(None, "anything"), super::OpenRun::TimedOut);
+        assert_eq!(super::open_run(Some(true), ""), super::OpenRun::Done);
+        assert_eq!(super::open_run(Some(false), "The application can't be opened."), super::OpenRun::Failed("The application can't be opened.".into()), "a slow failure is still a failure");
+    }
+
+    #[test]
+    fn given_a_run_with_a_deadline_when_it_ends_or_is_killed_then_it_says_which_and_adds_no_words() {
+        let mut sleep = std::process::Command::new("/bin/sleep");
+        sleep.arg("5");
+        let (killed, _, err) = super::run_with_deadline(sleep, std::time::Duration::from_millis(200)).unwrap();
+        assert!(killed.is_none(), "killed at the deadline");
+        assert!(!String::from_utf8_lossy(&err).contains("Docker or Colima"), "no stuck-Docker sentence for open");
+        let (ended, _, _) = super::run_with_deadline(std::process::Command::new("/usr/bin/false"), std::time::Duration::from_secs(5)).unwrap();
+        assert_eq!(ended.map(|s| s.success()), Some(false), "ended, with its own exit status");
+    }
+
+    #[test]
+    fn given_the_app_open_tried_when_named_then_it_is_the_app_name_or_textedit_for_the_fallback() {
+        let lookup = |id: &str| (id == "com.todesktop.230313mzl4w4u92").then(|| "Cursor".to_string());
+        assert_eq!(super::app_name_of(&["-b".into(), "com.todesktop.230313mzl4w4u92".into(), "/x".into()], lookup), "Cursor");
+        assert_eq!(super::app_name_of(&["-b".into(), "com.gone.Editor".into(), "/x".into()], lookup), "an editor");
+        assert_eq!(super::app_name_of(&["-b".into(), "com.apple.TextEdit".into(), "/x".into()], lookup), "TextEdit");
+    }
+
+    #[test]
+    fn given_the_app_open_will_use_when_planned_then_the_page_gets_its_name_or_none() {
+        let lookup = |id: &str| (id == "com.todesktop.230313mzl4w4u92").then(|| "Cursor".to_string());
+        let cursor = ["-b".to_string(), "com.todesktop.230313mzl4w4u92".into(), "/x".into()];
+        assert_eq!(super::editor_plan(&cursor, "editor", lookup), super::EditorPlan { how: "editor", app: Some("Cursor".into()) });
+        assert_eq!(super::editor_plan(&["-b".into(), "com.gone.Editor".into(), "/x".into()], "editor", lookup).app, None);
+        assert_eq!(super::editor_plan(&["-b".into(), "com.apple.TextEdit".into(), "/x".into()], "textedit", lookup), super::EditorPlan { how: "textedit", app: Some("TextEdit".into()) });
+        assert_eq!(serde_json::to_string(&super::editor_plan(&cursor, "editor", lookup)).unwrap(), r#"{"how":"editor","app":"Cursor"}"#);
+    }
+
+    #[test]
+    fn given_open_is_still_going_at_the_deadline_when_opening_then_it_says_still_opening_and_does_not_retry() {
+        let f = "/Users/me/code/shop/compose.yaml";
+        let tried = std::cell::RefCell::new(0);
+        let err = super::open_with_fallback(vec!["-b".into(), "com.microsoft.VSCode".into(), f.into()], |_| { *tried.borrow_mut() += 1; Ok(super::OpenRun::TimedOut) }, |a: &[String]| super::app_name_of(a, |id| (id == "com.microsoft.VSCode").then(|| "Visual Studio Code".to_string()))).unwrap_err();
+        assert_eq!(err, "STILL_OPENING");
+        assert_eq!(*tried.borrow(), 1);
+    }
+
+    #[test]
+    fn given_a_compose_file_under_a_linked_folder_outside_home_when_opened_then_it_says_so_and_refuses() {
+        let (home, h) = compose_home("linkdir");
+        let outside = std::env::temp_dir().join(format!("colima-ui-open-outdir-{}", std::process::id()));
+        std::fs::create_dir_all(&outside).unwrap();
+        std::fs::write(outside.join("compose.yaml"), "services: {}\n").unwrap();
+        std::os::unix::fs::symlink(&outside, home.join("code/linked")).unwrap();
+        let err = super::compose_real_path(home.join("code/linked/compose.yaml").to_str().unwrap(), &h).unwrap_err();
+        assert_eq!(err, "compose.yaml is in a linked folder outside your home, so it can't be opened from here");
+        let _ = std::fs::remove_dir_all(&outside);
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn given_a_folder_named_compose_yaml_when_opened_then_it_is_refused() {
+        let (home, h) = compose_home("dir");
+        let dir = home.join("code/shop/compose.yaml");
+        std::fs::create_dir_all(dir.join("Contents/MacOS")).unwrap();
+        assert!(super::compose_real_path(dir.to_str().unwrap(), &h).is_err());
+        assert!(super::compose_real_path(dir.to_str().unwrap(), &h).is_err());
+        let _ = std::fs::remove_dir_all(&home);
     }
 
     #[test]

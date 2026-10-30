@@ -10,7 +10,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const hex = (n: number) => Array.from({ length: n }, () => "0123456789abcdef"[Math.floor(Math.random() * 16)]).join("");
 const GB = 1024 ** 3;
 
-type Ctr = { endedAt?: number; ranMs?: number; restart?: string; error?: string; labels?: string; health?: string; healthOut?: string; streak?: number; restarts?: number; exitCode?: number; oom?: boolean; networks: string[]; exposed?: number[]; id: string; name: string; image: string; state: string; ports: [number, number][]; mounts: { Type: string; Name?: string; Source: string; Destination: string; RW: boolean }[]; env: string[]; born: number; cpu: number; mem: number };
+type Ctr = { endedAt?: number; ranMs?: number; restart?: string; error?: string; labels?: string; health?: string; healthOut?: string; streak?: number; restarts?: number; exitCode?: number; oom?: boolean; memLimit?: number; networks: string[]; exposed?: number[]; id: string; name: string; image: string; state: string; ports: [number, number][]; mounts: { Type: string; Name?: string; Source: string; Destination: string; RW: boolean }[]; env: string[]; born: number; cpu: number; mem: number };
 const now = Date.now();
 const db = {
   profiles: [{ name: "default", status: "Running", arch: "aarch64", cpus: 4, memory: 8 * GB, disk: 100 * GB, runtime: "docker", address: "192.168.5.2" }],
@@ -27,7 +27,8 @@ const db = {
   ctrs: [
     { health: "unhealthy", streak: 5, healthOut: "curl: (7) Failed to connect to localhost port 8080 after 0 ms: Connection refused", networks: ["devnet"], exposed: [8080], id: hex(64), name: "api", image: "acme/billing-api:3.1", state: "running", ports: [], mounts: [], env: [], born: now - 3 * 36e5, cpu: 0.6, mem: 150e6 },
     { restarts: 7, networks: ["devnet"], id: hex(64), name: "worker", image: "acme/worker:2.0", state: "running", ports: [], mounts: [], env: [], born: now - 6e5, cpu: 3.2, mem: 90e6 },
-    { exitCode: 137, oom: true, networks: ["devnet"], id: hex(64), name: "report-job", image: "acme/report:0.9", state: "exited", ports: [], mounts: [], env: [], born: now - 2 * 36e5, cpu: 0, mem: 0 },
+    // &limit=1: report-job has its own 256 MiB limit (mem_limit) and hit it, so a bigger VM is no help.
+    { ...(typeof location !== "undefined" && new URLSearchParams(location.search).get("limit") === "1" ? { memLimit: 256 * 1024 ** 2 } : {}), exitCode: 137, oom: true, networks: ["devnet"], id: hex(64), name: "report-job", image: "acme/report:0.9", state: "exited", ports: [], mounts: [], env: [], born: now - 2 * 36e5, cpu: 0, mem: 0 },
     { networks: ["devnet"], exposed: [9092, 9093], id: hex(64), name: "kafka", image: "apache/kafka:latest", state: "running", ports: [], mounts: [], env: [], born: now - 5e6, cpu: 1.1, mem: 420e6 },
     { networks: ["bridge"], exposed: [8080], id: hex(64), name: "kafka-ui", image: "kafbat/kafka-ui:latest", state: "running", ports: [[8082, 8080]], mounts: [], env: ["KAFKA_CLUSTERS_0_NAME=local", "KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=localhost:9092"], born: now - 4e6, cpu: 0.4, mem: 310e6 },
     { networks: ["devnet"], exposed: [6379], id: hex(64), name: "queue", image: "redis:7", state: "running", ports: [], mounts: [], env: [], born: now - 7e6, cpu: 0.2, mem: 9e6 },
@@ -185,19 +186,23 @@ function dockerCmd(args: string[]): string {
     // &bind=1: Colima's shop_db is a folder on the Mac (a local volume with o=bind), which is never replaced.
     case "inspect": if (args[1] === "--type" && args[2] === "volume") { const bind = ddParam("bind"); return JSON.stringify(args.slice(3).filter((n) => db.volumes.includes(n)).map((Name) => ({ Name, Driver: "local", Labels: {}, Options: bind && Name === "shop_db" ? { device: "/Users/me/code/shop/data", o: "bind", type: "none" } : null }))); }
       if (args.includes("--format")) { const ref = args[args.length - 1]; const c = find(ref); if (!c) throw `Error: No such object: ${ref}`; return args[args.indexOf("--format") + 1] === "{{.Name}}" ? `/${c.name}\n` : `${c.state === "running"} ${c.restarts ?? 0} \n`; }
-    { const many = args.slice(1).map((i) => find(i)!).filter(Boolean); return JSON.stringify(many.map((c) => ({ Id: c.id, Image: `sha256:${c.image}`, Name: `/${c.name}`, Created: new Date(c.born).toISOString(), Path: c.image.startsWith("mysql") ? "docker-entrypoint.sh" : "/docker-entrypoint.sh", Args: ["mysqld"], State: { Status: c.state, Running: c.state !== "exited", Paused: c.state === "paused", ExitCode: c.exitCode ?? 0, Error: c.error ?? "", OOMKilled: !!c.oom, StartedAt: new Date(c.born).toISOString(), FinishedAt: finishedAt(c), ...(c.health ? { Health: { Status: c.health, FailingStreak: c.streak ?? 0, Log: c.healthOut ? [{ ExitCode: 1, Output: c.healthOut }] : [] } } : {}) }, RestartCount: c.restarts ?? 0, Config: { ...(c.health ? { Healthcheck: { Test: ["CMD-SHELL", "curl -f localhost"] } } : {}), Labels: labelObject(c), Image: c.image, Env: c.env, ExposedPorts: Object.fromEntries([...c.ports.map(([, p]) => p), ...(c.exposed ?? [])].map((p) => [`${p}/tcp`, {}])) }, HostConfig: { NetworkMode: c.networks[0] ?? "bridge", RestartPolicy: { Name: c.restart ?? "no" }, PortBindings: Object.fromEntries(c.ports.map(([h, p]) => [`${p}/tcp`, [{ HostIp: "", HostPort: String(h) }]])) }, NetworkSettings: { Ports: Object.fromEntries(c.ports.map(([h, p]) => [`${p}/tcp`, [{ HostIp: "0.0.0.0", HostPort: String(h) }]])), Networks: Object.fromEntries(c.networks.map((n) => [n, { IPAddress: ipOf(c, n), Aliases: n === "bridge" ? null : [c.name, c.id.slice(0, 12)] }])) }, Mounts: c.mounts }))); }
+    { const many = args.slice(1).map((i) => find(i)!).filter(Boolean); return JSON.stringify(many.map((c) => ({ Id: c.id, Image: `sha256:${c.image}`, Name: `/${c.name}`, Created: new Date(c.born).toISOString(), Path: c.image.startsWith("mysql") ? "docker-entrypoint.sh" : "/docker-entrypoint.sh", Args: ["mysqld"], State: { Status: c.state, Running: c.state !== "exited", Paused: c.state === "paused", ExitCode: c.exitCode ?? 0, Error: c.error ?? "", OOMKilled: !!c.oom, StartedAt: new Date(c.born).toISOString(), FinishedAt: finishedAt(c), ...(c.health ? { Health: { Status: c.health, FailingStreak: c.streak ?? 0, Log: c.healthOut ? [{ ExitCode: 1, Output: c.healthOut }] : [] } } : {}) }, RestartCount: c.restarts ?? 0, Config: { ...(c.health ? { Healthcheck: { Test: ["CMD-SHELL", "curl -f localhost"] } } : {}), Labels: labelObject(c), Image: c.image, Env: c.env, ExposedPorts: Object.fromEntries([...c.ports.map(([, p]) => p), ...(c.exposed ?? [])].map((p) => [`${p}/tcp`, {}])) }, HostConfig: { Memory: c.memLimit ?? 0, NetworkMode: c.networks[0] ?? "bridge", RestartPolicy: { Name: c.restart ?? "no" }, PortBindings: Object.fromEntries(c.ports.map(([h, p]) => [`${p}/tcp`, [{ HostIp: "", HostPort: String(h) }]])) }, NetworkSettings: { Ports: Object.fromEntries(c.ports.map(([h, p]) => [`${p}/tcp`, [{ HostIp: "0.0.0.0", HostPort: String(h) }]])), Networks: Object.fromEntries(c.networks.map((n) => [n, { IPAddress: ipOf(c, n), Aliases: n === "bridge" ? null : [c.name, c.id.slice(0, 12)] }])) }, Mounts: c.mounts }))); }
     case "system": if (args.includes("-v")) { if (++colimaDfReads > growAfter) colimaSizes.shop_db = "315MB"; const sz: Record<string, string> = { "mysql-data": "412MB", "redis-data": "18MB", "pgdata-old": "1.2GB", ...colimaSizes }; return JSON.stringify({ Images: [], Containers: [], BuildCache: [], Volumes: db.volumes.map((Name) => ({ Name, Links: db.ctrs.filter((c) => c.mounts.some((x) => x.Name === Name)).length, Size: sz[Name] ?? (Name.startsWith("a") ? "36B" : "4kB") })) }); } return dfLines();
     case "stats": {
       if (args[args.length - 1] === "--no-stream") return lines(db.ctrs.filter((c) => c.state === "running").map((c) => ({ Name: c.name, CPUPerc: `${c.cpu.toFixed(2)}%`, MemUsage: `${(c.mem / 2 ** 20).toFixed(1)}MiB / 7.7GiB` }))); const c = find(args[args.length - 1])!; c.cpu = Math.max(0.1, c.cpu + (Math.random() - 0.45)); return lines([{ CPUPerc: `${c.cpu.toFixed(2)}%`, MemUsage: `${(c.mem / 2 ** 20).toFixed(1)}MiB / 7.7GiB`, NetIO: "1.2kB / 648B", BlockIO: "0B / 4.1kB", PIDs: "29" }]); }
     case "start": case "stop": case "restart": case "pause": case "unpause": {
       if (cmd === "start") { ((window as any).__dockerStarted ??= []).push(args.slice(1)); ((window as any).__dbHealthAtStart ??= []).push(db.ctrs.find((c) => c.name === "db")?.health ?? null); }
+      // &oomfail=1: report-job won't start even on the bigger VM.
+      // In a wave with others, docker starts the others and names report-job on its last line.
+      const noMem = cmd === "start" && !!ddParam("oomfail") && args.includes("report-job");
       // start=fail: web's port is taken, once. docker starts the others and names the one it couldn't on its last line.
       const blocked = cmd === "start" && startFail && args.includes("web");
-      const cs = args.slice(1).map((x) => find(x)!).filter((c) => !(blocked && c.name === "web"));
-      for (const c of cs) { c.state = cmd === "stop" ? "exited" : cmd === "pause" ? "paused" : "running"; if (cmd === "stop") c.endedAt = Date.now(); else if (cmd !== "pause") { c.born = Date.now(); c.endedAt = undefined; } }
+      const cs = args.slice(1).map((x) => find(x)!).filter((c) => !(blocked && c.name === "web") && !(noMem && c.name === "report-job"));
+      for (const c of cs) { c.state = cmd === "stop" ? "exited" : cmd === "pause" ? "paused" : "running"; if (cmd === "stop") c.endedAt = Date.now(); else if (cmd !== "pause") { c.born = Date.now(); c.endedAt = undefined; c.oom = false; c.exitCode = 0; } }
       // db has a health check: it reports healthy a moment after it starts.
       if (cmd === "start") cs.filter((c) => c.name === "db").forEach((c) => { c.health = "starting"; setTimeout(() => { c.health = "healthy"; }, 700); });
       if (blocked) { startFail = false; throw "Error response from daemon: driver failed programming external connectivity on endpoint shop-web-1: Bind for 0.0.0.0:8080 failed: port is already allocated\nError: failed to start containers: web"; }
+      if (noMem) throw "Error response from daemon: failed to create task for container: failed to create shim task: OCI runtime create failed: runc create failed: unable to start container process: error during container init: cannot allocate memory\nError: failed to start containers: report-job";
       return cs.map((c) => c.id).join("\n"); }
     case "rm": { const gone = args.slice(1).filter((a) => !a.startsWith("-")).map((x) => find(x)); db.ctrs = db.ctrs.filter((c) => !gone.includes(c)); return args.slice(1).filter((a) => !a.startsWith("-")).join("\n"); }
     case "run": {
@@ -233,6 +238,8 @@ if (dd.startsWith("replace") || dd === "morning") {
   const shopPg = dd === "morning" ? { labels: "com.docker.compose.project=shop,com.docker.compose.project.working_dir=/Users/me/code/shop,com.docker.compose.project.config_files=/Users/me/code/shop/compose.yaml,com.docker.compose.service=pg" } : {};
   db.ctrs.push({ ...shopPg, networks: ["bridge"], id: hex(64), name: "shop-db-1", image: "postgres:16", state: "running", ports: [], mounts: [{ Type: "volume", Name: "shop_db", Source: "/var/lib/docker/volumes/shop_db/_data", Destination: "/var/lib/postgresql/data", RW: true }], env: ["POSTGRES_PASSWORD=dev"], born: now - 6e5, cpu: 0.4, mem: 40e6 });
 }
+// &down2=1: db was stopped too (mysql exits 0 on a stop), so shop has two services that are simply down.
+if (ddParam("down2")) db.ctrs.filter((c) => c.name === "db").forEach((c) => { c.state = "exited"; c.endedAt = now - 6e5; });
 const ddVolumes: [string, string][] = [["shop_db", "412MB"], ["redis-data", "18MB"], ["uploads", "2.1GB"], ["b".repeat(64), "36B"]];
 const ddImages = [{ Repository: "acme/api", Tag: "dev", Size: "1.2GB" }, { Repository: "postgres", Tag: "16", Size: "438MB" }, { Repository: "<none>", Tag: "<none>", Size: "90MB" }];
 let stopCopy = false;
@@ -410,8 +417,40 @@ export async function invoke<T>(cmd: string, a: Record<string, any> = {}): Promi
     case "cancel_vm_op": return true as T;
     case "find_compose_files": await sleep(150); return (scenario === "nocompose" ? [] : ["/Users/me/code/blog/docker-compose.yml", "/Users/me/code/shop/compose.yaml", "/Users/me/My Apps/orders-api/compose.yaml", "/Users/me/Dev/global-search-service/docker-compose.yml", "/Users/me/Dev/service-search-service/docker-compose.yml"]) as T;
     case "reveal_compose": ((window as any).__revealed ??= []).push(a.path); return undefined as T;
+    // &textedit=1: no editor is registered for YAML, so TextEdit opens it. &openfail=1: macOS refuses to open it in Cursor.
+    // &app=Cursor: the app Open names. A check sets window.__editorApp to change it, as a new default in Finder would.
+    case "compose_editor": {
+      const app = (window as any).__editorApp ?? (ddParam("textedit") ? "TextEdit" : new URLSearchParams(location.search).get("app"));
+      return { how: app === "TextEdit" ? "textedit" : "editor", app: app ?? null } as T;
+    }
+    case "open_compose":
+      if (ddParam("openfail")) throw "OPEN_FAILED:Cursor\nThe application can't be opened";
+      // &openslow=1: open takes 3 s (an app starting up), so the Opening… state can be seen.
+      if (ddParam("openslow")) await new Promise((r) => setTimeout(r, 3000));
+      ((window as any).__opened ??= []).push(a.path); return (ddParam("textedit") ? "textedit" : "editor") as T;
+    // shop's compose.yaml as `docker compose config --format json` gives it. report-job's mem_limit is 256 MiB, or
+    // 1 GiB with &raised=1; a check sets window.__shopLimit to "save the file". &needdb=1: report-job needs db.
+    case "compose_config": {
+      // &badconfig=1: the file has a mistake, so Compose can't read it.
+      if (!String(a.file).endsWith("/shop/compose.yaml") || ddParam("badconfig")) throw "yaml: line 12: did not find expected key";
+      const dep = (v: string) => Object.fromEntries(v.split(",").map((x) => x.split(":")).map(([svc, cond]) => [svc, { condition: cond }]));
+      const limit = (window as any).__shopLimit ?? (ddParam("raised") ? 1024 ** 3 : 256 * 1024 ** 2);
+      const services = Object.fromEntries([...SHOP].map((n) => [n, {
+        ...(n === "report-job" ? { mem_limit: String(limit), ...(ddParam("needdb") ? { depends_on: { db: { condition: "service_healthy" } } } : {}) } : {}),
+        ...(SHOP_DEPS[n] ? { depends_on: dep(SHOP_DEPS[n]) } : {}),
+      }]));
+      return JSON.stringify({ name: "shop", services }) as T;
+    }
     case "compose_action": {
-      ((window as any).__composed ??= []).push({ file: a.file, action: a.action, context: a.context });
+      ((window as any).__composed ??= []).push({ file: a.file, action: a.action, context: a.context, ...(a.service ? { service: a.service } : {}) });
+      // One service, recreated with the file's settings (as the real backend does after checking the name): a new
+      // container, running, with whatever limit the file has now (the preview's file raised it).
+      if (a.service) {
+        await progress("compose-progress", [[` ✔ Container shop-${a.service}-1  Recreated`, 200], [` ✔ Container shop-${a.service}-1  Started`, 200]]);
+        const c = db.ctrs.find((x) => x.name === a.service);
+        if (c) { c.id = hex(64); c.state = "running"; c.born = Date.now(); c.endedAt = undefined; c.oom = false; c.exitCode = 0; c.memLimit = 1024 ** 3; }
+        return undefined as T;
+      }
       const dir: string = a.file.slice(0, a.file.lastIndexOf("/"));
       const project = dir.slice(dir.lastIndexOf("/") + 1);
       await progress("compose-progress", [[`[+] Running 2/2 (${a.action})`, 150], [` ✔ Network ${project}_default  Created`, 200]]);

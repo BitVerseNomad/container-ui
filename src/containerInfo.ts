@@ -95,7 +95,8 @@ export type Inspect = {
   Args: string[];
   State: { Status: string; Running: boolean; Paused: boolean };
   Config: { Image: string; Env: string[] | null; Labels?: Record<string, string> | null };
-  HostConfig: { RestartPolicy?: { Name: string } };
+  // Memory: the container's own limit in bytes, 0 when none.
+  HostConfig: { RestartPolicy?: { Name: string }; Memory?: number };
   NetworkSettings: { Ports?: PortMap; Networks?: Record<string, { IPAddress: string; Aliases?: string[] | null }> };
   Mounts: { Type: string; Name?: string; Source: string; Destination: string; RW: boolean }[];
 };

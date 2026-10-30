@@ -872,7 +872,8 @@ mod tests {
 
     #[test]
     fn given_a_receiver_still_working_after_the_last_byte_when_piped_then_it_is_not_called_stuck() {
-        let r = pipe(("sh", &s(&["-c", "printf x"])), ("sh", &s(&["-c", "cat >/dev/null; sleep 1"])), Duration::from_millis(400), |_| {});
+        // Wide margins (2 s of silence, a 3 s receiver), so a loaded machine running tests in parallel can't trip it.
+        let r = pipe(("sh", &s(&["-c", "printf x"])), ("sh", &s(&["-c", "cat >/dev/null; sleep 3"])), Duration::from_secs(2), |_| {});
         assert_eq!(r, Ok(1));
     }
 

@@ -14,6 +14,7 @@ import Logs from "./Logs";
 import StatsTab from "./StatsTab";
 import ConnectionTest from "./ConnectionTest";
 import { ActivityList, HealthPanel } from "./Health";
+import { useResizeEnv } from "./Resize";
 import { FixStatus, useFixRuns } from "./FixIt";
 import { busy } from "./lib/fixStore";
 import { useDockerLocked } from "./dockerLock";
@@ -28,9 +29,9 @@ import { eventWindow, parseEvents, timeline } from "./lib/events";
 const TABS = ["Logs", "Inspect", "Stats", "Mounts", "Network", "Activity"] as const;
 type Tab = (typeof TABS)[number];
 // appProblems: the Doctor's findings about this container that need the other containers to work out.
-type Props = { ctx: string; id: string; appProblems?: Problem[]; onBack: () => void; onReplaced?: (name: string) => void };
+type Props = { ctx: string; id: string; appProblems?: Problem[]; onBack: () => void; onReplaced?: (name: string) => void; listed?: string[] };
 
-export default function ContainerDetail({ ctx, id, appProblems, onBack, onReplaced }: Props) {
+export default function ContainerDetail({ ctx, id, appProblems, onBack, onReplaced, listed = [] }: Props) {
   const confirm = useConfirm();
   const [tab, setTab] = useState<Tab>("Logs");
   const [err, setErr] = useState<string | null>(null);
@@ -65,7 +66,8 @@ export default function ContainerDetail({ ctx, id, appProblems, onBack, onReplac
   const lead = crashing && tail.data ? crashLead(tail.data, c?.Mounts ?? []) : null;
   const leadProblem: Problem[] = lead ? [{ id: "last-error", level: "warn", title: "Its last error", detail: `"${lead.line.slice(0, 300)}"${lead.hint ? ` ${lead.hint}` : ""}` }] : [];
   const extra = [...leadProblem, ...(appProblems ?? [])];
-  const problem = state ? [...problemsFor(state), ...extra][0] : undefined;
+  const vm = useResizeEnv()?.profile;
+  const problem = state ? [...problemsFor(state, vm?.status === "Running" ? vm.memory : undefined), ...extra][0] : undefined;
   const activity = usePoll(async () => timeline(parseEvents(await docker(ctx, ["events", ...eventWindow(Date.now(), 86_400_000), "--filter", `container=${name}`, "--filter", "type=container", "--format", "{{json .}}"])), 50, name), [ctx, name], 10000, !!c && tab === "Activity");
   // The cluster owns these: stopping or removing one by hand only makes Kubernetes start it again, or breaks the pod.
   const kube = !!c && (isKubeOwned({ Names: name }) || !!c.Config.Labels?.["io.kubernetes.pod.name"]);
@@ -129,7 +131,7 @@ export default function ContainerDetail({ ctx, id, appProblems, onBack, onReplac
       )}
 
       {c && <FixStatus name={name} />}
-      {state && <HealthPanel state={state} extra={extra} ctx={ctx} onFixed={onReplaced} onLogs={tab === "Logs" ? undefined : () => setTab("Logs")} />}
+      {state && <HealthPanel state={state} extra={extra} ctx={ctx} onFixed={onReplaced} listed={listed} onLogs={tab === "Logs" ? undefined : () => setTab("Logs")} />}
 
       <div className="tabs" role="tablist">
         {TABS.map((t) => (

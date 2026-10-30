@@ -145,7 +145,7 @@ export function stopQuestion(desktop: string[], colima: string[], replaces: { it
   const join = (n: string[]) => n.map((x) => `\`${x}\``).join(" and ");
   const it = (n: string[]) => (n.length === 1 ? "it" : "them");
   const sides = [
-    desktop.length ? `${join(desktop)} in Docker Desktop. You can start ${it(desktop)} again from here after.` : "",
+    desktop.length ? `${join(desktop)} in Docker Desktop. You can start ${it(desktop)} again from here afterwards.` : "",
     colima.length ? `${join(colima)} in Colima. ${n1(colima) ? "It starts" : "They start"} again on ${n1(colima) ? "its" : "their"} own after.` : "",
   ].filter(Boolean);
   const replacing = replaces.map(({ item, backup }) => `Colima's \`${item.name}\` (${formatBytes(item.colimaBytes ?? 0)}) is replaced. It's kept as \`${backup}\` first.`);
@@ -167,7 +167,7 @@ export function bringQuestion(todo: Item[], desktop: string[], colima: string[],
   const title = todo.length <= 2 ? `Bring ${join(todo.map((i) => i.name))} over?` : `Bring ${whatText(todo)} over?`;
   return [
     title,
-    desktop.length ? `${join(desktop)} in Docker Desktop ${n1(desktop) ? "is" : "are"} stopped first, so the copy is clean. You can start ${it(desktop)} again from here after.` : "",
+    desktop.length ? `${join(desktop)} in Docker Desktop ${n1(desktop) ? "is" : "are"} stopped first, so the copy is clean. You can start ${it(desktop)} again from here afterwards.` : "",
     colima.length ? `${join(colima)} in Colima ${n1(colima) ? "is" : "are"} stopped first and ${n1(colima) ? "starts" : "start"} again on ${n1(colima) ? "its" : "their"} own after.` : "",
     ...replaces.map(({ item, backup }) => `Colima's \`${item.name}\` (${formatBytes(item.colimaBytes ?? 0)}) is replaced. It's kept as \`${backup}\` first.`),
     ...dropped.map((d) => `! ${d}`),

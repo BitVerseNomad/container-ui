@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { KUBE_KEY, appState, appsFrom, runInfo, startWhat, stateWord } from "./homeRows.ts";
+import { KUBE_KEY, appState, appsFrom, runInfo, startWhat, stateWord, downLine, withAppStop, lastRunOver } from "./homeRows.ts";
+import { noteDocker, resetAppStopped } from "./appStopped.ts";
 
 const ctr = (ID: string, Names: string, labels = "", State = "running", Status = "Up 2 hours") => ({ ID, Names, State, Status, Labels: labels });
 const shop = (dir: string) => `com.docker.compose.project=shop,com.docker.compose.project.working_dir=${dir},com.docker.compose.project.config_files=${dir}/compose.yaml`;
@@ -162,4 +163,33 @@ test("Given stopped services in a project, when its Start item is named, then it
   assert.equal(startWhat(["worker"]), "worker");
   assert.equal(startWhat(["cache", "report-job"]), "the 2 stopped (cache, report-job)");
   assert.equal(startWhat(["a", "b", "c", "d", "e"]), "the 5 stopped (a, b, c and 2 more)");
+});
+
+test("Given services down with no problem line, when home words their line, then one is named with Start and several share Start them", () => {
+  assert.deepEqual(downLine(["cache"]), { text: "cache is stopped", button: "Start", label: "Start cache", done: "cache started" });
+  assert.deepEqual(downLine(["cache", "db"]), { text: "cache and db are stopped", button: "Start them", label: "Start them: cache and db", done: "cache and db started" });
+  assert.equal(downLine(["a", "b", "c", "d", "e"]).text, "a, b, c and 2 more are stopped");
+});
+
+test("Given no VM is running, when a row's run info is filled in, then it is never stopped by the app, whatever was stopped elsewhere", () => {
+  resetAppStopped();
+  noteDocker("", ["stop", "seed"], Date.parse("2026-10-29T09:00:00Z"));
+  noteDocker("colima", ["stop", "seed"], Date.parse("2026-10-29T09:00:00Z"));
+  const row = { ID: "abc", Names: "seed", State: "exited", Labels: "" };
+  const i = runInfo([inspect("seed")]).get("seed");
+  assert.equal(withAppStop(null, row, i)!.byApp, false);
+  assert.equal(withAppStop("colima", row, i)!.byApp, true);
+  resetAppStopped();
+});
+
+test("given a container that runs again, when its last-run line is weighed, then a crash loop keeps it until the new run lasts a minute", () => {
+  const info = (restart: string) => ({ restart, published: false, healthCheck: false, volume: false, job: false });
+  const up = (Status: string) => ({ State: "running", Status });
+  assert.equal(lastRunOver(up("Up 5 seconds"), info("no")), true, "no restart policy: over as soon as it runs");
+  assert.equal(lastRunOver(up("Up 5 seconds"), info("unless-stopped")), false, "a restart policy: a 5 s run may be the loop");
+  assert.equal(lastRunOver(up("Up Less than a second"), info("always")), false);
+  assert.equal(lastRunOver(up("Up About a minute"), info("always")), true);
+  assert.equal(lastRunOver(up("Up 3 minutes (healthy)"), info("on-failure")), true);
+  assert.equal(lastRunOver({ State: "exited", Status: "Exited (137) 2 seconds ago" }, info("no")), false);
+  assert.equal(lastRunOver(up("Up 3 minutes"), undefined), false, "no inspect yet: the line stays until the policy is known");
 });

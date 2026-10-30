@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { KUBE_BACK, confirmText, dependsOn, doneText, explainResize, firstVmSize, notStarted, planRestart, resizeTo, startReason, stepDown, withoutKube } from "./vmSize.ts";
+import { KUBE_BACK, confirmText, dependsOn, doneText, explainResize, firstVmSize, notStarted, planRestart, resizeTo, startReason, stepDown, withoutKube, failLine, planWith, holdAfterResize, stepUp } from "./vmSize.ts";
 
 const GiB = 1024 ** 3;
 
@@ -53,9 +53,13 @@ test("given 7 running containers, when the confirm is worded, then it says they 
 });
 
 test("given every container started again, when done, then one line says the size and that they run", () => {
-  assert.equal(doneText({ cpus: 6, memory: 8 }, 7, 0), "The VM has 6 CPUs and 8 GiB now. Your 7 containers are running again.");
+  assert.equal(doneText({ cpus: 6, memory: 8 }, 7, 0), "The VM has 6 CPUs and 8 GiB now. Everything that was running is running again.");
   assert.equal(doneText({ cpus: 6, memory: 8 }, 0, 0), "The VM has 6 CPUs and 8 GiB now.");
-  assert.equal(doneText({ cpus: 6, memory: 8 }, 7, 1), "The VM has 6 CPUs and 8 GiB now. 6 of 7 containers are running again.");
+  assert.equal(doneText({ cpus: 6, memory: 8 }, 7, 1), "The VM has 6 CPUs and 8 GiB now. Everything else that was running is running again.");
+  assert.equal(doneText({ cpus: 6, memory: 8 }, 1, 1), "The VM has 6 CPUs and 8 GiB now.");
+  // Only what changed: from a memory line the CPUs stay as they were.
+  assert.equal(doneText({ cpus: 2, memory: 8 }, 5, 0, { cpus: 2, memory: 2 }), "The VM has 8 GiB now. Everything that was running is running again.");
+  assert.equal(doneText({ cpus: 6, memory: 8 }, 5, 0, { cpus: 2, memory: 2 }), "The VM has 6 CPUs and 8 GiB now. Everything that was running is running again.");
 });
 
 test("given docker start lists the ones it couldn't start, when read, then only those are named", () => {
@@ -122,4 +126,44 @@ test("given Kubernetes pods among the running containers, when planning, then th
   const split = withoutKube([{ name: "k8s_coredns_coredns-1_kube-system_x_0", labels: {} }, { name: "nginx", labels: { "io.kubernetes.pod.name": "web-1" } }, { name: "kafka", labels: {} }]);
   assert.deepEqual(split, { rows: [{ name: "kafka", labels: {} }], kube: 2 });
   assert.match(confirmText({ cpus: 6, memory: 8 }, 1, { cpus: 2, memory: 2 }, 2), new RegExp(`Your 1 running container stops and starts again after \\(about a minute\\)\\. ${KUBE_BACK}`));
+});
+
+test("given a resize started from report-job's out-of-memory line, when it ends, then report-job is said by name once it started", () => {
+  assert.equal(doneText({ cpus: 2, memory: 8 }, 5, 0, { cpus: 2, memory: 2 }, ["report-job"]), "The VM has 8 GiB now. Everything that was running is running again, and report-job started again.");
+  assert.equal(doneText({ cpus: 6, memory: 8 }, 0, 0, null, ["report-job"]), "The VM has 6 CPUs and 8 GiB now. report-job started again.");
+  assert.equal(doneText({ cpus: 2, memory: 8 }, 5, 0, { cpus: 2, memory: 2 }, []), "The VM has 8 GiB now. Everything that was running is running again.", "one that didn't start has its own line");
+});
+
+test("given a start that failed, when its line is written, then Docker's reason is said in plain words, or See why is named", () => {
+  const oom = startReason("Error response from daemon: failed to create task for container: failed to create shim task: OCI runtime create failed: runc create failed: unable to start container process: error during container init: cannot allocate memory", "report-job", 8);
+  assert.equal(failLine({ name: "report-job", ...oom }), "report-job didn't start: 8 GiB still isn't enough for it. Give the VM more memory, or make report-job use less.");
+  assert.equal(oom.memory, true, "marked, so the result offers more memory, not Start");
+  assert.equal(startReason("Error response from daemon: Bind for 0.0.0.0:8080 failed: port is already allocated", "web", 8).memory, undefined, "a port in use is something Start can fix");
+  assert.ok(oom.long?.includes("cannot allocate memory"));
+  const odd = startReason(`Error response from daemon: ${"x".repeat(120)}`, "report-job");
+  assert.equal(failLine({ name: "report-job", ...odd }), "report-job didn't start. See why shows Docker's message.");
+});
+
+test("given db killed for memory and api depending on it, when the bigger VM's restart is planned, then db starts before api and isn't counted as running", () => {
+  const running = [{ name: "api", labels: svc("shop", "api", "db:service_started:false") }, { name: "web", labels: svc("shop", "web", "api:service_started:false") }];
+  const r = planWith(running, ["db"], [{ name: "db", labels: svc("shop", "db") }]);
+  assert.deepEqual(r.plan.waves, [["db"], ["api"], ["web"]]);
+  assert.equal(r.count, 2);
+  assert.deepEqual(r.late, []);
+  // Labels not read: started after the waves, as before.
+  assert.deepEqual(planWith(running, ["db"], null).late, ["db"]);
+});
+
+test("given a resize that ended, when Doctor's reads come back, then only a kept read started after the end releases the held report", () => {
+  const end = 1_000;
+  assert.equal(holdAfterResize(true, null, 0), true, "while resizing: held");
+  assert.equal(holdAfterResize(false, end, 900), true, "the reload failed or was older: the data is from before the end, still held");
+  assert.equal(holdAfterResize(false, end, 1_050), false, "a read that started after the end was kept: released");
+  assert.equal(holdAfterResize(false, null, 0), false, "no resize: nothing held");
+});
+
+test("given 8 GiB still wasn't enough, when the next size is picked, then it is the next step that fits in half the Mac", () => {
+  assert.deepEqual(stepUp({ cpus: 6, memory: 8 }, 32 * GiB), { cpus: 6, memory: 12 });
+  assert.equal(stepUp({ cpus: 6, memory: 8 }, 16 * GiB), null, "a 16 GB Mac: nothing bigger fits, so Profiles is offered");
+  assert.equal(stepUp({ cpus: 6, memory: 16 }, 64 * GiB), null, "16 GiB is the last step");
 });

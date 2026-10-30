@@ -9,7 +9,7 @@ import { Banner, useConfirm } from "./ui";
 import { Icon } from "./ui/icons";
 import { ComposeScan } from "./useComposeScan";
 import { cdPath, portHolder, projectName, projectsFrom, shellQuote, whyFailed } from "./lib/composeScan";
-import { docker } from "./api";
+import { docker, pinComposeStop } from "./api";
 import { noteCompose } from "./lib/appStopped";
 import type { ComposeProject } from "./lib/composeScan";
 import { rank } from "./lib/fuzzy";
@@ -31,7 +31,8 @@ const typed = (dir: string, a: Action, ctx: string) => `cd ${cdPath(dir)} && doc
 
 // The run outlives the panel: switching tabs unmounts it, but the backend keeps going, so its state lives here.
 // holder: the container that has the port a failed start needed, when it is one Docker runs.
-type RunState = { busy: { dir: string; action: Action } | null; failed: { dir: string; action: Action; text: string; why: string | null; holder: string | null } | null };
+// service: one service of the project, started again on its own (`up -d <service>`), so Compose recreates it.
+type RunState = { busy: { dir: string; action: Action; service?: string } | null; failed: { dir: string; action: Action; text: string; why: string | null; holder: string | null; service?: string } | null };
 let state: RunState = { busy: null, failed: null };
 const subs = new Set<() => void>();
 const setRun = (next: Partial<RunState>) => { state = { ...state, ...next }; subs.forEach((f) => f()); };
@@ -40,23 +41,28 @@ export const resetComposeRun = () => setRun({ busy: null, failed: null });
 // Read once, outside render: whether the run that just ended failed.
 export const composeRunState = () => state;
 export const useComposeRun = () => useSyncExternalStore((l) => { subs.add(l); return () => subs.delete(l); }, () => state);
+// The backend's mark for an error from before anything ran (main.rs NOT_STARTED): the rest, or null.
+export const notStarted = (e: string) => (e.startsWith("Not started: ") ? e.slice("Not started: ".length) : null);
 const NO_COMPOSE = /'compose' is not a docker command|unknown command "compose"|unknown shorthand flag: 'd'/i;
 
 // Runs one Compose action for a project, as typing it in its folder would. The home list and this panel share it,
 // so both show the same run in progress. The caller asks first for Down and checks no Fix is running.
 // Returns false when another run held the lock and nothing ran.
-export async function runCompose(ctx: string, p: Pick<ComposeProject, "dir" | "files" | "name">, action: Action, containers: Ctr[]): Promise<boolean> {
+export async function runCompose(ctx: string, p: Pick<ComposeProject, "dir" | "files" | "name">, action: Action, containers: Ctr[], service?: string): Promise<boolean> {
   if (state.busy || bringBusy()) return false;
-  setRun({ busy: { dir: p.dir, action }, failed: null });
+  setRun({ busy: { dir: p.dir, action, service }, failed: null });
   noteCompose(ctx, p.dir, p.name, action);
   try {
-    await activity.ran(`compose ${action}`, typed(p.dir, action, ctx), () => invoke<void>("compose_action", { context: ctx, file: `${p.dir}/${p.files[0]}`, action }), p.name);
+    await activity.ran(`compose ${action}`, `${typed(p.dir, action, ctx)}${service ? ` ${service}` : ""}`, () => invoke<void>("compose_action", { context: ctx, file: `${p.dir}/${p.files[0]}`, action, ...(service ? { service } : {}) }), service ?? p.name);
+    if (action === "stop") await pinComposeStop(ctx, p.dir, p.name).catch(() => {});
   } catch (e) {
-    const text = String(e);
-    const why = NO_COMPOSE.test(text) ? "docker compose isn't installed, so nothing ran. The Doctor can install it." : whyFailed(text, containers);
+    // A check before Compose refused (the file's config couldn't be read, a name not of the project): nothing ran.
+    const refused = notStarted(String(e));
+    const text = refused ?? String(e);
+    const why = NO_COMPOSE.test(text) ? "docker compose isn't installed, so nothing ran. The Doctor can install it." : refused ? `${text}. Nothing was started.` : whyFailed(text, containers);
     // Compose may have created a network or some services before it failed; Down clears what it left.
-    const left = action === "up" ? " Part of the project may have been created; Down removes what was left." : "";
-    setRun({ failed: { dir: p.dir, action, text, why: why ? `${why}${left}` : left.trim() || null, holder: portHolder(text, containers) } });
+    const left = action === "up" && !refused ? " Part of the project may have been created; Down removes what was left." : "";
+    setRun({ failed: { dir: p.dir, action, text, why: why ? `${why}${left}` : left.trim() || null, holder: portHolder(text, containers), service } });
   } finally {
     setRun({ busy: null });
   }

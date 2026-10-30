@@ -29,7 +29,7 @@ const composeRows = [
 const profile = { name: "default", status: "Running", arch: "aarch64", cpus: 4, memory: 8 * 1024 ** 3, disk: 100 * 1024 ** 3, runtime: "docker" };
 const scan = { paths: [], scanning: false, error: null, scan: async () => {}, add: async () => null, pinned: [] };
 const problem = (subject: string, extra: Partial<Finding> = {}): Finding =>
-  ({ id: "crashed", key: `colima/crashed:${subject}`, area: "containers", severity: "action", level: "bad", subject, title: `${subject} keeps crashing`, short: "It keeps crashing", detail: "Exit code 1.", ...extra }) as Finding;
+  ({ id: "restarting", key: `colima/restarting:${subject}`, area: "containers", severity: "action", level: "bad", subject, title: `${subject} keeps crashing`, short: "It keeps crashing", detail: "Exit code 1.", ...extra }) as Finding;
 const reportOf = (findings: Finding[]): Report => {
   const byContainer = new Map<string, Finding[]>();
   for (const f of findings) if (f.subject) byContainer.set(f.subject, [...(byContainer.get(f.subject) ?? []), f]);
@@ -224,6 +224,19 @@ describe("Containers", () => {
     expect(setDetailId).toHaveBeenCalledWith("aaa");
     // No count anywhere on home: the Doctor badge is the only number.
     expect(screen.queryByText(/needs? attention|problems?\b/i)).not.toBeInTheDocument();
+  });
+
+  it("given a report from before web started again, when the list shows web running, then its out-of-memory line is gone", async () => {
+    const inspected = [{ Name: "/web", State: { StartedAt: "2026-10-30T09:00:00Z", FinishedAt: "0001-01-01T00:00:00Z" }, HostConfig: { RestartPolicy: { Name: "no" } }, Config: {} }];
+    show({ report: reportOf([problem("web", { id: "oom", key: "colima/oom:web", short: "Ran out of memory" })]), inspected });
+    const row = await rowOf("web");
+    expect(within(row).queryByText("Ran out of memory")).not.toBeInTheDocument();
+    expect(within(row).getByRole("button", { name: /^web, Running$/ })).toBeInTheDocument();
+  });
+
+  it("given web running again but no inspect yet, when the list shows it, then its out-of-memory line stays until its restart policy is known", async () => {
+    show({ report: reportOf([problem("web", { id: "oom", key: "colima/oom:web", short: "Ran out of memory" })]) });
+    expect(within(await rowOf("web")).getByText("Ran out of memory")).toBeInTheDocument();
   });
 
   it("given a problem marked not an issue, when chosen from the menu, then it is muted", async () => {

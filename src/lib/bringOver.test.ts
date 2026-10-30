@@ -112,10 +112,10 @@ const SHOP: Item = { kind: "volume", name: "shop_db", bytes: 412e6, inColima: tr
 
 test("given containers to stop on both sides, when asked, then the question puts each side on its own line and says what is replaced", () => {
   assert.equal(stopQuestion(["shop-db-1"], [], []).split("\n")[0], "Stop `shop-db-1` in Docker Desktop?");
-  assert.match(stopQuestion(["shop-db-1"], [], []), /You can start it again from here after\./);
+  assert.match(stopQuestion(["shop-db-1"], [], []), /You can start it again from here afterwards\./);
   assert.equal(stopQuestion([], ["shop-db-1"], []).split("\n")[0], "Stop `shop-db-1` in Colima?");
   const both = stopQuestion(["shop-db-1"], ["shop-db-1"], [{ item: SHOP, backup: "shop_db-colima-backup-20261029-1912" }]).split("\n");
-  assert.deepEqual(both.slice(0, 3), ["Stop these for a clean copy?", "• `shop-db-1` in Docker Desktop. You can start it again from here after.", "• `shop-db-1` in Colima. It starts again on its own after."]);
+  assert.deepEqual(both.slice(0, 3), ["Stop these for a clean copy?", "• `shop-db-1` in Docker Desktop. You can start it again from here afterwards.", "• `shop-db-1` in Colima. It starts again on its own after."]);
   assert.ok(both.includes("Colima's `shop_db` (11.4 MiB) is replaced. It's kept as `shop_db-colima-backup-20261029-1912` first."));
 });
 
@@ -310,7 +310,7 @@ test("given a pick dropped just before a confirm that still asks about the other
   const q = bringQuestion([uploads], ["files-1"], [], [], ["`shop_db` isn't replaced: Colima's copy grew to 300.4 MiB since we checked."]);
   assert.deepEqual(q.split("\n"), [
     "Bring `uploads` over?",
-    "`files-1` in Docker Desktop is stopped first, so the copy is clean. You can start it again from here after.",
+    "`files-1` in Docker Desktop is stopped first, so the copy is clean. You can start it again from here afterwards.",
     "! `shop_db` isn't replaced: Colima's copy grew to 300.4 MiB since we checked.",
   ]);
 });

@@ -292,7 +292,7 @@ function containerProblems(f: Ctx): Finding[] {
     if (!s) continue;
     const a = f.apps.find((x) => x.name === s.name)!;
     // A crash, a failing health check or a restart loop all need action; level keeps the row's colour.
-    for (const p of problemsFor(s)) out.push({ ...about(a, { ...p, title: named(a.name, p.title), short: p.short ?? p.title, area: "Containers", severity: "action" }), health: true });
+    for (const p of problemsFor(s, f.vmMemory)) out.push({ ...about(a, { ...p, title: named(a.name, p.title), short: p.short ?? p.title, area: "Containers", severity: "action" }), health: true });
   }
   for (const [name, list] of appProblems(f.raw, f.ctx)) {
     const a = f.apps.find((x) => x.name === name)!;

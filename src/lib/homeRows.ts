@@ -1,6 +1,7 @@
 // Turns `docker ps -a` into the home screen's rows: one per Compose project, one per loose container, and one for
 // everything Kubernetes runs. A project is keyed by its folder, so two folders called "shop" stay two rows.
 import { isKubeOwned, parseLabels } from "./compose.ts";
+import { projectKey, stoppedByApp } from "./appStopped.ts";
 
 const PROJECT = "com.docker.compose.project";
 const WORKDIR = "com.docker.compose.project.working_dir";
@@ -62,6 +63,17 @@ export function runInfo(inspect: unknown[]): Map<string, RunInfo> {
   }
   return out;
 }
+// The run info of one ps row with "stopped by this app" filled in. ctx null: no VM is running, so nothing in it can
+// have been stopped by this app (said plainly, not left to a key that matches nothing).
+export function withAppStop(ctx: string | null, c: { ID: string; Names: string; State: string; Labels?: string }, info: RunInfo | undefined): RunInfo | undefined {
+  if (!info) return info;
+  if (!ctx) return { ...info, byApp: false };
+  const l = parseLabels(c.Labels ?? "");
+  const dir = l.get(WORKDIR);
+  const name = l.get(PROJECT);
+  // Only while docker reports the run our stop ended: a later start, from anywhere, clears it.
+  return { ...info, byApp: stoppedByApp(ctx, c.ID, [c.ID, c.Names, dir && name ? projectKey(dir, name) : null], info.startedAt, c.State === "exited") };
+}
 type Row = { State: string; Status: string };
 // A run this short that ended with exit 0 is a job (a migration, a seed). The window is kept short on purpose: every
 // minute added lets a service that was stopped soon after it started hide as Finished.
@@ -77,8 +89,33 @@ export function finished(c: Row, info?: RunInfo) {
 }
 export const stateWord = (c: Row, info?: RunInfo) => (c.State === "running" ? "Running" : finished(c, info) ? "Finished" : "Stopped");
 
+// Names for a line: "a", "a and b", "a, b and c", then "a, b, c and N more".
+export const listed = (names: string[]) => {
+  const shown = names.length > 3 ? [...names.slice(0, 3), `${names.length - 3} more`] : names;
+  return shown.length > 1 ? `${shown.slice(0, -1).join(", ")} and ${shown[shown.length - 1]}` : shown[0];
+};
+// The line under a partly running project for what is down with no problem line of its own, so every container
+// missing from "N of M running" is on a line: "cache is stopped" with Start, or "cache and db are stopped" with
+// Start them.
+// The label starts with the visible words ("Start them: cache and db"), so a voice command for the button works.
+// done: what is said once they run, the names that started (not the project's name).
+export const downLine = (names: string[]) => ({
+  text: `${listed(names)} ${names.length === 1 ? "is" : "are"} stopped`,
+  button: names.length === 1 ? "Start" : "Start them",
+  label: names.length === 1 ? `Start ${names[0]}` : `Start them: ${listed(names)}`,
+  done: `${listed(names)} started`,
+});
+
 // What a project's "Start …" item starts, named: one by name, several as "the 2 stopped (cache, report-job)", with at
 // most three names before "and N more".
+// A line about how the last run ended (out of memory, an error) is over once the container runs, but a crash loop
+// (a restart policy) would flip it on and off: then only after the new run has lasted over a minute. Read from
+// `docker ps` ("Up 5 seconds", "Up About a minute"), so no clock is compared.
+const JUST_UP = /^Up (Less than a second|\d+ seconds?)\b/;
+// No inspect yet: the policy is unknown, so the line stays until it lands (a loop would flicker otherwise).
+export const lastRunOver = (c: Row & { Status?: string }, info: RunInfo | undefined) =>
+  c.State === "running" && !!info && (!info.restart || info.restart === "no" || !JUST_UP.test(c.Status ?? ""));
+
 export function startWhat(names: string[]) {
   if (names.length === 1) return names[0];
   const shown = names.slice(0, 3).join(", ");

@@ -2,6 +2,99 @@
 
 Newest first. Older entries record what was true when they were written; later entries supersede them (the Overview, for example, was replaced by the Containers home screen).
 
+## Home says what is down: round 34 fixes
+
+1. Every Open button's accessible name starts with its visible words, then ": " and the detail: "Open in TextEdit: compose.yaml, report-job", "Show in Finder: compose.yaml", "Opening…: compose.yaml". "Open compose.yaml: report-job" is unchanged.
+2. Each target app is its own Open button. When the app changes while the button has focus (it is looked up again when the window gets focus), focus moves to the new button and "It now opens in TextEdit." is said. Nothing is said when the first lookup lands.
+3. When the app is known, the button names it ("Open in Cursor"). It stays "Open compose.yaml" when the app can't be told.
+4. A failed open ends "Open it from Finder."
+5. Bare `open -t` is never used: it opens whatever the plain-text default is (it can be iTerm), past the deny list. With no YAML or plain-text editor that passes, and for the retry when the chosen app is gone, Open uses TextEdit by its bundle id, and only that is called TextEdit.
+
+## Home says what is down: round 33 fixes
+
+1. A failed open names the app and puts `compose.yaml` in the code font: "Couldn't open `compose.yaml` in Cursor: the application can't be opened. Show it in Finder and open it from there." With no reason from macOS it ends "in Cursor."; with no app known it says "in an editor".
+2. Home's lines keep their icon on the first line of text when the text wraps (the TextEdit note, a failed open, raised with db stopped), and the button stays centered.
+3. The Finder button reads "Show in Finder". Its name for screen readers stays "Show compose.yaml in Finder".
+4. When TextEdit is what Open uses, the line says so before any click ("It opens in TextEdit: turn off Edit > Substitutions > Smart Quotes before you type.") and the button reads "Open in TextEdit". The click opens at once; the 1.5 s wait is gone. This is the same on Doctor and the container page.
+5. While `open` runs, the button reads "Opening…" and is disabled, and a second press does nothing. "Still opening `compose.yaml`…" is said once.
+6. Open's deadline counts only a real kill as still opening, and an open error never gets the "Docker or Colima may be stuck" sentence. The app lookup runs off the main thread.
+
+## Home says what is down: round 32 fixes
+
+1. The TextEdit hint comes before the file opens. The app first asks macOS which app will open it (a lookup, nothing opens). If it is TextEdit, it shows and says "Opening in TextEdit. Turn off Edit > Substitutions > Smart Quotes before you type." a moment ahead, then opens. The hint is part of the line when read, is said once per session, and sits in the Open button's title while TextEdit is what Open uses.
+2. Open uses the app registered to edit YAML, then the app registered to edit plain text, then the default text editor. The deny list still applies. TextEdit is recognised by its bundle id either way.
+3. A failed open says it once: "Couldn't open compose.yaml in an editor. Show it in Finder and open it from there." (macOS's reason in place of "in an editor" when it gives one). Open becomes "Show compose.yaml in Finder", with focus moved to it.
+4. `open` runs with a 30 s deadline. If it is still going, the page says "Still opening compose.yaml…" and nothing is retried. A second try with the default text editor happens only when macOS says the chosen app can't be found, so a cancelled dialog never lands the file in TextEdit.
+
+## Home says what is down: round 31 fixes
+
+1. A limit line's notes change only when the file side really changes (raised and unchanged, or the button itself). Then a "still sets" refusal goes, but a failed start's alert stays. A re-read that can't read the file no longer wipes a fresh "didn't start" alert or a status.
+2. When compose.yaml opens in TextEdit (no app set for YAML, or the one set is refused), the page says once per session "Opened in TextEdit. Turn off Smart Quotes in Edit > Substitutions before you type." It is a status, not an alert, and shows on home, Doctor and the container page.
+3. The app set for YAML is used only if macOS also lists it as an editor of plain text; otherwise `open -t`. The deny list still applies first.
+4. Reading a macOS string checks the call's 0/1 result properly.
+5. Opening waits for `open` to finish. If the YAML app can't be reached (a stale record), it tries once more with the default text editor; if that fails too, the page says "Couldn't open compose.yaml. …".
+
+## Home says what is down: round 30 fixes
+
+1. Open compose.yaml uses the editor set for YAML on this Mac (LaunchServices' default for public.yaml), as `open -b <its bundle id> <real path>`, so even a file swapped for a script opens as a document. When none is set, or the one set is a terminal, script runner or other non-editor (a short deny list), it falls back to `open -t`. Plain `open <file>` is never used. Every path check stays; Show in Finder keeps -R.
+2. Doctor's limit buttons end where the other rows' buttons end, before the menu column.
+3. Raised line: "report-job · its limit in `compose.yaml` is now 1 GiB (was 256 MiB). Apply it to start." Doctor and the container page say the same.
+4. A "still sets 256 MiB" refusal goes once the file reads differently. Doctor's second button is its own button per state; when it changes, focus moves to the new one and the change is said politely, as on home.
+5. The fallback project name drops a leading _ or - like Compose does. A Compose file under a linked folder that leads out of home is still refused, now with "compose.yaml is in a linked folder outside your home, so it can't be opened from here".
+
+## Home says what is down: round 29 fixes
+
+1. Opening a Compose file can no longer launch code. `open_compose` and `reveal_compose` resolve symlinks, require a regular file whose real path is still a listed Compose file in an ordinary home folder, and open it with `open -t` (the default text editor), never the app linked to the file. A compose.yaml that links to a script, links outside home, or is a folder is refused.
+2. Reading a project's limit retries plain `compose config` only when the first error is about the `*` profile or an unknown flag; any other error (a broken file, a missing variable) is the answer.
+3. Memory values accept k, m, g, t, p with an optional i and b, and bytes with no unit. What report-job depends on, and the service list's labeled fallback, only count containers of the same Compose project (by name), not any project in that folder.
+4. Home's limit line: each button state is its own button, so a screen reader never hears one button rename itself. If the old button had focus, focus moves to the new one, and the polite region says "compose.yaml now sets 1 GiB for report-job. The button is now Apply and start."
+5. Apply and start reads "Starting…" on home too while it runs, and its accessible name says "Starting report-job" to match.
+6. Raised line: "report-job · `compose.yaml` raised its limit from 256 MiB to 1 GiB. Apply it to start." in the neutral stopped tint with the stop icon (nothing is failing; one step is waiting). Doctor and the container page show the same sentence.
+7. Doctor: the "still sets 256 MiB" refusal appears only after Apply is pressed, as a warning line at the text's width under the body, never in the button column. report-job never splits inside the word.
+8. Doctor's limit row puts its two buttons in a row under the text, right-aligned, so the body runs the full width like the rows beside it.
+
+## Home says what is down: round 28 fixes
+- **The limit line reads the file again.** `docker compose config` (every profile, overrides merged) gives report-job's current `mem_limit` or `deploy.resources.limits.memory`; it is read on opening, on window focus (saved, then back) and after each Compose run, never on a timer. Home shows one button on the right: while the file still sets 256 MiB (or can't be read, when nothing is said about its value), "Open compose.yaml", which opens the file in its default app (`open_compose`, listed files only); once raised, "`compose.yaml` now sets 1 GiB for report-job." with Apply and start.
+- **Doctor and the container page keep both, short:** Open compose.yaml, then Apply and start on the right (full names for screen readers). Apply pressed while the file still sets the old limit doesn't run: "`compose.yaml` still sets 256 MiB for report-job. Raise it, then press Apply and start."
+- **Apply touches only report-job.** It runs `docker compose up -d --no-deps report-job`, so a finished job isn't rerun and a db the user stopped stays stopped. When what it depends on isn't running (or a job it needs hasn't finished), the line says "Start the project first." and offers the project's Start instead.
+- **Profiles count.** The service name is checked against `docker compose --profile '*' config --services`, or, on an older Compose, the active ones plus any service a container of this project already carries.
+- **"Nothing was started" when nothing was.** A refusal before Compose ran (the file can't be read, a name not of the project) comes back marked, and the page doesn't add "Part of the project may have been created; Down removes what was left."
+- **Said and focused.** "Starting report-job…", then "report-job started with its new limit.", in the polite region (home's own, or the line's on Doctor and the container page); a failure, or a file that can't be opened, goes to an alert. A line that goes under focus hands it to the row's name on home; on Doctor, to the row that was after it. A locked button's reason ("Waits for the Compose run that is going.") is read with it.
+
+## Home says what is down: round 27 fixes
+- **A raised limit gets applied.** A plain start keeps the old limit (Docker applies a new one only to a recreated container), so the limit line's first button is Apply and start report-job: `docker compose up -d report-job` for that one service, on home, its page and Doctor. The backend takes the name only if `docker compose config --services` lists it and it can't be read as a flag. Shown only for a container from a listed Compose project. Doctor: "report-job is allowed 256 MiB and used more, so Docker stopped it. A bigger VM won't help: raise its memory limit in `compose.yaml`, then press Apply and start."
+- **No key we can't see.** The limit is "set in `compose.yaml`" (or "in the project's Compose files" when an override is listed too), never `mem_limit`: it may be `deploy.resources.limits.memory` or `docker run -m`. File names are in the code font on home as on Doctor; buttons stay sans.
+- **Show compose.yaml in Finder** says where it opens.
+- **Its own limit only when clearly below the VM** (at most 75% of the VM's memory). Near the VM's size, or with the VM's size unknown, the bigger VM stays the offer and the text mentions the limit.
+- **The memory failure's next size is a plain button**, not a second filled one; its text ends "Give the VM more memory, or make report-job use less."
+- **No inspect yet, no change.** An out-of-memory or "stopped with an error" line stays until the restart policy is known.
+
+## Home says what is down: round 26 fixes
+- **Its own memory limit is not the VM's.** The Doctor's inspect now reads `HostConfig.Memory`. A container killed for memory with its own limit (set and not above the VM's memory) says "report-job hit its own 256 MiB limit (mem_limit in compose.yaml)" on home, its page and Doctor, and offers Show compose.yaml (reveal_compose) when the scan lists its project; otherwise See why only. A bigger VM is offered only with no limit, or a limit above the VM's memory. Preview: `&limit=1`.
+- **When memory still isn't enough, Start isn't the first answer.** "report-job didn't start: 8 GiB still isn't enough for it. Give the VM more memory, or lower report-job's memory limit." The next step comes first ("Give the VM 12 GiB…", the next common size within half the Mac), or Change in Profiles when none fits; then See why and Dismiss. Start stays for what a retry can fix (a port in use, an unknown error).
+- **No counts in the result.** "The VM has 8 GiB now. Everything that was running is running again, and report-job started again." With a failure: "Everything else that was running is running again." Progress: "Starting everything that was running…".
+- **No "is stopped" line during a resize**: what ran is about to start, and the line waits for the list read after it.
+- **Dismiss keeps focus on something real**: the next row's first reachable button (never a Compose row's hidden chevron), else this row's name, else Doctor's first button, else the page heading.
+- **Held until a read that counts.** Doctor's report is released only by a read that worked and started after the resize ended; a failed reload keeps holding until the next poll lands.
+- **A recreate isn't ours.** Once a stop was pinned when it ran, a container with no pin under it (a new ID) is not "stopped by the app"; only a stop that never got that pin falls back to comparing clocks.
+- **No flicker in a crash loop.** An out-of-memory or "stopped with an error" line goes when the container runs only if it has no restart policy, or its new run has lasted over a minute (read from `docker ps`, so no clocks are compared).
+
+## Home says what is down: round 25 fixes
+- **A resize from an out-of-memory line ends on a clean row.** Once the container runs, its red line goes (an out-of-memory or "stopped with an error" line is about the last run, so it returns only if a new run ends the same way). The result moves to its own row under the project, tinted like the "is stopped" line, with a green check, ink text and Dismiss at the right edge, and takes focus if nothing has it. A failure stays in the red line, with the ✕ in red, not a triangle.
+- **The result says only what changed, and counts only what ran.** "The VM has 8 GiB now. The 7 that were running are running again. report-job started again." CPUs are named only when they change. The same count replaces "Your N containers" everywhere it appeared, the progress line too ("Starting the 7 that were running again…").
+- **Docker's reason, in plain words.** "report-job didn't start: the VM didn't have the memory to start it." When the app can't say it plainly: "report-job didn't start. See why shows Docker's message." The result's buttons line up under its text, not its icon.
+- **The out-of-memory container starts in its depends_on place.** Its compose labels are read with `docker inspect` (it still exists, exited), so a db killed for memory starts before the api that needs it. It still isn't counted among the ones that were running; without its labels it starts last, as before.
+- **Other lines survive the resize.** Doctor's report is held until a read made after the resize, so kafka and kafka-ui keep their lines (the report read while the containers were stopped had dropped them).
+- **"Stopped by the app" is pinned at stop time.** Right after the app's `docker stop` (or `compose stop`, found by its project label and folder), `docker inspect` keeps that run's StartedAt, so the Mac's clock is never compared with the VM's. The first-look pin stays as the fallback when that read fails.
+- **Screen readers.** "Start them: cache and db" (the label starts with the words on the button); done says "cache and db started" for both the line and the menu's "Start the 2 stopped (…)", not "shop started"; the row's name counts the line apart ("3 problems, 1 stopped"); when the line goes under focus, focus goes to the row's name.
+- **Previews match.** check-down now uses the same 2 GiB VM as check-resize, so report-job's line offers "Give the VM 8 GiB…" in both (the "See why" seen before came from the 8 GiB VM in the other preview scenario, where no bigger size fits; it was not a timing gap).
+
+## Home says what is down
+- **Every container a project is short of is on a line.** Under a partly running project, a service that counts as down and has no problem line of its own gets one plain line, last: "cache is stopped" with Start, or "cache and db are stopped" with Start them (three names, then "and N more"). Start starts exactly those, by ID, and its wait ends once they run, even while a crashed job keeps the project partly running (the menu's "Start the 2 stopped (cache, report-job)" had the same wait and gets the same fix). Finished jobs are not counted, so they get no line; a project that is all stopped says Stopped and gets none either. The row's name counts the line with the others.
+- **A bigger VM from an out-of-memory line starts that container too.** From home, the container's page or Doctor, the container is started on its own once the VM is back, after the usual restart waves: "The VM has 6 CPUs and 8 GiB now. Your 7 containers are running again. report-job started again." If it still won't start, its own "didn't start" line has Start and See why. On home the result takes its own row under the line, so the line's text isn't squeezed. A resize from the VM size row is unchanged.
+- **"Stopped by the app" uses one clock.** The Mac's time of a stop is used only until the first look; then the stopped run's StartedAt (the VM's clock) is kept, and later looks compare to that, so a VM clock a few minutes behind can't hide a terminal start. With no VM running, nothing reads as stopped by the app.
+- **The confirm says "You can start it again from here afterwards."**
+
 ## Bring over from home, and the first morning's empty volume
 - **The first morning gets one line.** When `docker compose up` ran in Colima before the app, Compose made an empty `shop_db`. The shop row now says "`shop_db` is nearly empty here; Docker Desktop has 392.9 MiB." with one button, Bring it over…, which opens Bring over with only that volume picked. Same rule as the panel: Colima's copy under 64 MiB and Docker Desktop's bigger, on a volume a home container uses (stopped ones too). While it holds, Doctor's row is a warning ("shop_db is nearly empty in Colima") and the badge counts it; otherwise it stays a note.
 - **Docker Desktop is read once**, when home opens and again after a copy, never on a poll (`src/desktopOffer.ts`, volumes only).

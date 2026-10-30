@@ -27,6 +27,13 @@ export function resizeTo(vm: { cpus: number; memory: number }, pick: { cpus: num
 
 // One step down after the Mac couldn't give the memory: the next smaller common size, still more than the VM had.
 const STEPS = [3, 4, 6, 8, 12, 16];
+// One step up after a container still ran out of memory: the next common size above the one just tried, kept to
+// half the Mac's memory (as the first size is). None when no bigger size fits.
+export function stepUp(to: { cpus: number; memory: number }, hostMemory?: number): { cpus: number; memory: number } | null {
+  if (!hostMemory) return null;
+  const memory = STEPS.find((m) => m > to.memory && m <= Math.floor(hostMemory / GiB / 2));
+  return memory ? { cpus: to.cpus, memory } : null;
+}
 export function stepDown(to: { cpus: number; memory: number }, was: { cpus: number; memory: number } | null): { cpus: number; memory: number } | null {
   const floor = Math.max(2, was?.memory ?? 2);
   const memory = [...STEPS].reverse().find((m) => m < to.memory && m > floor);
@@ -46,13 +53,20 @@ export function confirmText(to: { cpus: number; memory: number }, running: numbe
   return [`Give the VM ${was && was.cpus === to.cpus ? `${to.memory} GiB of memory` : sizeWords(to)}?`, `The VM restarts to take the new size. ${stops}${kube ? ` ${KUBE_BACK}` : ""}`, "", "Images, volumes and containers stay."].join("\n");
 }
 
-// The line after: the new size, and how many of the containers that ran run again. Names that didn't start
-// are on their own lines, with their reason, so they aren't repeated here.
-export function doneText(size: { cpus: number; memory: number }, restarted: number, failed: number): string {
+// The line after: what changed in the size (was: the size before), and that what ran runs again. No count: "N containers" would read against the row's own "N of M running", and the ones that didn't start have
+// their own lines. extraOk: containers started from their own out-of-memory line that did start.
+export function doneText(size: { cpus: number; memory: number }, restarted: number, failed: number, was?: { cpus: number; memory: number } | null, extraOk: string[] = []): string {
   const back = restarted - failed;
-  const ran = !restarted ? "" : !failed ? ` Your ${restarted === 1 ? "container is" : `${restarted} containers are`} running again.` : ` ${back} of ${restarted} containers are running again.`;
-  return `The VM has ${sizeWords(size)} now.${ran}`;
+  const parts = was ? [size.cpus !== was.cpus && `${size.cpus} CPUs`, size.memory !== was.memory && `${size.memory} GiB`].filter(Boolean) : [];
+  const grew = parts.length ? parts.join(" and ") : sizeWords(size);
+  const ran = !restarted || !back ? "" : failed ? "Everything else that was running is running again" : "Everything that was running is running again";
+  const extra = extraOk.length ? `${names(extraOk)} started again` : "";
+  const said = ran && extra ? `${ran}, and ${extra}` : ran || extra;
+  return `The VM has ${grew} now.${said ? ` ${said}.` : ""}`;
 }
+
+// One container that didn't start, on the result line: Docker's reason in plain words when the app knows it.
+export const failLine = (f: { name: string; short: string | null }) => (f.short ? `${f.name} didn't start: ${f.short}.` : `${f.name} didn't start. See why shows Docker's message.`);
 
 // Which of the names `docker start a b c` couldn't start. Docker lists them on its last line.
 export function notStarted(error: string, tried: string[]): string[] {
@@ -97,6 +111,19 @@ export function withoutKube(rows: RunningRow[]): { rows: RunningRow[]; kube: num
 }
 export const KUBE_BACK = "Kubernetes brings its pods back on its own.";
 
+// The containers to start again: what ran, plus the out-of-memory one (extra) in its depends_on place when its
+// labels could be read (it is exited, so docker inspect still has them). Only what ran is counted. late: extras whose
+// labels weren't read, started after the waves as before.
+// Doctor's report and containers are held while the VM is resized, and after it until a read that started after the
+// resize ended was kept (endedAt and dataFrom on the Mac's clock). A failed or older read keeps holding, and the
+// next poll that lands releases it.
+export const holdAfterResize = (resizing: boolean, endedAt: number | null, dataFrom: number) => resizing || (endedAt !== null && dataFrom < endedAt);
+
+export function planWith(running: RunningRow[], extra: string[], inspected: RunningRow[] | null): { plan: RestartPlan; count: number; late: string[] } {
+  const known = (inspected ?? []).filter((r) => extra.includes(r.name) && !!r.labels["com.docker.compose.project"]);
+  return { plan: planRestart([...running, ...known]), count: running.length, late: extra.filter((n) => !known.some((k) => k.name === n)) };
+}
+
 export function planRestart(rows: RunningRow[]): RestartPlan {
   const level = new Map<string, number>();
   const healthy = new Set<string>();
@@ -135,10 +162,14 @@ export function planRestart(rows: RunningRow[]): RestartPlan {
 }
 
 // Why a container didn't start: a short reason for the result line, and the longer help when there is more to say.
-export function startReason(error: string, name: string): { short: string; long: string | null } {
+// memory: the VM's memory in GiB after a resize. A memory failure says so and is marked, so the result offers the
+// next size (or Profiles) instead of a Start that would fail the same way.
+export function startReason(error: string, name: string, memory?: number): { short: string | null; long: string | null; memory?: boolean } {
   const port = /(?:Bind for [^\s]*:(\d+) failed: port is already allocated|listen tcp[^:]*:(\d+): bind: address already in use)/.exec(error);
   const p = port?.[1] ?? port?.[2];
   if (p) return { short: `port ${p} is in use on your Mac`, long: `Something on your Mac already uses port ${p}. Stop it, then press Start ${name}.` };
   const daemon = (error.split("\n").find((l) => /Error response from daemon/.test(l)) ?? error.split("\n")[0]).replace(/^.*Error response from daemon:\s*/, "").trim();
-  return daemon.length <= 90 ? { short: daemon.replace(/\.$/, ""), long: null } : { short: "docker couldn't start it", long: daemon };
+  if (/cannot allocate memory|out of memory|oom/i.test(daemon)) return { short: `${memory ? `${memory} GiB` : "the VM's memory"} still isn't enough for it. Give the VM more memory, or make ${name} use less`, long: daemon, memory: true };
+  // No reason the app can say in plain words: short is null, and the result line points to See why.
+  return daemon.length <= 90 ? { short: daemon.replace(/\.$/, ""), long: null } : { short: null, long: daemon };
 }

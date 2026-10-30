@@ -82,3 +82,34 @@ test("healthFromStatus reads the badge from docker ps text", () => {
   assert.equal(healthFromStatus("Up 2 hours"), null);
   assert.equal(healthFromStatus("Exited (0) 3 hours ago"), null);
 });
+
+const GIB = 1024 ** 3;
+const dead = { Running: false, Status: "exited", ExitCode: 137, OOMKilled: true };
+const from = (files: string, memory: number) => ({ Config: { Labels: { "com.docker.compose.project.config_files": files, "com.docker.compose.service": "report-job" } }, HostConfig: { Memory: memory } });
+
+test("given a job OOM-killed at its own 256 MiB limit on a 2 GiB VM, when checked, then the line names the limit and its Compose file, offers Apply and start, and no bigger VM", () => {
+  const [p] = problemsFor(parseState(insp(dead, from("/Users/me/code/shop/compose.yaml", 256 * 1024 ** 2)))!, 2 * GIB);
+  assert.equal(p.title, "It hit its own 256 MiB memory limit (set in `compose.yaml`)");
+  assert.match(p.detail, /raise its memory limit in `compose\.yaml`, then press Apply and start\.$/);
+  assert.doesNotMatch(p.title + p.detail, /mem_limit/, "the key that set it isn't known, so none is named");
+  assert.equal(p.fix?.resize, undefined);
+  assert.deepEqual(p.fix?.apply, { file: "/Users/me/code/shop/compose.yaml", service: "report-job", limit: 256 * 1024 ** 2, where: "`compose.yaml`" });
+  assert.equal(p.fix?.reveal, "/Users/me/code/shop/compose.yaml");
+  // Not from Compose: nothing to apply or show, so no fix (the line offers See why).
+  assert.equal(problemsFor(parseState(insp(dead, { HostConfig: { Memory: 256 * 1024 ** 2 } }))!, 2 * GIB)[0].fix, undefined);
+});
+
+test("given a compose.yaml and an override, when the limit is named, then no one file is called the place it is set", () => {
+  const [p] = problemsFor(parseState(insp(dead, from("/Users/me/code/shop/compose.yaml,/Users/me/code/shop/compose.override.yaml", 256 * 1024 ** 2)))!, 2 * GIB);
+  assert.equal(p.title, "It hit its own 256 MiB memory limit (set in the project's Compose files)");
+  assert.match(p.detail, /in the project's Compose files, then press Apply and start/);
+  assert.equal(p.fix?.reveal, "/Users/me/code/shop/compose.yaml", "Show in Finder still opens the first file");
+});
+
+test("given an OOM kill with no limit, a limit near the VM's memory, or no VM size known, when checked, then the fix is a bigger VM", () => {
+  assert.equal(problemsFor(parseState(insp(dead))!, 2 * GIB)[0].fix?.resize, true);
+  const near = problemsFor(parseState(insp(dead, from("/Users/me/code/shop/compose.yaml", 1.9 * GIB)))!, 2 * GIB)[0];
+  assert.equal(near.fix?.resize, true, "1.9 GiB on a 2 GiB VM: the VM may be what ran out");
+  assert.match(near.detail, /It also has its own 1\.9 GiB memory limit/);
+  assert.equal(problemsFor(parseState(insp(dead, from("/Users/me/code/shop/compose.yaml", 256 * 1024 ** 2)))!)[0].fix?.resize, true, "VM memory unknown: keep the resize offer");
+});

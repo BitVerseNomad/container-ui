@@ -329,7 +329,7 @@ details.how > summary svg, details.out-more > summary svg { transform: rotate(-9
 details.how[open] > summary svg, details.out-more[open] > summary svg { transform: none; }
 @media (prefers-reduced-motion: reduce) { details.how > summary svg, details.out-more > summary svg { transition: none; } }
 .fix-result details.how { margin: 2px 0 0 20px; font-size: 12px; }
-.finding code { font: 12px ui-monospace, "SF Mono", Menlo, monospace; }
+.finding code, .problem-line code { font: 12px ui-monospace, "SF Mono", Menlo, monospace; }
 .finding .how .cmd { margin-top: 6px; }
 details.how ul.steps { list-style: none; padding-left: 0; margin: 6px 0 0; }
 details.how ul.steps li + li { margin-top: 6px; }
@@ -718,6 +718,8 @@ td .status-text.fixing, td .status-text.fixed, td .fix-failed { white-space: nor
 .resize-status:empty { display: none; }
 .resize-status .actions-inline { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .resize-status .out-more { margin-top: 0; }
+/* Under the result text, not under its icon: 14px icon plus the 6px gap. */
+.resize-status .resize-actions, .resize-status .resize-why { padding-left: 20px; }
 .resize-result { display: flex; gap: 6px; align-items: flex-start; margin: 0; color: var(--ink); font-size: 13px; border-radius: 4px; }
 .resize-result svg, .finding .resize-result svg { flex: none; margin-top: 2px; }
 .resize-result.ok svg, .finding .resize-result.ok svg { color: var(--dot-ok); }
@@ -733,6 +735,21 @@ td .status-text.fixing, td .status-text.fixed, td .fix-failed { white-space: nor
 .app button.small[aria-disabled=true], .finding-actions button[aria-disabled=true], .resize-or button[aria-disabled=true], .resize-status button[aria-disabled=true], .problem-line button:disabled { opacity: .55; cursor: default; }
 .resize-or { display: inline-flex; flex-direction: column; gap: 4px; align-items: flex-end; }
 .resize-or .actions-inline { display: flex; gap: 8px; align-items: center; }
+.resize-or .actions-inline:empty { display: none; }
 /* Volumes while a copy runs: the remove buttons wait, and the reason sits beside the bulk one. */
 .table-tools { align-items: center; gap: 8px; }
 .table-tools button[aria-disabled="true"], .icon-btn[aria-disabled="true"] { opacity: .5; cursor: default; }
+/* The limit's two buttons, with any note under them as wide as the buttons, so the row's text keeps its width. */
+/* A Compose limit (src/Health.tsx LimitActions): the notes at the text's width, the buttons in a row under them.
+   Names like report-job wrap only at spaces, never split inside the word. */
+.limit-actions { display: grid; gap: 6px; justify-items: start; min-width: 0; margin-top: 4px; }
+.limit-actions .limit-note, .finding .limit-actions .limit-note { max-width: 72ch; margin: 0; font-size: 12px; line-height: 1.4; overflow-wrap: break-word; hyphens: manual; }
+.limit-actions .actions-inline { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.resize-result.off svg, .finding .resize-result.off svg { color: var(--muted); }
+.resize-result.warn svg, .finding .resize-result.warn svg { color: var(--dot-warn); }
+/* On Doctor the row's second line: under the text column, buttons on the right edge like the row's menu. */
+.finding.limit > .limit-actions { display: grid; grid-column: 2 / -1; max-width: none; margin-top: 0; gap: 6px; align-items: initial; }
+/* Ends where the other rows' buttons end: before the menu column (the 28px menu plus the 6px gap before it). */
+.finding.limit .limit-actions .actions-inline { justify-self: end; margin-right: calc(28px + 6px); }
+/* A limit line's button sits in a wrapper that only tracks focus (useLimitFlip); it adds no box of its own. */
+.limit-action { display: contents; }

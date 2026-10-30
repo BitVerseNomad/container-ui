@@ -219,7 +219,7 @@ export default function App() {
           <span className="actions-inline"><button className="primary" onClick={() => setTab("Containers")}>Install them</button></span>
         </div>
       ) : (
-        <Doctor ctx={ctx} setup={setup} doc={doc} onProfiles={() => setTab("Profiles")} onBring={(only) => openBring(only)} onGo={(page) => setTab(page)} onOpen={(name) => { setDetailId(name); setTab("Containers"); }} />
+        <Doctor ctx={ctx} composePaths={compose.paths ?? []} setup={setup} doc={doc} onProfiles={() => setTab("Profiles")} onBring={(only) => openBring(only)} onGo={(page) => setTab(page)} onOpen={(name) => { setDetailId(name); setTab("Containers"); }} />
       )
     ) : tab === "Profiles" ? (
       <Profiles

@@ -74,15 +74,31 @@ button.main[aria-disabled=true] { opacity: .55; cursor: default; }
   display: flex; align-items: center; gap: 8px; margin: 0 34px 6px 28px; padding: 5px 6px; border-radius: 6px;
   font-size: 12px; color: var(--ink); background: color-mix(in srgb, var(--dot-bad) 8%, var(--page));
 }
-.problem > svg { flex: none; color: var(--dot-bad); }
+.problem > svg, .problem > .problem-lead > svg { flex: none; color: var(--dot-bad); }
 .problem.warn { background: color-mix(in srgb, var(--dot-warn) 11%, var(--page)); }
-.problem.warn > svg { color: var(--dot-warn); }
+.problem.warn > svg, .problem.warn > .problem-lead > svg { color: var(--dot-warn); }
 .problem.ok { background: color-mix(in srgb, var(--dot-ok) 9%, var(--page)); }
-.problem.ok > svg { color: var(--dot-ok); }
+.problem.ok > svg, .problem.ok > .problem-lead > svg { color: var(--dot-ok); }
 .problem.busy { background: var(--card); }
-.problem.busy > svg { color: var(--muted); }
+.problem.busy > svg, .problem.busy > .problem-lead > svg { color: var(--muted); }
+/* A resize run under its home line: the result takes its own row under the line's text, so neither is squeezed. */
+.problem:has(.resize-status .resize-result, .resize-status .resize-progress) { flex-wrap: wrap; }
+.problem:has(.resize-status .resize-result, .resize-status .resize-progress) > .resize-or { flex-basis: 100%; align-items: flex-start; padding-left: 22px; }
+.problem.off { background: var(--card); }
+.problem.off > svg, .problem.off > .problem-lead > svg { color: var(--muted); }
+/* A VM size result on its own row: the down line's tint, its own icon and text, Dismiss at the right edge. */
+.problem.result { background: var(--card); }
+.problem.result > .resize-status { flex: 1; min-width: 0; flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; margin-top: 0; }
+.problem.result .resize-result { flex: 1; min-width: 0; line-height: 1.4; }
+.problem.result .resize-actions { padding-left: 0; }
+.problem.result .out-more, .problem.result .resize-progress { flex-basis: 100%; padding-left: 20px; }
 .svc .problem { margin-left: 44px; }
 .problem-text { flex: 1; min-width: 0; white-space: normal; line-height: 1.4; }
+/* The icon on the first line of text (a 1.4 line-height line is 1.4em; the icon is 14px), for one line or several. */
+.problem-lead { flex: 1; min-width: 0; display: flex; align-items: flex-start; gap: 8px; }
+.problem-lead > svg { margin-top: calc((1.4em - 14px) / 2); }
+/* `compose.yaml` and the like, in the code font as on Doctor (.finding code); buttons keep the sans font. */
+.problem-text code { font: 12px ui-monospace, "SF Mono", Menlo, monospace; }
 button.small { flex: none; min-height: 24px; padding: 0 10px; border-radius: 6px; font-size: 12px; font-weight: 500; white-space: nowrap; }
 
 .home-search { max-width: 280px; }
@@ -102,3 +118,5 @@ button.small { flex: none; min-height: 24px; padding: 0 10px; border-radius: 6px
   .svc-row > .menu { grid-column: 5; }
   .app-row .app-state, .svc-row .app-state { display: none; }
 }
+/* Said once after compose.yaml opened in TextEdit; under the line's text (the polite region says it too). */
+.limit-hint { display: block; margin-top: 2px; font-size: 12px; }

@@ -6,21 +6,27 @@ import { flightTracker, shouldTick } from "./lib/pollPace";
 export function usePoll<T>(load: () => Promise<T>, deps: unknown[], ms = 3000, enabled = true) {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // When the read that gave `data` started (the Mac's clock, compared only with itself).
+  const [dataFrom, setDataFrom] = useState(0);
   // A slow older answer must never overwrite a newer one (for example right after the inputs changed).
   const run = useRef(latest());
   // A hung docker socket (common after sleep) must not stack up one new process per tick.
   const flight = useRef(flightTracker());
   const lastRun = useRef(0);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const reload = useCallback(async () => {
+  // Resolves true only when this read's answer was kept (it worked, and no newer read had started).
+  const reload = useCallback(async (): Promise<boolean> => {
+    const started = Date.now();
     const r = await run.current(load);
-    if (!r.current) return;
+    if (!r.current) return false;
     if (r.ok) {
       setData(r.value as T);
+      setDataFrom(started);
       setError(null);
-    } else {
-      setError(String(r.error));
+      return true;
     }
+    setError(String(r.error));
+    return false;
   }, deps);
   useEffect(() => {
     if (!enabled) return;
@@ -47,5 +53,5 @@ export function usePoll<T>(load: () => Promise<T>, deps: unknown[], ms = 3000, e
       window.removeEventListener("focus", tick);
     };
   }, [reload, ms, enabled]);
-  return { data, error, reload };
+  return { data, error, reload, dataFrom };
 }

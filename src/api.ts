@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { noteDocker } from "./lib/appStopped";
+import { Ended, noteDocker, pinStopped, projectKey, runOf } from "./lib/appStopped";
 
 export type Profile = {
   name: string;
@@ -30,8 +30,23 @@ export const ctxFor = (name: string) => (name === "default" ? "colima" : `colima
 // Every stop and start the app runs is noted, so a service it stopped never reads Finished.
 export const docker = (ctx: string, args: string[], mergeStderr = false) => {
   noteDocker(ctx, args);
-  return invoke<string>("docker", { context: ctx, args, mergeStderr });
+  const run = invoke<string>("docker", { context: ctx, args, mergeStderr });
+  if (args[0] === "stop" || args[0] === "kill") void run.then(() => pinAfterStop(ctx, args.slice(1).filter((a) => !a.startsWith("-")))).catch(() => {});
+  return run;
 };
+
+// After the app's stop: the StartedAt of each run it ended, pinned (appStopped.pinStopped).
+const inspectRuns = async (ctx: string, ids: string[]) => (ids.length ? (JSON.parse(await invoke<string>("docker", { context: ctx, args: ["inspect", ...ids], mergeStderr: false })) as (Ended & { Config?: { Labels?: Record<string, string> | null } })[]) : []);
+async function pinAfterStop(ctx: string, keys: string[]) {
+  const runs = await inspectRuns(ctx, keys);
+  for (const k of keys) pinStopped(ctx, k, runOf(k, runs));
+}
+// The same after `compose stop`: the project's containers by its label, then only the clone in that folder.
+export async function pinComposeStop(ctx: string, dir: string, name: string) {
+  const ids = (await invoke<string>("docker", { context: ctx, args: ["ps", "-a", "-q", "--filter", `label=com.docker.compose.project=${name}`], mergeStderr: false })).split("\n").map((l) => l.trim()).filter(Boolean);
+  const runs = (await inspectRuns(ctx, ids)).filter((r) => (r.Config?.Labels?.["com.docker.compose.project.working_dir"] ?? "").toLowerCase() === dir.toLowerCase());
+  pinStopped(ctx, projectKey(dir, name), runs);
+}
 
 export async function dockerJson<T>(ctx: string, args: string[]): Promise<T[]> {
   const out = await docker(ctx, [...args, "--format", "{{json .}}"]);

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Profile, docker } from "./api";
 import { usePoll } from "./hooks";
 import { useSetup, useSetupActions } from "./Setup";
@@ -8,6 +8,7 @@ import { doctor } from "./lib/doctor";
 import type { Finding, Report } from "./lib/doctor";
 import { parseDiskUsage } from "./lib/disk";
 import { hostArch } from "./lib/guided";
+import { holdAfterResize } from "./lib/vmSize";
 import { muted, setMuted, subscribeMuted } from "./lib/muted";
 import { busy } from "./lib/fixStore";
 import { useDockerLocked } from "./dockerLock";
@@ -18,8 +19,9 @@ import { Banner, useConfirm } from "./ui";
 import Menu from "./ui/Menu";
 import type { MenuItem } from "./ui/Menu";
 import { Icon } from "./ui/icons";
-import Ticks from "./ui/Ticks";
-import { ResizeButton, ResizeOr, ResizeOther, ResizeStatus, resizing, useHeld, useResize } from "./Resize";
+import Ticks, { plain } from "./ui/Ticks";
+import { LimitActions, isListed } from "./Health";
+import { REACHABLE, ResizeButton, ResizeOr, ResizeOther, ResizeStatus, afterDismiss, resizing, useHeld, useResize } from "./Resize";
 
 const ICON = { ok: "check", warn: "alert", fail: "close", info: "info" } as const;
 
@@ -50,7 +52,24 @@ export function useDoctor(ctx: string | null, profile: Profile | null) {
   }, [ctx, facts.data, profile?.arch, profile?.memory, running, mutedKeys, runs]);
   // containers: the raw inspect output, so the VM size fix can say which containers start again after a restart.
   // Held while the VM restarts for a new size: the checks can't run then, and their rows would vanish and come back.
-  return { report: useHeld(report), error: facts.error, reload: facts.reload, containers: useHeld(facts.data?.containers) };
+  // Held a little longer too, until a read made after the restart lands: one made while the containers were still
+  // stopped would drop every line about a running one (kafka's, kafka-ui's) until the next 30-second poll.
+  // Only a read that worked and started after the resize ended releases it (holdAfterResize); a failed one keeps
+  // holding until the next poll lands.
+  const s = useResize();
+  const wasResizing = useRef(false);
+  const endedAt = useRef<number | null>(null);
+  if (resizing(s)) wasResizing.current = true;
+  else if (wasResizing.current) { wasResizing.current = false; endedAt.current = Date.now(); }
+  useEffect(() => {
+    if (endedAt.current !== null && !resizing(s)) void facts.reload();
+  }, [s.progress]); // eslint-disable-line react-hooks/exhaustive-deps
+  const held = holdAfterResize(resizing(s), endedAt.current, facts.dataFrom);
+  if (!held) endedAt.current = null;
+  const heldReport = useRef(report);
+  const heldContainers = useRef(facts.data?.containers);
+  if (!held) { heldReport.current = report; heldContainers.current = facts.data?.containers; }
+  return { report: heldReport.current, error: facts.error, reload: facts.reload, containers: heldContainers.current };
 }
 
 // What the page shows in each group. todo is the one problem count in the app: the sidebar badge and this page's
@@ -88,12 +107,29 @@ type Props = {
   onBring: (only?: string[]) => void;
   onGo: (page: Go) => void;
   onOpen: (container: string) => void;
+  // The Compose files the scan lists: a container that hit its own memory limit can show its file.
+  composePaths?: string[];
 };
 
 // Every check in one place: setup, containers, networks, images, storage and the VM. Nothing changes until a click.
-export default function Doctor({ ctx, setup, doc, onProfiles, onBring, onGo, onOpen }: Props) {
+export default function Doctor({ ctx, setup, doc, onProfiles, onBring, onGo, onOpen, composePaths = [] }: Props) {
   const actions = useSetupActions({ reload: setup.reload, profile: setup.profile, onProfiles, onBring, rc: setup.rc });
   const rs = useResize();
+  // A row that goes while focus is in it (its Apply and start worked, its fix ran): focus goes to the row that was
+  // after it, else the Doctor's first button, else the heading. Never the page top.
+  const lastRow = useRef<{ key: string; next: string | null } | null>(null);
+  const onFocusIn = (e: React.FocusEvent) => {
+    const li = (e.target as HTMLElement).closest<HTMLElement>("li[data-key]");
+    if (li) lastRow.current = { key: li.dataset.key!, next: (li.nextElementSibling as HTMLElement | null)?.dataset.key ?? null };
+  };
+  useEffect(() => {
+    const r = lastRow.current;
+    if (!r || (document.activeElement && document.activeElement !== document.body)) return;
+    if (document.querySelector(`li[data-key="${CSS.escape(r.key)}"]`)) return;
+    lastRow.current = null;
+    const next = r.next ? document.querySelector<HTMLElement>(`li[data-key="${CSS.escape(r.next)}"] ${REACHABLE}`) : null;
+    (next ?? document.querySelector<HTMLElement>(`.doctor-head ${REACHABLE}`) ?? afterDismiss(document.body))?.focus();
+  });
   const mutedKeys = useMuted();
   const [testing, setTesting] = useState(false);
   const [checking, setChecking] = useState(false);
@@ -135,17 +171,18 @@ export default function Doctor({ ctx, setup, doc, onProfiles, onBring, onGo, onO
       ...(f.subject ? [{ label: `Open ${f.subject}`, icon: <Icon name="logs" size={13} />, onSelect: () => onOpen(f.subject!) }] : []),
       { label: "Not an issue", icon: <Icon name="check" size={13} />, onSelect: () => setMuted(f.key, true) },
     ];
+    const limitRow = !elsewhere && !f.fix?.resize && !!f.fix?.reveal;
     return (
-      <li key={f.key} className={`finding ${cls}`} data-key={f.key}>
+      <li key={f.key} className={`finding ${cls}${limitRow && isListed(f.fix!.reveal!, composePaths) ? " limit" : ""}`} data-key={f.key}>
         <Icon name={ICON[cls]} />
         <div>
-          <b>{f.title}</b>
+          <b><Ticks text={f.title} /></b>
           {elsewhere && (
             <span className="hint together">
               Fixed together with{" "}
               <button className="link" aria-label={`Go to the fix on ${elsewhere.subject ?? elsewhere.title}`} onClick={() => {
                 const row = document.querySelector<HTMLElement>(`[data-key="${CSS.escape(elsewhere.key)}"]`);
-                const fixButton = row?.querySelector<HTMLElement>(".finding-actions button.small");
+                const fixButton = row?.querySelector<HTMLElement>(".finding-actions button.small, .limit-actions button.small");
                 // A muted owner has no button here; its row (or the page) still takes focus so the move is heard.
                 if (!fixButton && row) row.tabIndex = -1;
                 (fixButton ?? row)?.focus();
@@ -167,9 +204,13 @@ export default function Doctor({ ctx, setup, doc, onProfiles, onBring, onGo, onO
           {elsewhere ? null : f.fix?.resize ? (
             <ResizeOr from={`doctor:${f.key}`} title={f.title} need="memory" alsoStart={f.subject ? [f.subject] : []} noStatus noProfiles vmWords
               fallback={f.subject ? <button className="small" onClick={() => onOpen(f.subject!)}>Open {f.subject}</button> : <button className="small" onClick={() => onGo("Profiles")}>Open Profiles</button>} />
-          ) : f.fix ? <DoctorFix fix={f.fix} title={f.title} ctx={ctx} onGo={onGo} onFixed={() => doc.reload()} /> : f.subject ? <button className="small" onClick={() => onOpen(f.subject!)}>Open {f.subject}</button> : null}
-          <Menu label={`More actions for ${f.title}`} className="more" items={more}><Icon name="more" size={16} /></Menu>
+          ) : limitRow && !isListed(f.fix!.reveal!, composePaths) ? (
+            f.subject ? <button className="small" onClick={() => onOpen(f.subject!)}>Open {f.subject}</button> : null
+          ) : limitRow ? null : f.fix ? <DoctorFix fix={f.fix} title={f.title} ctx={ctx} onGo={onGo} onFixed={() => doc.reload()} /> : f.subject ? <button className="small" onClick={() => onOpen(f.subject!)}>Open {f.subject}</button> : null}
+          <Menu label={`More actions for ${plain(f.title)}`} className="more" items={more}><Icon name="more" size={16} /></Menu>
         </span>
+        {/* A listed project's own limit: its notes and both buttons go under the text, so the body keeps the row's width. */}
+        {limitRow && isListed(f.fix!.reveal!, composePaths) && <LimitActions fix={{ ...f.fix!, reveal: f.fix!.reveal! }} ctx={ctx ?? undefined} listed={composePaths} small fallback={null} />}
       </li>
     );
   };
@@ -178,7 +219,7 @@ export default function Doctor({ ctx, setup, doc, onProfiles, onBring, onGo, onO
   const onScreen = onHome.length ? ` ${onHome.length} ${todo ? "more" : onHome.length === 1 ? "container problem" : "container problems"} ${onHome.length === 1 ? "is" : "are"} on the Containers screen.` : "";
   const summary = `${todo === 0 && onHome.length ? "Nothing needs action here." : summaryOf(todo)}${onScreen}`;
   return (
-    <div className="setup doctor">
+    <div className="setup doctor" onFocus={onFocusIn}>
       <div className="doctor-head">
         <p className="hint">
           {summary}{ctx || resizing(rs) ? "" : " Start the VM to also check containers, networks, images and storage."}

@@ -7,7 +7,7 @@ const backend = vi.hoisted(() => ({ current: null as null | ReturnType<typeof im
 vi.mock("@tauri-apps/api/core", () => ({ invoke: (cmd: string, a: Record<string, unknown>) => backend.current!.invoke(cmd, a) }));
 vi.mock("@tauri-apps/api/event", () => ({ listen: async () => () => {} }));
 
-import ComposeProjects from "./ComposeProjects";
+import ComposeProjects, { composeRunState, resetComposeRun, runCompose } from "./ComposeProjects";
 import { ConfirmProvider } from "./ui";
 import { reset as resetFixes, startFix } from "./lib/fixStore";
 
@@ -34,6 +34,20 @@ function show(opts: { containers?: ReturnType<typeof running>[]; attention?: Map
 
 describe("ComposeProjects", () => {
   beforeEach(() => resetFixes());
+
+  it("given a check before Compose refused, when one service is started, then it says nothing was started and no Down", async () => {
+    resetComposeRun();
+    backend.current = fakeBackend({});
+    backend.current.invoke = vi.fn(async () => { throw "Not started: \"web\" is not a service of this project"; });
+    await runCompose("colima", { dir: "/Users/me/code/shop", files: ["compose.yaml"], name: "shop" }, "up", [], "web");
+    const f = composeRunState().failed!;
+    expect(f.why).toBe("\"web\" is not a service of this project. Nothing was started.");
+    expect(f.why).not.toMatch(/Part of the project/);
+    // A real compose failure still says Down may be needed.
+    backend.current.invoke = vi.fn(async () => { throw "Error response from daemon: something broke"; });
+    await runCompose("colima", { dir: "/Users/me/code/shop", files: ["compose.yaml"], name: "shop" }, "up", []);
+    expect(composeRunState().failed!.why).toMatch(/Part of the project may have been created/);
+  });
 
   it("given no fix running, when Start is clicked, then compose up runs for that file", async () => {
     const user = userEvent.setup();
