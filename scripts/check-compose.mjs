@@ -29,6 +29,10 @@ async function open(scenario) {
   return page;
 }
 
+// The card's less common actions sit in its "More actions for <project>" menu.
+const via = async (drawer, project, item) => { await drawer.getByRole("button", { name: `More actions for ${project}` }).click(); await drawer.getByRole("menuitem", { name: item }).click(); };
+const menuHasText = async (drawer, project) => { await drawer.getByRole("button", { name: `More actions for ${project}` }).click(); const t = await drawer.getByRole("menu").innerText(); await p.keyboard.press("Escape"); return t; };
+const menuHas = async (drawer, project, item) => { await drawer.getByRole("button", { name: `More actions for ${project}` }).click(); const n = await drawer.getByRole("menuitem", { name: item }).count(); await p.keyboard.press("Escape"); return n; };
 let p = await open("running");
 await p.getByRole("button", { name: "New" }).click();
 const btn = p.getByRole("menuitem", { name: /^Start a Compose project/ });
@@ -74,12 +78,12 @@ await drawer.getByRole("button", { name: "Start blog" }).click();
 await p.waitForTimeout(800);
 const blog = await drawer.locator(".compose-item", { hasText: "blog" }).innerText();
 check(/port is already allocated/.test(blog), "running: a failed start keeps docker's own error under that project");
-check(/Port 8080 is already used by web \(in shop\)/.test(blog) && /Down removes what was left/.test(blog), "running: a failed start says who holds the port and how to clean up");
-check(await drawer.getByRole("button", { name: "Down blog" }).count() === 1, "running: after a failed start, the Down the note points to is there");
+check(/Port 8080 is already used by web \(in shop\)/.test(blog) && /Remove containers \(under More actions\) clears what was left/.test(blog), "running: a failed start says who holds the port and how to clean up");
+check(await menuHas(drawer, "blog", "Remove containers of blog") === 1, "running: after a failed start, the Remove containers the note points to is in the card's menu");
 check(await drawer.getByRole("button", { name: "Stop web and start blog" }).count() === 1, "running: a port clash offers to stop the holder and start again, in one click");
 
 // Down asks first, and Cancel runs nothing.
-await drawer.getByRole("button", { name: "Down shop" }).click();
+await via(drawer, "shop", "Remove containers of shop");
 const ask = p.getByRole("alertdialog");
 check(/volumes, and the data in them, stay/.test(await ask.innerText()), "running: Down asks first and says volumes stay");
 await ask.getByRole("button", { name: "Cancel" }).click();
@@ -92,7 +96,7 @@ const wrote = await p.evaluate(() => window.__copied.at(-1) ?? { text: "", ok: f
 const clip = isWebkit ? wrote.text : await p.evaluate(() => navigator.clipboard.readText()).catch(() => "");
 check(wrote.ok, `running: the clipboard accepted the copy (${JSON.stringify(wrote)})`);
 check(clip === "cd '/Users/me/My Apps/orders-api' && docker --context colima compose stop", `running: the copied command quotes a folder with a space (${clip})`);
-await drawer.getByRole("button", { name: "Show shop in Finder" }).click();
+await via(drawer, "shop", "Show shop in Finder");
 await p.waitForTimeout(200);
 check(JSON.stringify(await p.evaluate(() => window.__revealed)) === JSON.stringify(["/Users/me/code/shop/compose.yaml"]), "running: Show in Finder asks for that Compose file");
 await drawer.getByRole("button", { name: /Scan again/ }).click();
@@ -107,29 +111,28 @@ await p.getByRole("menuitem", { name: /^Start a Compose project/ }).click();
 const shopCard = drawer.locator(".compose-item", { hasText: "~/code/shop" });
 const shopText = await shopCard.innerText().catch(() => "");
 check(/need attention: .*worker/i.test(shopText), `running: the shop card names its containers that need attention (${shopText.split("\n").find((l) => /attention/.test(l)) ?? "none"})`);
-await drawer.getByRole("button", { name: "Logs of shop" }).click();
+await via(drawer, "shop", "Logs of shop");
 const live = drawer.getByLabel("Live logs of shop");
 await p.waitForFunction(() => /ready/.test(document.querySelector(".compose-logs pre")?.textContent ?? ""), null, { timeout: 3000 }).catch(() => {});
 check(/^web +\d\d:\d\d:\d\d +web ready/m.test(await live.innerText().catch(() => "")), "running: Logs shows each line with its service and time");
 await p.waitForFunction(() => /GET \/health 200/.test(document.querySelector(".compose-logs pre")?.textContent ?? ""), null, { timeout: 5000 }).catch(() => {});
 check(/GET \/health 200/.test(await live.innerText().catch(() => "")), "running: new lines arrive while the logs are open");
 check((await drawer.getByLabel("Service to show for shop").locator("option").count()) >= 7, "running: the service picker lists every service of the project");
-await drawer.getByRole("button", { name: "Restart shop" }).click();
+await via(drawer, "shop", "Restart shop");
 await p.waitForFunction(() => /you ran compose restart/.test(document.querySelector(".compose-logs pre")?.textContent ?? ""), null, { timeout: 5000 }).catch(() => {});
 check(/·· \d\d:\d\d:\d\d  you ran compose restart ··/.test(await live.innerText()), "running: a restart is marked in the live logs");
 await p.waitForFunction(() => !/Cancel/.test(document.querySelector(".drawer")?.textContent ?? ""), null, { timeout: 4000 }).catch(() => {});
 await drawer.getByLabel("Service to show for shop").selectOption({ label: "db" });
 check(!/^web /m.test(await live.innerText()) && /db ready/.test(await live.innerText()), "running: choosing a service shows only its lines");
-await drawer.getByRole("button", { name: "Logs of shop" }).click();
+await via(drawer, "shop", "Logs of shop");
 check(await drawer.locator(".compose-logs").count() === 0, "running: Hide logs closes them");
-await drawer.getByRole("button", { name: "Rebuild shop" }).click();
+await via(drawer, "shop", "Rebuild shop");
 await p.waitForFunction(() => (window.__composed ?? []).some((c) => c.action === "build"), null, { timeout: 3000 }).catch(() => {});
 check(await p.evaluate(() => (window.__composed ?? []).some((c) => c.action === "build" && c.file === "/Users/me/code/shop/compose.yaml")), "running: Rebuild runs compose up --build for shop");
 await p.locator(".cmd-toast", { hasText: "up -d --build" }).waitFor({ timeout: 3000 }).catch(() => {});
 check(/Rebuilt shop|Done: shop/.test(await p.locator(".cmd-toast").innerText().catch(() => "")) || /up -d --build/.test(await p.locator(".cmd-toast").innerText().catch(() => "")), `running: the toast shows the rebuild command (${(await p.locator(".cmd-toast").innerText().catch(() => "")).replace(/\n/g, " ")})`);
-await drawer.getByRole("button", { name: "Update images of shop" }).waitFor({ state: "visible" });
-await p.waitForFunction(() => !document.querySelector('[aria-label="Update images of shop"]')?.disabled, null, { timeout: 3000 }).catch(() => {});
-await drawer.getByRole("button", { name: "Update images of shop" }).click();
+await drawer.getByRole("button", { name: "More actions for shop" }).waitFor({ state: "visible" });
+await via(drawer, "shop", "Update images of shop");
 await p.waitForFunction(() => (window.__composed ?? []).some((c) => c.action === "pull"), null, { timeout: 3000 }).catch(() => {});
 check(await p.evaluate(() => (window.__composed ?? []).some((c) => c.action === "pull")), "running: Update images runs compose up --pull always");
 // Running hides the row's other buttons, so wait for Cancel to go, not for a button to be enabled.
@@ -138,7 +141,10 @@ const rightEdge = await p.evaluate(() => Math.max(...[...document.querySelectorA
 const drawerEdge = await p.evaluate(() => document.querySelector(".drawer").getBoundingClientRect().right);
 check(rightEdge <= drawerEdge, `running: every card button fits inside the panel (${Math.round(rightEdge)} <= ${Math.round(drawerEdge)})`);
 const blogCard = drawer.locator(".compose-item", { hasText: "~/code/blog" });
-check(/Rebuild and start/.test(await blogCard.innerText()) && /Update images and start/.test(await blogCard.innerText()), "running: on a stopped project, Rebuild and Update images say they start it");
+await blogCard.getByRole("button", { name: "More actions for blog" }).click();
+const blogMenu = await blogCard.getByRole("menu").innerText();
+check(/Rebuild and start/.test(blogMenu) && /Update images and start/.test(blogMenu), "running: on a stopped project, Rebuild and Update images say they start it");
+check(/After you change a Dockerfile or the code it copies in/.test(blogMenu) && /Downloads newer versions of the images first/.test(blogMenu) && /Stops and removes them; volumes and data are kept/.test(await (async () => { await p.keyboard.press("Escape"); return (await menuHasText(drawer, "shop")); })()), "running: each menu item says when you would use it");
 await p.evaluate(() => (window.__pickFolder = "/Users/me/.config/thing"));
 await drawer.getByRole("button", { name: /Add a folder/ }).click();
 await drawer.getByText(/Hidden folders and/).waitFor({ timeout: 2000 }).catch(() => {});

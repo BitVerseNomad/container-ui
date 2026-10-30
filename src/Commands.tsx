@@ -51,7 +51,7 @@ export function CommandToast({ onOpenLog }: { onOpenLog: () => void }) {
         </span>
         <span className="actions-inline">
           <button onClick={() => activity.reveal(last.id)}>Show me</button>
-          <button className="link" onClick={() => { activity.setTips(false); close(); }}>Don't ask again</button>
+          <button className="small" onClick={() => { activity.setTips(false); close(); }}>Don't ask again</button>
           <button className="icon-btn" aria-label="Close" title="Close" onClick={close}><Icon name="close" size={13} /></button>
         </span>
       </div>
@@ -97,7 +97,7 @@ export function CommandLog({ onClose }: { onClose: () => void }) {
             <span className="hint">{e.ok === null ? "running" : e.ok ? "" : "failed"}</span>
             {e.again && (
               <button
-                className="link"
+                className="small"
                 aria-label={`Run again: ${e.cmd}`}
                 disabled={fixing || e.ok === null}
                 title={fixing ? "Wait for the fix to finish" : e.cmd}

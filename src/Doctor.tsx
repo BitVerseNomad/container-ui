@@ -321,7 +321,7 @@ export default function Doctor({ ctx, setup, doc, onProfiles, onBring, onGo, onO
                 <Icon name="info" />
                 <div>
                   <b>{f.title}</b>
-                  <button className="link" onClick={() => setMuted(f.key, false)}>Show it again</button>
+                  <button className="small" onClick={() => setMuted(f.key, false)}>Show it again</button>
                 </div>
               </li>
             ))}

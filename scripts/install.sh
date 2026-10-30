@@ -37,5 +37,5 @@ ditto "$tmp/mnt/Colima UI.app" "$app"
 xattr -dr com.apple.quarantine "$app" 2>/dev/null || true
 echo "Installed $app."
 
-command -v colima >/dev/null 2>&1 || echo "Next: install Colima and the Docker CLI with: brew install colima docker"
+command -v colima >/dev/null 2>&1 || echo "Colima isn't installed yet. The app offers to install it when it opens."
 open "$app"

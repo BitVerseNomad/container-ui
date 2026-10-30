@@ -774,3 +774,12 @@ ul.findings.result-row { margin: 0; }
 .problem.result.stopped .out-more { padding-left: 20px; }
 /* A few lines to add to a file, in the row's own text: light, small, no dark block. */
 .finding pre.code-lines { margin: 6px 0; padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--card); color: var(--ink); font: 12px/1.5 ui-monospace, "SF Mono", Menlo, monospace; overflow-x: auto; white-space: pre; }
+
+/* A menu inside a side panel is narrow: each item's one-line hint sits under its label and wraps. */
+.drawer .menu-pop { width: 300px; max-width: calc(100vw - 80px); }
+.drawer .menu-pop [role^=menuitem] { flex-wrap: wrap; white-space: normal; row-gap: 0; }
+.drawer .menu-pop .menu-hint { margin-left: 0; padding-left: 0; flex-basis: 100%; }
+/* The Compose card's menu opens across the whole card, so every hint fits inside the panel. */
+.compose-item { position: relative; }
+.compose-item .menu { position: static; }
+.compose-item .menu-pop, .compose-item .menu-pop.left { left: 0; right: 0; width: auto; max-width: none; }

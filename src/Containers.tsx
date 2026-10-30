@@ -430,7 +430,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
       // Inside a project the row's main button acts on the whole project, so one service's Start and Stop live here.
       ...(inProject && up ? [{ label: "Stop", icon: <Icon name="stop" size={13} />, disabled: lock, onSelect: () => void act(a, ["stop", c.ID], null, `${c.Names} stopped`) }] : []),
       ...(inProject && !up ? [{ label: "Start", icon: <Icon name="play" size={13} />, disabled: lock, onSelect: () => void act(a, ["start", c.ID], null, `${c.Names} started`) }] : []),
-      ...(p ? [{ label: "Not an issue", icon: <Icon name="check" size={13} />, onSelect: () => setMuted(p.key, true) }] : []),
+      ...(p ? [{ label: "Not an issue", icon: <Icon name="check" size={13} />, ariaLabel: "Not an issue", hint: "Hides this warning; Doctor can show it again", onSelect: () => setMuted(p.key, true) }] : []),
       {
         label: "Remove…", icon: <Icon name="trash" size={13} />, danger: true, divider: true, disabled: lock,
         // rm -f kills a running container without asking, so the question says so.

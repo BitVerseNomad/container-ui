@@ -100,7 +100,7 @@ export function FixStatus({ name }: { name: string }) {
     <div className={`fix-result ${r.ok ? "ok" : "bad"}`} role="status">
       <p>
         {r.ok && <Icon name="check" size={14} />} {describe(r)}{" "}
-        <button className="link fix-dismiss" onClick={() => dismiss(name)}>Dismiss</button>
+        <button className="small fix-dismiss" onClick={() => dismiss(name)}>Dismiss</button>
       </p>
       {!r.ok && r.logs && <pre className="cmd">{r.logs.trim().split("\n").slice(-12).join("\n")}</pre>}
     </div>

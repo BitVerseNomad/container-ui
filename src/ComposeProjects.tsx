@@ -7,6 +7,8 @@ import OutputLog from "./ui/OutputLog";
 import ComposeLogs from "./ComposeLogs";
 import { Banner, useConfirm } from "./ui";
 import { Icon } from "./ui/icons";
+import Menu from "./ui/Menu";
+import type { MenuItem } from "./ui/Menu";
 import { ComposeScan } from "./useComposeScan";
 import { cdPath, portHolder, projectName, projectsFrom, shellQuote, whyFailed } from "./lib/composeScan";
 import { docker, pinComposeStop } from "./api";
@@ -22,7 +24,7 @@ export type Action = "up" | "stop" | "restart" | "down" | "build" | "pull";
 // The backend sends one path past this cap when the list was cut.
 const SHOWN_MAX = 300;
 const tilde = (dir: string) => dir.replace(/^\/Users\/[^/]+/, "~");
-const VERB: Record<Action, [string, string]> = { up: ["Start", "Starting…"], stop: ["Stop", "Stopping…"], restart: ["Restart", "Restarting…"], down: ["Down", "Taking down…"], build: ["Rebuild", "Rebuilding…"], pull: ["Update images", "Updating images…"] };
+const VERB: Record<Action, [string, string]> = { up: ["Start", "Starting…"], stop: ["Stop", "Stopping…"], restart: ["Restart", "Restarting…"], down: ["Remove containers", "Removing containers…"], build: ["Rebuild", "Rebuilding…"], pull: ["Update images", "Updating images…"] };
 const TAIL: Record<Action, string> = { up: "up -d", stop: "stop", restart: "restart", down: "down", build: "up -d --build", pull: "up -d --pull always" };
 const tail = (a: Action) => TAIL[a];
 // What the button runs, as you'd type it, with the context named so a paste acts on the same profile.
@@ -60,8 +62,8 @@ export async function runCompose(ctx: string, p: Pick<ComposeProject, "dir" | "f
     const refused = notStarted(String(e));
     const text = refused ?? String(e);
     const why = NO_COMPOSE.test(text) ? "docker compose isn't installed, so nothing ran. The Doctor can install it." : refused ? `${text}. Nothing was started.` : whyFailed(text, containers);
-    // Compose may have created a network or some services before it failed; Down clears what it left.
-    const left = action === "up" && !refused ? " Part of the project may have been created; Down removes what was left." : "";
+    // Compose may have created a network or some services before it failed; Remove containers clears what it left.
+    const left = action === "up" && !refused ? " Part of the project may have been created; Remove containers (under More actions) clears what was left." : "";
     setRun({ failed: { dir: p.dir, action, text, why: why ? `${why}${left}` : left.trim() || null, holder: portHolder(text, containers), service } });
   } finally {
     setRun({ busy: null });
@@ -113,7 +115,7 @@ export default function ComposeProjects({ ctx, scan, containers, attention, onCl
 
   async function run(p: ComposeProject, action: Action) {
     if (state.busy || fixing) return;
-    if (action === "down" && !(await confirm(`Stop and remove the containers of ${p.name}? Its volumes, and the data in them, stay.`, "Down"))) return;
+    if (action === "down" && !(await confirm(`Stop and remove the containers of ${p.name}? Its volumes, and the data in them, stay.`, "Remove containers"))) return;
     await runCompose(ctx, p, action, containers);
     onChanged?.();
   }
@@ -170,13 +172,25 @@ export default function ComposeProjects({ ctx, scan, containers, attention, onCl
           // On a partly running project, Start only starts what is stopped, so it says so.
           // Rebuild and Update images end with `up -d`, so on a stopped project they start it too, and say so.
           const label = (a: Action) => (a === "up" && up ? `Start the ${stopped} stopped` : !up && (a === "build" || a === "pull") ? `${VERB[a][0]} and start` : VERB[a][0]);
-          // A failed Start may leave a network or some services behind; Down is offered then, as the note says.
+          // A failed Start may leave a network or some services behind; Remove containers is offered then, as the note says.
           const leftovers = failed?.dir === p.dir && !mine;
-          const btn = (a: Action, kind?: "primary" | "danger") => (
-            <button className={kind} disabled={!!busy || fixing} title={fixing ? (bringing ? "Wait for the copy from Docker Desktop to finish" : "Wait for the fix to finish") : typed(p.dir, a, ctx)} aria-label={`${VERB[a][0]} ${p.name}`} onClick={() => run(p, a)}>
+          const off = !!busy || fixing;
+          const btn = (a: Action, kind?: "primary") => (
+            <button className={kind} disabled={off} title={fixing ? (bringing ? "Wait for the copy from Docker Desktop to finish" : "Wait for the fix to finish") : typed(p.dir, a, ctx)} aria-label={`${VERB[a][0]} ${p.name}`} onClick={() => run(p, a)}>
               {mine && busy?.action === a ? VERB[a][1] : label(a)}
             </button>
           );
+          // The common action is the button: Start when the project has stopped services, Stop when it runs. The rest are
+          // under "More actions", each with a line on when you would use it.
+          const more: MenuItem[] = [
+            ...(up && stopped > 0 ? [{ label: "Stop", ariaLabel: `Stop ${p.name}`, hint: "Stops every service and keeps the containers", disabled: off, onSelect: () => void run(p, "stop") }] : []),
+            ...(up ? [{ label: "Restart", ariaLabel: `Restart ${p.name}`, hint: "Stops and starts the services again, for example after a config change", disabled: off, onSelect: () => void run(p, "restart") }] : []),
+            { label: "Rebuild and start", ariaLabel: `Rebuild ${p.name}`, hint: "After you change a Dockerfile or the code it copies in", disabled: off, onSelect: () => void run(p, "build") },
+            { label: "Update images and start", ariaLabel: `Update images of ${p.name}`, hint: "Downloads newer versions of the images first", disabled: off, onSelect: () => void run(p, "pull") },
+            ...(p.total > 0 ? [{ label: logsHere ? "Hide logs" : "Show logs", ariaLabel: `Logs of ${p.name}`, hint: "What the services print, live", divider: true, onSelect: () => setLogsDir(logsHere ? null : p.dir) }] : []),
+            { label: "Show in Finder", ariaLabel: `Show ${p.name} in Finder`, hint: "Opens the folder with the Compose file", onSelect: () => void invoke("reveal_compose", { path: `${p.dir}/${p.files[0]}` }).then(() => setErr(null), (e) => setErr(String(e))) },
+            ...((up || leftovers) ? [{ label: "Remove containers", ariaLabel: `Remove containers of ${p.name}`, hint: "Stops and removes them; volumes and data are kept", danger: true, divider: true, disabled: off, onSelect: () => void run(p, "down") }] : []),
+          ];
           return (
             <li key={p.dir} className="compose-item">
               <div className="compose-head">
@@ -187,20 +201,9 @@ export default function ComposeProjects({ ctx, scan, containers, attention, onCl
               {sick.length > 0 && <p className="compose-sick"><Icon name="alert" size={13} /> {sick.length === 1 ? "1 needs attention" : `${sick.length} need attention`}: {sick.join("; ")}</p>}
               <span className="mono sub clip" title={`${p.dir}/${p.files.join(", ")}`}>{tilde(p.dir)}</span>
               <div className="actions-inline">
-                {up ? <>{stopped > 0 && btn("up", "primary")}{btn("restart")}{btn("stop")}{btn("down", "danger")}</> : <>{btn("up", "primary")}{leftovers && btn("down", "danger")}</>}
-                {mine && <button className="link" onClick={() => invoke("cancel_compose").catch(() => {})}>Cancel</button>}
-                {p.total > 0 && <button className="link" aria-expanded={!!logsHere} aria-label={`Logs of ${p.name}`} onClick={() => setLogsDir(logsHere ? null : p.dir)}>{logsHere ? "Hide logs" : "Logs"}</button>}
-                {!mine && <button className="link" disabled={!!busy || fixing} title={typed(p.dir, "build", ctx)} aria-label={`Rebuild ${p.name}`} onClick={() => run(p, "build")}>{label("build")}</button>}
-                {!mine && <button className="link" disabled={!!busy || fixing} title={typed(p.dir, "pull", ctx)} aria-label={`Update images of ${p.name}`} onClick={() => run(p, "pull")}>{label("pull")}</button>}
-                {!mine && (
-                  <button
-                    className="link"
-                    aria-label={`Show ${p.name} in Finder`}
-                    onClick={() => invoke("reveal_compose", { path: `${p.dir}/${p.files[0]}` }).then(() => setErr(null), (e) => setErr(String(e)))}
-                  >
-                    Show in Finder
-                  </button>
-                )}
+                {up && stopped === 0 ? btn("stop") : btn("up", "primary")}
+                {mine && <button className="small" onClick={() => invoke("cancel_compose").catch(() => {})}>Cancel</button>}
+                {!mine && <Menu label={`More actions for ${p.name}`} className="more" align="left" items={more}><Icon name="more" size={16} /></Menu>}
               </div>
               {failed?.dir === p.dir && failed.why && !mine && (
                 <div className="note" role="status">

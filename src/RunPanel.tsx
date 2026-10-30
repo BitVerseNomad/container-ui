@@ -261,7 +261,7 @@ export default function RunPanel({ ctx, image, arch, onClose, onRan }: Props) {
       {dockerError && hintFor(dockerError) && <p className="hint">{hintFor(dockerError)}</p>}
       {busy && <p className="hint">Starting the container. If the image isn't downloaded yet, this includes the pull.</p>}
 
-      <button className="link" aria-expanded={showCmd} onClick={() => setShowCmd((s) => !s)}>{showCmd ? "Hide" : "Show"} the docker run command</button>
+      <button className="small" aria-expanded={showCmd} onClick={() => setShowCmd((s) => !s)}>{showCmd ? "Hide" : "Show"} the docker run command</button>
       {showCmd && <pre className="cmd" ref={cmdBox}>{built.ok ? ["docker", ...built.args].map(shellQuote).join(" ") : "Fix the problems above to see the command."}</pre>}
 
       <div className="actions">

@@ -32,7 +32,8 @@ export default function Menu({ label, children, items, primary, className, align
     if (!open) return;
     // Tab moves on and the menu closes behind it, as a macOS menu does.
     if (e.key === "Tab") return setOpen(false);
-    if (e.key === "Escape") close();
+    // Escape closes the menu only, not the panel it sits in.
+    if (e.key === "Escape") { close(); e.stopPropagation(); }
     else if (e.key === "ArrowDown") all[(i + 1) % all.length]?.focus();
     else if (e.key === "ArrowUp") all[(i - 1 + all.length) % all.length]?.focus();
     else if (e.key === "Home") all[0]?.focus();
