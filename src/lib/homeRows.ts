@@ -13,11 +13,80 @@ type Ctr = { ID: string; Names: string; State: string; Status: string; Labels?: 
 export type App<T extends Ctr> = { key: string; kind: "compose" | "container" | "kubernetes"; name: string; dir: string | null; files: string[]; rows: T[] };
 export type AppState = "running" | "stopped" | "partly";
 
-// A job that finished cleanly (a migration, a seed) is done, not down.
-export const finished = (c: { State: string; Status: string }) => c.State === "exited" && /^Exited \(0\)/.test(c.Status);
+// What `docker inspect` tells about how a container is meant to run. `ps` has none of it: an exited container shows
+// no ports there, and no restart policy at all.
+// ranMs: StartedAt to FinishedAt of its last run, undefined when either is missing. startedAt: when that run began.
+// volume: a named volume is mounted (data that outlives the container, so a service). job: another Compose service
+// waits for it with `condition: service_completed_successfully`, so Compose itself calls it a one-shot. byApp: this
+// app stopped it after it last started (set by the caller, not by inspect).
+export type RunInfo = { restart: string; published: boolean; healthCheck: boolean; ranMs?: number; startedAt?: number; volume: boolean; job: boolean; byApp?: boolean };
+type Inspected = {
+  Name?: string;
+  State?: { StartedAt?: string; FinishedAt?: string };
+  Mounts?: { Type?: string; Name?: string }[] | null;
+  HostConfig?: { RestartPolicy?: { Name?: string }; PortBindings?: Record<string, unknown[] | null> | null };
+  Config?: { Healthcheck?: { Test?: string[] } | null; Labels?: Record<string, string> | null };
+};
+const SERVICE = "com.docker.compose.service";
+const DEPENDS = "com.docker.compose.depends_on";
+// Docker writes 0001-01-01T00:00:00Z for a time it never set.
+const when = (t?: string) => { const ms = t ? Date.parse(t) : NaN; return Number.isNaN(ms) || ms <= 0 ? undefined : ms; };
+const serviceKey = (l: Record<string, string>, service: string) => `${l[WORKDIR] ?? ""}\u0000${l[PROJECT] ?? ""}\u0000${service}`;
+export function runInfo(inspect: unknown[]): Map<string, RunInfo> {
+  const all = inspect.map((raw) => raw as Inspected).filter((c) => c?.Name);
+  // depends_on reads "db:service_healthy:false,migrate:service_completed_successfully:false".
+  const jobs = new Set<string>();
+  for (const c of all) {
+    const l = c.Config?.Labels ?? {};
+    for (const dep of (l[DEPENDS] ?? "").split(",")) {
+      const [service, condition] = dep.split(":");
+      if (service && condition === "service_completed_successfully") jobs.add(serviceKey(l, service));
+    }
+  }
+  const out = new Map<string, RunInfo>();
+  for (const c of all) {
+    const test = c.Config?.Healthcheck?.Test;
+    const l = c.Config?.Labels ?? {};
+    const started = when(c.State?.StartedAt);
+    const ended = when(c.State?.FinishedAt);
+    out.set(c.Name!.replace(/^\//, ""), {
+      restart: c.HostConfig?.RestartPolicy?.Name ?? "",
+      published: Object.values(c.HostConfig?.PortBindings ?? {}).some((b) => Array.isArray(b) && b.length > 0),
+      healthCheck: !!test?.length && test[0] !== "NONE",
+      ranMs: started !== undefined && ended !== undefined && ended >= started ? ended - started : undefined,
+      startedAt: started,
+      // An anonymous volume (64 hex characters) is scratch space the image declared, not data someone keeps.
+      volume: (c.Mounts ?? []).some((m) => m?.Type === "volume" && !!m.Name && !/^[0-9a-f]{64}$/.test(m.Name)),
+      job: !!l[SERVICE] && jobs.has(serviceKey(l, l[SERVICE])),
+    });
+  }
+  return out;
+}
+type Row = { State: string; Status: string };
+// A run this short that ended with exit 0 is a job (a migration, a seed). The window is kept short on purpose: every
+// minute added lets a service that was stopped soon after it started hide as Finished.
+export const JOB_MS = 2 * 60_000;
+// Finished means done, not down. Exit 0 and one of: Compose says another service waits for it to complete, or it has
+// nothing that marks a service (published port, health check, restart policy, named volume) and ran under 2 minutes.
+// Never when this app stopped it. Anything not known (inspect not read, no run time) is the safer reading: Stopped.
+export function finished(c: Row, info?: RunInfo) {
+  if (c.State !== "exited" || !/^Exited \(0\)/.test(c.Status) || !info || info.byApp) return false;
+  if (info.job) return true;
+  const plain = !info.published && !info.healthCheck && !info.volume && (info.restart === "" || info.restart === "no");
+  return plain && info.ranMs !== undefined && info.ranMs < JOB_MS;
+}
+export const stateWord = (c: Row, info?: RunInfo) => (c.State === "running" ? "Running" : finished(c, info) ? "Finished" : "Stopped");
 
-export function appState(rows: { State: string; Status: string }[]): { state: AppState; up: number; of: number } {
-  const counted = rows.filter((c) => !finished(c));
+// What a project's "Start …" item starts, named: one by name, several as "the 2 stopped (cache, report-job)", with at
+// most three names before "and N more".
+export function startWhat(names: string[]) {
+  if (names.length === 1) return names[0];
+  const shown = names.slice(0, 3).join(", ");
+  return `the ${names.length} stopped (${names.length > 3 ? `${shown} and ${names.length - 3} more` : shown})`;
+}
+
+export function appState<T extends Row>(rows: T[], info: (c: T) => RunInfo | undefined = () => undefined): { state: AppState; up: number; of: number } {
+  const counted = rows.filter((c) => !finished(c, info(c)));
   const up = counted.filter((c) => c.State === "running").length;
   const of = counted.length;
   return { state: up === 0 ? "stopped" : up === of ? "running" : "partly", up, of };

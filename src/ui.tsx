@@ -1,5 +1,6 @@
 import { ReactNode, createContext, useCallback, useContext, useRef, useState } from "react";
 import Ticks from "./ui/Ticks";
+import { Icon } from "./ui/icons";
 
 // safe: the action changes nothing that can't be undone (a fix with backups), so its button is the normal green one.
 type Ask = (message: string, confirmLabel?: string, opts?: { safe?: boolean }) => Promise<boolean>;
@@ -50,7 +51,8 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
   );
 }
 
-// A confirm's body: "• " lines become a list (so a long line wraps under its own text), other lines paragraphs.
+// A confirm's body: "• " lines become a list (so a long line wraps under its own text), "! " lines a notice set apart
+// with a warning mark (something the action leaves out), other lines paragraphs.
 // Names in `backticks` show in the code font.
 function Body({ text }: { text: string }) {
   const blocks: ReactNode[] = [];
@@ -58,6 +60,7 @@ function Body({ text }: { text: string }) {
   const flush = () => { if (items.length) blocks.push(<ul key={blocks.length}>{items.map((t) => <li key={t}><Ticks text={t} /></li>)}</ul>); items = []; };
   for (const line of text.split("\n")) {
     if (line.startsWith("• ")) items.push(line.slice(2));
+    else if (line.startsWith("! ")) { flush(); blocks.push(<p key={blocks.length} className="confirm-notice"><Icon name="alert" size={14} /><span><Ticks text={line.slice(2)} /></span></p>); }
     else { flush(); if (line.trim()) blocks.push(<p key={blocks.length}><Ticks text={line} /></p>); }
   }
   flush();

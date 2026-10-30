@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { Profile } from "./api";
+import { Profile, ctxFor } from "./api";
+import { useDesktopOffer } from "./desktopOffer";
+import { stillToBring } from "./lib/bringOver";
 import { usePoll } from "./hooks";
 import { PlanStep, SetupFinding, SetupReport, fixAllPlan, setupFindings, sortFindings } from "./lib/setup";
 import { useHost } from "./useHostSize";
@@ -38,23 +40,27 @@ export function planText(plan: PlanStep[], rc = "your shell profile") {
 }
 const ICON = { ok: "check", warn: "alert", fail: "close", info: "info" } as const;
 
-// Set by the Bring over panel after a copy, so the Doctor row stops saying the data stayed behind.
+// The last answer the Bring over panel saw: nothing left to bring. Used only while Docker Desktop can't be asked
+// (closed or removed); when it can, what is still missing in Colima decides (desktopOffer).
 const BROUGHT = "colima-ui.broughtOver";
 export const broughtOver = () => { try { return localStorage.getItem(BROUGHT) === "1"; } catch { return false; } };
-export const markBroughtOver = () => { try { localStorage.setItem(BROUGHT, "1"); } catch { /* the row just stays */ } };
+export const markBroughtOver = (done: boolean) => { try { if (done) localStorage.setItem(BROUGHT, "1"); else localStorage.removeItem(BROUGHT); } catch { /* the row just stays */ } };
 
 export function useSetup(profile: Profile | null) {
   const { data, error, reload } = usePoll(() => invoke<SetupReport>("setup_report"), [], 60_000);
   const vm = profile?.status === "Running" ? { cpus: profile.cpus, memory: profile.memory } : null;
   const name = profile?.name ?? "default";
   const { host, pick } = useHost();
-  const findings = data ? sortFindings(setupFindings(data, vm, name, broughtOver(), pick, host?.memory)) : null;
+  const offer = useDesktopOffer();
+  const known = !!vm && offer.items !== null && offer.ctx === ctxFor(name);
+  const brought = known ? stillToBring(offer.items!).length === 0 : broughtOver();
+  const findings = data ? sortFindings(setupFindings(data, vm, name, brought, pick, host?.memory, known ? offer.gaps : [])) : null;
   return { findings, error, reload, profile: name, rc: data?.shell_profile, vm };
 }
 
 // Runs the setup fixes. Each fix shows its command and runs only on a click; the Doctor page places the rows.
 // The VM size fix (kind "resize") is not run here: src/Resize.tsx runs it, because it outlives this page.
-type Opts = { reload: () => void | Promise<unknown>; profile: string; onProfiles: () => void; onBring?: () => void; rc?: string };
+type Opts = { reload: () => void | Promise<unknown>; profile: string; onProfiles: () => void; onBring?: (only?: string[]) => void; rc?: string };
 export function useSetupActions({ reload, profile, onProfiles, onBring, rc = "your shell profile" }: Opts) {
   const [busy, setBusy] = useState<string | null>(null);
   const [installing, setInstalling] = useState(false);
@@ -71,7 +77,7 @@ export function useSetupActions({ reload, profile, onProfiles, onBring, rc = "yo
     if (!fix) return;
     if (fix.kind === "resize") return;
     if (fix.kind === "profiles") return onProfiles();
-    if (fix.kind === "bring") return onBring?.();
+    if (fix.kind === "bring") return onBring?.(fix.only);
     if (fix.kind === "copy") {
       await navigator.clipboard.writeText(fix.text);
       return setCopied(f.id);
@@ -118,12 +124,12 @@ export function useSetupActions({ reload, profile, onProfiles, onBring, rc = "yo
       <li key={f.id} className={`finding ${f.status}`} data-setup={f.id}>
         <Icon name={ICON[f.status]} />
         <div>
-          <b>{f.title}</b>
+          <b><Ticks text={f.title} /></b>
           <span className="hint"><Ticks text={f.detail} /></span>
-          {open && f.more && <span className="hint">Other numbers? <button className="link" aria-label={`${f.more.label}: ${f.title}`} onClick={onProfiles}>{f.more.label}</button></span>}
+          {open && f.more && <span className="hint">Other numbers? <button className="link" aria-label={`${f.more.label}: ${plain(f.title)}`} onClick={onProfiles}>{f.more.label}</button></span>}
           {how && (
             <details className="how">
-              <summary><Icon name="chevron" size={12} />{copy ? "Show the steps" : "What it does"}<span className="sr-only">: {f.title}</span></summary>
+              <summary><Icon name="chevron" size={12} />{copy ? "Show the steps" : "What it does"}<span className="sr-only">: {plain(f.title)}</span></summary>
               {f.steps && <ul className="steps hint" role="list">{f.steps.map((t) => <li key={t}><Ticks text={t} /></li>)}</ul>}
               {f.command && <pre className="cmd">{f.command}</pre>}
             </details>
@@ -132,7 +138,7 @@ export function useSetupActions({ reload, profile, onProfiles, onBring, rc = "yo
         {/* The empty slot is where a container problem has its "…", so every button ends on one edge. */}
         {fix && <span className="finding-actions">
           {/* aria-disabled keeps focus on the button while it works, so VoiceOver stays where you were. */}
-          <button className={primary && !copy ? "small primary" : "small"} title={f.command && !copy ? `Runs: ${f.command}` : undefined} aria-label={`${label}: ${f.title}`} aria-disabled={off || undefined} onClick={() => !off && act(f)}>
+          <button className={primary && !copy ? "small primary" : "small"} title={f.command && !copy ? `Runs: ${f.command}` : undefined} aria-label={`${label}: ${plain(f.title)}`} aria-disabled={off || undefined} onClick={() => !off && act(f)}>
             {label}
           </button>
           <span className="more-slot" aria-hidden="true" />
@@ -176,7 +182,7 @@ export function useSetupActions({ reload, profile, onProfiles, onBring, rc = "yo
     if (!fix || fix.kind === "copy") return null;
     if (fix.kind === "bring" && !onBring) return null;
     const changes = fix.kind === "fix" || fix.kind === "install";
-    const what = [f.title, ...(f.steps ?? []), f.command].filter(Boolean).join("\n");
+    const what = [plain(f.title), ...(f.steps ?? []), f.command].filter(Boolean).join("\n");
     const go = async () => (!changes || (await confirm(what, fix.label, { safe: true }))) && act(f);
     return <button aria-disabled={busy !== null || undefined} onClick={() => busy === null && go()}>{busy === f.id ? "Working…" : copied === f.id ? "Copied" : fix.label}</button>;
   };

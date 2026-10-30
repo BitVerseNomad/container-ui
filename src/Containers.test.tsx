@@ -10,6 +10,7 @@ import Containers, { VmState } from "./Containers";
 import { ConfirmProvider } from "./ui";
 import { reset as resetFixes, startFix } from "./lib/fixStore";
 import { resetComposeRun, runCompose } from "./ComposeProjects";
+import { noteDocker, resetAppStopped } from "./lib/appStopped";
 import type { Finding, Report } from "./lib/doctor";
 
 const POD = "io.kubernetes.pod.name=coredns-1,io.kubernetes.pod.namespace=kube-system";
@@ -35,14 +36,15 @@ const reportOf = (findings: Finding[]): Report => {
   return { findings, byContainer, extra: new Map(), passed: [] };
 };
 
-function show({ list = rows, report = null as Report | null, vm = { op: null, failure: null } as VmState } = {}) {
+// inspected: the Doctor's `docker inspect` rows, which decide whether an exit-0 container is a finished one-shot.
+function show({ list = rows, report = null as Report | null, vm = { op: null, failure: null } as VmState, inspected = undefined as unknown[] | undefined } = {}) {
   backend.current = fakeBackend({ ps: () => jsonLines(list), stats: () => "", "system df": () => "", inspect: () => "[]" });
   const onImages = vi.fn();
   const setDetailId = vi.fn();
   const onKubernetes = vi.fn();
   render(
     <ConfirmProvider>
-      <Containers profile={profile} ctx="colima" vm={vm} onVm={() => {}} reload={() => {}} detailId={null} setDetailId={setDetailId} onPull={() => {}} onProfiles={() => {}} compose={scan} onImages={onImages} onKubernetes={onKubernetes} report={report} onReport={() => {}} />
+      <Containers profile={profile} ctx="colima" vm={vm} onVm={() => {}} reload={() => {}} detailId={null} setDetailId={setDetailId} onPull={() => {}} onProfiles={() => {}} compose={scan} onImages={onImages} onKubernetes={onKubernetes} report={report} onReport={() => {}} inspected={inspected} />
     </ConfirmProvider>,
   );
   return { onImages, setDetailId, onKubernetes };
@@ -139,13 +141,44 @@ describe("Containers", () => {
       { ID: "s4", Names: "shop-seed-1", Image: "shop/seed", State: "exited", Status: "Exited (0) 1 hour ago", Ports: "", Labels: SHOP("seed") },
     ];
     const user = userEvent.setup();
-    show({ list });
+    // The seed job is a one-shot: no published port, no health check, no restart policy.
+    show({ list, inspected: [{ Name: "/shop-seed-1", State: { StartedAt: "2026-10-29T08:00:00Z", FinishedAt: "2026-10-29T08:00:20Z" }, HostConfig: { RestartPolicy: { Name: "no" }, PortBindings: {} }, Config: {} }] });
     expect(await screen.findByRole("button", { name: "shop, project, 2 of 3 running" })).toBeInTheDocument();
     // Anything running means the main button stops the project; starting the rest is one step into its menu.
     expect(screen.getByRole("button", { name: "Stop shop" })).toBeInTheDocument();
     // The menu names the one stopped service and starts only it: the seed job already finished and stays done.
     await user.click(within(await menuOf(user, "shop")).getByRole("menuitem", { name: /^Start worker/ }));
     await waitFor(() => expect(backend.current!.dockerCalls()).toContainEqual(["start", "s3"]));
+  });
+
+  it("given a short job this app stopped, when the list loads, then it reads Stopped and counts as down", async () => {
+    resetAppStopped();
+    const list = [
+      composeRows[2],
+      { ID: "s4", Names: "shop-seed-1", Image: "shop/seed", State: "exited", Status: "Exited (0) 1 minute ago", Ports: "", Labels: SHOP("seed") },
+    ];
+    // Stopped from here (a full ID, as a container's own page sends it); ps shows its 12-character one.
+    noteDocker("colima", ["stop", "d4".padEnd(64, "0")], Date.parse("2026-10-29T08:01:00Z"));
+    list[1].ID = "d4".padEnd(12, "0");
+    show({ list, inspected: [{ Name: "/shop-seed-1", State: { StartedAt: "2026-10-29T08:00:00Z", FinishedAt: "2026-10-29T08:00:20Z" }, HostConfig: { RestartPolicy: { Name: "no" }, PortBindings: {} }, Config: {} }] });
+    expect(await screen.findByRole("button", { name: "shop, project, 1 of 2 running" })).toBeInTheDocument();
+    resetAppStopped();
+  });
+
+  it("given a job the app stopped that then ran again from a terminal, or a stop in another profile, when the list loads, then the run-time rule decides: Finished", async () => {
+    resetAppStopped();
+    const list = [
+      composeRows[2],
+      { ID: "e5".padEnd(12, "0"), Names: "shop-seed-1", Image: "shop/seed", State: "exited", Status: "Exited (0) 1 minute ago", Ports: "", Labels: SHOP("seed") },
+    ];
+    // Our stop was at 07:00; its current 20-second run began at 08:00, so something started it since.
+    noteDocker("colima", ["stop", "shop-seed-1"], Date.parse("2026-10-29T07:00:00Z"));
+    // A stop of the same name in another profile, after that run began, says nothing about this one.
+    noteDocker("colima-work", ["stop", "shop-seed-1"], Date.parse("2026-10-29T08:05:00Z"));
+    show({ list, inspected: [{ Name: "/shop-seed-1", State: { StartedAt: "2026-10-29T08:00:00Z", FinishedAt: "2026-10-29T08:00:20Z" }, HostConfig: { RestartPolicy: { Name: "no" }, PortBindings: {} }, Config: {} }] });
+    // The seed is Finished and leaves the count, so the one counted service runs: the project reads Running.
+    expect(await screen.findByRole("button", { name: "shop, project, Running" })).toBeInTheDocument();
+    resetAppStopped();
   });
 
   // Two projects with a known Compose file: their Start runs `docker compose`, one run at a time.

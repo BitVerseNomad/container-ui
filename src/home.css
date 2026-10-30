@@ -88,11 +88,13 @@ button.small { flex: none; min-height: 24px; padding: 0 10px; border-radius: 6px
 .home-search { max-width: 280px; }
 
 /* Empty and stopped states: centered, no card (HIG: no content). */
-.blank { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; margin: 12vh auto 0; max-width: 44ch; }
+.blank { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; margin: 12vh auto 0; max-width: 72ch; }
 .blank-icon { color: var(--muted); margin-bottom: 4px; }
 .blank h2 { margin: 0; font-size: 15px; font-weight: 600; }
-.blank .hint { font-size: 13px; }
-.blank .actions-inline { margin-top: 8px; justify-content: center; }
+.blank .hint { font-size: 13px; max-width: 44ch; }
+/* One row, main action first; it wraps only when the window is narrow, and labels never break. */
+.blank .actions-inline { margin-top: 8px; justify-content: center; flex-wrap: wrap; row-gap: 8px; }
+.blank .actions-inline button { white-space: nowrap; }
 
 @media (max-width: 700px) {
   .app-row { grid-template-columns: 16px 16px minmax(0, 1fr) 72px 76px 28px; }

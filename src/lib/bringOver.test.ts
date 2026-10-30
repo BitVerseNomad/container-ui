@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { backupName, defaultPick, doneLines, fits, inventory, nearlyEmpty, order, picked, plainError, backupOf, replaceLabel, replaceNote, replaceSize, replaceable, unpickedNote, stopQuestion, toStop, toStopColima, whatText, type Item, type Outcome } from "./bringOver.ts";
+import { backupName, defaultPick, lateLine, bringQuestion, doneLines, folderNote, refreshed, gapLine, homeGaps, pickOnly, stillToBring, fits, inventory, nearlyEmpty, order, picked, plainError, backupOf, replaceLabel, replaceNote, replaceSize, replaceable, unpickedNote, stopQuestion, toStop, toStopColima, whatText, type Item, type Outcome } from "./bringOver.ts";
 
 // Shapes captured from Docker 29 (`system df -v --format json`, `images --format json`), 2026-10-29.
 const DF = JSON.stringify({ Images: [], Containers: [], BuildCache: [], Volumes: [{ Name: "shop_db", Size: "412MB" }, { Name: "a".repeat(64), Size: "36B" }, { Name: "redis-data", Size: "18MB" }] });
@@ -10,6 +10,9 @@ const IMAGES = [
   { Repository: "acme/api", Tag: "<none>", Size: "1.1GB" },
   { Repository: "<none>", Tag: "<none>", Size: "90MB" },
 ].map((r) => JSON.stringify(r)).join("\n");
+// `docker inspect --type volume` for Colima's volumes, all plain local ones.
+const PLAIN = (names: string[]) => JSON.stringify(names.map((Name) => ({ Name, Driver: "local", Options: null })));
+const ALL_PLAIN = PLAIN(["shop_db", "redis-data", "cache", "uploads"]);
 
 test("given Docker Desktop's lists, when read, then named volumes come first with sizes, unnamed ones are only counted, untagged images are left out", () => {
   const inv = inventory({ desktopDf: DF, desktopImages: IMAGES, colimaDf: "", colimaImages: [] });
@@ -20,7 +23,7 @@ test("given Docker Desktop's lists, when read, then named volumes come first wit
 
 test("given Colima already has a full volume and an image, when read, then both are marked and never picked", () => {
   const colimaDf = JSON.stringify({ Volumes: [{ Name: "shop_db", Size: "400MB" }] });
-  const inv = inventory({ desktopDf: DF, desktopImages: IMAGES, colimaDf, colimaImages: ["postgres:16"] });
+  const inv = inventory({ desktopDf: DF, desktopImages: IMAGES, colimaDf, colimaInspect: ALL_PLAIN, colimaImages: ["postgres:16"] });
   const marked = inv.items.filter((i) => i.inColima).map((i) => i.name);
   assert.deepEqual(marked, ["shop_db", "postgres:16"]);
   assert.deepEqual([...defaultPick(inv.items)], ["volume:redis-data"]);
@@ -47,9 +50,9 @@ test("given the run's outcomes, when summarised, then it counts what moved, what
 
 test("given Colima made an empty volume of the same name, when read, then it is flagged as nearly empty", () => {
   const colimaDf = JSON.stringify({ Volumes: [{ Name: "shop_db", Size: "12MB" }, { Name: "redis-data", Size: "17MB" }] });
-  const inv = inventory({ desktopDf: DF, desktopImages: "", colimaDf, colimaImages: [] });
+  const inv = inventory({ desktopDf: DF, desktopImages: "", colimaDf, colimaInspect: ALL_PLAIN, colimaImages: [] });
   assert.deepEqual(inv.items.filter(nearlyEmpty).map((i) => [i.name, i.colimaBytes]), [["shop_db", 12e6]]);
-  const pg = { kind: "volume" as const, name: "pg", bytes: 393e6, inColima: true, colimaBytes: 41e6, users: [] };
+  const pg = { kind: "volume" as const, name: "pg", bytes: 393e6, inColima: true, colimaBytes: 41e6, colimaPlain: true, users: [] };
   assert.equal(nearlyEmpty(pg), true, "a fresh 41 MB Postgres beside a real 393 MB one");
 });
 
@@ -77,7 +80,7 @@ const COLIMA_DF = JSON.stringify({ Volumes: [{ Name: "shop_db", Size: "12MB" }, 
 const COLIMA_PS = [{ Names: "shop-db-1", State: "running", Mounts: "shop_db" }, { Names: "old-db", State: "exited", Mounts: "shop_db" }, { Names: "cache", State: "running", Mounts: "redis-data" }].map((r) => JSON.stringify(r)).join("\n");
 
 test("given Colima's copy is nearly empty, when read, then it can be picked, is picked by default, and names what writes to it in Colima", () => {
-  const inv = inventory({ desktopDf: DF, desktopImages: "", colimaDf: COLIMA_DF, colimaPs: COLIMA_PS, colimaImages: [] });
+  const inv = inventory({ desktopDf: DF, desktopImages: "", colimaDf: COLIMA_DF, colimaPs: COLIMA_PS, colimaInspect: ALL_PLAIN, colimaImages: [] });
   const db = inv.items.find((i) => i.name === "shop_db")!;
   assert.equal(replaceable(db), true);
   assert.equal(replaceable(inv.items.find((i) => i.name === "redis-data")!), false, "a full copy in Colima is still never replaced");
@@ -99,13 +102,13 @@ test("given a volume and a time, when the backup is named, then it is NAME-colim
 
 test("given Colima's copy is bigger than a fresh one, when picked by default, then it is listed but left unpicked", () => {
   const colimaDf = JSON.stringify({ Volumes: [{ Name: "shop_db", Size: "90MB" }] });
-  const inv = inventory({ desktopDf: DF, desktopImages: "", colimaDf, colimaImages: [] });
+  const inv = inventory({ desktopDf: DF, desktopImages: "", colimaDf, colimaInspect: ALL_PLAIN, colimaImages: [] });
   const db = inv.items.find((i) => i.name === "shop_db")!;
   assert.equal(replaceable(db), true, "90 MB beside 412 MB can still be replaced by hand");
   assert.equal(defaultPick(inv.items).has("volume:shop_db"), false, "over 64 MiB may hold real data, so it is the user's call");
 });
 
-const SHOP: Item = { kind: "volume", name: "shop_db", bytes: 412e6, inColima: true, colimaBytes: 12e6, users: ["shop-db-1"], colimaUsers: ["shop-db-1"] };
+const SHOP: Item = { kind: "volume", name: "shop_db", bytes: 412e6, inColima: true, colimaBytes: 12e6, colimaPlain: true, users: ["shop-db-1"], colimaUsers: ["shop-db-1"] };
 
 test("given containers to stop on both sides, when asked, then the question puts each side on its own line and says what is replaced", () => {
   assert.equal(stopQuestion(["shop-db-1"], [], []).split("\n")[0], "Stop `shop-db-1` in Docker Desktop?");
@@ -182,4 +185,132 @@ test("given Colima's containers started again after a replace, when summarised, 
   const v: Item = { kind: "volume", name: "shop_db", bytes: 1, inColima: true, colimaBytes: 0, users: [] };
   const lines = doneLines([{ item: v, ok: true, bytes: 1, replaced: { colima: "replaced", backup: "B" } }], false, [], ["shop-db-1"]);
   assert.equal(lines[lines.length - 1], "`shop-db-1` is running again in Colima.");
+});
+
+// The first morning: `docker compose up` ran in Colima before the app, so Colima's shop_db is a 12 MB empty one.
+const MORNING_DF = JSON.stringify({ Volumes: [{ Name: "shop_db", Size: "412MB" }, { Name: "uploads", Size: "2.1GB" }, { Name: "cache", Size: "90MB" }] });
+const MORNING_COLIMA = JSON.stringify({ Volumes: [{ Name: "shop_db", Size: "12MB" }, { Name: "cache", Size: "80MB" }] });
+const MORNING_PS = [{ Names: "shop-db-1", Mounts: "shop_db", State: "exited" }, { Names: "shop-cache-1", Mounts: "cache", State: "running" }].map((r) => JSON.stringify(r)).join("\n");
+const morning = () => inventory({ desktopDf: MORNING_DF, desktopImages: "", colimaDf: MORNING_COLIMA, colimaInspect: ALL_PLAIN, colimaImages: [] }).items;
+
+test("given a volume missing in Colima and one nearly empty there, when asked what is still to bring, then both are, and a full one is not", () => {
+  assert.deepEqual(stillToBring(morning()).map((i) => i.name), ["shop_db", "uploads"]);
+});
+
+test("given everything picked by default is across, when asked what is still to bring, then nothing is", () => {
+  const colimaDf = JSON.stringify({ Volumes: [{ Name: "shop_db", Size: "412MB" }, { Name: "uploads", Size: "2.1GB" }, { Name: "cache", Size: "80MB" }] });
+  assert.deepEqual(stillToBring(inventory({ desktopDf: MORNING_DF, desktopImages: "", colimaDf, colimaInspect: ALL_PLAIN, colimaImages: [] }).items), []);
+});
+
+test("given a Colima container on a nearly empty volume, even a stopped one, when home asks, then that volume is a gap with its containers", () => {
+  const gaps = homeGaps(morning(), MORNING_PS);
+  assert.deepEqual(gaps.map((g) => [g.name, g.users]), [["shop_db", ["shop-db-1"]]]);
+});
+
+test("given a nearly empty volume no Colima container uses, when home asks, then there is no row to put it under", () => {
+  assert.deepEqual(homeGaps(morning(), ""), []);
+});
+
+test("given a gap, when said on home, then it names the volume and Docker Desktop's size", () => {
+  assert.equal(gapLine(homeGaps(morning(), MORNING_PS)[0]), "`shop_db` is nearly empty here; Docker Desktop has 392.9 MiB.");
+});
+
+test("given home named a volume that is still a fresh empty copy, when the panel reads again, then only it is picked", () => {
+  assert.deepEqual([...pickOnly(morning(), ["shop_db"]).pick], ["volume:shop_db"]);
+});
+
+test("given home named a volume that has filled up to 300 MiB since, when the panel reads again, then nothing is picked and it says why", () => {
+  const colimaDf = JSON.stringify({ Volumes: [{ Name: "shop_db", Size: "315MB" }] });
+  const items = inventory({ desktopDf: MORNING_DF, desktopImages: "", colimaDf, colimaInspect: ALL_PLAIN, colimaImages: [] }).items;
+  const r = pickOnly(items, ["shop_db"]);
+  assert.deepEqual([...r.pick], []);
+  assert.equal(r.stale.get("shop_db"), "Colima's `shop_db` grew to 300.4 MiB since we checked, so it isn't replaced.");
+});
+
+// `docker inspect --type volume` for Colima's volumes: shop_db as a folder on the Mac (o=bind).
+const BIND = JSON.stringify([{ Name: "shop_db", Driver: "local", Options: { device: "/Users/me/code/shop/data", o: "bind", type: "none" } }]);
+const morningWith = (colimaInspect: string, colimaDf = MORNING_COLIMA) => inventory({ desktopDf: MORNING_DF, desktopImages: "", colimaDf, colimaInspect, colimaImages: [] }).items;
+
+test("given Colima's nearly empty shop_db is a folder on the Mac, when read, then it is never offered, picked or shown on home, and its row says why", () => {
+  const items = morningWith(BIND);
+  const db = items.find((i) => i.name === "shop_db")!;
+  assert.equal(replaceable(db), false);
+  assert.equal(defaultPick(items).has("volume:shop_db"), false);
+  assert.deepEqual(stillToBring(items).map((i) => i.name), ["uploads"]);
+  assert.deepEqual(homeGaps(items, MORNING_PS), []);
+  assert.equal(folderNote(db), "Colima's `shop_db` is a folder on your Mac (~/code/shop/data), so it isn't replaced. Docker Desktop's 392.9 MiB stays there.");
+  // A device outside /Users is a path inside the VM, not a folder on the Mac to name.
+  const vmPath = morningWith(JSON.stringify([{ Name: "shop_db", Driver: "local", Options: { device: "/srv/pg", o: "bind", type: "none" } }])).find((i) => i.name === "shop_db")!;
+  assert.equal(folderNote(vmPath), "Colima's `shop_db` is a folder on your Mac, so it isn't replaced. Docker Desktop's 392.9 MiB stays there.");
+});
+
+test("given Colima's volume uses another driver, when read, then it is not replaced and its row names the driver", () => {
+  const db = morningWith(JSON.stringify([{ Name: "shop_db", Driver: "nfs", Options: null }])).find((i) => i.name === "shop_db")!;
+  assert.equal(replaceable(db), false);
+  assert.equal(folderNote(db), "Colima's `shop_db` uses the nfs driver, so it isn't replaced. Docker Desktop's 392.9 MiB stays there.");
+});
+
+test("given Colima's volumes couldn't be inspected, when read, then none of them counts as nearly empty", () => {
+  for (const inspect of ["", "not json", PLAIN([])]) {
+    const items = morningWith(inspect);
+    assert.equal(replaceable(items.find((i) => i.name === "shop_db")!), false, inspect);
+    assert.deepEqual(homeGaps(items, MORNING_PS), []);
+  }
+});
+
+test("given Colima's size of a volume is unknown, when read, then it is not nearly empty, fresh or a home gap", () => {
+  const colimaDf = JSON.stringify({ Volumes: [{ Name: "shop_db", Size: "N/A" }] });
+  const items = morningWith(PLAIN(["shop_db"]), colimaDf);
+  const db = items.find((i) => i.name === "shop_db")!;
+  assert.equal(db.colimaBytes, undefined);
+  assert.equal(nearlyEmpty(db), false);
+  assert.equal(defaultPick(items).has("volume:shop_db"), false);
+  assert.deepEqual(homeGaps(items, MORNING_PS), []);
+  const literal: Item = { kind: "volume", name: "x", bytes: 412e6, inColima: true, colimaPlain: true, users: [] };
+  assert.equal(replaceable(literal), false, "an Item with no Colima size is not fresh either");
+});
+
+test("given a plain local volume, when read, then it still counts as nearly empty", () => {
+  assert.equal(replaceable(morningWith(PLAIN(["shop_db", "cache"])).find((i) => i.name === "shop_db")!), true);
+});
+
+test("given the picks and a fresh read just before the confirm, when refreshed, then the confirm uses today's sizes", () => {
+  const picks = morning().filter((i) => i.name === "shop_db");
+  const colimaDf = JSON.stringify({ Volumes: [{ Name: "shop_db", Size: "20MB" }] });
+  const now = inventory({ desktopDf: JSON.stringify({ Volumes: [{ Name: "shop_db", Size: "500MB" }] }), desktopImages: "", colimaDf, colimaInspect: ALL_PLAIN, colimaImages: [] }).items;
+  const r = refreshed(picks, now);
+  assert.deepEqual(r.todo.map((i) => [i.name, i.bytes, i.colimaBytes]), [["shop_db", 500e6, 20e6]]);
+  assert.equal(r.stale.size, 0);
+});
+
+test("given Colima's copy grew between the list and the confirm, when refreshed, then it is dropped and says so", () => {
+  const picks = morning().filter((i) => i.name === "shop_db" || i.name === "uploads");
+  const colimaDf = JSON.stringify({ Volumes: [{ Name: "shop_db", Size: "315MB" }] });
+  const now = inventory({ desktopDf: MORNING_DF, desktopImages: "", colimaDf, colimaInspect: ALL_PLAIN, colimaImages: [] }).items;
+  const r = refreshed(picks, now);
+  assert.deepEqual(r.todo.map((i) => i.name), ["uploads"], "a volume Colima doesn't have is still copied as before");
+  assert.equal(r.stale.get("shop_db"), "Colima's `shop_db` grew to 300.4 MiB since we checked, so it isn't replaced.");
+  assert.deepEqual(r.late, ["Colima's `shop_db` grew to 300.4 MiB while you were picking."]);
+  assert.equal(lateLine(r.late), "Nothing was replaced. Colima's `shop_db` grew to 300.4 MiB while you were picking.");
+  assert.deepEqual(r.notice, ["`shop_db` isn't replaced: Colima's copy grew to 300.4 MiB since we checked."]);
+  assert.deepEqual(r.late, ["Colima's `shop_db` grew to 300.4 MiB while you were picking."]);
+  assert.equal(lateLine(r.late), "Nothing was replaced. Colima's `shop_db` grew to 300.4 MiB while you were picking.");
+});
+
+test("given Colima's copy became a folder on the Mac before the confirm, when refreshed, then it is dropped with the folder note", () => {
+  const picks = morning().filter((i) => i.name === "shop_db");
+  const now = inventory({ desktopDf: MORNING_DF, desktopImages: "", colimaDf: MORNING_COLIMA, colimaInspect: BIND, colimaImages: [] }).items;
+  const r = refreshed(picks, now);
+  assert.deepEqual(r.todo, []);
+  assert.equal(r.stale.get("shop_db"), "Colima's `shop_db` is a folder on your Mac (~/code/shop/data), so it isn't replaced. Docker Desktop's 392.9 MiB stays there.");
+});
+
+test("given a pick dropped just before a confirm that still asks about the others, when the question is built, then it names what comes over and ends with the dropped one as a notice", () => {
+  const uploads: Item = { kind: "volume", name: "uploads", bytes: 2.1e9, inColima: false, users: ["files-1"] };
+  const q = bringQuestion([uploads], ["files-1"], [], [], ["`shop_db` isn't replaced: Colima's copy grew to 300.4 MiB since we checked."]);
+  assert.deepEqual(q.split("\n"), [
+    "Bring `uploads` over?",
+    "`files-1` in Docker Desktop is stopped first, so the copy is clean. You can start it again from here after.",
+    "! `shop_db` isn't replaced: Colima's copy grew to 300.4 MiB since we checked.",
+  ]);
 });

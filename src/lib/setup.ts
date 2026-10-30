@@ -23,7 +23,8 @@ export type SetupFix =
   | { kind: "install"; names: string[]; label: string; then: FixId }
   | { kind: "profiles"; label: string }
   | { kind: "copy"; text: string; label: string }
-  | { kind: "bring"; label: string }
+  // only: the volumes to pick alone in the panel (the warning names them); none means the default picks.
+  | { kind: "bring"; label: string; only?: string[] }
   // Restarts the VM with a bigger size (apply_resources); cpus and memory (GiB) are what it gets.
   | { kind: "resize"; cpus: number; memory: number; label: string };
 export type SetupFinding = {
@@ -42,6 +43,8 @@ export type SetupFinding = {
 export type VmSize = { cpus: number; memory: number } | null;
 
 import { macWords, resizeTo, sizeWords } from "./vmSize.ts";
+import { formatBytes } from "../containerInfo.ts";
+import type { Gap } from "./bringOver.ts";
 
 const DESKTOP_APP = "/Applications/Docker.app/";
 const GIB = 1024 ** 3;
@@ -93,7 +96,8 @@ export const contextFor = (profile: string) => (profile === "default" ? "colima"
 // brought: the user already brought Docker Desktop volumes over with the app, so the row turns to a pass.
 // pick: the size this Mac would start a new VM with (src/lib/vmSize.ts), and hostMemory the Mac's memory in bytes,
 // for the small-VM row's one click.
-export function setupFindings(r: SetupReport, vm: VmSize, profile = "default", brought = false, pick: { cpus: number; memory: number } | null = null, hostMemory?: number): SetupFinding[] {
+// lost: Colima volumes a home container uses that came up empty while Docker Desktop holds the data (lib/bringOver homeGaps).
+export function setupFindings(r: SetupReport, vm: VmSize, profile = "default", brought = false, pick: { cpus: number; memory: number } | null = null, hostMemory?: number, lost: Gap[] = []): SetupFinding[] {
   const want = contextFor(profile);
   const out = [pluginFinding(r, "docker-compose"), pluginFinding(r, "docker-buildx")];
   // Both plugins share one link fix: show it on the first card, point to it from the second.
@@ -159,7 +163,7 @@ export function setupFindings(r: SetupReport, vm: VmSize, profile = "default", b
     const warn = { id: "resources", status: "warn", title: `The VM has ${vm.cpus} CPUs and ${gib} GiB`, detail } as const;
     if (vm.cpus <= 2 || vm.memory <= 2 * GIB)
       out.push(to
-        ? { ...warn, command: `colima stop ${profile}\ncolima start ${profile} --cpu ${to.cpus} --memory ${to.memory}`, fix: { kind: "resize", ...to, label: `Give it ${to.cpus} CPUs and ${to.memory} GiB` }, more: { kind: "profiles", label: "Change in Profiles" } }
+        ? { ...warn, command: `colima stop ${profile}\ncolima start ${profile} --cpu ${to.cpus} --memory ${to.memory}`, fix: { kind: "resize", ...to, label: `Give it ${to.cpus} CPUs and ${to.memory} GiB…` }, more: { kind: "profiles", label: "Change in Profiles" } }
         : { ...warn, fix: { kind: "profiles", label: "Change in Profiles" } });
     else out.push({ id: "resources", status: "ok", title: `The VM has ${vm.cpus} CPUs and ${gib} GiB`, detail: "Enough for most local stacks." });
   }
@@ -195,6 +199,17 @@ export function setupFindings(r: SetupReport, vm: VmSize, profile = "default", b
   if (r.contexts.some((c) => c.name === "desktop-linux") || r.docker_desktop_data)
     out.push(brought
       ? { id: "desktop_data", status: "ok", title: "Docker Desktop volumes are in Colima", detail: "Docker Desktop still has its copy." }
+      : lost.length
+      ? {
+          // Data looks gone from a project that already runs here: worth the badge, not only a note.
+          id: "desktop_data",
+          status: "warn",
+          title: lost.length === 1 ? `\`${lost[0].name}\` is nearly empty in Colima` : `${lost.length} volumes are nearly empty in Colima`,
+          detail: lost.length === 1
+            ? `${formatBytes(lost[0].here)} here; Docker Desktop has ${formatBytes(lost[0].there)}. Colima's copy is backed up first.`
+            : `${lost.map((g) => `\`${g.name}\` has ${formatBytes(g.here)} here; Docker Desktop has ${formatBytes(g.there)}.`).join(" ")} Colima's copies are backed up first.`,
+          fix: { kind: "bring", label: lost.length === 1 ? "Bring it over…" : "Bring them over…", only: lost.map((g) => g.name) },
+        }
       : {
           id: "desktop_data",
           status: "info",
@@ -204,6 +219,9 @@ export function setupFindings(r: SetupReport, vm: VmSize, profile = "default", b
         });
   return out;
 }
+
+// Home's empty state offers the same panel while Doctor's row still does: Docker Desktop data exists and hasn't come over.
+export const bringOffered = (f: SetupFinding[] | null) => !!f?.some((x) => x.id === "desktop_data" && x.fix?.kind === "bring");
 
 const RANK = { fail: 0, warn: 1, info: 2, ok: 3 } as const;
 export const sortFindings = (f: SetupFinding[]) => [...f].sort((a, b) => RANK[a.status] - RANK[b.status]);

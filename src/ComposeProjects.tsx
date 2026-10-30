@@ -10,6 +10,7 @@ import { Icon } from "./ui/icons";
 import { ComposeScan } from "./useComposeScan";
 import { cdPath, portHolder, projectName, projectsFrom, shellQuote, whyFailed } from "./lib/composeScan";
 import { docker } from "./api";
+import { noteCompose } from "./lib/appStopped";
 import type { ComposeProject } from "./lib/composeScan";
 import { rank } from "./lib/fuzzy";
 import { activity, dockerLine } from "./lib/activity";
@@ -47,6 +48,7 @@ const NO_COMPOSE = /'compose' is not a docker command|unknown command "compose"|
 export async function runCompose(ctx: string, p: Pick<ComposeProject, "dir" | "files" | "name">, action: Action, containers: Ctr[]): Promise<boolean> {
   if (state.busy || bringBusy()) return false;
   setRun({ busy: { dir: p.dir, action }, failed: null });
+  noteCompose(ctx, p.dir, p.name, action);
   try {
     await activity.ran(`compose ${action}`, typed(p.dir, action, ctx), () => invoke<void>("compose_action", { context: ctx, file: `${p.dir}/${p.files[0]}`, action }), p.name);
   } catch (e) {

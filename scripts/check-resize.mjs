@@ -42,7 +42,7 @@ let p = await open("");
 const text = await row(p).innerText();
 check(/The VM has 2 CPUs and 2 GiB/.test(text), "row: names the size");
 check(/Your Mac has 32 GB, so the VM can have 6 CPUs and 8 GiB/.test(text), "row: the sentence names the Mac and the same numbers as the button");
-const main = row(p).getByRole("button", { name: /^Give it 6 CPUs and 8 GiB: The VM has 2 CPUs and 2 GiB$/ });
+const main = row(p).getByRole("button", { name: /^Give it 6 CPUs and 8 GiB…: The VM has 2 CPUs and 2 GiB$/ });
 check(await main.count() === 1, "row: one button that resizes");
 check(!/primary/.test(await main.getAttribute("class")) && await p.locator(".setup button.primary").count() === 1, "row: Fix all stays the page's one green button");
 check(await row(p).getByRole("button", { name: /^Change in Profiles: / }).evaluate((b) => b.classList.contains("link")), "row: Profiles is only a quiet link");
@@ -64,7 +64,7 @@ check(!/on-failure|unless-stopped|restart setting/.test(ask), "confirm: no resta
 check(/Images, volumes and containers stay/.test(ask), "confirm: says nothing is lost");
 await shot(p, "confirm");
 await dialog(p).getByRole("button", { name: "Cancel" }).click();
-check((await focused(p)).text === "Give it 6 CPUs and 8 GiB", "confirm: Cancel puts focus back on the button");
+check((await focused(p)).text === "Give it 6 CPUs and 8 GiB…", "confirm: Cancel puts focus back on the button");
 
 // 3. Running: progress in the row, everything that touches the VM locked, counts held still, even on another tab.
 const badgeBefore = await badge(p);
@@ -254,9 +254,9 @@ await p.close();
 // 9. Out of memory on the Containers screen: one control, named for the VM.
 p = await open("", false);
 await p.waitForSelector("ul.apps > li.app", { timeout: 4000 }).catch(() => {});
-const oom = p.getByRole("button", { name: /^Give the VM 8 GiB: .*report-job/ });
+const oom = p.getByRole("button", { name: /^Give the VM 8 GiB…: .*report-job/ });
 await oom.first().waitFor({ timeout: 3000 }).catch(() => {});
-check(await oom.count() === 1, "out of memory: the container's line offers Give the VM 8 GiB");
+check(await oom.count() === 1, "out of memory: the container's line offers Give the VM 8 GiB…");
 check(await p.getByRole("button", { name: /^Change in Profiles: .*report-job/ }).count() === 0, "out of memory: one control on the line, no Profiles link");
 await shot(p, "oom-home");
 await oom.click();

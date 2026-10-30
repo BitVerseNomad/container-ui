@@ -2,7 +2,6 @@ import { useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Profile, docker } from "./api";
 import { usePoll } from "./hooks";
 import { useSetup, useSetupActions } from "./Setup";
-import BringOver from "./BringOver";
 import ConnectionTest from "./ConnectionTest";
 import { FixRuns, Go, fixAction, useFixRuns } from "./FixIt";
 import { doctor } from "./lib/doctor";
@@ -20,7 +19,7 @@ import Menu from "./ui/Menu";
 import type { MenuItem } from "./ui/Menu";
 import { Icon } from "./ui/icons";
 import Ticks from "./ui/Ticks";
-import { ResizeButton, ResizeOr, ResizeStatus, resizing, useHeld, useResize } from "./Resize";
+import { ResizeButton, ResizeOr, ResizeOther, ResizeStatus, resizing, useHeld, useResize } from "./Resize";
 
 const ICON = { ok: "check", warn: "alert", fail: "close", info: "info" } as const;
 
@@ -85,14 +84,15 @@ type Props = {
   setup: ReturnType<typeof useSetup>;
   doc: ReturnType<typeof useDoctor>;
   onProfiles: () => void;
+  // Opens the one Bring over panel, which App owns so home's empty state opens the same one.
+  onBring: (only?: string[]) => void;
   onGo: (page: Go) => void;
   onOpen: (container: string) => void;
 };
 
 // Every check in one place: setup, containers, networks, images, storage and the VM. Nothing changes until a click.
-export default function Doctor({ ctx, setup, doc, onProfiles, onGo, onOpen }: Props) {
-  const [bringing, setBringing] = useState(false);
-  const actions = useSetupActions({ reload: setup.reload, profile: setup.profile, onProfiles, onBring: () => setBringing(true), rc: setup.rc });
+export default function Doctor({ ctx, setup, doc, onProfiles, onBring, onGo, onOpen }: Props) {
+  const actions = useSetupActions({ reload: setup.reload, profile: setup.profile, onProfiles, onBring, rc: setup.rc });
   const rs = useResize();
   const mutedKeys = useMuted();
   const [testing, setTesting] = useState(false);
@@ -153,6 +153,7 @@ export default function Doctor({ ctx, setup, doc, onProfiles, onGo, onOpen }: Pr
             </span>
           )}
           <span className="hint"><Ticks text={f.detail} /></span>
+          {f.fix?.resize && !elsewhere && <ResizeOther title={f.title} need="memory" />}
           {f.fix?.resize && <ResizeStatus from={`doctor:${f.key}`} />}
           {f.fix?.text && !f.fix.go && !elsewhere && (
             <details className="how">
@@ -164,7 +165,7 @@ export default function Doctor({ ctx, setup, doc, onProfiles, onGo, onOpen }: Pr
         </div>
         <span className="finding-actions">
           {elsewhere ? null : f.fix?.resize ? (
-            <ResizeOr from={`doctor:${f.key}`} title={f.title} need="memory" alsoStart={f.subject ? [f.subject] : []} noStatus vmWords
+            <ResizeOr from={`doctor:${f.key}`} title={f.title} need="memory" alsoStart={f.subject ? [f.subject] : []} noStatus noProfiles vmWords
               fallback={f.subject ? <button className="small" onClick={() => onOpen(f.subject!)}>Open {f.subject}</button> : <button className="small" onClick={() => onGo("Profiles")}>Open Profiles</button>} />
           ) : f.fix ? <DoctorFix fix={f.fix} title={f.title} ctx={ctx} onGo={onGo} onFixed={() => doc.reload()} /> : f.subject ? <button className="small" onClick={() => onOpen(f.subject!)}>Open {f.subject}</button> : null}
           <Menu label={`More actions for ${f.title}`} className="more" items={more}><Icon name="more" size={16} /></Menu>
@@ -235,7 +236,6 @@ export default function Doctor({ ctx, setup, doc, onProfiles, onGo, onOpen }: Pr
         </details>
       )}
       {testing && ctx && <ConnectionTest ctx={ctx} onClose={() => setTesting(false)} />}
-      {bringing && <BringOver ctx={ctx ?? ""} onClose={() => setBringing(false)} onDone={() => void Promise.all([setup.reload(), doc.reload()])} onProfiles={() => { setBringing(false); onProfiles(); }} />}
     </div>
   );
 }

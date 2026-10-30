@@ -10,7 +10,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const hex = (n: number) => Array.from({ length: n }, () => "0123456789abcdef"[Math.floor(Math.random() * 16)]).join("");
 const GB = 1024 ** 3;
 
-type Ctr = { restart?: string; error?: string; labels?: string; health?: string; healthOut?: string; streak?: number; restarts?: number; exitCode?: number; oom?: boolean; networks: string[]; exposed?: number[]; id: string; name: string; image: string; state: string; ports: [number, number][]; mounts: { Type: string; Name?: string; Source: string; Destination: string; RW: boolean }[]; env: string[]; born: number; cpu: number; mem: number };
+type Ctr = { endedAt?: number; ranMs?: number; restart?: string; error?: string; labels?: string; health?: string; healthOut?: string; streak?: number; restarts?: number; exitCode?: number; oom?: boolean; networks: string[]; exposed?: number[]; id: string; name: string; image: string; state: string; ports: [number, number][]; mounts: { Type: string; Name?: string; Source: string; Destination: string; RW: boolean }[]; env: string[]; born: number; cpu: number; mem: number };
 const now = Date.now();
 const db = {
   profiles: [{ name: "default", status: "Running", arch: "aarch64", cpus: 4, memory: 8 * GB, disk: 100 * GB, runtime: "docker", address: "192.168.5.2" }],
@@ -58,6 +58,11 @@ const env: Record<string, any> = {
 // Containers started by `docker compose up` in ~/code/shop; kafka and kafka-ui were run by hand.
 const SHOP = new Set(["api", "worker", "report-job", "web", "db", "queue", "cache"]);
 // What Compose v2 writes on each container: api needs a healthy db, worker needs queue, web needs api.
+const labelsOf = (c: Ctr) => c.labels ?? (SHOP.has(c.name) ? `com.docker.compose.project=shop,com.docker.compose.project.working_dir=/Users/me/code/shop,com.docker.compose.project.config_files=/Users/me/code/shop/compose.yaml,com.docker.compose.service=${c.name}${SHOP_DEPS[c.name] ? `,com.docker.compose.depends_on=${SHOP_DEPS[c.name]}` : ""}` : "");
+const labelObject = (c: Ctr) => Object.fromEntries(labelsOf(c).split(",").filter(Boolean).map((kv) => [kv.slice(0, kv.indexOf("=")), kv.slice(kv.indexOf("=") + 1)]));
+// When the last run ended: a stop records it; an exited container that came that way ended an hour ago (cache: a Redis
+// that ran two days and was stopped by hand). A running one has docker's "never" time.
+const finishedAt = (c: Ctr) => (c.state !== "exited" ? "0001-01-01T00:00:00Z" : new Date(c.endedAt ?? (c.ranMs !== undefined ? c.born + c.ranMs : Date.now() - 36e5)).toISOString());
 const SHOP_DEPS: Record<string, string> = { api: "db:service_healthy:false", worker: "queue:service_started:false", web: "api:service_started:false" };
 // Setup check: healthy by default; "desktop" is what a Mac looks like right after Docker Desktop is removed.
 const BREW_PLUGINS = "/opt/homebrew/lib/docker/cli-plugins";
@@ -92,6 +97,10 @@ if (scenario === "doctor") db.ctrs.push(
   { networks: ["devnet"], exposed: [5432], exitCode: 1, id: hex(64), name: "pg", image: "postgres:16", state: "exited", ports: [], mounts: [], env: [], born: now - 7e5, cpu: 0, mem: 0 },
 );
 if (scenario === "nonet") { db.networks = ["bridge", "host", "none"]; db.ctrs.forEach((c) => { c.networks = ["bridge"]; }); }
+// empty=1: no containers yet, as on the first day after switching (with scenario=desktop: Docker Desktop's data is still there).
+// brought=1: an earlier run already brought the data over.
+if (typeof location !== "undefined" && new URLSearchParams(location.search).get("empty") === "1") db.ctrs = [];
+if (typeof location !== "undefined" && new URLSearchParams(location.search).get("brought") === "1") { try { localStorage.setItem("colima-ui.broughtOver", "1"); } catch { /* the preview just shows the offer */ } }
 if (["stopped", "failed", "stuck"].includes(scenario)) db.profiles[0].status = "Stopped";
 if (["none", "missing", "partial", "nobrew"].includes(scenario)) db.profiles = [];
 const ipOf = (c: Ctr, net: string) => `172.${net === "bridge" ? 17 : 18 + Math.max(0, db.networks.indexOf(net) - 3)}.0.${2 + db.ctrs.indexOf(c)}`;
@@ -128,7 +137,7 @@ function dfLines(): string {
 function dockerCmd(args: string[]): string {
   const [cmd, sub] = args;
   switch (cmd) {
-    case "ps": { if (args.includes("-q")) return db.ctrs.map((c) => c.id.slice(0, 12)).join("\n"); const f = args.find((a) => a.startsWith("network="))?.slice(8); return lines(db.ctrs.filter((c) => !f || c.networks.includes(f)).map((c) => ({ ID: c.id.slice(0, 12), Names: c.name, Image: c.image, State: c.state, Status: status(c), Ports: fmtPorts(c), Mounts: c.mounts.map((m) => m.Name ?? m.Source).join(","), Labels: c.labels ?? (SHOP.has(c.name) ? `com.docker.compose.project=shop,com.docker.compose.project.working_dir=/Users/me/code/shop,com.docker.compose.project.config_files=/Users/me/code/shop/compose.yaml,com.docker.compose.service=${c.name}${SHOP_DEPS[c.name] ? `,com.docker.compose.depends_on=${SHOP_DEPS[c.name]}` : ""}` : "") }))) }
+    case "ps": { if (args.includes("-q")) return db.ctrs.map((c) => c.id.slice(0, 12)).join("\n"); const f = args.find((a) => a.startsWith("network="))?.slice(8); return lines(db.ctrs.filter((c) => !f || c.networks.includes(f)).map((c) => ({ ID: c.id.slice(0, 12), Names: c.name, Image: c.image, State: c.state, Status: status(c), Ports: fmtPorts(c), Mounts: c.mounts.map((m) => m.Name ?? m.Source).join(","), Labels: labelsOf(c) }))) }
     case "images": return lines(db.images);
     case "events": {
       const t = Math.floor(Date.now() / 1000);
@@ -173,9 +182,11 @@ function dockerCmd(args: string[]): string {
     }
     case "logs": { if (args.includes("--since") && !args.includes("--until")) return "" as T; const c = find(args[args.length - 1])!; const t = new Date().toISOString(); const base = logLines(c); return Array.from({ length: 160 }, (_, i) => `${t.slice(0, 17)}${String(i % 60).padStart(2, "0")}Z ${base[i % base.length]}`).join("\n") + "\n"; }
     case "rename": { const c = find(args[1]); if (!c) throw `Error response from daemon: No such container: ${args[1]}`; c.name = args[2]; return ""; }
-    case "inspect": if (args.includes("--format")) { const ref = args[args.length - 1]; const c = find(ref); if (!c) throw `Error: No such object: ${ref}`; return args[args.indexOf("--format") + 1] === "{{.Name}}" ? `/${c.name}\n` : `${c.state === "running"} ${c.restarts ?? 0} \n`; }
-    { const many = args.slice(1).map((i) => find(i)!).filter(Boolean); return JSON.stringify(many.map((c) => ({ Id: c.id, Image: `sha256:${c.image}`, Name: `/${c.name}`, Created: new Date(c.born).toISOString(), Path: c.image.startsWith("mysql") ? "docker-entrypoint.sh" : "/docker-entrypoint.sh", Args: ["mysqld"], State: { Status: c.state, Running: c.state !== "exited", Paused: c.state === "paused", ExitCode: c.exitCode ?? 0, Error: c.error ?? "", OOMKilled: !!c.oom, StartedAt: new Date(c.born).toISOString(), ...(c.health ? { Health: { Status: c.health, FailingStreak: c.streak ?? 0, Log: c.healthOut ? [{ ExitCode: 1, Output: c.healthOut }] : [] } } : {}) }, RestartCount: c.restarts ?? 0, Config: { Image: c.image, Env: c.env, ExposedPorts: Object.fromEntries([...c.ports.map(([, p]) => p), ...(c.exposed ?? [])].map((p) => [`${p}/tcp`, {}])) }, HostConfig: { NetworkMode: c.networks[0] ?? "bridge", RestartPolicy: { Name: c.restart ?? "no" } }, NetworkSettings: { Ports: Object.fromEntries(c.ports.map(([h, p]) => [`${p}/tcp`, [{ HostIp: "0.0.0.0", HostPort: String(h) }]])), Networks: Object.fromEntries(c.networks.map((n) => [n, { IPAddress: ipOf(c, n), Aliases: n === "bridge" ? null : [c.name, c.id.slice(0, 12)] }])) }, Mounts: c.mounts }))); }
-    case "system": if (args.includes("-v")) { const sz: Record<string, string> = { "mysql-data": "412MB", "redis-data": "18MB", "pgdata-old": "1.2GB", ...colimaSizes }; return JSON.stringify({ Images: [], Containers: [], BuildCache: [], Volumes: db.volumes.map((Name) => ({ Name, Links: db.ctrs.filter((c) => c.mounts.some((x) => x.Name === Name)).length, Size: sz[Name] ?? (Name.startsWith("a") ? "36B" : "4kB") })) }); } return dfLines();
+    // &bind=1: Colima's shop_db is a folder on the Mac (a local volume with o=bind), which is never replaced.
+    case "inspect": if (args[1] === "--type" && args[2] === "volume") { const bind = ddParam("bind"); return JSON.stringify(args.slice(3).filter((n) => db.volumes.includes(n)).map((Name) => ({ Name, Driver: "local", Labels: {}, Options: bind && Name === "shop_db" ? { device: "/Users/me/code/shop/data", o: "bind", type: "none" } : null }))); }
+      if (args.includes("--format")) { const ref = args[args.length - 1]; const c = find(ref); if (!c) throw `Error: No such object: ${ref}`; return args[args.indexOf("--format") + 1] === "{{.Name}}" ? `/${c.name}\n` : `${c.state === "running"} ${c.restarts ?? 0} \n`; }
+    { const many = args.slice(1).map((i) => find(i)!).filter(Boolean); return JSON.stringify(many.map((c) => ({ Id: c.id, Image: `sha256:${c.image}`, Name: `/${c.name}`, Created: new Date(c.born).toISOString(), Path: c.image.startsWith("mysql") ? "docker-entrypoint.sh" : "/docker-entrypoint.sh", Args: ["mysqld"], State: { Status: c.state, Running: c.state !== "exited", Paused: c.state === "paused", ExitCode: c.exitCode ?? 0, Error: c.error ?? "", OOMKilled: !!c.oom, StartedAt: new Date(c.born).toISOString(), FinishedAt: finishedAt(c), ...(c.health ? { Health: { Status: c.health, FailingStreak: c.streak ?? 0, Log: c.healthOut ? [{ ExitCode: 1, Output: c.healthOut }] : [] } } : {}) }, RestartCount: c.restarts ?? 0, Config: { ...(c.health ? { Healthcheck: { Test: ["CMD-SHELL", "curl -f localhost"] } } : {}), Labels: labelObject(c), Image: c.image, Env: c.env, ExposedPorts: Object.fromEntries([...c.ports.map(([, p]) => p), ...(c.exposed ?? [])].map((p) => [`${p}/tcp`, {}])) }, HostConfig: { NetworkMode: c.networks[0] ?? "bridge", RestartPolicy: { Name: c.restart ?? "no" }, PortBindings: Object.fromEntries(c.ports.map(([h, p]) => [`${p}/tcp`, [{ HostIp: "", HostPort: String(h) }]])) }, NetworkSettings: { Ports: Object.fromEntries(c.ports.map(([h, p]) => [`${p}/tcp`, [{ HostIp: "0.0.0.0", HostPort: String(h) }]])), Networks: Object.fromEntries(c.networks.map((n) => [n, { IPAddress: ipOf(c, n), Aliases: n === "bridge" ? null : [c.name, c.id.slice(0, 12)] }])) }, Mounts: c.mounts }))); }
+    case "system": if (args.includes("-v")) { if (++colimaDfReads > growAfter) colimaSizes.shop_db = "315MB"; const sz: Record<string, string> = { "mysql-data": "412MB", "redis-data": "18MB", "pgdata-old": "1.2GB", ...colimaSizes }; return JSON.stringify({ Images: [], Containers: [], BuildCache: [], Volumes: db.volumes.map((Name) => ({ Name, Links: db.ctrs.filter((c) => c.mounts.some((x) => x.Name === Name)).length, Size: sz[Name] ?? (Name.startsWith("a") ? "36B" : "4kB") })) }); } return dfLines();
     case "stats": {
       if (args[args.length - 1] === "--no-stream") return lines(db.ctrs.filter((c) => c.state === "running").map((c) => ({ Name: c.name, CPUPerc: `${c.cpu.toFixed(2)}%`, MemUsage: `${(c.mem / 2 ** 20).toFixed(1)}MiB / 7.7GiB` }))); const c = find(args[args.length - 1])!; c.cpu = Math.max(0.1, c.cpu + (Math.random() - 0.45)); return lines([{ CPUPerc: `${c.cpu.toFixed(2)}%`, MemUsage: `${(c.mem / 2 ** 20).toFixed(1)}MiB / 7.7GiB`, NetIO: "1.2kB / 648B", BlockIO: "0B / 4.1kB", PIDs: "29" }]); }
     case "start": case "stop": case "restart": case "pause": case "unpause": {
@@ -183,7 +194,7 @@ function dockerCmd(args: string[]): string {
       // start=fail: web's port is taken, once. docker starts the others and names the one it couldn't on its last line.
       const blocked = cmd === "start" && startFail && args.includes("web");
       const cs = args.slice(1).map((x) => find(x)!).filter((c) => !(blocked && c.name === "web"));
-      for (const c of cs) c.state = cmd === "stop" ? "exited" : cmd === "pause" ? "paused" : "running";
+      for (const c of cs) { c.state = cmd === "stop" ? "exited" : cmd === "pause" ? "paused" : "running"; if (cmd === "stop") c.endedAt = Date.now(); else if (cmd !== "pause") { c.born = Date.now(); c.endedAt = undefined; } }
       // db has a health check: it reports healthy a moment after it starts.
       if (cmd === "start") cs.filter((c) => c.name === "db").forEach((c) => { c.health = "starting"; setTimeout(() => { c.health = "healthy"; }, 700); });
       if (blocked) { startFail = false; throw "Error response from daemon: driver failed programming external connectivity on endpoint shop-web-1: Bind for 0.0.0.0:8080 failed: port is already allocated\nError: failed to start containers: web"; }
@@ -206,13 +217,21 @@ function dockerCmd(args: string[]): string {
 // ?dd=replace: `compose up` already ran in Colima, so Colima's shop_db is a 12 MB empty one that shop-db-1 runs on.
 // ?dd=replacefail: the same, and the copy into it fails midway, so Colima's copy is put back from the backup.
 // ?dd=replacebig: Colima's shop_db is 90 MB, bigger than a fresh one, so it is listed but not picked.
+// ?dd=morning: the first morning. The same 12 MB shop_db, and shop-db-1 is the shop project's own pg service.
+// &grow=1: shop_db fills to 315 MB right after home's read, before the panel reads (a stale "Bring it over…").
+// &grow=2: it fills after the panel's list, before the read just ahead of the confirm.
+// &later=1: Docker Desktop is closed when the app opens; __mock.openDesktop() opens it.
 const dd = typeof location !== "undefined" ? new URLSearchParams(location.search).get("dd") ?? "running" : "running";
-const desktop = { installed: dd !== "gone", running: ["running", "fail", "replace", "replacefail", "replacebig"].includes(dd), disk_bytes: 30 * GB };
+const ddParam = (k: string) => typeof location !== "undefined" && new URLSearchParams(location.search).get(k) === "1";
+const desktop = { installed: dd !== "gone", running: ["running", "fail", "replace", "replacefail", "replacebig", "morning"].includes(dd) && !ddParam("later"), disk_bytes: 30 * GB };
+let colimaDfReads = 0;
+const growAfter = typeof location !== "undefined" ? Number(new URLSearchParams(location.search).get("grow") ?? "Infinity") : Infinity;
 const colimaSizes: Record<string, string> = {};
-if (dd.startsWith("replace")) {
+if (dd.startsWith("replace") || dd === "morning") {
   db.volumes.push("shop_db");
   colimaSizes.shop_db = dd === "replacebig" ? "90MB" : "12MB";
-  db.ctrs.push({ networks: ["bridge"], id: hex(64), name: "shop-db-1", image: "postgres:16", state: "running", ports: [], mounts: [{ Type: "volume", Name: "shop_db", Source: "/var/lib/docker/volumes/shop_db/_data", Destination: "/var/lib/postgresql/data", RW: true }], env: ["POSTGRES_PASSWORD=dev"], born: now - 6e5, cpu: 0.4, mem: 40e6 });
+  const shopPg = dd === "morning" ? { labels: "com.docker.compose.project=shop,com.docker.compose.project.working_dir=/Users/me/code/shop,com.docker.compose.project.config_files=/Users/me/code/shop/compose.yaml,com.docker.compose.service=pg" } : {};
+  db.ctrs.push({ ...shopPg, networks: ["bridge"], id: hex(64), name: "shop-db-1", image: "postgres:16", state: "running", ports: [], mounts: [{ Type: "volume", Name: "shop_db", Source: "/var/lib/docker/volumes/shop_db/_data", Destination: "/var/lib/postgresql/data", RW: true }], env: ["POSTGRES_PASSWORD=dev"], born: now - 6e5, cpu: 0.4, mem: 40e6 });
 }
 const ddVolumes: [string, string][] = [["shop_db", "412MB"], ["redis-data", "18MB"], ["uploads", "2.1GB"], ["b".repeat(64), "36B"]];
 const ddImages = [{ Repository: "acme/api", Tag: "dev", Size: "1.2GB" }, { Repository: "postgres", Tag: "16", Size: "438MB" }, { Repository: "<none>", Tag: "<none>", Size: "90MB" }];
@@ -223,7 +242,7 @@ async function progress(event: string, steps: [string, number][]) { for (const [
 
 export async function invoke<T>(cmd: string, a: Record<string, any> = {}): Promise<T> {
   ((window as any).__calls ??= []).push(cmd);
-  (window as any).__mock = { setStatus: (s: string) => { db.profiles[0].status = s; }, state: () => JSON.parse(JSON.stringify(db)), failRunOnce: (name: string) => { failRun = name; } };
+  (window as any).__mock = { setStatus: (s: string) => { db.profiles[0].status = s; }, state: () => JSON.parse(JSON.stringify(db)), failRunOnce: (name: string) => { failRun = name; }, openDesktop: () => { desktop.running = true; } };
   await sleep(60);
   switch (cmd) {
     case "list_profiles": return db.profiles.map((p) => ({ ...p })) as T; // fresh objects per call, like the real IPC
@@ -231,7 +250,8 @@ export async function invoke<T>(cmd: string, a: Record<string, any> = {}): Promi
     case "docker_check": return undefined as T;
     case "desktop_state": return { ...desktop } as T;
     case "open_docker_desktop": if (!desktop.installed) throw "Docker Desktop isn't installed"; setTimeout(() => { desktop.running = true; }, 2500); return undefined as T;
-    case "desktop_docker": if (a.args[0] === "ps") return JSON.stringify({ Names: "shop-db-1", Mounts: "shop_db" }) as T; return (a.args[0] === "system" ? JSON.stringify({ Images: [], Containers: [], BuildCache: [], Volumes: ddVolumes.map(([Name, Size]) => ({ Name, Size })) }) : ddImages.map((r) => JSON.stringify(r)).join("\n")) as T;
+    // &upl=1: a Docker Desktop container also writes to uploads, so picking it asks to stop that container first.
+    case "desktop_docker": if (a.args[0] === "ps") return [JSON.stringify({ Names: "shop-db-1", Mounts: "shop_db" }), ...(ddParam("upl") ? [JSON.stringify({ Names: "files-1", Mounts: "uploads" })] : [])].join("\n") as T; return (a.args[0] === "system" ? JSON.stringify({ Images: [], Containers: [], BuildCache: [], Volumes: ddVolumes.map(([Name, Size]) => ({ Name, Size })) }) : ddImages.map((r) => JSON.stringify(r)).join("\n")) as T;
     case "desktop_start": ((window as any).__started ??= []).push(...a.names.map((n: string) => (a.context ? `${a.context}/${n}` : n))); return undefined as T;
     case "desktop_replace": {
       ((window as any).__replaced ??= []).push({ ...a });

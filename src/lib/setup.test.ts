@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { fixAllPlan, needsAttention, setupFindings, type SetupReport } from "./setup.ts";
+import { bringOffered, fixAllPlan, needsAttention, setupFindings, type SetupReport } from "./setup.ts";
 
 const BREW = "/opt/homebrew/lib/docker/cli-plugins";
 const dead = (name: string) => ({ name, target: `/Applications/Docker.app/Contents/Resources/cli-plugins/${name}`, broken: true });
@@ -88,7 +88,7 @@ test("given the default 2 CPU, 2 GiB VM on a Mac that can give it 6 and 8, when 
   const f = setupFindings(HEALTHY, { cpus: 2, memory: 2 * 1024 ** 3 }, "work", false, { cpus: 6, memory: 8 }, 32 * 1024 ** 3).find((x) => x.id === "resources")!;
   assert.equal(f.status, "warn");
   assert.equal(f.detail, "That is Colima's default. Your Mac has 32 GB, so the VM can have 6 CPUs and 8 GiB and leave the rest for macOS.");
-  assert.deepEqual(f.fix, { kind: "resize", cpus: 6, memory: 8, label: "Give it 6 CPUs and 8 GiB" });
+  assert.deepEqual(f.fix, { kind: "resize", cpus: 6, memory: 8, label: "Give it 6 CPUs and 8 GiB…" });
   assert.deepEqual(f.more, { kind: "profiles", label: "Change in Profiles" });
   assert.equal(f.command, "colima stop work\ncolima start work --cpu 6 --memory 8");
 });
@@ -231,4 +231,41 @@ test("given Docker Desktop is removed but its disk is left, when checked, then t
 test("given the volumes were brought over, when checked, then the row passes and offers nothing", () => {
   const f = setupFindings({ ...HEALTHY, docker_desktop_data: true }, vm, "default", true).find((x) => x.id === "desktop_data")!;
   assert.deepEqual([f.status, f.title, f.fix], ["ok", "Docker Desktop volumes are in Colima", undefined]);
+});
+
+test("given Docker Desktop data that hasn't come over, when home asks, then it offers Bring them over", () => {
+  assert.equal(bringOffered(setupFindings({ ...HEALTHY, docker_desktop_data: true }, vm)), true);
+});
+
+test("given the data was brought over, when home asks, then it offers nothing", () => {
+  assert.equal(bringOffered(setupFindings({ ...HEALTHY, docker_desktop_data: true }, vm, "default", true)), false);
+});
+
+test("given no Docker Desktop data, or the checks not read yet, when home asks, then it offers nothing", () => {
+  assert.equal(bringOffered(setupFindings(HEALTHY, vm)), false);
+  assert.equal(bringOffered(null), false);
+});
+
+test("given a home container's volume is nearly empty in Colima, when checked, then the Docker Desktop row is a warning the badge counts", () => {
+  const findings = setupFindings({ ...HEALTHY, docker_desktop_data: true }, vm, "default", false, null, undefined, [{ name: "shop_db", here: 12e6, there: 412e6, users: ["shop-db-1"] }]);
+  const f = findings.find((x) => x.id === "desktop_data")!;
+  assert.equal(f.status, "warn");
+  assert.equal(f.title, "`shop_db` is nearly empty in Colima");
+  assert.equal(f.detail, "11.4 MiB here; Docker Desktop has 392.9 MiB. Colima's copy is backed up first.");
+  assert.deepEqual(f.fix, { kind: "bring", label: "Bring it over…", only: ["shop_db"] });
+  assert.equal(needsAttention(findings), 1);
+  assert.deepEqual(fixAllPlan(findings), []);
+});
+
+test("given no nearly empty volume, when checked, then the Docker Desktop row stays a note", () => {
+  const f = setupFindings({ ...HEALTHY, docker_desktop_data: true }, vm, "default", false, null, undefined, []).find((x) => x.id === "desktop_data")!;
+  assert.equal(f.status, "info");
+});
+
+test("given two home volumes are nearly empty, when checked, then one warning names both and its button says them", () => {
+  const lost = [{ name: "shop_db", here: 12e6, there: 412e6, users: ["shop-db-1"] }, { name: "blog_db", here: 8e6, there: 90e6, users: ["blog-db-1"] }];
+  const f = setupFindings({ ...HEALTHY, docker_desktop_data: true }, vm, "default", false, null, undefined, lost).find((x) => x.id === "desktop_data")!;
+  assert.equal(f.title, "2 volumes are nearly empty in Colima");
+  assert.equal(f.detail, "`shop_db` has 11.4 MiB here; Docker Desktop has 392.9 MiB. `blog_db` has 7.6 MiB here; Docker Desktop has 85.8 MiB. Colima's copies are backed up first.");
+  assert.deepEqual(f.fix, { kind: "bring", label: "Bring them over…", only: ["shop_db", "blog_db"] });
 });

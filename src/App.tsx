@@ -15,6 +15,8 @@ import Kubernetes from "./Kubernetes";
 import Profiles from "./Profiles";
 import InstallCard from "./InstallCard";
 import { useSetup } from "./Setup";
+import BringOver from "./BringOver";
+import { bringOffered } from "./lib/setup";
 import Doctor, { groups, useDoctor, useMuted } from "./Doctor";
 import { useFixRuns } from "./FixIt";
 import { useEnv } from "./useEnv";
@@ -23,7 +25,8 @@ import { contextNames, kubernetesOn } from "./lib/kubeNav";
 import { ranVm } from "./lib/activity";
 import { useComposeRun } from "./ComposeProjects";
 import { ResizeAnnouncer, ResizeProvider, RunVm, useHeld, useResize } from "./Resize";
-import { useBringBusy } from "./bringBusy";
+import { bringBusy, useBringBusy } from "./bringBusy";
+import { readDesktop, readDesktopOnFocus } from "./desktopOffer";
 import { dockerLocked, setVmBusy } from "./dockerLock";
 import { useHost } from "./useHostSize";
 
@@ -90,6 +93,45 @@ export default function App() {
   const mutedKeys = useMuted();
   // Held while the VM restarts for a new size, so the badge doesn't drop and come back.
   const doctorTodo = useHeld(groups(setup.findings ?? [], doc.report, mutedKeys).todo);
+  // One Bring over panel, opened from Doctor's row, home's empty state, home's problem line or the New menu, so a copy
+  // started in one is seen in all. It is pinned to the VM it opened on: every follow-up (Start in Colima, Try again)
+  // runs there. Switching profile closes it, unless a copy is running; then it stays, saying which VM it is for.
+  // returnTo: a selector for where focus goes if the opener is gone when the panel closes (a home row's name).
+  const [bringing, setBringing] = useState<{ ctx: string; name: string; only?: string[]; returnTo?: string } | null>(null);
+  const openBring = (only?: string[], returnTo?: string) => setBringing({ ctx: ctx ?? "", name: current?.name ?? "default", only, returnTo });
+  const copied = useRef(false);
+  const [bringSaid, setBringSaid] = useState("");
+  const hasDesktopData = !!setup.findings?.some((f) => f.id === "desktop_data");
+  // Read once when home opens (and for a new VM); after a copy the panel's onDone reads it again.
+  useEffect(() => { if (hasDesktopData) void readDesktop(ctx); }, [ctx, hasDesktopData]);
+  // Docker Desktop opened after the app, or a volume filled: looked at again on focus (rarely; see desktopRead).
+  useEffect(() => {
+    if (!hasDesktopData) return;
+    const on = () => void readDesktopOnFocus(ctx);
+    window.addEventListener("focus", on);
+    return () => window.removeEventListener("focus", on);
+  }, [ctx, hasDesktopData]);
+  // Keyed on the profile, not its context: the panel's own "Restart the VM" makes the context go away for a while.
+  useEffect(() => {
+    if (bringing && current && bringing.name !== current.name && !bringBusy()) setBringing(null);
+  }, [current?.name]); // eslint-disable-line react-hooks/exhaustive-deps
+  const closeBring = () => {
+    const returnTo = bringing?.returnTo;
+    setBringing(null);
+    // Said once, here, after the panel's own result was read with its Done button.
+    if (copied.current) { setBringSaid(""); setTimeout(() => setBringSaid("Volumes are in Colima now."), 50); }
+    copied.current = false;
+    // After a copy the button that opened it may be gone (the offer ends), so focus would drop to the page.
+    requestAnimationFrame(() => {
+      if (document.activeElement && document.activeElement !== document.body) return;
+      const doctorCheck = [...document.querySelectorAll<HTMLElement>(".doctor-head button")].find((b) => /Run checks again/.test(b.textContent ?? ""));
+      const heading = document.querySelector<HTMLElement>("main h1");
+      heading?.setAttribute("tabindex", "-1");
+      const row = returnTo ? document.querySelector<HTMLElement>(returnTo) : null;
+      (document.querySelector<HTMLElement>(".blank button.primary") ?? doctorCheck ?? row ?? heading)?.focus();
+    });
+  };
+
   const toolsMissing = !!env && (!env.colima || !env.docker);
 
   // Starts or stops a VM from any tab (Empty states, the sidebar switcher). It switches to that profile and
@@ -163,6 +205,8 @@ export default function App() {
           onKubernetes={kubeOn ? () => setTab("Kubernetes") : undefined}
           report={doc.report}
           onReport={doc.reload}
+          onBring={bringOffered(setup.findings) ? openBring : undefined}
+          inspected={doc.containers}
         />
       )
     ) : tab === "Doctor" ? (
@@ -175,7 +219,7 @@ export default function App() {
           <span className="actions-inline"><button className="primary" onClick={() => setTab("Containers")}>Install them</button></span>
         </div>
       ) : (
-        <Doctor ctx={ctx} setup={setup} doc={doc} onProfiles={() => setTab("Profiles")} onGo={(page) => setTab(page)} onOpen={(name) => { setDetailId(name); setTab("Containers"); }} />
+        <Doctor ctx={ctx} setup={setup} doc={doc} onProfiles={() => setTab("Profiles")} onBring={(only) => openBring(only)} onGo={(page) => setTab(page)} onOpen={(name) => { setDetailId(name); setTab("Containers"); }} />
       )
     ) : tab === "Profiles" ? (
       <Profiles
@@ -228,6 +272,17 @@ export default function App() {
       <CommandToast onOpenLog={() => setLogOpen(true)} />
       <ResizeAnnouncer />
       {logOpen && <CommandLog onClose={() => setLogOpen(false)} />}
+      <div className="sr-only" data-app-announcer role="status" aria-live="polite">{bringSaid}</div>
+      {bringing && (
+        <BringOver
+          ctx={bringing.ctx}
+          only={bringing.only}
+          forVm={current && bringing.name !== current.name ? bringing.name : undefined}
+          onClose={closeBring}
+          onDone={(ok) => { if (ok) copied.current = true; void Promise.all([setup.reload(), doc.reload(), readDesktop(bringing.ctx)]); }}
+          onProfiles={() => { setBringing(null); setTab("Profiles"); }}
+        />
+      )}
     </Shell>
     </ResizeProvider>
   );

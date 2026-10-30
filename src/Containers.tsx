@@ -3,7 +3,7 @@
 import { openShell } from "./lib/shell";
 import { activity, dockerLine, ranVm } from "./lib/activity";
 import { score } from "./lib/fuzzy";
-import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { ReactNode, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Profile, docker, dockerJson } from "./api";
 import { usePoll } from "./hooks";
@@ -13,8 +13,9 @@ import Drawer from "./ui/Drawer";
 import { CopyPort, WebPort } from "./ui/PortLinks";
 import { portLinksFromPs } from "./containerInfo";
 import { isWebPort } from "./lib/webPort";
-import { kubeName } from "./lib/compose";
-import { App, appState, appsFrom, finished } from "./lib/homeRows";
+import { kubeName, parseLabels } from "./lib/compose";
+import { appStoppedVersion, byApp, projectKey, stoppedAt, subscribeAppStopped } from "./lib/appStopped";
+import { App, appState, appsFrom, finished, runInfo, startWhat, stateWord } from "./lib/homeRows";
 import { Icon } from "./ui/icons";
 import "./home.css";
 import Menu from "./ui/Menu";
@@ -35,7 +36,9 @@ import type { Finding, Report } from "./lib/doctor";
 import { setMuted } from "./lib/muted";
 import { fixAction, useFixRuns } from "./FixIt";
 import { biggerFix } from "./lib/sharedFix";
-import { plain } from "./ui/Ticks";
+import Ticks, { plain } from "./ui/Ticks";
+import { useDesktopOffer } from "./desktopOffer";
+import { gapLine } from "./lib/bringOver";
 import { describe } from "./lib/fixRun";
 import { busy as fixBusy, dismiss, runFor } from "./lib/fixStore";
 import type { Run } from "./lib/fixStore";
@@ -68,12 +71,19 @@ type Props = {
   // The Doctor's checks, shared with the Doctor page and its badge, so a problem is found once and counted once.
   report: Report | null;
   onReport: () => void;
+  // Set while Docker Desktop's data is still on the Mac and some of it isn't in Colima (the same rule as Doctor's row).
+  // only: the volume to pick alone, from the problem line of the row that uses it. returnTo: where focus goes if that
+  // line is gone when the panel closes (the row's name button).
+  onBring?: (only?: string[], returnTo?: string) => void;
+  // The Doctor's `docker inspect` of every container (restart policy, ports, health check), read every 30 s. It
+  // decides whether a container that exited 0 is a finished job or a stopped service.
+  inspected?: unknown[];
 };
 
 // The main button's label each row last showed, kept across tabs, so a VM size change doesn't flip it while it runs.
 const seenVerb = new Map<string, "Start" | "Stop">();
 
-export default function Containers({ profile, ctx, vm, onVm, reload, detailId, setDetailId, onPull, onProfiles, compose, onImages, onKubernetes, report, onReport }: Props) {
+export default function Containers({ profile, ctx, vm, onVm, reload, detailId, setDetailId, onPull, onProfiles, compose, onImages, onKubernetes, report, onReport, onBring, inspected }: Props) {
   const runs = useFixRuns();
   const confirm = useConfirm();
   const composeRun = useComposeRun();
@@ -109,6 +119,18 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
   const start = () => vmAct("starting", "start_profile", { opts: profile ? { name: profile.name } : { name: "default", ...size } });
 
   const all = useMemo(() => containers.data ?? [], [containers.data]);
+  const runInfoByName = useMemo(() => runInfo(inspected ?? []), [inspected]);
+  // A container this app stopped reads Stopped, whatever its run time says (until it starts again).
+  useSyncExternalStore(subscribeAppStopped, appStoppedVersion);
+  const infoOf = (c: C) => {
+    const i = runInfoByName.get(c.Names);
+    if (!i) return i;
+    const l = parseLabels(c.Labels ?? "");
+    const dir = l.get("com.docker.compose.project.working_dir");
+    const name = l.get("com.docker.compose.project");
+    // Only while its current run began before our stop: a later start, from anywhere, clears it.
+    return { ...i, byApp: byApp(stoppedAt(ctx ?? "", [c.ID, c.Names, dir && name ? projectKey(dir, name) : null]), i.startedAt) };
+  };
   const apps = useMemo(() => appsFrom(all, compose.paths ?? []), [all, compose.paths]);
   const allRef = useRef(all);
   const appsRef = useRef(apps);
@@ -136,7 +158,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
     const next = new Map([...pending].filter(([key, p]) => {
       const a = apps.find((x) => x.key === key);
       if (!a || now - p.since > PENDING_MS) return false;
-      const s = appState(a.rows).state;
+      const s = appState(a.rows, infoOf).state;
       return p.target === "running" ? s !== "running" : s !== "stopped";
     }));
     if (next.size !== pending.size) setPending(next);
@@ -181,8 +203,26 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
   }, [rs]); // eslint-disable-line react-hooks/exhaustive-deps
   // The render right after the run ends comes before that effect, so it counts too.
   const holding = resizing(rs) || settling || wasResizing.current;
-  // Read here so the rows re-render when a Bring over copy starts or ends.
-  useBringBusy();
+  // Volumes a first `compose up` made empty here while Docker Desktop holds the data, read once (desktopOffer).
+  const offer = useDesktopOffer();
+  const gaps = onBring && offer.ctx === ctx ? offer.gaps : [];
+  // A copy stops and starts containers (a replace restarts Colima's own); read the list as soon as it ends, so a row
+  // never shows the stopped moment ("5 of 6 running") until the next poll.
+  // A line that goes away under focus (its volume came over after the panel closed) hands focus to its row's name.
+  const prevGaps = useRef(gaps);
+  useEffect(() => {
+    const gone = prevGaps.current.filter((g) => !gaps.some((x) => x.name === g.name));
+    prevGaps.current = gaps;
+    if (!gone.length || (document.activeElement && document.activeElement !== document.body)) return;
+    const a = appsRef.current.find((x) => x.rows.some((c) => gone[0].users.includes(c.Names)));
+    if (a) document.querySelector<HTMLElement>(rowSel(a.key))?.focus();
+  }, [gaps]);
+  const copying = useBringBusy();
+  const wasCopying = useRef(false);
+  useEffect(() => {
+    if (wasCopying.current && !copying) void containers.reload();
+    wasCopying.current = copying;
+  }, [copying]); // eslint-disable-line react-hooks/exhaustive-deps
   const canAct = (a: App<C>) => !dockerLocked(a.rows.map((c) => c.Names)) && !pending.has(a.key);
 
   async function act(a: App<C>, args: string[], p: Pending | null, done: string) {
@@ -346,8 +386,8 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
     const anyUp = a.rows.some((c) => c.State === "running");
     const n = a.rows.length === 1 ? "container" : `${a.rows.length} containers`;
     // Exactly the stopped ones, by ID: `compose up -d` would also re-run jobs that already finished.
-    const stopped = a.rows.filter((c) => c.State !== "running" && !finished(c));
-    const what = stopped.length === 1 ? serviceName(stopped[0], a.name) : `the ${stopped.length} stopped`;
+    const stopped = a.rows.filter((c) => c.State !== "running" && !finished(c, infoOf(c)));
+    const what = startWhat(stopped.map((c) => serviceName(c, a.name)));
     return [
       ...(stopped.length && anyUp ? [{ label: `Start ${what}`, icon: <Icon name="play" size={13} />, hint: "docker start", disabled: lock, onSelect: () => void act(a, ["start", ...stopped.map((c) => c.ID)], { target: "running", word: "Starting…", since: Date.now() }, `${a.name} started`) }] : []),
       ...(known ? [{ label: "Rebuild", icon: <Icon name="hammer" size={13} />, hint: "compose up -d --build", disabled: lock, onSelect: () => void project(a, "build", { target: "running", word: "Rebuilding…", since: Date.now() }, `${a.name} rebuilt`) }] : []),
@@ -368,7 +408,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
     const kube = a.kind === "kubernetes";
     const isProject = a.kind === "compose";
     const single = a.kind === "container" ? a.rows[0] : null;
-    const { state, up, of } = appState(a.rows);
+    const { state, up, of } = appState(a.rows, infoOf);
     const pend = pending.get(a.key);
     const mine = !!composeRun.busy && inDir(a, composeRun.busy.dir) && a.files.length > 0;
     // A VM size change restarts everything at once: the state column says so, and the button keeps the label the
@@ -377,6 +417,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
     const changing = withVm ? "Restarting…" : pend?.word ?? (mine ? ING[composeRun.busy!.action] : null);
     const expanded = open.has(a.key) || (!!term && isProject && a.rows.some(hit));
     const issues = problemsOf(a.rows);
+    const rowGaps = kube ? [] : gaps.filter((g) => a.rows.some((c) => g.users.includes(c.Names)));
     const word = kube ? `${a.rows.length} container${a.rows.length === 1 ? "" : "s"}` : changing ?? (state === "partly" ? `${up} of ${of} running` : state === "running" ? "Running" : "Stopped");
     // The mark column alone answers "is anything broken?": a problem wins over running or stopped.
     const mark = changing ? "busy" : !kube && issues.some((i) => i.p) ? markOf(issues) : kube || state === "running" ? "on" : state === "partly" ? "part" : "off";
@@ -426,7 +467,8 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
             className="app-name"
             title={a.dir ? `${a.name} · ${tilde(a.dir)}` : single ? `${single.Names} · ${single.Image}` : a.name}
             aria-expanded={isProject ? expanded : undefined}
-            aria-label={`${isProject ? `${a.name}, project` : kube ? "Kubernetes" : a.name}, ${word}${issues.length ? `, ${issues.length} problem${issues.length === 1 ? "" : "s"}` : ""}`}
+            aria-label={`${isProject ? `${a.name}, project` : kube ? "Kubernetes" : a.name}, ${word}${issues.length + rowGaps.length ? `, ${issues.length + rowGaps.length} problem${issues.length + rowGaps.length === 1 ? "" : "s"}` : ""}`}
+            data-row={encodeURIComponent(a.key)}
             aria-controls={isProject ? `svc-${a.key}` : undefined}
             data-open={single?.ID}
             onClick={() => (isProject ? toggle(a.key) : kube ? onKubernetes?.() : setDetailId(single!.ID))}
@@ -455,13 +497,17 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
         )}
         {failure && !cf && <Line level="bad" text={`${a.name}: ${firstLine(failure)}`} title={failure} action={<button className="small" onClick={() => unfail(a.key)}>Dismiss</button>} />}
         {lock && !changing && <span className="sr-only" id={`why-${a.key}`}>{a.rows.some((c) => fixBusy(runs, c.Names)) ? "A fix is running on it." : vm.op ? "The VM is changing." : "Another action is running."}</span>}
+        {/* First: a database that came up empty can explain the problems under it. */}
+        {rowGaps.map((g) => (
+          <Line key={`gap-${g.name}`} level="warn" text={<Ticks text={gapLine(g)} />} action={<button className="small" aria-label={`Bring it over: ${g.name} from Docker Desktop`} onClick={() => onBring?.([g.name], rowSel(a.key))}>Bring it over…</button>} />
+        ))}
         {!expanded && !kube && issues.map((i) => problemLine(i, isProject))}
         {isProject && expanded && (
           <ul className="svc" id={`svc-${a.key}`} aria-label={`Services of ${a.name}`}>
             {a.rows.filter((c) => !term || hit(c) || score(a.name, term) > 0).map((c) => {
               const cUp = c.State === "running";
               const i = issues.find((x) => x.c.ID === c.ID);
-              const cWord = cUp ? "Running" : /^Exited \(0\)/.test(c.Status) ? "Finished" : "Stopped";
+              const cWord = stateWord(c, infoOf(c));
               return (
                 <li key={c.ID}>
                   <div className="svc-row">
@@ -528,6 +574,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
                 { label: "Run an image…", icon: <Icon name="play" size={13} />, onSelect: () => setPicking(true) },
                 { label: "Pull an image…", icon: <Icon name="download" size={13} />, onSelect: onPull },
                 { label: "Start a Compose project…", icon: <Icon name="folder" size={13} />, onSelect: () => setComposeOpen(true) },
+                ...(onBring ? [{ label: "Bring over from Docker Desktop…", icon: <Icon name="database" size={13} />, divider: true, onSelect: () => onBring() }] : []),
               ]}
             >
               <Icon name="plus" size={13} /> New <Icon name="chevron" size={12} />
@@ -541,8 +588,10 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
             </label>
           )}
           {containers.data && all.length === 0 ? (
-            <Blank title="No containers yet" body="Run an image, or start a Compose project from a folder on your Mac.">
-              <button className="primary" onClick={() => setPicking(true)}>Run an image</button>
+            // Right after switching, the data comes first: a `compose up` before it makes new empty volumes.
+            <Blank title="No containers yet" body={onBring ? "Your Docker Desktop volumes are still on this Mac. Bring them over first, so your projects start with their data." : "Run an image, or start a Compose project from a folder on your Mac."}>
+              {onBring && <button className="primary" onClick={() => onBring()}>Bring over from Docker Desktop</button>}
+              <button className={onBring ? undefined : "primary"} onClick={() => setPicking(true)}>Run an image</button>
               <button onClick={() => setComposeOpen(true)}>Start a Compose project</button>
             </Blank>
           ) : (
@@ -571,6 +620,8 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
 
 const ING: Record<Action, string> = { up: "Starting…", stop: "Stopping…", restart: "Restarting…", down: "Removing…", build: "Rebuilding…", pull: "Updating…" };
 const DID: Record<Action, string> = { up: "start", stop: "stop", restart: "restart", down: "go away", build: "rebuild", pull: "update" };
+// A row's name button, found again by its key (a project key holds a NUL, so it is stored encoded).
+const rowSel = (key: string) => `[data-row="${encodeURIComponent(key)}"]`;
 const tilde = (dir: string) => dir.replace(/^\/Users\/[^/]+/, "~");
 const firstLine = (t: string) => t.split("\n").map((l) => l.trim()).find(Boolean) ?? t;
 // "shop-web-1" reads as "web" inside the shop project; a container named some other way keeps its name.
@@ -590,7 +641,7 @@ function Mark({ kind, small }: { kind: "on" | "off" | "part" | "bad" | "warn" | 
   return <span className="mark" aria-hidden="true"><span className={`dot ${kind}${small ? " small" : ""}`} /></span>;
 }
 
-function Line({ level, text, title, action }: { level: "bad" | "warn" | "ok" | "busy"; text: string; title?: string; action?: ReactNode }) {
+function Line({ level, text, title, action }: { level: "bad" | "warn" | "ok" | "busy"; text: ReactNode; title?: string; action?: ReactNode }) {
   return (
     <div className={`problem ${level}`} title={title}>
       <Icon name={level === "ok" ? "check" : level === "bad" ? "close" : level === "busy" ? "restart" : "alert"} size={14} />

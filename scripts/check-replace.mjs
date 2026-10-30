@@ -115,7 +115,10 @@ const failRow = panel(p).locator(".bring-item", { hasText: "shop_db" });
 check(/Colima's disk had a write error partway through\./.test(await failRow.innerText()) && !(await failRow.locator("pre").isVisible()), "fail: the row says it in plain words, Docker's text folded");
 await failRow.getByText("Show output").click();
 check(/input\/output error/.test(await failRow.locator("pre").innerText()), "fail: Show output has Docker's own words");
-check(/shop_db (failed|wasn't replaced)/.test(await panel(p).locator('[role="alert"]').first().textContent()), "fail: the failure is announced");
+// The alert is cleared and set again 50 ms later (so the same words are read twice); wait for it to land.
+await p.waitForFunction(() => /\S/.test(document.querySelector('.drawer [role="alert"]')?.textContent ?? ""), null, { timeout: 2000 }).catch(() => {});
+const failSaid = await panel(p).locator('[role="alert"]').first().textContent();
+check(/shop_db (failed|wasn't replaced)/.test(failSaid), `fail: the failure is announced (${failSaid})`);
 check(await colimaDb(p) === "running", "fail: Colima's shop-db-1 runs again on its restored copy");
 check(await panel(p).locator(".bring-item", { hasText: "uploads" }).getByRole("checkbox").isChecked(), "fail: uploads stays picked");
 check(/^Try shop_db and uploads again \(2\.3 GiB\)$/.test(await go(p).innerText()), `fail: the retry names both (${await go(p).innerText()})`);

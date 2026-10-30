@@ -9,7 +9,11 @@ export type Kind = "volume" | "image";
 // colimaBytes: the size of Colima's own volume of that name, so a nearly empty one can be pointed out.
 // users: containers running in Docker Desktop that write to this volume. colimaUsers: the same in Colima, for a
 // volume whose Colima copy is replaced (running, paused or restarting; a stopped one is left as it is).
-export type Item = { kind: Kind; name: string; bytes: number; inColima: boolean; colimaBytes?: number; users: string[]; colimaUsers?: string[] };
+// colimaPlain: Colima's volume of that name is confirmed a plain one Docker keeps in the VM (driver local, no
+// options); only then may it ever be replaced. colimaWhy says why not, when known: "folder" (a bind to the Mac) or
+// the driver's name. colimaBytes is left out when Colima's size can't be read, and then it is never "nearly empty".
+// colimaPath: for a folder on the Mac, the folder (the volume's device option), when inspect names one.
+export type Item = { kind: Kind; name: string; bytes: number; inColima: boolean; colimaBytes?: number; colimaPlain?: boolean; colimaWhy?: string; colimaPath?: string; users: string[]; colimaUsers?: string[] };
 export type Inventory = { items: Item[]; unnamed: number };
 
 type ImageRow = { Repository?: string; Tag?: string; Size?: string };
@@ -17,13 +21,47 @@ type PsRow = { Names?: string; Mounts?: string; State?: string };
 
 const jsonLines = <T,>(out: string): T[] => out.split("\n").filter((l) => l.trim()).flatMap((l) => { try { return [JSON.parse(l) as T]; } catch { return []; } });
 
-type Lists = { desktopDf: string; desktopImages: string; desktopRunning?: string; colimaDf: string; colimaPs?: string; colimaImages: string[] };
+// colimaInspect: `docker inspect --type volume` of Colima's volumes that Docker Desktop also has (a JSON array).
+type Lists = { desktopDf: string; desktopImages: string; desktopRunning?: string; colimaDf: string; colimaPs?: string; colimaInspect?: string; colimaImages: string[] };
+
+// What `inspect` says of each Colima volume: plain, or why not. Missing from the answer means not known.
+type Kind2 = { plain: boolean; why?: string; path?: string };
+function volumeKinds(json: string | undefined): Map<string, Kind2> {
+  const out = new Map<string, Kind2>();
+  try {
+    for (const v of JSON.parse(json ?? "") as { Name?: string; Driver?: string; Options?: Record<string, unknown> | null }[]) {
+      if (!v?.Name) continue;
+      const options = v.Options && typeof v.Options === "object" ? Object.keys(v.Options).length : 0;
+      // Colima mounts the Mac's /Users at the same path in the VM, so a device there is that folder on the Mac.
+      const device = typeof v.Options?.device === "string" && v.Options.device.startsWith("/Users/") ? v.Options.device : undefined;
+      out.set(v.Name, v.Driver !== "local" ? { plain: false, why: v.Driver || undefined } : options ? { plain: false, why: "folder", path: device } : { plain: true });
+    }
+  } catch {
+    /* not known: nothing is plain */
+  }
+  return out;
+}
+
+// Colima's sizes, leaving out one that isn't a number ("N/A" for a volume Docker can't measure).
+function knownSizes(json: string): Map<string, number> {
+  const sizes = parseVolumeSizes(json);
+  try {
+    const d = JSON.parse(json);
+    const rows: { Name?: string; Size?: string | number }[] = Array.isArray(d) ? d : d?.Volumes ?? [];
+    for (const v of rows) if (v?.Name && typeof v.Size !== "number" && !/^[\d.]+\s*[A-Za-z]+$/.test(String(v.Size ?? "").trim())) sizes.delete(v.Name);
+  } catch {
+    /* parseVolumeSizes already found nothing */
+  }
+  return sizes;
+}
 
 // Docker Desktop's `system df -v`, `images` and running `ps` (all --format json), and Colima's `system df -v`
 // plus its `ps -a` and image names. What Colima already has is never copied over, except a nearly empty volume.
-export function inventory({ desktopDf, desktopImages, desktopRunning = "", colimaDf, colimaPs = "", colimaImages }: Lists): Inventory {
+export function inventory({ desktopDf, desktopImages, desktopRunning = "", colimaDf, colimaPs = "", colimaInspect, colimaImages }: Lists): Inventory {
   const sizes = parseVolumeSizes(desktopDf);
-  const here = parseVolumeSizes(colimaDf);
+  const listed = parseVolumeSizes(colimaDf);
+  const here = knownSizes(colimaDf);
+  const kinds = volumeKinds(colimaInspect);
   const running = jsonLines<PsRow>(desktopRunning);
   const mounting = (rows: PsRow[], v: string) => rows.filter((c) => (c.Mounts ?? "").split(",").includes(v)).map((c) => c.Names ?? "").filter(Boolean);
   const users = (v: string) => mounting(running, v);
@@ -32,7 +70,7 @@ export function inventory({ desktopDf, desktopImages, desktopRunning = "", colim
   const vols: Item[] = names
     .filter((n) => !isAnonymous(n))
     .sort((a, b) => a.localeCompare(b))
-    .map((name) => ({ kind: "volume", name, bytes: sizes.get(name) ?? 0, inColima: here.has(name), colimaBytes: here.get(name), users: users(name), colimaUsers: mounting(live, name) }));
+    .map((name) => ({ kind: "volume", name, bytes: sizes.get(name) ?? 0, inColima: listed.has(name), colimaBytes: here.get(name), colimaPlain: kinds.get(name)?.plain === true, colimaWhy: kinds.get(name)?.why, colimaPath: kinds.get(name)?.path, users: users(name), colimaUsers: mounting(live, name) }));
   const have = new Set(colimaImages);
   // Only tagged images: `docker save repo` would mean repo:latest, which may be a different image.
   const imgs: Item[] = jsonLines<ImageRow>(desktopImages)
@@ -44,7 +82,8 @@ export function inventory({ desktopDf, desktopImages, desktopRunning = "", colim
 
 // Colima's volume of the same name is much smaller, like the empty one a first `compose up` makes.
 // A fresh Postgres folder is already about 40 MB, so "smaller by half" catches it and a tenth would not.
-export const nearlyEmpty = (i: Item) => i.inColima && i.colimaBytes !== undefined && i.bytes > 1e6 && i.colimaBytes < i.bytes / 2;
+// Only a plain volume: a folder on the Mac (a bind volume) is the user's own files, whatever its size says.
+export const nearlyEmpty = (i: Item) => i.inColima && i.colimaPlain === true && i.colimaBytes !== undefined && i.bytes > 1e6 && i.colimaBytes < i.bytes / 2;
 
 // Room to spare after the copy, so the VM isn't left with a full disk the moment it is done.
 const SPARE = 2 * 1024 ** 3;
@@ -61,7 +100,8 @@ export const replaceLabel = (i: Item) => `Replace Colima's copy (${formatBytes(i
 // Colima's copy looks freshly made: an empty Postgres folder is about 40 MB, and nothing real has been written yet.
 // Size alone is the rule: reading file times would mean another helper run per volume for a small gain.
 const FRESH = 64 * 1024 ** 2;
-const fresh = (i: Item) => (i.colimaBytes ?? 0) < FRESH;
+// An unknown size is not fresh.
+const fresh = (i: Item) => i.colimaBytes !== undefined && i.colimaBytes < FRESH;
 
 // A replace row's size column. Ticked: what comes in and what goes; unticked: only what Colima has now.
 export const replaceSize = (i: Item, ticked: boolean) => (ticked ? `${formatBytes(i.bytes)} · replaces ${formatBytes(i.colimaBytes ?? 0)}` : `Colima has ${formatBytes(i.colimaBytes ?? 0)}`);
@@ -118,6 +158,21 @@ export function stopQuestion(desktop: string[], colima: string[], replaces: { it
   return [title, ...body, ...replacing, why].join("\n");
 }
 const n1 = (n: string[]) => n.length === 1;
+// The confirm when a pick was dropped just before it (dropped: one notice per dropped volume). It names what will
+// come over, says who stops first, and puts the dropped ones last as notices ("! " lines). They stay in the confirm,
+// not an alert: the dialog takes focus and a screen reader would cut an alert said at the same moment.
+export function bringQuestion(todo: Item[], desktop: string[], colima: string[], replaces: { item: Item; backup: string }[], dropped: string[]): string {
+  const join = (n: string[]) => n.map((x) => `\`${x}\``).join(" and ");
+  const it = (n: string[]) => (n1(n) ? "it" : "them");
+  const title = todo.length <= 2 ? `Bring ${join(todo.map((i) => i.name))} over?` : `Bring ${whatText(todo)} over?`;
+  return [
+    title,
+    desktop.length ? `${join(desktop)} in Docker Desktop ${n1(desktop) ? "is" : "are"} stopped first, so the copy is clean. You can start ${it(desktop)} again from here after.` : "",
+    colima.length ? `${join(colima)} in Colima ${n1(colima) ? "is" : "are"} stopped first and ${n1(colima) ? "starts" : "start"} again on ${n1(colima) ? "its" : "their"} own after.` : "",
+    ...replaces.map(({ item, backup }) => `Colima's \`${item.name}\` (${formatBytes(item.colimaBytes ?? 0)}) is replaced. It's kept as \`${backup}\` first.`),
+    ...dropped.map((d) => `! ${d}`),
+  ].filter(Boolean).join("\n");
+}
 
 // The one note under a replace row: the backup, then who stops where (a name on both sides is said once).
 export function replaceNote(i: Item): string {
@@ -181,3 +236,74 @@ export function doneLines(outcomes: Outcome[], stopped: boolean, untried: Item[]
     restarted.length ? `${restarted.map(tick).join(" and ")} ${restarted.length === 1 ? "is" : "are"} running again in Colima.` : "",
   ].filter(Boolean);
 }
+
+// What is still not in Colima: the volumes the panel picks by default (missing, or a freshly made empty copy).
+// The offer on home and Doctor rests on this, so a partial copy or a restored replace keeps offering the rest.
+export const stillToBring = (items: Item[]) => { const want = defaultPick(items); return items.filter((i) => want.has(key(i))); };
+
+// A Colima volume that a first `compose up` made empty while Docker Desktop holds the data, with the Colima
+// containers on it (any state: a stopped database is still the one that comes up empty). colimaPs: `ps -a` JSON.
+export type Gap = { name: string; here: number; there: number; users: string[] };
+export function homeGaps(items: Item[], colimaPs: string): Gap[] {
+  const rows = jsonLines<PsRow>(colimaPs);
+  return items
+    .filter((i) => replaceable(i) && fresh(i))
+    .map((i) => ({ name: i.name, here: i.colimaBytes ?? 0, there: i.bytes, users: rows.filter((c) => (c.Mounts ?? "").split(",").includes(i.name)).map((c) => c.Names ?? "").filter(Boolean) }))
+    .filter((g) => g.users.length > 0);
+}
+export const gapLine = (g: Gap) => `\`${g.name}\` is nearly empty here; Docker Desktop has ${formatBytes(g.there)}.`;
+
+// The pick for a "Bring it over…" that names volumes (home's line, Doctor's warning), from the panel's fresh read:
+// each named volume only while it is still a fresh empty copy (or missing). If Colima's copy filled up since the line
+// was read, replacing it could lose that data, so it isn't picked and its row says what it holds now.
+export function pickOnly(items: Item[], only: string[]): { pick: Set<string>; stale: Map<string, string> } {
+  const pick = new Set<string>();
+  const stale = new Map<string, string>();
+  const want = defaultPick(items);
+  for (const i of items.filter((x) => x.kind === "volume" && only.includes(x.name))) {
+    if (want.has(key(i))) pick.add(key(i));
+    else if (i.inColima) stale.set(i.name, staleText(i));
+  }
+  return { pick, stale };
+}
+
+// Why a Colima volume of the same name is never replaced, under its row: a folder on the Mac, or another driver.
+// Docker Desktop's copy is untouched either way, so the note says where that data stays.
+const tilde = (p: string) => p.replace(/^\/Users\/[^/]+/, "~");
+export const folderNote = (i: Item) => {
+  if (!i.inColima || i.colimaPlain || !i.colimaWhy) return null;
+  const kept = ` Docker Desktop's ${formatBytes(i.bytes)} stays there.`;
+  return i.colimaWhy === "folder" ? `Colima's \`${i.name}\` is a folder on your Mac${i.colimaPath ? ` (${tilde(i.colimaPath)})` : ""}, so it isn't replaced.${kept}`
+    : `Colima's \`${i.name}\` uses the ${i.colimaWhy} driver, so it isn't replaced.${kept}`;
+};
+
+// Named volumes both sides have: the ones whose Colima copy could be replaced, so the ones to inspect.
+export function sharedVolumes(desktopDf: string, colimaDf: string): string[] {
+  const here = parseVolumeSizes(colimaDf);
+  return [...parseVolumeSizes(desktopDf).keys()].filter((n) => !isAnonymous(n) && here.has(n));
+}
+
+// Why a volume that was picked as nearly empty no longer is, in the words its row and the result use.
+const staleText = (i: Item) => folderNote(i) ?? `Colima's \`${i.name}\` grew to ${formatBytes(i.colimaBytes ?? 0)} since we checked, so it isn't replaced.`;
+
+// Just before the confirm, the picks with both sizes read again (now: a fresh inventory), so the confirm's words
+// and the size the backend checks match what is there. A replace that no longer qualifies is dropped, with why.
+// late: the same, said for the moment of the click ("while you were picking"), for the footer when nothing is left.
+// notice: the same, for the confirm when other picks remain ("`shop_db` isn't replaced: …").
+export function refreshed(todo: Item[], now: Item[]): { todo: Item[]; stale: Map<string, string>; late: string[]; notice: string[] } {
+  const stale = new Map<string, string>();
+  const late: string[] = [];
+  const notice: string[] = [];
+  const out: Item[] = [];
+  for (const i of todo) {
+    if (!replaceable(i)) { out.push(i); continue; }
+    const n = now.find((x) => x.kind === "volume" && x.name === i.name);
+    if (n && replaceable(n)) { out.push({ ...i, bytes: n.bytes, colimaBytes: n.colimaBytes }); continue; }
+    stale.set(i.name, n ? staleText(n) : `Colima's \`${i.name}\` changed since we checked, so it isn't replaced.`);
+    late.push(n && !folderNote(n) && n.colimaBytes !== undefined ? `Colima's \`${i.name}\` grew to ${formatBytes(n.colimaBytes)} while you were picking.` : n && folderNote(n) ? folderNote(n)! : `Colima's \`${i.name}\` changed while you were picking.`);
+    const why = !n ? "changed since we checked" : n.colimaWhy === "folder" ? "is a folder on your Mac" : n.colimaWhy ? `uses the ${n.colimaWhy} driver` : n.colimaBytes !== undefined ? `grew to ${formatBytes(n.colimaBytes)} since we checked` : "changed since we checked";
+    notice.push(`\`${i.name}\` isn't replaced: Colima's copy ${why}.`);
+  }
+  return { todo: out, stale, late, notice };
+}
+export const lateLine = (late: string[]) => `Nothing was replaced. ${late.join(" ")}`;

@@ -80,8 +80,9 @@ check(!(await items(p)).includes("Not an issue"), "menu: a service with no probl
 await p.keyboard.press("Escape");
 await more(p, "shop").click();
 const pm = await items(p);
-check(JSON.stringify(pm.filter((t) => !/^Start (the \d+ stopped|[\w-]+)$/.test(t))) === JSON.stringify(["Rebuild", "Logs", "Restart", "Show in Finder", "Remove…"]), `menu: a project offers Rebuild, Logs, Restart, Show in Finder, Remove… (${pm.join(", ")})`);
-check(pm.filter((t) => /^Start (the \d+ stopped|[\w-]+)$/.test(t)).length === 1 && /report-job|the 1 stopped/.test(pm[0]), "menu: a partly running project also offers, first, to start its one stopped service");
+check(JSON.stringify(pm.filter((t) => !/^Start (the \d+ stopped \(.+\)|[\w-]+)$/.test(t))) === JSON.stringify(["Rebuild", "Logs", "Restart", "Show in Finder", "Remove…"]), `menu: a project offers Rebuild, Logs, Restart, Show in Finder, Remove… (${pm.join(", ")})`);
+// report-job crashed and cache is a Redis stopped after days (not a finished job), so both are offered.
+check(pm.filter((t) => /^Start (the \d+ stopped \(.+\)|[\w-]+)$/.test(t)).length === 1 && pm[0] === "Start the 2 stopped (cache, report-job)", `menu: a partly running project also offers, first, to start its stopped services, by name (${pm[0]})`);
 await p.keyboard.press("Escape");
 await p.getByRole("button", { name: "More actions for kafka", exact: true }).focus();
 await p.keyboard.press("Enter");

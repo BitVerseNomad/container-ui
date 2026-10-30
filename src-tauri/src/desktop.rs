@@ -485,7 +485,55 @@ fn volume_fill(context: &str, from: &str, to: &str, helper: &str) -> Vec<String>
     strs(&["--context", context, "run", "--rm", "--name", helper, "-v", &format!("{from}:/from:ro"), "-v", &format!("{to}:/to"), BUSYBOX_IMAGE, "sh", "-c", "set -o pipefail; tar -cf - -C /from . | tar -xpf - -C /to"])
 }
 
+// Only a plain volume Docker keeps inside the VM may be emptied. A local volume with options (device=/Users/...,
+// o=bind) is a folder on the Mac: emptying it would delete the user's own files. inspect: `volume inspect
+// --format '{{json .}}'`. Anything that can't be read, or names no driver, is refused.
+fn plain_volume(name: &str, inspect: &str) -> Result<(), String> {
+    let v: serde_json::Value = serde_json::from_str(inspect.trim()).map_err(|_| format!("Colima's `{name}` couldn't be read, so it was left alone."))?;
+    let driver = v.get("Driver").and_then(|d| d.as_str()).unwrap_or("");
+    if driver != "local" {
+        return Err(if driver.is_empty() { format!("Colima's `{name}` couldn't be read, so it was left alone.") } else { format!("Colima's `{name}` uses the {driver} driver, so it was left alone.") });
+    }
+    let options = v.get("Options").and_then(|o| o.as_object()).map_or(0, |o| o.len());
+    if options > 0 {
+        return Err(format!("Colima's `{name}` is a folder on your Mac, so it was left alone."));
+    }
+    Ok(())
+}
+
+fn inspect_volume(context: &str, name: &str) -> Result<String, String> {
+    quick(&strs(&["--context", context, "volume", "inspect", "--format", "{{json .}}", name])).map_err(|_| format!("Colima no longer has a volume called {name}."))
+}
+
+// 1.2 GiB or 300.4 MiB, as the panel writes sizes.
+fn size_words(b: u64) -> String {
+    let mib = b as f64 / (1024.0 * 1024.0);
+    if mib >= 1024.0 { format!("{:.1} GiB", mib / 1024.0) } else { format!("{mib:.1} MiB") }
+}
+
+// The panel picked Colima's copy as nearly empty from a size it read a moment ago (`shown`). The backup's real
+// count is the truth: if Colima's copy is bigger than a fresh one and more than twice what was shown, something
+// wrote to it since, and it is left alone. A size that can't be measured is not a pass.
+const FRESH_BYTES: u64 = 64 * 1024 * 1024;
+fn size_guard(name: &str, real: Option<u64>, shown: Option<u64>) -> Result<(), String> {
+    let Some(real) = real else { return Err(format!("Colima's `{name}` couldn't be measured, so it was left alone.")) };
+    if real > FRESH_BYTES.max(shown.unwrap_or(0).saturating_mul(2)) {
+        return Err(format!("Colima's `{name}` has {} now, so it was left alone.", size_words(real)));
+    }
+    Ok(())
+}
+
+// Before the backup is made: the same guard on a count of Colima's volume, so an 8 GB volume is refused before it is
+// copied. A count that can't be read is no answer here; the guard on the backup's own count stays the real gate.
+fn pre_guard(name: &str, counted: Option<u64>, shown: Option<u64>) -> Result<(), String> {
+    match counted {
+        Some(_) => size_guard(name, counted, shown),
+        None => Ok(()),
+    }
+}
+
 // Everything in the volume, dot files too; a glob that matches nothing stays literal and rm -f ignores it.
+// Callers check plain_volume first: on a bind volume this would delete files on the Mac.
 fn volume_empty(context: &str, name: &str, helper: &str) -> Vec<String> {
     strs(&["--context", context, "run", "--rm", "--name", helper, "-v", &format!("{name}:/to"), BUSYBOX_IMAGE, "sh", "-c", "rm -rf /to/..?* /to/.[!.]* /to/*"])
 }
@@ -537,6 +585,8 @@ fn run_stoppable(context: &str, args: &[String], helper: &str) -> Result<(), Str
 trait ReplaceOps {
     // Make the backup and check it has every file; on error the original was not touched.
     fn backup(&mut self) -> Result<(), String>;
+    // After the backup: Colima's copy is still as small as the panel showed (size_guard on the backup's real count).
+    fn size_check(&self) -> Result<(), String>;
     fn drop_backup(&mut self);
     fn empty(&mut self) -> Result<(), String>;
     fn copy_in(&mut self) -> Result<u64, String>;
@@ -561,7 +611,7 @@ pub struct Replaced {
 
 fn replace_flow(ops: &mut impl ReplaceOps, backup: &str) -> Replaced {
     let done = |ok, bytes, colima, why: String, not_started| Replaced { ok, bytes, colima, backup: backup.to_string(), why, not_started };
-    if let Err(e) = ops.backup() {
+    if let Err(e) = ops.backup().and_then(|_| ops.size_check()) {
         ops.drop_backup();
         let left = ops.start_users();
         return done(false, 0, "unchanged", e, left);
@@ -590,6 +640,9 @@ struct RealReplace<'a, F: FnMut(u64), S: FnMut(&str)> {
     labels: serde_json::Map<String, serde_json::Value>,
     users: Vec<String>,
     n: u64,
+    // Colima's size as the panel showed it, and the backup's real byte count once made.
+    shown: Option<u64>,
+    backed: Option<u64>,
     // The volume's size as far as known: the panel's guess, raised to what the copy streamed. Sets the counts' wait.
     size: u64,
     on_bytes: F,
@@ -623,15 +676,22 @@ impl<F: FnMut(u64), S: FnMut(&str)> RealReplace<'_, F, S> {
 impl<F: FnMut(u64), S: FnMut(&str)> ReplaceOps for RealReplace<'_, F, S> {
     fn backup(&mut self) -> Result<(), String> {
         (self.on_step)("backup");
+        let wait = count_deadline(self.size);
+        pre_guard(self.name, count(self.context, self.name, wait).map(|(_, bytes)| bytes), self.shown)?;
         quick(&volume_create(self.context, self.backup, &self.labels))?;
         let h = self.helper("backup");
         run_stoppable(self.context, &volume_fill(self.context, self.name, self.backup, &h), &h)?;
-        self.same(self.name, self.backup, "The backup").map_err(|e| format!("{e} Nothing was changed."))?;
+        let (a, b) = (count(self.context, self.name, wait), count(self.context, self.backup, wait));
+        self.backed = b.map(|(_, bytes)| bytes);
+        compare_counts("The backup", self.name, a, b).map_err(|e| format!("{e} Nothing was changed."))?;
         // Stop pressed after the backup: end here, before anything is emptied.
         if COPY_STOPPED.load(Ordering::SeqCst) {
             return Err("Stopped.".into());
         }
         Ok(())
+    }
+    fn size_check(&self) -> Result<(), String> {
+        size_guard(self.name, self.backed, self.shown)
     }
     fn drop_backup(&mut self) {
         let _ = quick(&strs(&["--context", self.context, "rm", "-f", &self.helper("backup")]));
@@ -639,6 +699,7 @@ impl<F: FnMut(u64), S: FnMut(&str)> ReplaceOps for RealReplace<'_, F, S> {
     }
     fn empty(&mut self) -> Result<(), String> {
         self.quiet(false)?;
+        plain_volume(self.name, &inspect_volume(self.context, self.name)?)?;
         (self.on_step)("empty");
         let h = self.helper("empty");
         quick_for(&volume_empty(self.context, self.name, &h), COPY_SILENCE).map(|_| ())
@@ -665,6 +726,7 @@ impl<F: FnMut(u64), S: FnMut(&str)> ReplaceOps for RealReplace<'_, F, S> {
         self.quiet(false)?;
         (self.on_step)("restore");
         let (e, f) = (self.helper("restore-empty"), self.helper("restore"));
+        plain_volume(self.name, &inspect_volume(self.context, self.name)?)?;
         quick_for(&volume_empty(self.context, self.name, &e), COPY_SILENCE)?;
         quick_for(&volume_fill(self.context, self.backup, self.name, &f), AFTER_LAST_BYTE)?;
         self.same(self.backup, self.name, "The restored copy")
@@ -684,9 +746,13 @@ impl<F: FnMut(u64), S: FnMut(&str)> ReplaceOps for RealReplace<'_, F, S> {
     }
 }
 
-fn replace_volume(context: &str, name: &str, backup: &str, bytes: u64, stop_users: bool, on_bytes: impl FnMut(u64), on_step: impl FnMut(&str)) -> Result<Replaced, String> {
-    let labels = quick(&strs(&["--context", context, "volume", "inspect", "--format", "{{json .Labels}}", name])).map_err(|_| format!("Colima no longer has a volume called {name}."))?;
-    let labels = serde_json::from_str::<serde_json::Value>(labels.trim()).ok().and_then(|v| v.as_object().cloned()).unwrap_or_default();
+// shown: Colima's size as the panel showed it, for the size guard after the backup.
+#[allow(clippy::too_many_arguments)]
+fn replace_volume(context: &str, name: &str, backup: &str, bytes: u64, shown: Option<u64>, stop_users: bool, on_bytes: impl FnMut(u64), on_step: impl FnMut(&str)) -> Result<Replaced, String> {
+    let inspect = inspect_volume(context, name)?;
+    // A folder on the Mac, or another driver, is never emptied; refused before anything stops.
+    plain_volume(name, &inspect)?;
+    let labels = serde_json::from_str::<serde_json::Value>(inspect.trim()).ok().and_then(|v| v.get("Labels").and_then(|l| l.as_object()).cloned()).unwrap_or_default();
     if quick(&strs(&["--context", DESKTOP_CTX, "volume", "inspect", name])).is_err() {
         return Err(format!("Docker Desktop no longer has a volume called {name}."));
     }
@@ -696,14 +762,15 @@ fn replace_volume(context: &str, name: &str, backup: &str, bytes: u64, stop_user
     halt(DESKTOP_CTX, name, stop_users)?;
     let users = halt(context, name, stop_users)?;
     let n = HELPER_N.fetch_add(1, Ordering::SeqCst);
-    let mut ops = RealReplace { context, name, backup, labels, users, n, size: bytes, on_bytes, on_step };
+    let mut ops = RealReplace { context, name, backup, labels, users, n, shown, backed: None, size: bytes, on_bytes, on_step };
     // What didn't start stays in HALTED (start_halted only removes what it started), so Start again can reach it.
     Ok(replace_flow(&mut ops, backup))
 }
 
 // Replaces Colima's nearly empty volume `name` with Docker Desktop's, keeping Colima's in `backup`.
 #[tauri::command]
-pub async fn desktop_replace(app: tauri::AppHandle, name: String, context: String, backup: String, stop_users: Option<bool>, bytes: Option<u64>) -> Result<Replaced, String> {
+// colima_bytes: Colima's size of `name` as the panel showed it; checked against the backup before anything is emptied.
+pub async fn desktop_replace(app: tauri::AppHandle, name: String, context: String, backup: String, stop_users: Option<bool>, bytes: Option<u64>, colima_bytes: Option<u64>) -> Result<Replaced, String> {
     replace_inputs_ok(&name, &context, &backup)?;
     tauri::async_runtime::spawn_blocking(move || {
         let Ok(_guard) = COPY_LOCK.try_lock() else { return Err("Another copy is still running.".to_string()) };
@@ -720,7 +787,7 @@ pub async fn desktop_replace(app: tauri::AppHandle, name: String, context: Strin
         let step = |step: &str| {
             let _ = app.emit("desktop-step", Step { name: name.clone(), step: step.to_string() });
         };
-        replace_volume(&context, &name, &backup, bytes.unwrap_or(0), stop_users == Some(true), report, step)
+        replace_volume(&context, &name, &backup, bytes.unwrap_or(0), colima_bytes, stop_users == Some(true), report, step)
     })
     .await
     .map_err(|e| e.to_string())?
@@ -887,6 +954,7 @@ mod tests {
     }
     impl ReplaceOps for Fake {
         fn backup(&mut self) -> Result<(), String> { self.step("backup") }
+        fn size_check(&self) -> Result<(), String> { if self.fail.contains(&"size") { Err("too big".into()) } else { Ok(()) } }
         fn drop_backup(&mut self) { self.calls.push("drop_backup") }
         fn empty(&mut self) -> Result<(), String> { self.step("empty") }
         fn copy_in(&mut self) -> Result<u64, String> { self.step("copy_in").map(|_| 7) }
@@ -929,6 +997,45 @@ mod tests {
         assert_eq!(f.calls, ["backup", "empty", "restore"]);
         assert!(!r.ok && r.colima == "in-backup" && r.backup == "B" && r.not_started == ["shop-db-1"]);
         assert!(r.why.contains("empty failed") && r.why.contains("restore failed"));
+    }
+
+    #[test]
+    fn given_colima_s_copy_grew_since_the_panel_looked_when_replaced_then_the_backup_goes_nothing_is_emptied_and_users_start() {
+        let mut f = fake(&["size"]);
+        let r = replace_flow(&mut f, "B");
+        assert_eq!(f.calls, ["backup", "drop_backup", "start_users"]);
+        assert!(!r.ok && r.colima == "unchanged" && r.why == "too big");
+    }
+
+    #[test]
+    fn given_a_count_of_colima_s_volume_before_the_backup_when_guarded_then_a_big_one_is_refused_before_any_copy() {
+        let gib8 = 8 * 1024 * 1024 * 1024;
+        assert_eq!(pre_guard("shop_db", Some(gib8), Some(12_000_000)), Err("Colima's `shop_db` has 8.0 GiB now, so it was left alone.".into()));
+        assert_eq!(pre_guard("shop_db", Some(12_000_000), Some(12_000_000)), Ok(()));
+        // No count: no answer yet; the guard after the backup decides.
+        assert_eq!(pre_guard("shop_db", None, Some(12_000_000)), Ok(()));
+    }
+
+    #[test]
+    fn given_the_backup_s_real_size_when_guarded_then_only_a_still_small_copy_passes() {
+        const MIB: u64 = 1024 * 1024;
+        assert!(size_guard("shop_db", Some(12 * MIB), Some(12 * MIB)).is_ok());
+        assert!(size_guard("shop_db", Some(60 * MIB), Some(1 * MIB)).is_ok(), "under 64 MiB is still a fresh copy");
+        assert!(size_guard("shop_db", Some(100 * MIB), Some(60 * MIB)).is_ok(), "within twice what was shown");
+        assert_eq!(size_guard("shop_db", Some(315_000_000), Some(12 * MIB)).unwrap_err(), "Colima's `shop_db` has 300.4 MiB now, so it was left alone.");
+        assert!(size_guard("shop_db", None, Some(12 * MIB)).unwrap_err().contains("couldn't be measured"));
+        assert!(size_guard("shop_db", Some(70 * MIB), None).is_err(), "nothing shown counts as 0, so the limit is 64 MiB");
+    }
+
+    #[test]
+    fn given_a_colima_volume_s_inspect_when_checked_then_only_a_plain_local_volume_may_be_replaced() {
+        assert!(plain_volume("shop_db", r#"{"Driver":"local","Options":null,"Labels":{}}"#).is_ok());
+        assert!(plain_volume("shop_db", r#"{"Driver":"local","Options":{},"Labels":null}"#).is_ok());
+        let bind = r#"{"Driver":"local","Options":{"device":"/Users/me/pg","o":"bind","type":"none"}}"#;
+        assert_eq!(plain_volume("shop_db", bind).unwrap_err(), "Colima's `shop_db` is a folder on your Mac, so it was left alone.");
+        assert!(plain_volume("shop_db", r#"{"Driver":"nfs","Options":null}"#).unwrap_err().contains("nfs"));
+        assert!(plain_volume("shop_db", "not json").is_err(), "a volume that can't be read is not replaced");
+        assert!(plain_volume("shop_db", r#"{"Options":null}"#).is_err(), "no driver named is not a pass");
     }
 
     #[test]

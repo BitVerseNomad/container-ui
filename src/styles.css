@@ -57,7 +57,10 @@ dialog .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top
   .drawer { animation: drawer-in .18s ease-out; }
   @keyframes drawer-in { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
 }
-.drawer-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+/* As tall as the Close button (one line of text, 3px padding and 1px border each side), so the title doesn't move up
+   when the panel hides Close and its footer's Done is the way out. Close is a plain button (26.19px measured), not
+   button.small (24px). */
+.drawer-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: calc(1lh + 8px); }
 .drawer-head h3 { margin: 0; font-size: 15px; }
 .drawer label { margin: 0; }
 .drawer .actions { display: flex; gap: 8px; justify-content: flex-end; }
@@ -697,6 +700,11 @@ td .status-text.fixing, td .status-text.fixed, td .fix-failed { white-space: nor
 .bring-why p { margin: 0; }
 .bring-output pre { margin: 4px 0 0; font: 12px ui-monospace, "SF Mono", Menlo, monospace; white-space: pre-wrap; word-break: break-word; }
 .bring-result > button { margin: 6px 0 0 20px; }
+/* Above the footer's Done when the click found every pick had grown, and the same notice inside a confirm for a pick
+   it leaves out. Amber, not red: nothing failed, nothing changed. */
+.bring-late, .confirm-notice { margin: 0; font-size: 13px; color: var(--ink); display: flex; gap: 6px; align-items: flex-start; }
+.bring-late svg, .confirm-notice svg { color: var(--dot-warn); flex: 0 0 auto; margin-top: 2px; }
+.bring-late code, .bring-late .tick, .confirm-notice code, .confirm-notice .tick { font: 12px ui-monospace, "SF Mono", Menlo, monospace; }
 .drawer h4[tabindex="-1"]:focus { outline: none; }
 .drawer .actions .bring-pick { margin-right: auto; align-self: center; }
 /* macOS puts the default button last, on the right. */

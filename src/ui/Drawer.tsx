@@ -1,12 +1,13 @@
 import { KeyboardEvent, ReactNode, useEffect, useId, useRef } from "react";
 
 // closeWhy: said with a Close that waits, so the reason is heard, not only a dimmed button.
-type Props = { label: string; title: ReactNode; onClose: () => void; closeDisabled?: boolean; closeWhy?: string; children: ReactNode };
+// noClose: the panel's own footer button is the way out (Done); the header Close goes, and Escape still closes.
+type Props = { label: string; title: ReactNode; onClose: () => void; closeDisabled?: boolean; closeWhy?: string; noClose?: boolean; children: ReactNode };
 
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 // A modal side panel: focus moves in on open, Tab stays inside, Escape closes, focus returns to the opener.
-export default function Drawer({ label, title, onClose, closeDisabled = false, closeWhy, children }: Props) {
+export default function Drawer({ label, title, onClose, closeDisabled = false, closeWhy, noClose = false, children }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const whyId = useId();
   // Captured during the first render: an `autoFocus` child steals focus before any effect runs.
@@ -55,7 +56,7 @@ export default function Drawer({ label, title, onClose, closeDisabled = false, c
         <div className="drawer-head">
           <h3>{title}</h3>
           {/* aria-disabled keeps Close in the Tab order while it waits, so focus has a place to stay. */}
-          <button aria-disabled={closeDisabled || undefined} aria-describedby={closeDisabled && closeWhy ? whyId : undefined} title={closeDisabled ? closeWhy : undefined} onClick={() => !closeDisabled && onClose()}>Close</button>
+          {!noClose && <button aria-disabled={closeDisabled || undefined} aria-describedby={closeDisabled && closeWhy ? whyId : undefined} title={closeDisabled ? closeWhy : undefined} onClick={() => !closeDisabled && onClose()}>Close</button>}
           {closeDisabled && closeWhy && <span id={whyId} className="sr-only">{closeWhy}</span>}
         </div>
         {children}

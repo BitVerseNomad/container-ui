@@ -3,18 +3,25 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { Profile, ctxFor, docker, dockerJson, openUrl } from "./api";
 import { formatBytes } from "./containerInfo";
-import { Item, Outcome, Replaced, backupName, defaultPick, diskFull, doneLines, fits, inventory, key, order, picked, plainError, replaceNote, replaceSize, replaceable, stopQuestion, toStop, toStopColima, unpickedNote, whatText, writeError } from "./lib/bringOver";
+import { Item, Outcome, Replaced, backupName, defaultPick, folderNote, lateLine, bringQuestion, pickOnly, refreshed, sharedVolumes, stillToBring, diskFull, doneLines, fits, inventory, key, order, picked, plainError, replaceNote, replaceSize, replaceable, stopQuestion, toStop, toStopColima, unpickedNote, whatText, writeError } from "./lib/bringOver";
 import { useResizeEnv } from "./Resize";
 import { setBringBusy } from "./bringBusy";
 import { parseDiskUsage } from "./lib/disk";
 import { markBroughtOver } from "./Setup";
+import { adoptDesktop } from "./desktopOffer";
 import { useConfirm } from "./ui";
+import { announcer } from "./lib/announce";
+import { noteDocker } from "./lib/appStopped";
 import Drawer from "./ui/Drawer";
 import Ticks, { plain } from "./ui/Ticks";
 import { Icon } from "./ui/icons";
 
 type DesktopState = { installed: boolean; running: boolean; disk_bytes: number };
-type Props = { ctx: string; onClose: () => void; onDone: () => void; onProfiles: () => void };
+// only: the volumes to pick alone (home's "Bring it over…" under the project that uses one, Doctor's warning), instead
+// of the default picks. Re-checked on the panel's own read; one that filled up since is left unpicked.
+// onDone(copied): after each run; copied is whether anything came across.
+// forVm: set when the app has switched to another profile meanwhile; the panel keeps working on its own VM.
+type Props = { ctx: string; only?: string[]; forVm?: string; onClose: () => void; onDone: (copied: boolean) => void; onProfiles: () => void };
 // step: a replace's current step (backup, empty, copy, check, restore, start); none for a plain copy.
 type Row = { state: "waiting" | "copying" | "done" | "failed"; bytes: number; why?: string; step?: string };
 // What desktop_replace answers: the outcome of replacing Colima's nearly empty copy.
@@ -39,11 +46,13 @@ const DF = ["system", "df", "-v", "--format", "json"];
 
 // Copies Docker Desktop's volumes and images into Colima, one at a time. Docker Desktop keeps its copy, and
 // nothing Colima already has is touched.
-export default function BringOver({ ctx, onClose, onDone, onProfiles }: Props) {
+export default function BringOver({ ctx, only, forVm, onClose, onDone, onProfiles }: Props) {
   const confirm = useConfirm();
   const [desktop, setDesktop] = useState<DesktopState | null>(null);
   const [items, setItems] = useState<Item[] | null>(null);
   const [unnamed, setUnnamed] = useState(0);
+  // Named volumes that filled up since the line that opened the panel was read, with what Colima holds now.
+  const [stale, setStale] = useState<Map<string, string>>(new Map());
   const [pick, setPick] = useState<Set<string>>(new Set());
   const [rows, setRows] = useState<Map<string, Row>>(new Map());
   const [busy, setBusy] = useState(false);
@@ -59,11 +68,16 @@ export default function BringOver({ ctx, onClose, onDone, onProfiles }: Props) {
   const [vmRestart, setVmRestart] = useState<string>("idle");
   // Which side's Start button is running; both wait while either does.
   const [restarting, setRestarting] = useState<"desktop" | "colima" | null>(null);
-  const ids = { result: useId(), hint: useId(), note: useId() };
+  const ids = { result: useId(), hint: useId(), note: useId(), late: useId() };
   const [error, setError] = useState<string | null>(null);
   // Read by screen readers as it happens: what is being copied, and each failure the moment it fails.
   const [said, setSaid] = useState("");
-  const [alarm, setAlarm] = useState("");
+  const [alarm, setAlarmNow] = useState("");
+  // Cleared first, so the same words twice in a row are read the second time too.
+  const setAlarm = useRef(announcer(setAlarmNow)).current;
+  // Set when the click found that every pick grew while the user was picking: the footer says nothing was replaced,
+  // and those rows drop their own note (the footer answers the click; it isn't said twice).
+  const [late, setLate] = useState<{ text: string; names: string[] } | null>(null);
   const stopped = useRef(false);
   const current = useRef<string | null>(null);
   // The one action button stays mounted while its label changes (Bring, Stop, Done), so focus never falls out of the panel.
@@ -99,11 +113,19 @@ export default function BringOver({ ctx, onClose, onDone, onProfiles }: Props) {
     const disk = profiles.find((p) => ctxFor(p.name) === ctx)?.disk;
     const used = parseDiskUsage(df).reduce((n, r) => n + (r.size ?? 0), 0);
     setFree(disk && df ? Math.max(0, disk - used) : null);
-    const inv = inventory({ desktopDf, desktopImages, desktopRunning, colimaDf, colimaPs, colimaImages: have.map((i) => `${i.Repository}:${i.Tag}`) });
+    // A Colima volume is only ever replaced once inspect says it is a plain one (not a folder on the Mac).
+    const both = sharedVolumes(desktopDf, colimaDf);
+    const colimaInspect = both.length ? await docker(ctx, ["inspect", "--type", "volume", ...both]).catch(() => "") : "";
+    const inv = inventory({ desktopDf, desktopImages, desktopRunning, colimaDf, colimaPs, colimaInspect, colimaImages: have.map((i) => `${i.Repository}:${i.Tag}`) });
     setItems(inv.items);
     setUnnamed(inv.unnamed);
-    setPick(keep ? new Set(inv.items.map(key).filter((k) => keep.has(k))) : defaultPick(inv.items));
+    const named = only && !keep ? pickOnly(inv.items, only) : null;
+    if (named) setStale(named.stale);
+    // Home's line, the badge and Doctor's row follow this read at once (a volume that grew drops out there too).
+    void adoptDesktop(ctx, inv.items, colimaPs);
+    setPick(keep ? new Set(inv.items.map(key).filter((k) => keep.has(k))) : named ? named.pick : defaultPick(inv.items));
     setSaid(`Docker Desktop has ${inv.items.length} volumes and images.`);
+    return inv.items;
   }
 
   useEffect(() => {
@@ -139,8 +161,36 @@ export default function BringOver({ ctx, onClose, onDone, onProfiles }: Props) {
     }
   }
 
+  // Both sizes of each picked replace, read again just before the confirm (one df each side, and an inspect).
+  async function fresher(todo: Item[]) {
+    const names = todo.filter(replaceable).map((i) => i.name);
+    if (!names.length) return { todo, stale: new Map<string, string>(), late: [] as string[], notice: [] as string[] };
+    const [desktopDf, colimaDf, colimaInspect] = await Promise.all([
+      invoke<string>("desktop_docker", { args: DF }),
+      docker(ctx, DF),
+      docker(ctx, ["inspect", "--type", "volume", ...names]).catch(() => ""),
+    ]);
+    return refreshed(todo, inventory({ desktopDf, desktopImages: "", colimaDf, colimaInspect, colimaImages: [] }).items);
+  }
+
   async function bring() {
-    const todo = order(picked(items ?? [], pick));
+    const fresh = await fresher(order(picked(items ?? [], pick))).catch(() => null);
+    if (!fresh) return setAlarm("Docker Desktop or Colima didn't answer. Nothing was changed.");
+    const todo = fresh.todo;
+    const dropped = [...fresh.stale.values()].join(" ");
+    // One that grew is dropped before anything is asked; the list shows today's sizes, and home's line goes.
+    if (fresh.stale.size) {
+      await read(new Set([...pick].filter((k) => !fresh.stale.has(k.slice(k.indexOf(":") + 1))))).catch(() => null);
+      setStale((m) => new Map([...m, ...fresh.stale]));
+      if (!todo.length) {
+        // Nothing left: the footer says so above Done, and the alert reads it once.
+        const said = lateLine(fresh.late);
+        setLate({ text: said, names: [...fresh.stale.keys()] });
+        setAlarm(plain(said));
+        setTimeout(() => action.current?.focus(), 0);
+        return;
+      }
+    }
     const stopping = toStop(todo);
     const stoppingHere = toStopColima(todo);
     // Named before the confirm, so the confirm and the result say the same backup.
@@ -148,15 +198,19 @@ export default function BringOver({ ctx, onClose, onDone, onProfiles }: Props) {
     const backups = new Map(todo.filter(replaceable).map((i) => [key(i), backupName(i.name, now)]));
     const replaces = todo.filter(replaceable).map((item) => ({ item, backup: backups.get(key(item))! }));
     if (stopping.length || stoppingHere.length || replaces.length) {
-      const ok = await confirm(stopQuestion(stopping, stoppingHere, replaces), stopping.length || stoppingHere.length ? "Stop and bring over" : "Replace and bring over", { safe: true });
+      // The dropped one is in the confirm, not an alert: the dialog takes focus and would cut it short.
+      const q = dropped ? bringQuestion(todo, stopping, stoppingHere, replaces, fresh.notice) : stopQuestion(stopping, stoppingHere, replaces);
+      const ok = await confirm(q, stopping.length || stoppingHere.length ? "Stop and bring over" : "Replace and bring over", { safe: true });
       if (!ok) return;
-    }
+    } else if (dropped) setAlarm(plain(dropped));
     stopped.current = false;
     await invoke("desktop_copy_stop", { stop: false });
     setBusy(true);
     setBringBusy(true);
     setResult(null);
-    setAlarm("");
+    setLate(null);
+    // The line about a dropped pick, just said, is not cut off by the run starting.
+    if (!dropped) setAlarm("");
     setRows(new Map(todo.map((i) => [key(i), { state: "waiting", bytes: 0 }])));
     const outcomes: Outcome[] = [];
     const tried: Item[] = [];
@@ -171,8 +225,11 @@ export default function BringOver({ ctx, onClose, onDone, onProfiles }: Props) {
         try {
           if (replaceable(item)) {
             const stopUsers = item.users.length > 0 || (item.colimaUsers ?? []).length > 0;
-            const r = await invoke<ReplaceResult>("desktop_replace", { name: item.name, context: ctx, backup: backups.get(key(item)), stopUsers, bytes: Math.round(item.bytes) });
+            // colimaBytes: the size the confirm showed; the backend measures the backup and leaves a bigger copy alone.
+            const r = await invoke<ReplaceResult>("desktop_replace", { name: item.name, context: ctx, backup: backups.get(key(item)), stopUsers, bytes: Math.round(item.bytes), colimaBytes: Math.round(item.colimaBytes ?? 0) });
             leftStopped.push(...r.not_started.filter((n) => !leftStopped.includes(n)));
+            // The backend stopped these and they stay stopped: home must not read one of them as a finished job.
+            if (r.not_started.length) noteDocker(ctx, ["stop", ...r.not_started]);
             const replaced = { colima: r.colima, backup: r.backup };
             if (r.ok) {
               outcomes.push({ item, ok: true, bytes: r.bytes, replaced });
@@ -218,15 +275,16 @@ export default function BringOver({ ctx, onClose, onDone, onProfiles }: Props) {
     const restarted = [...new Set(outcomes.filter((o) => o.replaced && o.replaced.colima !== "in-backup").flatMap((o) => o.item.colimaUsers ?? []))].filter((n) => !leftStopped.includes(n));
     const lines = doneLines(outcomes, stopped.current, untried, restarted);
     // Read the lists again before showing the end, so the button never flashes the old picks.
-    await read(pick).catch(() => {});
+    const after = await read(pick).catch(() => null);
     setBusy(false);
     const next = { lines, failed, halted, colimaHalted: leftStopped, started: {} };
     setResult(next);
     // A failure is announced at once; a success is read with the button that now has focus, so it is heard once.
     if (failed.length && !alarmSet(failed)) setAlarm(plain(resultLines(next).join(" ")));
     setSaid("");
-    if (outcomes.some((o) => o.ok)) markBroughtOver();
-    onDone();
+    // Remembered for when Docker Desktop can't be asked: done only if nothing picked by default is still missing.
+    if (after) markBroughtOver(stillToBring(after).length === 0);
+    onDone(outcomes.some((o) => o.ok));
     setTimeout(() => action.current?.focus(), 0);
   }
 
@@ -267,7 +325,7 @@ export default function BringOver({ ctx, onClose, onDone, onProfiles }: Props) {
     await invoke("desktop_copy_stop", { stop: true });
   }
 
-  const toggle = (i: Item) => setPick((s) => { const n = new Set(s); n.has(key(i)) ? n.delete(key(i)) : n.add(key(i)); return n; });
+  const toggle = (i: Item) => { setLate(null); setPick((s) => { const n = new Set(s); n.has(key(i)) ? n.delete(key(i)) : n.add(key(i)); return n; }); };
   const chosen = picked(items ?? [], pick);
   const total = chosen.reduce((n, i) => n + i.bytes, 0);
   // A replace also keeps Colima's old copy, as a backup, on the same disk.
@@ -313,7 +371,9 @@ export default function BringOver({ ctx, onClose, onDone, onProfiles }: Props) {
         {/* Docker's own words stay in the code font; a message the app wrote does not. */}
         {r?.state === "failed" && <Why why={r.why ?? ""} />}
         {/* One note: picked, who stops where; not picked, what picking it would do. */}
-        {swap && !r && <p id={`${ids.note}-${i.name}`} className="hint bring-note"><Ticks text={pick.has(key(i)) ? replaceNote(i) : unpickedNote(i)} /></p>}
+        {stale.has(i.name) && !r && !late?.names.includes(i.name) && <p id={`${ids.note}-${i.name}`} className="hint bring-note"><Ticks text={stale.get(i.name)!} /></p>}
+        {!stale.has(i.name) && !r && folderNote(i) && <p className="hint bring-note"><Ticks text={folderNote(i)!} /></p>}
+        {swap && !r && !stale.has(i.name) && <p id={`${ids.note}-${i.name}`} className="hint bring-note"><Ticks text={pick.has(key(i)) ? replaceNote(i) : unpickedNote(i)} /></p>}
         {!i.inColima && !r && pick.has(key(i)) && i.users.length > 0 && <p className="hint bring-note">{codes(i.users)} {i.users.length === 1 ? "uses" : "use"} it in Docker Desktop and will be stopped first, for a clean copy.</p>}
       </li>
     );
@@ -333,7 +393,23 @@ export default function BringOver({ ctx, onClose, onDone, onProfiles }: Props) {
       ? { label, primary: !roomFirst && !restartFirst, go: bring, off: false }
       : result
         ? { label: "Done", primary: true, go: onClose, off: false }
-        : { label: "Bring over", primary: true, go: () => {}, off: true };
+        // Opened for a volume that no longer qualifies: nothing is left to do here, so the way out is the main button.
+        : stale.size
+          ? { label: "Done", primary: true, go: onClose, off: false }
+          : { label: "Bring over", primary: true, go: () => {}, off: true };
+
+  // The Done that ends a stale panel is described by why: the footer's line, or the first row that grew.
+  const firstStale = (items ?? []).find((i) => stale.has(i.name) && !rows.get(key(i)));
+  const doneWhy = button.label !== "Done" || result ? undefined : late ? ids.late : firstStale ? `${ids.note}-${firstStale.name}` : undefined;
+  // With Done in the footer the panel has one way out; Escape still closes it.
+  const oneWayOut = !busy && button.label === "Done";
+
+  // The header Close goes when Done appears; if it had focus, focus moves to Done instead of the page.
+  useEffect(() => {
+    if (!oneWayOut) return;
+    const at = document.activeElement;
+    if (!at || at === document.body || !at.closest(".drawer")) action.current?.focus();
+  }, [oneWayOut]);
 
   let body;
   if (!ctx) body = <p className="hint">Start the VM first. The volumes and images go into it.</p>;
@@ -392,18 +468,20 @@ export default function BringOver({ ctx, onClose, onDone, onProfiles }: Props) {
             {result.colimaHalted.length > 0 && <button className="small" aria-disabled={!!restarting || undefined} onClick={() => !restarting && startAgain(result.colimaHalted, true)}>{restarting === "colima" ? `Starting ${result.colimaHalted.join(" and ")}…` : `Start ${result.colimaHalted.join(" and ")} in Colima`}</button>}
           </div>
         )}
+        {late && !busy && !chosen.length && <p id={ids.late} className="bring-late"><Icon name="alert" size={14} /><span><Ticks text={late.text} /></span></p>}
         <div className="actions">
           {roomFirst && <button className="primary" onClick={onProfiles}>Open Profiles</button>}
           <span id={ids.hint} className="hint bring-pick">{button.off ? "Pick a volume or an image." : ""}</span>
-          <button ref={action} className={button.primary ? "primary" : undefined} aria-disabled={button.off || undefined} aria-describedby={button.off ? ids.hint : result && !busy && !result.failed.length ? ids.result : undefined} onClick={() => !button.off && button.go()}>{button.label}</button>
+          <button ref={action} className={button.primary ? "primary" : undefined} aria-disabled={button.off || undefined} aria-describedby={button.off ? ids.hint : result && !busy && !result.failed.length ? ids.result : doneWhy} onClick={() => !button.off && button.go()}>{button.label}</button>
         </div>
       </>
     );
 
   return (
-    <Drawer label="Bring over from Docker Desktop" title={<>Bring over from Docker Desktop</>} onClose={onClose} closeDisabled={busy} closeWhy="Stop the copy to close.">
+    <Drawer label="Bring over from Docker Desktop" title={<>Bring over from Docker Desktop</>} onClose={onClose} closeDisabled={busy} closeWhy="Stop the copy to close." noClose={oneWayOut}>
       <p className="sr-only" role="status" aria-live="polite">{said}</p>
       <p className="sr-only" role="alert">{alarm}</p>
+      {forVm && <p className="hint bring-for">This copy is for the VM &ldquo;{forVm}&rdquo;. Starting and retrying here act on it, not on the one you switched to.</p>}
       {body}
     </Drawer>
   );

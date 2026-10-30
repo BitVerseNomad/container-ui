@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { noteDocker } from "./lib/appStopped";
 
 export type Profile = {
   name: string;
@@ -26,8 +27,11 @@ export const gbOf = (bytes: number) => Math.round(bytes / 1024 ** 3);
 // Colima registers a docker context per profile: "colima" for default, "colima-<name>" otherwise.
 export const ctxFor = (name: string) => (name === "default" ? "colima" : `colima-${name}`);
 
-export const docker = (ctx: string, args: string[], mergeStderr = false) =>
-  invoke<string>("docker", { context: ctx, args, mergeStderr });
+// Every stop and start the app runs is noted, so a service it stopped never reads Finished.
+export const docker = (ctx: string, args: string[], mergeStderr = false) => {
+  noteDocker(ctx, args);
+  return invoke<string>("docker", { context: ctx, args, mergeStderr });
+};
 
 export async function dockerJson<T>(ctx: string, args: string[]): Promise<T[]> {
   const out = await docker(ctx, [...args, "--format", "{{json .}}"]);

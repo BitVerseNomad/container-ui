@@ -172,15 +172,16 @@ export async function askResize(env: ResizeEnv, confirm: ReturnType<typeof useCo
 
 export const dismissResize = () => set({ ...IDLE, tick: state.tick });
 
-// The main button. Doctor's VM row says "Give it 6 CPUs and 8 GiB"; a container line names the VM, since the
-// container isn't what grows ("Give the VM 8 GiB"). It stays while the VM restarts, saying so, so focus stays on it.
+// The main button. Doctor's VM row says "Give it 6 CPUs and 8 GiB…"; a container line names the VM, since the
+// container isn't what grows ("Give the VM 8 GiB…"). The "…" says a confirm comes first. It stays while the VM
+// restarts, saying so, so focus stays on it.
 export function ResizeButton({ from, size, title, primary, alsoStart, vmWords }: { from: string; size: Size; title: string; primary?: boolean; alsoStart?: string[]; vmWords?: boolean }) {
   const env = useResizeEnv();
   const s = useResize();
   const confirm = useConfirm();
   const mine = s.from === from && s.pressed === "main";
   const off = !env || env.locked || s.progress !== null;
-  const label = mine ? (s.progress === "starting" ? "Starting…" : "Restarting…") : vmWords ? `Give the VM ${size.memory} GiB` : `Give it ${sizeWords(size)}`;
+  const label = mine ? (s.progress === "starting" ? "Starting…" : "Restarting…") : vmWords ? `Give the VM ${size.memory} GiB…` : `Give it ${sizeWords(size)}…`;
   const why = !env ? undefined : s.progress && !mine ? "Another VM size change is running" : env.locked && !mine ? "Waits for the VM, Compose run or container fix that is running" : undefined;
   return (
     <button className={primary ? "small primary" : "small"} title={why ?? `Restarts the VM with ${sizeWords(size)}`} aria-label={`${label}: ${title}`} aria-disabled={off || undefined} onClick={() => !off && env && askResize(env, confirm, size, from, alsoStart)}>
@@ -282,6 +283,15 @@ export function ResizeOr({ from, title, need = "any", alsoStart, fallback, prima
       {!noStatus && <ResizeStatus from={from} />}
     </span>
   );
+}
+
+// The quiet way to other numbers, in a row's body text beside a one-click size ("Other numbers? Change in Profiles"),
+// so the row's actions hold one button. Shown only when ResizeOr offers a size.
+export function ResizeOther({ title, need = "any" }: { title: string; need?: "any" | "memory" }) {
+  const env = useResizeEnv();
+  const size = useResizeTarget(need);
+  if (!size || !env) return null;
+  return <span className="hint">Other numbers? <button className="link" aria-label={`Change in Profiles: ${title}`} onClick={env.onProfiles}>Change in Profiles</button></span>;
 }
 
 // App's announcements for a run whose page is closed (the user went to another tab): each step, then the result.
