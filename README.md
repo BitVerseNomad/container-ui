@@ -10,7 +10,7 @@ For Apple Silicon Macs. The app is not signed by Apple, so macOS needs one extra
 1. Install the app, one of two ways:
    1. **One line** (downloads the latest release, puts it in Applications, opens it):
 
-          curl -fsSL https://raw.githubusercontent.com/<owner>/<repo>/main/scripts/install.sh | sh -s -- <owner>/<repo>
+          curl -fsSL https://raw.githubusercontent.com/OWNER/REPO/main/scripts/install.sh | sh
 
       Run the same line again to update. The old copy goes to the Trash.
    2. **By hand:** download the `.dmg` from the latest [release](../../releases/latest), open it, drag Colima UI to Applications. The first time you open it, macOS says it can't check the app. Open System Settings, Privacy & Security, and click **Open Anyway** (or run `xattr -dr com.apple.quarantine "/Applications/Colima UI.app"`).

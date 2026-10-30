@@ -1,8 +1,11 @@
 #!/bin/sh
 # Installs the latest Colima UI release into /Applications (Apple Silicon only).
-# Usage: curl -fsSL https://raw.githubusercontent.com/<owner>/<repo>/main/scripts/install.sh | sh -s -- <owner>/<repo>
+# Usage: curl -fsSL https://raw.githubusercontent.com/OWNER/REPO/main/scripts/install.sh | sh
 # The app is not signed, so the quarantine flag is cleared on the copy this script installs, nothing else.
 set -eu
+
+# The GitHub repo releases come from. Set once when the repo is published.
+REPO="OWNER/REPO"
 
 [ "$(uname -m)" = "arm64" ] || { echo "Colima UI is built for Apple Silicon Macs only." >&2; exit 1; }
 
@@ -13,8 +16,7 @@ trap 'hdiutil detach "$tmp/mnt" -quiet 2>/dev/null || true; rm -rf "$tmp"' EXIT
 # COLIMA_UI_DMG installs a .dmg you already have (a local build) instead of downloading one.
 dmg="${COLIMA_UI_DMG:-}"
 if [ -z "$dmg" ]; then
-  repo="${1:-${COLIMA_UI_REPO:-}}"
-  [ -n "$repo" ] || { echo "Say which GitHub repo to install from: sh install.sh <owner>/<repo>" >&2; exit 1; }
+  repo="${COLIMA_UI_REPO:-$REPO}"
   echo "Finding the latest release of $repo…"
   url="$(curl -fsSL "https://api.github.com/repos/$repo/releases/latest" | grep -o '"browser_download_url": *"[^"]*\.dmg"' | head -1 | sed 's/.*"\(http[^"]*\)"/\1/')"
   [ -n "$url" ] || { echo "No .dmg found on the latest release of $repo." >&2; exit 1; }
