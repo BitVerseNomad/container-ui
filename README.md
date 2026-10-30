@@ -1,20 +1,60 @@
 # Colima UI
 
-A small desktop app (Tauri 2, React, TypeScript) for running Docker on a Mac with [Colima](https://github.com/abiosoft/colima), as a replacement for Docker Desktop. It shells out to the `colima`, `docker` and `kubectl` CLIs and never edits their config files unless you click a fix that shows its command first.
+**Docker on your Mac, without Docker Desktop.** Free, fast, and it tells you what's wrong before you go digging.
 
-**Start here:** `docs/SUMMARY.md` (what was built and learned), `docs/SPEC.md` (what is left), `docs/VERIFY-ON-YOUR-MAC.md` (15-minute real-machine check), `docs/EVALUATION.md` (comparison with other tools), `CHANGELOG.md`. Branch: `integration`.
+![Containers: every app on one screen, with what's broken and the button that fixes it](docs/screenshots/home.png)
 
-## Install
-For Apple Silicon Macs. The app is not signed by Apple, so macOS needs one extra step the first time.
+Colima UI is a native Mac app for [Colima](https://github.com/abiosoft/colima), the open-source way to run Docker. You get the Docker Desktop experience you're used to: your containers, images, volumes and Compose projects on one screen. There's no license, no sign-in, and no heavy background app.
 
-1. Install the app, one of two ways:
-   1. **One line** (downloads the latest release, puts it in Applications, opens it):
+## Install in one line
 
-          curl -fsSL https://raw.githubusercontent.com/OWNER/REPO/main/scripts/install.sh | sh
+    curl -fsSL https://raw.githubusercontent.com/OWNER/REPO/main/scripts/install.sh | sh
 
-      Run the same line again to update. The old copy goes to the Trash.
-   2. **By hand:** download the `.dmg` from the latest [release](../../releases/latest), open it, drag Colima UI to Applications. The first time you open it, macOS says it can't check the app. Open System Settings, Privacy & Security, and click **Open Anyway** (or run `xattr -dr com.apple.quarantine "/Applications/Colima UI.app"`).
-2. Open Colima UI. If Colima or Docker is missing, it offers **Install with Homebrew** and installs Colima, the Docker CLI, Compose and Buildx for you. If Homebrew itself is missing, it shows the one command to install it (Homebrew asks for your password, so you run that one).
+That's it. The line downloads the app, puts it in Applications and opens it. Is Colima missing? The app installs it for you. Run the same line again to update.
+
+Apple Silicon Macs. Prefer to click? See [Install by hand](#install-by-hand).
+
+## Why you'll like it
+
+**It finds the problem and fixes it.** A container that can't reach Kafka, a database out of memory, a folder your container can't see: each one shows up in plain words on its row, with one button that fixes it. Every fix asks first and can be undone.
+
+**Doctor checks your whole setup.** Leftovers from Docker Desktop that break `docker compose`, logins that will fail, Testcontainers pointing at the wrong place, a VM that's too small. Doctor lists them and fixes them for you.
+
+![Doctor: what's wrong with your setup, in plain words, with a fix for each](docs/screenshots/doctor.png)
+
+**Leaving Docker Desktop is painless.** It brings your volumes over, so your projects start with their data. It also finds the Compose projects already on your Mac, and fixes the settings Docker Desktop leaves behind.
+
+**Everything Docker Desktop did, minus the weight.**
+1. Containers, images, volumes and networks, searchable
+2. Compose projects, started from any folder in your home
+3. Logs, a shell, stats and health for every container
+4. Pull from Docker Hub, GHCR, ECR or Google Artifact Registry
+5. Kubernetes (Colima's K3s), read-only, with pod problems in plain words
+6. Several VMs ("profiles"), each sized to your Mac
+
+![Images: pull, run and clean up](docs/screenshots/images.png)
+
+**Safe by design.** The app only runs the commands it shows you, from a fixed allowlist. Nothing changes until you click.
+
+## First launch
+
+On a fresh Mac, the app sees what's missing and offers to install it with one click: Colima, the Docker CLI, Compose and Buildx.
+
+![First launch: the app installs what's missing](docs/screenshots/setup.png)
+
+## Try it, tell us, help build it
+
+This is early, and your feedback shapes it.
+
+1. **Something confusing or broken?** [Open an issue](../../issues/new/choose) with a screenshot. Two lines is plenty.
+2. **Want to fix it yourself?** Pull requests are welcome. [AGENTS.md](AGENTS.md) has the UX rules and the checks to run; a maintainer reviews every PR.
+
+## Install by hand
+
+1. Download the `.dmg` from the [latest release](../../releases/latest), open it, and drag Colima UI to Applications.
+2. The app isn't signed by Apple, so the first time you open it macOS says it can't check it. Open System Settings, then Privacy & Security, and click **Open Anyway**. You only do this once.
+
+**For contributors:** `docs/SUMMARY.md` (what was built and learned), `docs/SPEC.md` (what is left), `docs/VERIFY-ON-YOUR-MAC.md` (15-minute real-machine check), `docs/EVALUATION.md` (comparison with other tools), `CHANGELOG.md`.
 
 ## Release
 Push a version tag and GitHub Actions runs the tests, builds the `.dmg` on an Apple Silicon runner and attaches it to a Release (`.github/workflows/release.yml`):
@@ -65,7 +105,7 @@ Fixes come in four kinds:
     cd src-tauri && cargo test                 # Rust: allowlists, deadlines, process groups
     npm run check                              # builds the browser preview, runs every browser check (needs Playwright)
 
-If Playwright isn't installed in this repo, point `NODE_PATH` at a `node_modules` that has it.
+The first time, run `npx playwright install chromium webkit`. Checks run in both engines; the app ships in WebKit.
 
 ## Browser preview (no Tauri or Rust needed)
     npm run preview                            # writes preview/index.html
