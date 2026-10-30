@@ -38,7 +38,7 @@ Apple Silicon Macs. Prefer to click? See [Install by hand](#install-by-hand).
 
 ## First launch
 
-On a fresh Mac, the app sees what's missing and offers to install it with one click: Colima, the Docker CLI, Compose and Buildx.
+On a fresh Mac, the app sees what's missing and offers to install it with one click: Colima, the Docker CLI, Compose and Buildx. If Homebrew itself is missing, one button opens Terminal with its installer, where you type your password.
 
 ![First launch: the app installs what's missing](docs/screenshots/setup.png)
 
@@ -73,7 +73,7 @@ Prereqs: Node 22.6+, Rust (rustup), Colima and the Docker CLI (`brew install col
 The app talks to the docker context Colima creates for the selected profile (`colima`, or `colima-<profile>`).
 
 ## What it does
-- **Containers** (home): the VM in one line (state, CPU, memory, disk, Restart, Stop), then every container with status, problems, port links, CPU and memory. Compose projects are grouped; Kubernetes pod containers sit in their own folded group and can't be stopped or removed here. Rows are one line; their checkbox and Logs, Shell, Restart, Stop and Remove show on hover or focus. Pick several rows to start, stop or remove them together (only rows you can see: folded groups are left out). The New menu runs or pulls an image, or lists the Compose projects on your Mac (found with Spotlight when the app opens), with the command to start each in the profile on screen. The profile switcher at the top of the sidebar changes profile and starts or stops any of them; Doctor and Profiles sit at the bottom. The sidebar folds to icons and remembers it. A container page has logs, inspect, stats, mounts, health, activity, network checks and Open a shell.
+- **Containers** (home): the VM in one line (state, CPU, memory, disk, Restart, Stop), then every container with status, problems, port links, CPU and memory. Compose projects are grouped; Kubernetes pod containers sit in their own folded group and can't be stopped or removed here. Rows are one line; their checkbox and Logs, Shell, Restart, Stop and Remove show on hover or focus. Pick several rows to start, stop or remove them together (only rows you can see: folded groups are left out). The New menu runs or pulls an image, or lists the Compose projects on your Mac (found with Spotlight when the app opens). Each project is one row with Start or Stop and a ⋯ menu: Rebuild and start, Update images and start, logs, Show in Finder, Remove containers (volumes stay), and the commands to run it yourself. The profile switcher at the top of the sidebar changes profile and starts or stops any of them; Doctor and Profiles sit at the bottom. The sidebar folds to icons and remembers it. A container page has logs, inspect, stats, mounts, health, activity, network checks and Open a shell.
 - **Images**: search your images, pull (Docker Hub search, a name, or a private registry such as GHCR, ECR or Google Artifact Registry), guided Run that reads what the image declares, and what takes space inside the VM, with one cleanup per kind (never your volumes).
 - **Volumes**: sizes and which containers use them; in-use volumes can't be removed.
 - **Networks**: create, connect, and Test a connection ("why can't A reach B?").

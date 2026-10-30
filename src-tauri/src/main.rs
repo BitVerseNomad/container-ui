@@ -362,6 +362,21 @@ fn open_terminal(kind: String, context: String, target: Option<String>) -> Resul
         .map_err(|e| e.to_string())
 }
 
+// Homebrew's own installer line, fixed text. It asks for the person's password, so it runs in Terminal, not in the app.
+const BREW_INSTALL_SCRIPT: &str = r#"tell application "Terminal" to do script "/bin/bash -c \"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\"""#;
+
+#[tauri::command]
+fn open_homebrew_install() -> Result<(), String> {
+    if !cfg!(target_os = "macos") {
+        return Err("Opening Terminal is only supported on macOS".into());
+    }
+    Command::new("osascript")
+        .args(["-e", BREW_INSTALL_SCRIPT, "-e", "tell application \"Terminal\" to activate"])
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
 fn terminal_command(kind: &str, context: &str, target: Option<&str>) -> Result<String, String> {
     if !context_ok(context) {
         return Err(format!("Unknown context \"{context}\""));
@@ -1710,7 +1725,7 @@ fn cancel_compose() -> bool {
 fn main() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
-            list_profiles, docker, docker_check, docker_pull, env_check, install_tools, network_probe, kubectl, open_terminal, start_profile, apply_resources,
+            list_profiles, docker, docker_check, docker_pull, env_check, install_tools, network_probe, kubectl, open_terminal, open_homebrew_install, start_profile, apply_resources,
             stop_profile, force_stop_profile, restart_profile, colima_config, network_facts, vm_dns_probe, apply_mounts, apply_env, force_restart_profile, delete_profile, cancel_vm_op, host_resources, vm_log_tail, reveal_vm_log, open_url, pick_folder, setup_report, setup_fix, find_compose_files, reveal_compose, compose_editor, open_compose, compose_config, compose_action, cancel_compose, compose_logs, compose_in_folder, container_shell,
             desktop::desktop_state, desktop::desktop_docker, desktop::desktop_copy, desktop::desktop_copy_stop, desktop::desktop_start, desktop::desktop_replace, desktop::open_docker_desktop
         ])
@@ -2438,6 +2453,9 @@ mod tests {
             assert!(terminal_script(bad).is_none(), "{bad}");
         }
         assert!(terminal_script("k9s --context colima").unwrap().contains("do script"));
+        // Homebrew's installer line is fixed text, with its quotes escaped for AppleScript; nothing is taken from outside.
+        assert!(BREW_INSTALL_SCRIPT.contains("Homebrew/install/HEAD/install.sh"));
+        assert!(BREW_INSTALL_SCRIPT.contains("-c \\\""));
     }
 
     #[test]

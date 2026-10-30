@@ -89,7 +89,7 @@ check(/volumes, and the data in them, stay/.test(await ask.innerText()), "runnin
 await ask.getByRole("button", { name: "Cancel" }).click();
 check((await p.evaluate(() => window.__composed.length)) === 2, "running: cancelling Down runs nothing");
 
-await drawer.locator(".compose-item", { hasText: "orders-api" }).locator("summary").click();
+await via(drawer, "orders-api", "Show the commands to run orders-api yourself");
 await drawer.getByRole("button", { name: "Copy the stop command for orders-api" }).click();
 await p.waitForFunction(() => window.__copied.length > 0, null, { timeout: 2000 }).catch(() => {});
 const wrote = await p.evaluate(() => window.__copied.at(-1) ?? { text: "", ok: false });

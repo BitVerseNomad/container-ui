@@ -349,6 +349,7 @@ export async function invoke<T>(cmd: string, a: Record<string, any> = {}): Promi
       const tcp = shared && declared.includes(a.port) ? `Connection to ${a.target} (${ipOf(to!, "devnet")}) ${a.port} port [tcp/*] succeeded!\n` : `nc: connect to ${a.target} port ${a.port} (tcp) failed: Connection refused\n`;
       return `${dns}::dns-exit=${shared ? 0 : 1}\n${tcp}::tcp-exit=${shared && declared.includes(a.port) ? 0 : 1}\n` as T;
     }
+    case "open_homebrew_install": ((window as any).__terminal ??= []).push({ kind: "brew_install" }); return undefined as T;
     case "open_terminal": ((window as any).__terminal ??= []).push({ kind: a.kind, context: a.context, target: a.target }); return undefined as T;
     case "kubectl": {
       const args: string[] = a.args;

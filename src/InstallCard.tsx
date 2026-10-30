@@ -54,10 +54,13 @@ export default function InstallCard({ env, onDone }: { env: EnvReport; onDone: (
         </>
       ) : (
         <>
-          <p className="hint">Homebrew isn't installed either. Its installer asks for your password, so run it yourself in Terminal:</p>
+          <p className="hint">Homebrew isn't installed either. Its installer asks for your password, so it runs in Terminal, where you type it. Come back and press Check again when it finishes.</p>
           <pre className="cmd">{BOOTSTRAP}</pre>
           <div className="actions-inline">
-            <button className="primary" onClick={() => navigator.clipboard.writeText(BOOTSTRAP)}>
+            <button className="primary" onClick={() => invoke("open_homebrew_install").catch((e) => setNote(String(e)))}>
+              <Icon name="terminal" size={14} /> Open Terminal and install
+            </button>
+            <button onClick={() => navigator.clipboard.writeText(BOOTSTRAP)}>
               <Icon name="copy" size={14} /> Copy command
             </button>
             <button onClick={onDone}>Check again</button>

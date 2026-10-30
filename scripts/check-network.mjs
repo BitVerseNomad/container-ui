@@ -81,6 +81,9 @@ p = await open("Containers");
 await p.waitForSelector("ul.apps > li.app");
 await p.locator("ul.apps button.app-name", { hasText: /^kafka-ui$/ }).click();
 await p.waitForSelector(".detail");
+// Let the page finish loading (its health panel and the logs appear above and under the tabs) so the tab does not move under the click.
+await p.waitForFunction(() => (document.querySelector(".tabpane")?.textContent ?? "").length > 40, null, { timeout: 4000 }).catch(() => {});
+await p.waitForTimeout(300);
 await p.getByRole("tab", { name: "Network" }).click();
 await p.waitForSelector(".tabpane table", { timeout: 4000 }).catch(() => {});
 t = await p.locator(".tabpane").innerText();

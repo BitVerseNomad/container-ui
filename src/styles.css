@@ -450,7 +450,7 @@ button.quiet:hover { border-color: var(--border); color: var(--ink); }
 .vol { display: flex; flex-direction: column; gap: 4px; width: 100%; }
 .vol .check { font-size: 13px; }
 .compose-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-.compose-item { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); min-width: 0; }
+.compose-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 8px; row-gap: 2px; align-items: center; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); min-width: 0; }
 .compose-head { display: flex; align-items: center; gap: 8px; }
 .compose-head .hint { margin-left: auto; }
 .compose-item .actions-inline { flex-wrap: wrap; row-gap: 4px; }
@@ -783,3 +783,16 @@ ul.findings.result-row { margin: 0; }
 .compose-item { position: relative; }
 .compose-item .menu { position: static; }
 .compose-item .menu-pop, .compose-item .menu-pop.left { left: 0; right: 0; width: auto; max-width: none; }
+
+/* Round 40: a compact row. Dot, name and count on the left, the one main button and the menu on the right, the folder under
+   the name; the longer things (a warning, a note, the commands, the output) span the whole row. */
+.compose-item > .compose-head { grid-column: 1; }
+.compose-item > .actions-inline { grid-column: 2; grid-row: 1; flex-wrap: nowrap; justify-content: flex-end; }
+.compose-item > :not(.compose-head):not(.actions-inline):not(.mono) { grid-column: 1 / -1; }
+.compose-item > .mono.sub { grid-column: 1; min-width: 0; }
+.compose-head .hint { margin-left: 8px; white-space: nowrap; }
+.compose-head b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+/* The search takes its own line, so the two buttons never wrap. */
+.drawer .inline:has(.search-field) { flex-wrap: wrap; }
+.drawer .inline .search-field { flex: 1 1 100%; }
+.drawer .inline > button { white-space: nowrap; }

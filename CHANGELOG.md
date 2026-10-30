@@ -2,6 +2,14 @@
 
 Newest first. Older entries record what was true when they were written; later entries supersede them (the Overview, for example, was replaced by the Containers home screen).
 
+## Loop 5, round 40: one main action, a menu for the rest, links only go places
+
+1. **Compose card** is one compact row: dot, name, count, Start (or Stop), and a "More actions for <name>" menu. The menu has Stop (partly running), Restart, Rebuild and start, Update images and start, Show logs, Run it yourself, Show in Finder and Remove containers (was Down; compose down never gets `-v`, so volumes stay). Each item has a one-line hint. The menu opens across the card so hints fit.
+2. **Links to buttons**: Don't ask again, Run again, the fix Dismiss, Show it again and Show the docker run command are push buttons now. The links left (All commands, Change in Profiles, Go to the fix, Docker Hub, docs, port links, Find it on Docker Hub, Show N projects, a pod's name) all go to a place.
+3. **Menu**: Escape closes only the menu, not the panel around it. "Not an issue" has a plain hint.
+4. **Drawer toolbar**: the search takes its own line, so Scan again and Add a folder never wrap.
+5. **First launch without Homebrew**: Open Terminal and install runs Homebrew's installer in Terminal (`open_homebrew_install`); Copy command stays as the second option.
+
 ## Loop 5, round 39: Start VM never changes meaning, the way back is checked before it runs
 
 1. **Two buttons on the stopped card.** While the profile still has the failed folder list saved, the card offers a plain **Start VM** (starts what is saved) and the filled **Start with the folders you had** on the right edge, with one line: "The last change didn't start. `~/code/web` is still saved in the profile, so Start VM tries it again." With nothing to go back to, the card is just Start VM. This replaces round 38 item 6, where the plain Start VM ran the way back by itself.

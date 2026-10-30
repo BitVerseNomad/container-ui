@@ -91,6 +91,7 @@ export default function ComposeProjects({ ctx, scan, containers, attention, onCl
   const confirm = useConfirm();
   const [q, setQ] = useState(query);
   const [err, setErr] = useState<string | null>(null);
+  const [cmdsOpen, setCmdsOpen] = useState<Set<string>>(new Set());
   const [added, setAdded] = useState<string | null>(null);
   // One project's live logs open at a time; a read, so it never waits for a run.
   const [logsDir, setLogsDir] = useState<string | null>(null);
@@ -188,6 +189,7 @@ export default function ComposeProjects({ ctx, scan, containers, attention, onCl
             { label: "Rebuild and start", ariaLabel: `Rebuild ${p.name}`, hint: "After you change a Dockerfile or the code it copies in", disabled: off, onSelect: () => void run(p, "build") },
             { label: "Update images and start", ariaLabel: `Update images of ${p.name}`, hint: "Downloads newer versions of the images first", disabled: off, onSelect: () => void run(p, "pull") },
             ...(p.total > 0 ? [{ label: logsHere ? "Hide logs" : "Show logs", ariaLabel: `Logs of ${p.name}`, hint: "What the services print, live", divider: true, onSelect: () => setLogsDir(logsHere ? null : p.dir) }] : []),
+            { label: cmdsOpen.has(p.dir) ? "Hide the commands" : "Run it yourself", ariaLabel: `${cmdsOpen.has(p.dir) ? "Hide" : "Show"} the commands to run ${p.name} yourself`, hint: "The commands to copy into Terminal", onSelect: () => setCmdsOpen((o) => { const n = new Set(o); if (!n.delete(p.dir)) n.add(p.dir); return n; }) },
             { label: "Show in Finder", ariaLabel: `Show ${p.name} in Finder`, hint: "Opens the folder with the Compose file", onSelect: () => void invoke("reveal_compose", { path: `${p.dir}/${p.files[0]}` }).then(() => setErr(null), (e) => setErr(String(e))) },
             ...((up || leftovers) ? [{ label: "Remove containers", ariaLabel: `Remove containers of ${p.name}`, hint: "Stops and removes them; volumes and data are kept", danger: true, divider: true, disabled: off, onSelect: () => void run(p, "down") }] : []),
           ];
@@ -217,8 +219,8 @@ export default function ComposeProjects({ ctx, scan, containers, attention, onCl
               )}
               {logsHere && <ComposeLogs ctx={ctx} file={`${p.dir}/${p.files[0]}`} project={p.name} />}
               {(mine || failed?.dir === p.dir) && <OutputLog event="compose-progress" active={mine} failure={failed?.dir === p.dir ? failed.text : null} />}
-              <details className="fix-commands">
-                <summary>Run it yourself</summary>
+              {cmdsOpen.has(p.dir) && (
+              <div className="fix-commands" role="group" aria-label={`Commands for ${p.name}`}>
                 {(up ? (["up", "restart", "stop", "down", "build", "pull"] as Action[]) : (["up", "build", "pull"] as Action[])).map((a) => (
                   <div key={a} className="cmd-row">
                     <span className="cmd-label">{label(a)}</span>
@@ -226,7 +228,8 @@ export default function ComposeProjects({ ctx, scan, containers, attention, onCl
                     <CopyCommand text={typed(p.dir, a, ctx)} label={`Copy the ${VERB[a][0].toLowerCase()} command for ${p.name}`} />
                   </div>
                 ))}
-              </details>
+              </div>
+              )}
             </li>
           );
         })}
