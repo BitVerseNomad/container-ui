@@ -1,4 +1,4 @@
-// Menu checks in both engines: the app runs in WebKit (WKWebView), so a mouse click on a menu item must
+// Menu checks in the engine named by PW_ENGINE (check-all runs both): the app runs in WebKit (WKWebView), so a mouse click on a menu item must
 // reach it there too, not only in Chromium (run after: node scripts/build-preview.mjs). Needs playwright resolvable.
 import { createRequire } from "node:module";
 import path from "node:path";
@@ -15,7 +15,7 @@ const NEW_ITEMS = [
   ["Start a Compose project…", "Compose projects"],
 ];
 
-for (const engine of ["chromium", "webkit"]) {
+for (const engine of [process.env.PW_ENGINE || "chromium"]) {
   const browser = await playwright[engine].launch();
   const fresh = async () => {
     const p = await browser.newPage({ viewport: { width: 1100, height: 680 } });

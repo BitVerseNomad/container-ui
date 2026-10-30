@@ -57,7 +57,7 @@ await p.close();
 // 2. no shared network yet: it is created on Run; an unpinned image is flagged
 p = await openRun("nonet", "nginx:latest");
 t = await drawer(p);
-check(/devnet \(new, created for you\)/.test(await p.locator(".drawer select").innerText()) && /doesn't exist yet/.test(t), "nonet: says the network will be created");
+check(/devnet \(new, created for you\)/.test(await p.locator(".drawer select").evaluate((e) => e.selectedOptions[0]?.textContent ?? "")) && /doesn't exist yet/.test(t), "nonet: says the network will be created");
 check(/"latest" can change/.test(t), "nonet: flags an unpinned version");
 // a host folder: chosen with the native chooser, read-only until the user says otherwise
 await p.getByRole("button", { name: "Add volume" }).click();

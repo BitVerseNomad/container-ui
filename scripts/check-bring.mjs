@@ -80,7 +80,7 @@ await go(p).click();
 await p.getByRole("alertdialog").getByRole("button", { name: "Stop and bring over" }).click();
 await panel(p).locator(".bring-result").waitFor({ timeout: 6000 }).catch(() => {});
 const up = panel(p).locator(".bring-item", { hasText: "uploads" });
-check(/Colima's disk is full/.test(await up.innerText()) && (await panel(p).locator(".bring-result p").allInnerTexts()).slice(0, 2).join(" ") === "1 volume is in Colima now. uploads didn't copy.", "fail: the failed one says what to do, and the others still copied");
+check(/Colima's disk is full/.test(await up.innerText()) && (await panel(p).locator(".bring-result p").allInnerTexts()).slice(0, 2).map((t) => t.trim()).join(" ") === "1 volume is in Colima now. uploads didn't copy.", "fail: the failed one says what to do, and the others still copied");
 check(/uploads failed: Colima's disk is full/.test(await panel(p).locator('[role="alert"]').first().textContent()) || /didn't copy/.test(await panel(p).locator('[role="alert"]').first().textContent()), "fail: the failure is announced");
 check(await panel(p).locator(".actions button.primary").first().innerText() === "Open Profiles" && /^Try uploads again/.test(await panel(p).locator(".actions button:not(.primary)").last().innerText()), "fail: after a full disk, Profiles is the main button and the retry says it is one");
 await p.close();

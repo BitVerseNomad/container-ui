@@ -420,6 +420,9 @@ td.num.mono { font-family: inherit; }
 .mono { line-height: 18px; }
 .drawer select, .drawer input:not([type=checkbox]):not([type=radio]) { width: 100%; }
 .drawer > .actions:last-child { margin-top: auto; }
+
+/* The panel is a column that scrolls: a command must keep its own height, not shrink to one clipped line. */
+.drawer > .cmd { flex: none; scroll-margin-bottom: 72px; }
 .stopped-card { max-width: 560px; margin-top: 12px; }
 .nav-item { position: relative; }
 .nav-badge { margin-left: auto; min-width: 18px; padding: 0 5px; border-radius: 9px; background: var(--danger); color: var(--on-primary); font-size: 11px; line-height: 18px; text-align: center; font-weight: 600; }

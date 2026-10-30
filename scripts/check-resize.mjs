@@ -34,6 +34,14 @@ async function open(query, doctor = true, viewport = { width: 980, height: 640 }
 }
 const row = (p) => p.locator('.setup section [data-setup="resources"]');
 const dialog = (p) => p.getByRole("alertdialog");
+// Presses Tab until the focused element passes `test` (a function run in the page), at most `max` times.
+const tabTo = async (p, test, max = 120) => {
+  for (let i = 0; i < max; i++) {
+    await p.keyboard.press("Tab");
+    if (await p.evaluate(`(${test.toString()})(document.activeElement)`)) return true;
+  }
+  return false;
+};
 const focused = (p) => p.evaluate(() => ({ text: document.activeElement?.textContent ?? "", cls: document.activeElement?.className ?? "", tag: document.activeElement?.tagName, outline: getComputedStyle(document.activeElement).outlineStyle }));
 const mock = (p) => p.evaluate(() => window.__mock.state());
 const runningNames = async (p) => (await mock(p)).ctrs.filter((c) => c.state === "running").map((c) => c.name).sort().join(",");
@@ -117,7 +125,10 @@ const stopBtn = p.locator("ul.apps button.main").first();
 check(await stopBtn.getAttribute("aria-disabled") === "true", "starting: the rows' main buttons are locked");
 const lockedLook = await p.locator("ul.apps button.small").evaluateAll((l) => l.every((b) => b.getAttribute("aria-disabled") !== "true" || Number(getComputedStyle(b).opacity) < 1));
 check(lockedLook, "starting: every locked row button also looks locked");
-await p.locator(".sidebar [aria-haspopup=menu]").first().click().catch(() => {});
+// Opened with the keyboard (Tab, Enter): only then does the Escape that closes it leave a focus ring in WebKit.
+await p.evaluate(() => document.activeElement?.blur());
+check(await tabTo(p, (e) => e.classList.contains("profile-switch")), "starting: Tab reaches the profile switcher");
+await p.keyboard.press("Enter");
 check(await p.getByRole("menuitem", { name: /(Start|Stop) the VM default/ }).first().getAttribute("aria-disabled") === "true", "starting: the sidebar's VM Start/Stop is still locked after the VM is back");
 await p.keyboard.press("Escape");
 // The ring on the switcher is this check's own Escape (the menu hands focus back to its button), shown only as
@@ -175,11 +186,12 @@ const inView = await p.evaluate(() => { const r = document.querySelector(".resiz
 check(inView, "focus: at 965x626 the result and its buttons sit in view, clear of the toast's place");
 await p.close();
 p = await open("");
-await row(p).getByRole("button", { name: /^Give it/ }).focus();
+// Reached with the Tab key, as a keyboard user does: a button focused by a script only counts as keyboard focus in Chromium.
+check(await tabTo(p, (e) => /^Give it/.test(e.textContent ?? "") && e.tagName === "BUTTON"), "focus: Tab reaches the Give it button");
 await p.keyboard.press("Enter");
-await dialog(p).getByRole("button", { name: "Restart the VM" }).focus();
+check(await tabTo(p, (e) => e.textContent === "Restart the VM", 4), "focus: Tab reaches Restart the VM in the dialog");
 await p.keyboard.press("Enter");
-await p.locator(".setup .resize-result").waitFor({ timeout: 10000 }).catch(() => {});
+check(await p.locator(".setup .resize-result").waitFor({ timeout: 10000 }).then(() => true, () => false), "focus: the keyboard run started and shows its result");
 await p.waitForTimeout(300);
 check((await focused(p)).outline !== "none", "focus: a visible ring when the run was started from the keyboard");
 await p.close();

@@ -10,7 +10,16 @@ let failed = 0;
 const check = (cond, m) => { if (!cond) failed++; console.log(cond ? "ok" : "FAIL", m); };
 
 const browser = await chromium.launch();
-const ctx = await browser.newContext({ viewport: { width: 980, height: 640 }, permissions: ["clipboard-read", "clipboard-write"] });
+// Chromium can be given the clipboard permissions and read the real clipboard back. Playwright's WebKit has no clipboard
+// permission to grant and refuses readText, so there the check watches the real writeText instead: it must resolve
+// (it does, for a click), and it must be asked for the right text.
+const isWebkit = process.env.PW_ENGINE === "webkit";
+const ctx = await browser.newContext({ viewport: { width: 980, height: 640 }, ...(isWebkit ? {} : { permissions: ["clipboard-read", "clipboard-write"] }) });
+await ctx.addInitScript(() => {
+  window.__copied = [];
+  const real = navigator.clipboard.writeText.bind(navigator.clipboard);
+  navigator.clipboard.writeText = (t) => real(t).then((v) => { window.__copied.push({ text: t, ok: true }); return v; }, (e) => { window.__copied.push({ text: t, ok: false, why: String(e) }); throw e; });
+});
 async function open(scenario) {
   const page = await ctx.newPage();
   page.errors = [];
@@ -78,7 +87,10 @@ check((await p.evaluate(() => window.__composed.length)) === 2, "running: cancel
 
 await drawer.locator(".compose-item", { hasText: "orders-api" }).locator("summary").click();
 await drawer.getByRole("button", { name: "Copy the stop command for orders-api" }).click();
-const clip = await p.evaluate(() => navigator.clipboard.readText()).catch(() => "");
+await p.waitForFunction(() => window.__copied.length > 0, null, { timeout: 2000 }).catch(() => {});
+const wrote = await p.evaluate(() => window.__copied.at(-1) ?? { text: "", ok: false });
+const clip = isWebkit ? wrote.text : await p.evaluate(() => navigator.clipboard.readText()).catch(() => "");
+check(wrote.ok, `running: the clipboard accepted the copy (${JSON.stringify(wrote)})`);
 check(clip === "cd '/Users/me/My Apps/orders-api' && docker --context colima compose stop", `running: the copied command quotes a folder with a space (${clip})`);
 await drawer.getByRole("button", { name: "Show shop in Finder" }).click();
 await p.waitForTimeout(200);
@@ -145,8 +157,10 @@ await p.getByRole("button", { name: "More actions for worker", exact: true }).cl
 await p.getByRole("menuitem", { name: "Open a shell" }).click();
 await p.waitForFunction(() => (window.__terminal ?? []).length > 0, null, { timeout: 3000 }).catch(() => {});
 check(JSON.stringify(await p.evaluate(() => window.__terminal)) === JSON.stringify([{ kind: "debug", context: "colima", target: "worker" }]), "running: a container with no shell gets a toolbox shell next to it");
+// What the user sees (innerText), and the whole command from the code's title: the line is cut short with an ellipsis on screen.
 const shellToast = await p.locator(".cmd-toast").innerText().catch(() => "");
-check(/worker has no shell .*toolbox shell opened/.test(shellToast) && /busybox:1\.36 sh/.test(shellToast), `running: the toast says why and shows the toolbox command (${shellToast.replace(/\n/g, " ")})`);
+const shellCmd = await p.locator(".cmd-toast code").getAttribute("title").catch(() => "");
+check(/worker has no shell .*toolbox shell opened/.test(shellToast) && /busybox:1\.36 sh$/.test(shellCmd ?? ""), `running: the toast says why and gives the toolbox command in full (${shellToast.replace(/\n/g, " ")} | ${shellCmd})`);
 
 // A container search that finds nothing points to the projects that match.
 await p.getByRole("textbox", { name: /Search containers/ }).fill("sss");

@@ -60,7 +60,7 @@ export function CommandToast({ onOpenLog }: { onOpenLog: () => void }) {
     <div className={`cmd-toast${last.ok === false ? " bad" : ""}`} role="status">
       <Icon name={last.ok === false ? "close" : last.ok ? "check" : "terminal"} size={14} />
       {said(last) && <span className="cmd-said">{said(last)}</span>}
-      <code className="mono">{last.cmd}</code>
+      <code className="mono" title={last.cmd}>{last.cmd}</code>
       <span className="actions-inline">
         <Copy text={last.cmd} label="Copy the command" />
         <button className="link" onClick={onOpenLog}>All commands</button>

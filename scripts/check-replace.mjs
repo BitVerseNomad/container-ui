@@ -10,6 +10,8 @@ const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..")
 const shots = process.env.SHOTS;
 let failed = 0;
 const check = (cond, m) => { if (!cond) failed++; console.log(cond ? "ok" : "FAIL", m); };
+// WebKit ends a paragraph's innerText with a line break, Chromium does not: compare the words.
+const trimmed = (l) => l.map((t) => t.trim());
 
 const browser = await chromium.launch();
 async function open(dd) {
@@ -68,7 +70,7 @@ await row.locator(".bring-size", { hasText: "Starting shop-db-1…" }).waitFor({
 const starting = await row.locator(".bring-size").innerText();
 check(starting === "Starting shop-db-1…", `steps: it says when it starts Colima's container again (${starting})`);
 await d.locator(".bring-result").waitFor({ timeout: 8000 }).catch(() => {});
-const lines = await d.locator(".bring-result p").allInnerTexts();
+const lines = await d.locator(".bring-result p").allInnerTexts().then(trimmed);
 check(lines[0]?.trim() === "2 volumes are in Colima now.", `result: the replaced volume counts (${lines[0]})`);
 check(/^shop_db replaced Colima's nearly empty copy\. The old one is in shop_db-colima-backup-\d{8}-\d{4}; remove it in Volumes once you've checked\.$/.test(lines[1] ?? ""), `result: its own line says where the old copy is (${lines[1]})`);
 check(lines[2] === "shop-db-1 is running again in Colima.", `result: says Colima's container runs again (${lines[2]})`);
@@ -85,7 +87,7 @@ check(focused === "Done", `focus: lands on Done (${focused})`);
 await shot(p, "done");
 await d.getByRole("button", { name: "Start shop-db-1 in Docker Desktop" }).click();
 await p.waitForTimeout(300);
-check((await d.locator(".bring-result p").allInnerTexts()).includes("shop-db-1 is running again in Docker Desktop."), "buttons: Start replaces the stopped line");
+check((await d.locator(".bring-result p").allInnerTexts().then(trimmed)).includes("shop-db-1 is running again in Docker Desktop."), "buttons: Start replaces the stopped line");
 await go(p).click();
 await p.getByRole("button", { name: "Volumes", exact: true }).click();
 await p.locator(".volume-backup").first().waitFor({ timeout: 3000 }).catch(() => {});
@@ -109,7 +111,7 @@ p = await open("replacefail");
 await go(p).click();
 await p.getByRole("alertdialog").getByRole("button", { name: "Stop and bring over" }).click();
 await panel(p).locator(".bring-result").waitFor({ timeout: 8000 }).catch(() => {});
-const bad = await panel(p).locator(".bring-result p").allInnerTexts();
+const bad = await panel(p).locator(".bring-result p").allInnerTexts().then(trimmed);
 check(/^shop_db wasn't replaced\. Colima's copy is back as it was \(also saved as shop_db-colima-backup-\d{8}-\d{4}\)\.$/.test(bad[0] ?? ""), `fail: the safe fact leads (${bad[0]})`);
 check(bad.includes("uploads wasn't copied yet.") && !bad.some((l) => /Nothing was copied/.test(l)), `fail: what wasn't reached is said as such (${bad.join(" | ")})`);
 const failRow = panel(p).locator(".bring-item", { hasText: "shop_db" });
@@ -123,14 +125,14 @@ check(/shop_db (failed|wasn't replaced)/.test(failSaid), `fail: the failure is a
 check(await colimaDb(p) === "running", "fail: Colima's shop-db-1 runs again on its restored copy");
 check(await panel(p).locator(".bring-item", { hasText: "uploads" }).getByRole("checkbox").isChecked(), "fail: uploads stays picked");
 check(/^Try shop_db and uploads again \(2\.3 GiB\)$/.test(await go(p).innerText()), `fail: the retry names both (${await go(p).innerText()})`);
-check((await panel(p).locator(".bring-result p").allInnerTexts()).includes("Restart the VM, then try again."), "fail: a write error says what to do next");
+check((await panel(p).locator(".bring-result p").allInnerTexts().then(trimmed)).includes("Restart the VM, then try again."), "fail: a write error says what to do next");
 const restart = panel(p).locator(".bring-result").getByRole("button", { name: "Restart the VM" });
 check(await restart.count() === 1 && /primary/.test(await restart.getAttribute("class")) && !/primary/.test(await go(p).getAttribute("class")), "fail: Restart the VM is the main button, under the line that asks for it; the retry waits");
 check(await failRow.locator("summary svg").count() === 1, "fail: Show output has the chevron, like the Doctor's folds");
 await shot(p, "failed");
 await restart.click();
 await panel(p).locator(".bring-result p", { hasText: "The VM restarted. Try again." }).waitFor({ timeout: 6000 }).catch(() => {});
-check((await panel(p).locator(".bring-result p").allInnerTexts()).includes("The VM restarted. Try again.") && /primary/.test(await go(p).getAttribute("class")), "fail: after the restart, the retry is the main button");
+check((await panel(p).locator(".bring-result p").allInnerTexts().then(trimmed)).includes("The VM restarted. Try again.") && /primary/.test(await go(p).getAttribute("class")), "fail: after the restart, the retry is the main button");
 check(await p.evaluate(() => (window.__calls ?? []).includes("restart_profile")), "fail: the restart went through the app's VM runner");
 await shot(p, "vm-restarted");
 check(p.errors.length === 0, `fail: no page errors ${p.errors.join("; ")}`);

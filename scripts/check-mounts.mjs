@@ -126,7 +126,7 @@ p = await open("unshared=1&vmfail=1");
 await line(p, "shop", "sees an empty").getByRole("button").click();
 await dialog(p).getByRole("button", { name: "Share and restart" }).click();
 await p.waitForSelector(".resize-result.bad", { timeout: 20000 }).catch(() => {});
-const bad = (await p.locator(".resize-result").innerText().catch(() => "")).replace(/\s+/g, " ");
+const bad = (await p.locator(".resize-result").innerText().catch(() => "")).replace(/\s+/g, " ").trim();
 check(/^Colima couldn't start the VM with ~\/code\/web shared\. The VM is stopped\. ~\/code\/web stays saved in the profile, so a plain start tries it again\.$/.test(bad), `failed: the result is about the folder, says the VM is stopped and the folder stayed saved (${bad})`);
 check(!/new size/.test(bad), "failed: never says new size");
 const names = await p.locator(".resize-status button").evaluateAll((bs) => bs.map((x) => x.getAttribute("aria-label") ?? x.textContent));

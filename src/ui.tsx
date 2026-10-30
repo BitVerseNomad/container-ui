@@ -1,5 +1,6 @@
 import { ReactNode, createContext, useCallback, useContext, useRef, useState } from "react";
 import Ticks from "./ui/Ticks";
+import { openerNow } from "./lib/opener";
 import { Icon } from "./ui/icons";
 
 // safe: the action changes nothing that can't be undone (a fix with backups), so its button is the normal green one.
@@ -16,7 +17,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
   const ask = useCallback<Ask>(
     (message, label = "Remove", opts) =>
       new Promise((resolve) => {
-        opener.current = document.activeElement as HTMLElement | null;
+        opener.current = openerNow();
         resolver.current = resolve;
         setReq({ message, label, safe: opts?.safe });
       }),

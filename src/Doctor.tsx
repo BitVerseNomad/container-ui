@@ -28,6 +28,7 @@ import type { MenuItem } from "./ui/Menu";
 import { Icon } from "./ui/icons";
 import Ticks, { plain } from "./ui/Ticks";
 import { LimitActions, isListed } from "./Health";
+import { controlAt } from "./lib/opener";
 import { REACHABLE, ResizeButton, ResizeOr, ResizeOther, ResizeStatus, ResultRow, VmChangeOr, afterDismiss, addChangeRefresh, resizing, useHeld, useResize } from "./Resize";
 
 const ICON = { ok: "check", warn: "alert", fail: "close", info: "info" } as const;
@@ -157,10 +158,13 @@ export default function Doctor({ ctx, setup, doc, onProfiles, onBring, onGo, onO
   // A row that goes while focus is in it (its Apply and start worked, its fix ran): focus goes to the row that was
   // after it, else the Doctor's first button, else the heading. Never the page top.
   const lastRow = useRef<{ key: string; next: string | null } | null>(null);
-  const onFocusIn = (e: React.FocusEvent) => {
-    const li = (e.target as HTMLElement).closest<HTMLElement>("li[data-key]");
+  // A press counts like focus: WebKit (the app's webview) does not focus a button on a mouse click, so focus alone
+  // would never learn which row was used.
+  const noteRow = (target: EventTarget) => {
+    const li = (target as HTMLElement).closest<HTMLElement>("li[data-key]");
     if (li) lastRow.current = { key: li.dataset.key!, next: (li.nextElementSibling as HTMLElement | null)?.dataset.key ?? null };
   };
+  const onFocusIn = (e: React.FocusEvent) => noteRow(e.target);
   useEffect(() => {
     const r = lastRow.current;
     if (!r || (document.activeElement && document.activeElement !== document.body)) return;
@@ -264,7 +268,7 @@ export default function Doctor({ ctx, setup, doc, onProfiles, onBring, onGo, onO
   const onScreen = onHome.length ? ` ${onHome.length} ${todo ? "more" : onHome.length === 1 ? "container problem" : "container problems"} ${onHome.length === 1 ? "is" : "are"} on the Containers screen.` : "";
   const summary = `${todo === 0 && onHome.length ? "Nothing needs action here." : summaryOf(todo)}${onScreen}`;
   return (
-    <div className="setup doctor" onFocus={onFocusIn}>
+    <div className="setup doctor" onFocus={onFocusIn} onMouseDown={(e) => controlAt(e.target) && noteRow(e.target)}>
       <div className="doctor-head">
         <p className="hint">
           {summary}{ctx || resizing(rs) ? "" : " Start the VM to also check containers, networks, images and storage."}

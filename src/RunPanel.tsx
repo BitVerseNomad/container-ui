@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "./api";
-import { ReactNode, useEffect, useState } from "react";
+import { ReactNode, useEffect, useRef, useState } from "react";
 import { docker, dockerJson } from "./api";
 import { ImageInfo, Link, checkImage, docsLinks, hostArch, nameWarning, parseImageInfo, peers, portWarnings, suggestVolumes, usedHostPorts } from "./lib/guided";
 import { PortRow, VolRow, buildRunArgs, defaultName, folderProblem, hintFor, isHostFolder, presetEnv, repoName, shouldCleanup } from "./runArgs";
@@ -43,6 +43,9 @@ export default function RunPanel({ ctx, image, arch, onClose, onRan }: Props) {
   const [exposeAll, setExposeAll] = useState(false);
   const [volumeNames, setVolumeNames] = useState<string[]>([]);
   const [showCmd, setShowCmd] = useState(false);
+  // The command opens above the panel's sticky footer, not hidden behind it.
+  const cmdBox = useRef<HTMLPreElement>(null);
+  useEffect(() => { if (showCmd) cmdBox.current?.scrollIntoView?.({ block: "nearest" }); }, [showCmd]);
   const [busy, setBusy] = useState(false);
   // Nothing new starts while the VM, a resize, a Bring over copy, a Compose run or a Fix is changing Docker.
   const locked = useDockerLocked();
@@ -259,7 +262,7 @@ export default function RunPanel({ ctx, image, arch, onClose, onRan }: Props) {
       {busy && <p className="hint">Starting the container. If the image isn't downloaded yet, this includes the pull.</p>}
 
       <button className="link" aria-expanded={showCmd} onClick={() => setShowCmd((s) => !s)}>{showCmd ? "Hide" : "Show"} the docker run command</button>
-      {showCmd && <pre className="cmd">{built.ok ? ["docker", ...built.args].map(shellQuote).join(" ") : "Fix the problems above to see the command."}</pre>}
+      {showCmd && <pre className="cmd" ref={cmdBox}>{built.ok ? ["docker", ...built.args].map(shellQuote).join(" ") : "Fix the problems above to see the command."}</pre>}
 
       <div className="actions">
         <button disabled={busy} onClick={onClose}>Cancel</button>

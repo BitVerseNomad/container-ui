@@ -1,4 +1,5 @@
-import { KeyboardEvent, ReactNode, useEffect, useId, useRef } from "react";
+import { KeyboardEvent, ReactNode, useEffect, useId, useRef, useState } from "react";
+import { openerNow } from "../lib/opener";
 
 // closeWhy: said with a Close that waits, so the reason is heard, not only a dimmed button.
 // noClose: the panel's own footer button is the way out (Done); the header Close goes, and Escape still closes.
@@ -10,8 +11,10 @@ const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), selec
 export default function Drawer({ label, title, onClose, closeDisabled = false, closeWhy, noClose = false, children }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const whyId = useId();
-  // Captured during the first render: an `autoFocus` child steals focus before any effect runs.
-  const opener = useRef<HTMLElement | null>(document.activeElement as HTMLElement | null);
+  // Captured once, during the first render: an `autoFocus` child steals focus before any effect runs, and
+  // openerNow() clears the remembered press, so calling it on a re-render would lose a later dialog's opener.
+  const [first] = useState(openerNow);
+  const opener = useRef<HTMLElement | null>(first);
 
   useEffect(() => {
     const first = ref.current?.querySelector<HTMLElement>("input, select, textarea") ?? ref.current?.querySelector<HTMLElement>(FOCUSABLE);
