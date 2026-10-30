@@ -4,7 +4,27 @@ A small desktop app (Tauri 2, React, TypeScript) for running Docker on a Mac wit
 
 **Start here:** `docs/SUMMARY.md` (what was built and learned), `docs/SPEC.md` (what is left), `docs/VERIFY-ON-YOUR-MAC.md` (15-minute real-machine check), `docs/EVALUATION.md` (comparison with other tools), `CHANGELOG.md`. Branch: `integration`.
 
-## Run
+## Install
+For Apple Silicon Macs. The app is not signed by Apple, so macOS needs one extra step the first time.
+
+1. Install Colima and the Docker CLI: `brew install colima docker`
+2. Install the app, one of two ways:
+   1. **One line** (downloads the latest release, puts it in Applications, opens it):
+
+          curl -fsSL https://raw.githubusercontent.com/<owner>/<repo>/main/scripts/install.sh | sh -s -- <owner>/<repo>
+
+      Run the same line again to update. The old copy goes to the Trash.
+   2. **By hand:** download the `.dmg` from the latest [release](../../releases/latest), open it, drag Colima UI to Applications. The first time you open it, macOS says it can't check the app. Open System Settings, Privacy & Security, and click **Open Anyway** (or run `xattr -dr com.apple.quarantine "/Applications/Colima UI.app"`).
+3. Open Colima UI. It finds your Colima profiles, and walks you through setup if something is missing.
+
+## Release
+Push a version tag and GitHub Actions runs the tests, builds the `.dmg` on an Apple Silicon runner and attaches it to a Release (`.github/workflows/release.yml`):
+
+    git tag v0.2.0 && git push origin v0.2.0
+
+Bump `version` in `package.json`, `src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml` first, so the file name matches the tag.
+
+## Build from source
 Prereqs: Node 22.6+, Rust (rustup), Colima and the Docker CLI (`brew install colima docker`).
 
     npm install
