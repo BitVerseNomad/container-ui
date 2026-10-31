@@ -56,6 +56,8 @@ test("Given an amd64 image on an arm64 VM, when it runs, stops normally, or cras
   const ok = run({});
   assert.equal(ok.findings.find((f) => f.id === "arch")!.severity, "know");
   assert.equal(ok.findings.find((f) => f.id === "arch")!.fix?.text, "docker --context 'colima' pull --platform linux/arm64 'old/tool'");
+  assert.doesNotMatch(ok.findings.map((f) => f.fix?.text ?? "").join("\n"), /\brm\b|docker[^\n]* run\b/, "a copy-out command never removes or recreates a container");
+  assert.equal(ok.findings.find((f) => f.id === "arch")!.fix?.manual, true, "the app cannot run it, so no main button");
   assert.match(run({ running: false, exit: 143 }).findings.find((f) => f.id === "arch")!.title, /runs an amd64 image/, "a plain stop is not a failure");
   const crash = run({ running: false, exit: 1 });
   assert.equal(crash.findings.find((f) => f.id === "arch")!.severity, "know");

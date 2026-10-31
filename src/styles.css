@@ -284,7 +284,9 @@ table.list td { overflow: hidden; }
 .peer { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 13px; }
 .peer .chip { display: inline-flex; align-items: center; gap: 4px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; }
 .checks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-.checks li { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; color: var(--warn); }
+.checks li { display: flex; gap: 8px; align-items: flex-start; flex-wrap: wrap; font-size: 13px; color: var(--ink); }
+.checks li > svg { color: var(--dot-warn); flex: none; margin-top: 2px; }
+.checks li > span { flex: 1 1 14em; min-width: 0; }
 .defaults summary { cursor: pointer; font-size: 13px; color: var(--muted); }
 .defaults .kv { margin-top: 6px; }
 .drawer select { width: 100%; }
@@ -330,7 +332,7 @@ details.how[open] > summary svg, details.out-more[open] > summary svg { transfor
 @media (prefers-reduced-motion: reduce) { details.how > summary svg, details.out-more > summary svg { transition: none; } }
 .fix-result details.how { margin: 2px 0 0 20px; font-size: 12px; }
 .finding code, .problem-line code { font: 12px ui-monospace, "SF Mono", Menlo, monospace; }
-.finding .how .cmd { margin-top: 6px; }
+.finding .how .cmd { margin-top: 6px; background: var(--card); color: var(--ink); }
 details.how ul.steps { list-style: none; padding-left: 0; margin: 6px 0 0; }
 details.how ul.steps li + li { margin-top: 6px; }
 .finding .together { color: var(--ink); }
@@ -351,7 +353,7 @@ details.passing[open] > summary svg { transform: none; }
 .hbadge { font-size: 11px; font-weight: 600; border-radius: 999px; padding: 1px 8px; border: 1px solid var(--border); color: var(--muted); }
 .hbadge.healthy { color: var(--primary); border-color: color-mix(in srgb, var(--primary) 40%, var(--border)); }
 .hbadge.unhealthy { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, var(--border)); }
-.hbadge.starting { color: var(--warn); }
+.hbadge.starting { border-color: color-mix(in srgb, var(--warn) 45%, var(--border)); }
 .health-panel { display: flex; flex-direction: column; gap: 8px; margin: 10px 0 0; }
 .hp-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 13px; }
 .hp-row > b { min-width: 64px; }
@@ -362,7 +364,7 @@ details.passing[open] > summary svg { transform: none; }
 .problems ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .problem { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 13px; }
 .plevel.bad { color: var(--danger); }
-.plevel.warn { color: var(--warn); }
+.plevel.warn::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 5px; border-radius: 50%; background: var(--dot-warn); }
 .activity { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
 .activity li { display: grid; grid-template-columns: 10px 1fr auto; gap: 10px; align-items: center; }
 .adot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
@@ -456,7 +458,8 @@ button.quiet:hover { border-color: var(--border); color: var(--ink); }
 .compose-item .actions-inline { flex-wrap: wrap; row-gap: 4px; }
 .compose-item .actions-inline button { white-space: nowrap; }
 .cmd-label { flex: none; width: 11em; font-size: 12px; color: var(--muted); }
-.compose-sick { margin: 0; display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--warn); }
+.compose-sick { margin: 0; display: flex; align-items: flex-start; gap: 6px; font-size: 13px; color: var(--ink); }
+.compose-sick svg { flex: none; margin-top: 2px; color: var(--warn); }
 .compose-logs { display: flex; flex-direction: column; gap: 6px; }
 .compose-logs .log-bar { flex-wrap: wrap; gap: 8px; }
 .compose-logs .log-bar select { min-width: 10em; width: auto; }
@@ -796,3 +799,14 @@ ul.findings.result-row { margin: 0; }
 .drawer .inline:has(.search-field) { flex-wrap: wrap; }
 .drawer .inline .search-field { flex: 1 1 100%; }
 .drawer .inline > button { white-space: nowrap; }
+
+/* Round 41: the Run panel's disclosures use the app's chevron; its command is a light block, like the Doctor's. */
+.run-cmd { font-size: 12px; }
+.run-cmd pre.cmd { margin: 6px 0 0; background: var(--card); color: var(--ink); }
+.defaults.how > summary { font-size: 13px; }
+.compose-item > .sub { grid-column: 1; min-width: 0; }
+
+.compose-item > .folder-line { display: flex; min-width: 0; }
+.folder-line .path { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.folder-line .status { flex: none; white-space: nowrap; }
+.drawer .error > p { margin: 0; }

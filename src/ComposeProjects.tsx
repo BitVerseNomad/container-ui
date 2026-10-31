@@ -176,34 +176,33 @@ export default function ComposeProjects({ ctx, scan, containers, attention, onCl
           // A failed Start may leave a network or some services behind; Remove containers is offered then, as the note says.
           const leftovers = failed?.dir === p.dir && !mine;
           const off = !!busy || fixing;
-          const btn = (a: Action, kind?: "primary") => (
-            <button className={kind} disabled={off} title={fixing ? (bringing ? "Wait for the copy from Docker Desktop to finish" : "Wait for the fix to finish") : typed(p.dir, a, ctx)} aria-label={`${VERB[a][0]} ${p.name}`} onClick={() => run(p, a)}>
+          const btn = (a: Action) => (
+            <button className="small" disabled={off} title={fixing ? (bringing ? "Wait for the copy from Docker Desktop to finish" : "Wait for the fix to finish") : typed(p.dir, a, ctx)} aria-label={`${VERB[a][0]} ${p.name}`} onClick={() => run(p, a)}>
               {mine && busy?.action === a ? VERB[a][1] : label(a)}
             </button>
           );
           // The common action is the button: Start when the project has stopped services, Stop when it runs. The rest are
           // under "More actions", each with a line on when you would use it.
           const more: MenuItem[] = [
-            ...(up && stopped > 0 ? [{ label: "Stop", ariaLabel: `Stop ${p.name}`, hint: "Stops every service and keeps the containers", disabled: off, onSelect: () => void run(p, "stop") }] : []),
-            ...(up ? [{ label: "Restart", ariaLabel: `Restart ${p.name}`, hint: "Stops and starts the services again, for example after a config change", disabled: off, onSelect: () => void run(p, "restart") }] : []),
+            ...(up && stopped > 0 ? [{ label: "Stop", ariaLabel: `Stop ${p.name}`, hint: "When you're done for now. The containers stay, so Start is quick", disabled: off, onSelect: () => void run(p, "stop") }] : []),
+            ...(up ? [{ label: "Restart", ariaLabel: `Restart ${p.name}`, hint: "After you change a setting in compose.yaml", disabled: off, onSelect: () => void run(p, "restart") }] : []),
             { label: "Rebuild and start", ariaLabel: `Rebuild ${p.name}`, hint: "After you change a Dockerfile or the code it copies in", disabled: off, onSelect: () => void run(p, "build") },
-            { label: "Update images and start", ariaLabel: `Update images of ${p.name}`, hint: "Downloads newer versions of the images first", disabled: off, onSelect: () => void run(p, "pull") },
-            ...(p.total > 0 ? [{ label: logsHere ? "Hide logs" : "Show logs", ariaLabel: `Logs of ${p.name}`, hint: "What the services print, live", divider: true, onSelect: () => setLogsDir(logsHere ? null : p.dir) }] : []),
-            { label: cmdsOpen.has(p.dir) ? "Hide the commands" : "Run it yourself", ariaLabel: `${cmdsOpen.has(p.dir) ? "Hide" : "Show"} the commands to run ${p.name} yourself`, hint: "The commands to copy into Terminal", onSelect: () => setCmdsOpen((o) => { const n = new Set(o); if (!n.delete(p.dir)) n.add(p.dir); return n; }) },
-            { label: "Show in Finder", ariaLabel: `Show ${p.name} in Finder`, hint: "Opens the folder with the Compose file", onSelect: () => void invoke("reveal_compose", { path: `${p.dir}/${p.files[0]}` }).then(() => setErr(null), (e) => setErr(String(e))) },
-            ...((up || leftovers) ? [{ label: "Remove containers", ariaLabel: `Remove containers of ${p.name}`, hint: "Stops and removes them; volumes and data are kept", danger: true, divider: true, disabled: off, onSelect: () => void run(p, "down") }] : []),
+            { label: "Update images and start", ariaLabel: `Update images of ${p.name}`, hint: "When a newer version of an image is out", disabled: off, onSelect: () => void run(p, "pull") },
+            ...(p.total > 0 ? [{ label: logsHere ? "Hide logs" : "Show logs", ariaLabel: `Logs of ${p.name}`, hint: "When something misbehaves and you want to see why", divider: true, onSelect: () => setLogsDir(logsHere ? null : p.dir) }] : []),
+            { label: cmdsOpen.has(p.dir) ? "Hide the commands" : "Run it yourself", ariaLabel: `${cmdsOpen.has(p.dir) ? "Hide" : "Show"} the commands to run ${p.name} yourself`, hint: "If you'd rather run it in Terminal yourself", onSelect: () => setCmdsOpen((o) => { const n = new Set(o); if (!n.delete(p.dir)) n.add(p.dir); return n; }) },
+            { label: "Show in Finder", ariaLabel: `Show ${p.name} in Finder`, hint: "To edit compose.yaml or the project's files", onSelect: () => void invoke("reveal_compose", { path: `${p.dir}/${p.files[0]}` }).then(() => setErr(null), (e) => setErr(String(e))) },
+            ...((up || leftovers) ? [{ label: "Remove containers", ariaLabel: `Remove containers of ${p.name}`, hint: "To start clean. Volumes and data are kept", danger: true, divider: true, disabled: off, onSelect: () => void run(p, "down") }] : []),
           ];
           return (
             <li key={p.dir} className="compose-item">
               <div className="compose-head">
                 <span className={sick.length ? "sdot warn" : up ? "sdot on" : "sdot"} aria-hidden="true" />
-                <b>{p.name}</b>
-                <span className="hint">{p.total ? `${p.running} of ${p.total} running` : "Not running"}</span>
+                <b title={p.name}>{p.name}</b>
               </div>
-              {sick.length > 0 && <p className="compose-sick"><Icon name="alert" size={13} /> {sick.length === 1 ? "1 needs attention" : `${sick.length} need attention`}: {sick.join("; ")}</p>}
-              <span className="mono sub clip" title={`${p.dir}/${p.files.join(", ")}`}>{tilde(p.dir)}</span>
+              {sick.length > 0 && <p className="compose-sick"><Icon name="alert" size={13} /><span>{sick.length === 1 ? "1 needs attention" : `${sick.length} need attention`}</span></p>}
+              <span className="sub folder-line"><span className="mono path" title={`${p.dir}/${p.files.join(", ")}`}>{tilde(p.dir)}</span><span className="status">&nbsp;· {p.total ? `${p.running} of ${p.total} running` : "Not running"}</span></span>
               <div className="actions-inline">
-                {up && stopped === 0 ? btn("stop") : btn("up", "primary")}
+                {up && stopped === 0 ? btn("stop") : btn("up")}
                 {mine && <button className="small" onClick={() => invoke("cancel_compose").catch(() => {})}>Cancel</button>}
                 {!mine && <Menu label={`More actions for ${p.name}`} className="more" align="left" items={more}><Icon name="more" size={16} /></Menu>}
               </div>

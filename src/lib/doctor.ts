@@ -224,8 +224,10 @@ const CHECKS: Check[] = [
           severity: "know",
           title: failed ? `${a.name} stopped, and its image is built for ${arch}` : `${a.name} runs an ${arch} image on your ${hostArch} VM`,
           short: `Built for ${arch}`,
-          detail: `${a.image} is built for ${arch}. On a ${hostArch} VM it runs under emulation, which is slower, and some programs stop with "exec format error"${failed ? ", so that may be why it stopped" : ""}. If the image also comes in ${hostArch}, pull that one and run it again.`,
-          fix: tagged ? { label: "Pull the matching image", text: `${dockerCmd(ctx)} pull --platform linux/${hostArch} ${shellQuote(a.image)}` } : undefined,
+          detail: `${a.image} is built for ${arch}, so on this ${hostArch} VM it runs under emulation. That is slower, and some programs stop with "exec format error"${failed ? ", which may be why it stopped" : ""}. If the image also comes in ${hostArch}, pull the ${hostArch} build (the command is under "Or run it yourself"), then recreate ${a.name} the way you first created it (its Compose file or your own run command).`,
+          // manual: the app cannot run this one. Pulling the other build does not change the container that is running, and the
+          // backend does not allow --platform; so there is no main button, only the command under "Or run it yourself".
+          fix: tagged ? { label: "Pull the matching image", text: `${dockerCmd(ctx)} pull --platform linux/${hostArch} ${shellQuote(a.image)}`, manual: true } : undefined,
         })];
       });
     },

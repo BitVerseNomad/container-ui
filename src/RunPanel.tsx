@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "./api";
 import { ReactNode, useEffect, useRef, useState } from "react";
 import { docker, dockerJson } from "./api";
-import { ImageInfo, Link, checkImage, docsLinks, hostArch, nameWarning, parseImageInfo, peers, portWarnings, suggestVolumes, usedHostPorts } from "./lib/guided";
+import { ImageInfo, Link, checkImage, docsLinks, hostArch, nameWarning, nextFreePort, parseImageInfo, peers, portWarnings, suggestVolumes, usedHostPorts } from "./lib/guided";
 import { PortRow, VolRow, buildRunArgs, defaultName, folderProblem, hintFor, isHostFolder, presetEnv, repoName, shouldCleanup } from "./runArgs";
 import { rememberWritable, wasWritable } from "./lib/folderMemory";
 import { Banner } from "./ui";
@@ -79,9 +79,11 @@ export default function RunPanel({ ctx, image, arch, onClose, onRan }: Props) {
   const userNets = (networks ?? []).filter((n) => !BUILTIN_NETS.has(n));
   const netOptions = userNets.includes(DEFAULT_NET) ? userNets : [...userNets, DEFAULT_NET];
   const links = info ? docsLinks(image, info.labels) : null;
+  const usedPorts = usedHostPorts(containers);
+  const clashRows = ports.map((r, i) => (r.host && usedPorts.has(r.host) ? i : -1)).filter((i) => i >= 0);
   const warnings = [
     ...(info ? checkImage(image, info, hostArch(arch ?? "")) : []),
-    ...portWarnings(ports, usedHostPorts(containers)),
+    ...portWarnings(ports, usedPorts),
     ...(nameWarning(finalName, containers) ? [nameWarning(finalName, containers)!] : []),
   ];
   const built = buildRunArgs({ image, name: finalName, ports, volumes, env, exposeAll, network });
@@ -233,8 +235,8 @@ export default function RunPanel({ ctx, image, arch, onClose, onRan }: Props) {
           Add your own, one KEY=value per line.
         </p>
         {info && info.env.length > 0 && (
-          <details className="defaults">
-            <summary>The image sets {info.env.length} default{info.env.length > 1 ? "s" : ""} itself</summary>
+          <details className="defaults how">
+            <summary><Icon name="chevron" size={12} />The image sets {info.env.length} default{info.env.length > 1 ? "s" : ""} itself</summary>
             <pre className="kv">{info.env.join("\n")}</pre>
           </details>
         )}
@@ -246,7 +248,12 @@ export default function RunPanel({ ctx, image, arch, onClose, onRan }: Props) {
           <h4>Before you run</h4>
           <ul className="checks">
             {warnings.map((w) => (
-              <li key={w}><Icon name="info" size={14} /> {w}</li>
+              <li key={w}><Icon name="info" size={14} /><span>{w.split(/`([^`]+)`/).map((t, k) => (k % 2 ? <code key={k}>{t}</code> : t))}</span>{(() => {
+                const i = clashRows.find((k) => w.startsWith(`Port ${ports[k].host} on this Mac`));
+                if (i === undefined) return null;
+                const next = nextFreePort(ports[i].host, usedPorts, ports);
+                return <button className="small" disabled={busy} onClick={() => setPort(i, { host: next })}>Use {next} instead</button>;
+              })()}</li>
             ))}
           </ul>
         </div>
@@ -257,12 +264,15 @@ export default function RunPanel({ ctx, image, arch, onClose, onRan }: Props) {
           <pre>{errors.join("\n")}</pre>
         </div>
       )}
-      <Banner error={dockerError} />
-      {dockerError && hintFor(dockerError) && <p className="hint">{hintFor(dockerError)}</p>}
+      {dockerError && /port is already allocated|address already in use/i.test(dockerError)
+        ? <div className="error" role="alert"><p>{hintFor(dockerError)}</p></div>
+        : <><Banner error={dockerError} />{dockerError && hintFor(dockerError) && <p className="hint">{hintFor(dockerError)}</p>}</>}
       {busy && <p className="hint">Starting the container. If the image isn't downloaded yet, this includes the pull.</p>}
 
-      <button className="small" aria-expanded={showCmd} onClick={() => setShowCmd((s) => !s)}>{showCmd ? "Hide" : "Show"} the docker run command</button>
-      {showCmd && <pre className="cmd" ref={cmdBox}>{built.ok ? ["docker", ...built.args].map(shellQuote).join(" ") : "Fix the problems above to see the command."}</pre>}
+      <details className="how run-cmd" open={showCmd} onToggle={(e) => setShowCmd(e.currentTarget.open)}>
+        <summary><Icon name="chevron" size={12} />Show command</summary>
+        <pre className="cmd" ref={cmdBox}>{built.ok ? ["docker", ...built.args].map(shellQuote).join(" ") : "Fix the problems above to see the command."}</pre>
+      </details>
 
       <div className="actions">
         <button disabled={busy} onClick={onClose}>Cancel</button>

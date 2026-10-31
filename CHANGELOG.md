@@ -2,6 +2,31 @@
 
 Newest first. Older entries record what was true when they were written; later entries supersede them (the Overview, for example, was replaced by the Containers home screen).
 
+## Loop 5, round 43: copy-out commands never lose data
+
+1. **Doctor amd64 row** shows only the `pull --platform` line under "Or run it yourself". The text says to recreate the container the way you first created it (its Compose file or your own run command). No `rm -f` and no bare `docker run` in any Doctor block (the replace fixes keep their rename-first form).
+2. **Port warning** drops "Pick another host port." (the button is the pick) and sets the container name in the code font.
+3. **Port clash on Run** shows the plain-words message, checked in both engines.
+
+## Loop 5, round 42: the status never disappears, ink warnings, one click past a port clash
+
+1. **Compose row**: the path is cut with an ellipsis, never the status. The full path is in the title.
+2. **Doctor "Or run it yourself"** is a light code block, the same as the Run drawer's.
+3. **Warnings are ink text**, with the colour on the icon only: Run drawer "Before you run", and the Kubernetes "needs attention" level and the "starting" badge.
+4. **Compose menu hints** say when: Restart, Update images and start, Remove containers.
+5. **Port clash** in the Run drawer has a "Use 8081 instead" button (the next free host port). If Run is pressed anyway, the error is the plain-words one, not raw docker output.
+6. **Doctor amd64 row** still has no main button. The text says what it means (slower, emulated) and the pull, remove and run commands are under "Or run it yourself".
+
+## Loop 5, round 41: plain buttons, one-line problems, long names get the room
+
+1. **Compose card main button** is a white push button, not filled green. The status dot already says running or stopped.
+2. **Problem summary** is one ink line, "3 need attention", with the colour on the icon only. Per-service detail stays on home.
+3. **Long names** get the room: the status moved to the folder line ("~/Dev/global-search-service · Not running"). The full name is in the title and the accessible name.
+4. **Menu hints** say when you would use each item (Stop, Show logs, Run it yourself, Show in Finder). Row-menu hints that were raw commands are plain words now.
+5. **Remove containers** asks first, and never removes volumes.
+6. **Run drawer**: "The image sets N defaults itself" and the docker run command use the app's chevron disclosure ("Show command"), with a light code block.
+7. **Doctor amd64 row** has no main button. The app cannot pull and run the matching build (the allowlist has no `--platform`, and a pull does not change a running container), so the command is under "Or run it yourself".
+
 ## Loop 5, round 40: one main action, a menu for the rest, links only go places
 
 1. **Compose card** is one compact row: dot, name, count, Start (or Stop), and a "More actions for <name>" menu. The menu has Stop (partly running), Restart, Rebuild and start, Update images and start, Show logs, Run it yourself, Show in Finder and Remove containers (was Down; compose down never gets `-v`, so volumes stay). Each item has a one-line hint. The menu opens across the card so hints fit.

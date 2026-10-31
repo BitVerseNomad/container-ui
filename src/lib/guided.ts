@@ -101,7 +101,15 @@ export const containerPorts = (ports: string): number[] =>
   [...new Set([...ports.matchAll(/(\d+)\/tcp/g)].map((m) => Number(m[1])))].sort((a, b) => a - b);
 
 export const portWarnings = (rows: { host: string }[], used: Map<string, string>): string[] =>
-  rows.filter((r) => r.host && used.has(r.host)).map((r) => `Port ${r.host} on this Mac is already used by "${used.get(r.host)}". Pick another host port.`);
+  rows.filter((r) => r.host && used.has(r.host)).map((r) => `Port ${r.host} on this Mac is already used by \`${used.get(r.host)}\`.`);
+
+// The next host port above `from` that no running container publishes and no other row already asks for.
+export function nextFreePort(from: string, used: Map<string, string>, rows: { host: string }[]): string {
+  const taken = new Set([...used.keys(), ...rows.map((r) => r.host)]);
+  let n = Number(from) || 8080;
+  do n++; while (taken.has(String(n)));
+  return String(n);
+}
 
 export const nameWarning = (name: string, containers: Ctr[]): string | null =>
   name && containers.some((c) => c.Names === name) ? `A container named "${name}" already exists.` : null;

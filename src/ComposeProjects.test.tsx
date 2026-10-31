@@ -85,7 +85,9 @@ describe("ComposeProjects", () => {
   it("given a project whose container the Doctor flags, when listed, then the card names it and what is wrong", () => {
     const dir = "/Users/me/Dev/service-search-service";
     show({ containers: [running("sss-web-1", dir), running("sss-db-1", dir)], attention: new Map([["sss-web-1", [{ short: "Keeps restarting", title: "sss-web-1 keeps restarting" }]]]) });
-    expect(screen.getByText(/1 needs attention: sss-web-1: keeps restarting/)).toBeInTheDocument();
+    // One short line on the card; which container and why stay on the Containers screen.
+    expect(screen.getByText("1 needs attention")).toBeInTheDocument();
+    expect(screen.queryByText(/keeps restarting/)).toBeNull();
   });
 
   it("given a running project, when Logs is clicked, then its last lines show under it", async () => {

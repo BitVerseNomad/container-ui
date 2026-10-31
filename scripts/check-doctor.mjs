@@ -49,6 +49,13 @@ check(/orders looks for db at localhost/.test(t) && /DATABASE_URL is mysql:\/\/r
 check(/billing can't find sessions by name/.test(t) && /default network/.test(t), "names: explains the default network has no name lookup");
 check(/pg stopped, probably because it has no POSTGRES_PASSWORD/.test(t), "postgres: names the missing setting, as a likely cause");
 check(/orders runs an amd64 image on your arm64 VM/.test(t), "CPU: the amd64 image is worth knowing, not an alarm");
+const archRow = p.locator(".doctor .finding").filter({ hasText: "orders runs an amd64 image" });
+await archRow.locator("details.how summary").click();
+check(await archRow.locator("pre.cmd").evaluate((e) => { const [r, g, b] = getComputedStyle(e).backgroundColor.match(/\d+/g).map(Number); return (r + g + b) / 3 > 200 || getComputedStyle(document.documentElement).colorScheme === "dark"; }) && /pull --platform/.test(await archRow.locator("pre.cmd").innerText()), "CPU: Or run it yourself is a light block holding the pull command");
+await p.locator(".doctor details.how summary").evaluateAll((l) => l.forEach((e) => { if (!e.parentElement.open) e.click(); }));
+const blocks = await p.locator(".doctor details.how pre.cmd, .doctor details.how code").allInnerTexts();
+check(blocks.length > 0 && blocks.every((t) => !/\brm -f\b/.test(t) && (!/docker[^\n]* run\b/.test(t) || /\brename\b/.test(t))), `Doctor: no Or run it yourself block uses rm -f, or runs a container without renaming the old one first (${blocks.length} checked)`);
+check(await archRow.count() === 1 && await archRow.locator(".finding-actions button:not(.more)").count() === 0 && await archRow.locator("details.how summary").count() === 1, "CPU: the app can't run the pull for the matching build, so there is no main button; the command is under Or run it yourself");
 check(/pg keeps its data inside the container/.test(t), "storage: the database without a volume is worth knowing");
 
 // Connect fix: asks first, then adds both to a new network and the problem goes away

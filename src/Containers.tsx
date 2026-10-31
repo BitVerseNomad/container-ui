@@ -425,7 +425,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
     const inProject = a.kind === "compose";
     return [
       { label: "Logs", icon: <Icon name="logs" size={13} />, onSelect: () => setDetailId(c.ID) },
-      ...(up ? [{ label: "Open a shell", icon: <Icon name="terminal" size={13} />, hint: "docker exec -it", disabled: lock, onSelect: () => void openShell(ctx!, c.Names).catch((e: unknown) => fail(a, e instanceof Error ? e.message : String(e))) }] : []),
+      ...(up ? [{ label: "Open a shell", icon: <Icon name="terminal" size={13} />, hint: "To look around or run a command inside it", disabled: lock, onSelect: () => void openShell(ctx!, c.Names).catch((e: unknown) => fail(a, e instanceof Error ? e.message : String(e))) }] : []),
       ...(up ? [{ label: "Restart", icon: <Icon name="restart" size={13} />, disabled: lock, onSelect: () => void act(a, ["restart", c.ID], null, `${c.Names} restarted`) }] : []),
       // Inside a project the row's main button acts on the whole project, so one service's Start and Stop live here.
       ...(inProject && up ? [{ label: "Stop", icon: <Icon name="stop" size={13} />, disabled: lock, onSelect: () => void act(a, ["stop", c.ID], null, `${c.Names} stopped`) }] : []),
@@ -448,10 +448,10 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
     const stopped = a.rows.filter((c) => c.State !== "running" && !finished(c, infoOf(c)));
     const what = startWhat(stopped.map((c) => serviceName(c, a.name)));
     return [
-      ...(stopped.length && anyUp ? [{ label: `Start ${what}`, icon: <Icon name="play" size={13} />, hint: "docker start", disabled: lock, onSelect: () => void act(a, ["start", ...stopped.map((c) => c.ID)], { target: "running", word: "Starting…", since: Date.now(), ids: stopped.map((c) => c.ID) }, `${listed(stopped.map((c) => serviceName(c, a.name)))} started`) }] : []),
-      ...(known ? [{ label: "Rebuild", icon: <Icon name="hammer" size={13} />, hint: "compose up -d --build", disabled: lock, onSelect: () => void project(a, "build", { target: "running", word: "Rebuilding…", since: Date.now() }, `${a.name} rebuilt`) }] : []),
-      ...(known ? [{ label: "Logs", icon: <Icon name="logs" size={13} />, hint: "compose logs -f", onSelect: () => setLogsOf(a) }] : []),
-      ...(anyUp ? [{ label: "Restart", icon: <Icon name="restart" size={13} />, hint: known ? "compose restart" : undefined, disabled: lock, onSelect: () => void project(a, "restart", null, `${a.name} restarted`) }] : []),
+      ...(stopped.length && anyUp ? [{ label: `Start ${what}`, icon: <Icon name="play" size={13} />, hint: "Starts the ones that are stopped", disabled: lock, onSelect: () => void act(a, ["start", ...stopped.map((c) => c.ID)], { target: "running", word: "Starting…", since: Date.now(), ids: stopped.map((c) => c.ID) }, `${listed(stopped.map((c) => serviceName(c, a.name)))} started`) }] : []),
+      ...(known ? [{ label: "Rebuild", icon: <Icon name="hammer" size={13} />, hint: "After you change a Dockerfile or the code it copies in", disabled: lock, onSelect: () => void project(a, "build", { target: "running", word: "Rebuilding…", since: Date.now() }, `${a.name} rebuilt`) }] : []),
+      ...(known ? [{ label: "Logs", icon: <Icon name="logs" size={13} />, hint: "When something misbehaves and you want to see why", onSelect: () => setLogsOf(a) }] : []),
+      ...(anyUp ? [{ label: "Restart", icon: <Icon name="restart" size={13} />, hint: "When it is stuck, or after a config change", disabled: lock, onSelect: () => void project(a, "restart", null, `${a.name} restarted`) }] : []),
       ...(known ? [{ label: "Show in Finder", icon: <Icon name="finder" size={13} />, onSelect: () => void invoke("reveal_compose", { path: `${a.dir}/${a.files[0]}` }).catch((e) => fail(a, String(e))) }] : []),
       {
         label: "Remove…", icon: <Icon name="trash" size={13} />, danger: true, divider: true, disabled: lock, ariaLabel: `Remove ${a.name}`,

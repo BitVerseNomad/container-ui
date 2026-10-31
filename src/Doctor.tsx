@@ -343,6 +343,8 @@ function DoctorFix({ fix, title, ctx, onGo, onFixed }: { fix: NonNullable<Findin
   if (fix.go) return <button className="small" aria-label={`${fix.label}: ${title}`} onClick={() => onGo(fix.go!)}>{fix.label}</button>;
   const run = fixAction(fix, ctx ?? undefined, confirm, runs, onFixed);
   if (run) return <button className="small" title={run.hint} aria-label={`${run.running ? run.busyLabel : `${run.label}…`}: ${title}`} aria-disabled={run.running || run.locked || undefined} onClick={() => !run.locked && run.go()}>{run.running ? run.busyLabel : `${run.label}…`}</button>;
+  // A fix only you can run (the app can't) has no main button: its command is under "Or run it yourself".
+  if (fix.manual) return null;
   return <button className="small" aria-label={`Copy commands: ${title}`} onClick={() => navigator.clipboard.writeText(fix.text)}>Copy commands</button>;
 }
 

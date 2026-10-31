@@ -113,7 +113,8 @@ test("containerPorts reads the container side, published or not", () => {
 
 test("portWarnings and nameWarning say what is taken", () => {
   const used = usedHostPorts(ctrs);
-  assert.match(portWarnings([{ host: "8080" }, { host: "" }, { host: "3000" }], used)[0], /8080.*"web"/);
+  assert.match(portWarnings([{ host: "8080" }, { host: "" }, { host: "3000" }], used)[0], /8080.*`web`\.$/);
+  assert.doesNotMatch(portWarnings([{ host: "8080" }], used)[0], /Pick another/, "the button is the pick");
   assert.equal(portWarnings([{ host: "3000" }], used).length, 0);
   assert.match(nameWarning("db", ctrs)!, /"db" already exists/);
   assert.equal(nameWarning("fresh", ctrs), null);

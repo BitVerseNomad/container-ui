@@ -22,7 +22,7 @@ export type Connect = { network: string; create: boolean; containers: string[] }
 // that one service again with `docker compose up -d <service>`, so Compose recreates it with the file's new limit.
 // vm: a change that restarts the VM (share a folder, restart for the Mac's network, the Mac's proxy), run by the app
 // through the same runner as the size change (src/Resize.tsx, src/lib/vmChange.ts).
-export type ProblemFix = { label: string; text: string; note?: string; steps?: Replace[]; confirm?: string; connect?: Connect; go?: "Profiles" | "Images"; resize?: boolean; reveal?: string; apply?: Apply; vm?: VmChange };
+export type ProblemFix = { label: string; text: string; note?: string; steps?: Replace[]; confirm?: string; connect?: Connect; go?: "Profiles" | "Images"; resize?: boolean; reveal?: string; apply?: Apply; vm?: VmChange; manual?: boolean };
 // limit: what the container was killed at (bytes); where: how the line names the file(s) ("`compose.yaml`").
 export type Apply = { file: string; service: string; limit: number; where: string };
 // id is the check's id ("oom", "kafka-localhost", "localhost-target"...), stable so a finding can be muted.
