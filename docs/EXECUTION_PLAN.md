@@ -14,7 +14,7 @@ Source of truth for the roadmap: `docs/SPEC.md`. This file tracks execution stat
 - **W1** Real-machine verification + Rust compile — **Partial**: Rust compiles and tests pass. Real-machine walk of `docs/VERIFY-ON-YOUR-MAC.md` still needs the owner.
 - **W2** Merge registries branch + finish it — **Not started**: merge conflicts in `main.rs`, `mock.ts`, `PullPanel.tsx`, `styles.css`, `useEnv.ts`; resolution is mechanical (union) but large. Deferred.
 - **W3** Scope decision from side-by-side test — **Needs owner**.
-- **W4** List UX (search/filter/sort/bulk/prune) — **In progress**: search added to Images (already), Volumes, Networks. Filter/sort/bulk/prune pending.
+- **W4** List UX (search/filter/sort/bulk/prune) — **In progress**: search added to Images, Volumes, Networks. Filter/sort/bulk remove added to Volumes. Networks and Images still pending.
 - **W5** Run panel env editor + recreate — Not started.
 - **W6** Compose projects — Not started.
 - **W7** Colima settings coverage — Not started.
