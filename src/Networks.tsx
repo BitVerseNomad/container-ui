@@ -1,5 +1,7 @@
 import { openUrl } from "./api";
 import { useState } from "react";
+import { score } from "./lib/fuzzy";
+import { Icon } from "./ui/icons";
 import { docker, dockerJson } from "./api";
 import { usePoll } from "./hooks";
 import { NetInfo, parseNetworks } from "./lib/network";
@@ -22,6 +24,8 @@ export default function Networks({ ctx }: { ctx: string }) {
   const [pick, setPick] = useState<Record<string, string>>({});
   const [err, setErr] = useState<string | null>(null);
   const [testing, setTesting] = useState(false);
+  const [q, setQ] = useState("");
+  const shown = (nets.data ?? []).filter((n) => score(`${n.name} ${n.subnet} ${n.members.map((m) => m.name).join(" ")}`, q) > 0);
 
   async function act(args: string[]) {
     try {
@@ -49,12 +53,21 @@ export default function Networks({ ctx }: { ctx: string }) {
       <Banner error={nets.error ?? err} onClose={() => setErr(null)} />
       {nets.data && nets.data.length === 0 && <Empty title="No networks">Docker creates a few built-in ones when it starts.</Empty>}
       {nets.data && nets.data.length > 0 && (
-        <table>
-          <thead>
-            <tr><th scope="col">Network</th><th scope="col">Subnet</th><th scope="col">Containers</th><th scope="col"><span className="sr-only">Actions</span></th></tr>
-          </thead>
-          <tbody>
-            {nets.data.map((n) => {
+        <>
+          <label className="search-field network-search">
+            <Icon name="search" size={14} />
+            <input placeholder="Search your networks" aria-label="Search your networks" value={q} onChange={(e) => setQ(e.target.value)} />
+          </label>
+          {shown.length === 0 && (
+            <p className="hint pad">No network here matches "{q.trim()}".</p>
+          )}
+          {shown.length > 0 && (
+            <table>
+              <thead>
+                <tr><th scope="col">Network</th><th scope="col">Subnet</th><th scope="col">Containers</th><th scope="col"><span className="sr-only">Actions</span></th></tr>
+              </thead>
+              <tbody>
+                {shown.map((n) => {
               const builtin = BUILTIN.has(n.name);
               const free = (ctrs.data ?? []).filter((c) => c.State === "running" && !n.members.some((m) => m.name === c.Names));
               return (
@@ -92,6 +105,8 @@ export default function Networks({ ctx }: { ctx: string }) {
           </tbody>
         </table>
       )}
+      </>
+    )}
       {testing && <ConnectionTest ctx={ctx} onClose={() => setTesting(false)} />}
     </section>
   );

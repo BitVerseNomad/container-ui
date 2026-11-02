@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { score } from "./lib/fuzzy";
 import { docker, dockerJson } from "./api";
 import { usePoll } from "./hooks";
 import { Banner, Empty, useConfirm } from "./ui";
@@ -11,6 +12,7 @@ import { dockerLocked, useDockerLocked } from "./dockerLock";
 const WAIT = "Waits for what is changing Docker now.";
 import { parseVolumeSizes } from "./lib/events";
 import { formatBytes } from "./containerInfo";
+import { Icon } from "./ui/icons";
 
 type V = { Name: string; Driver: string };
 
@@ -25,7 +27,10 @@ export default function Volumes({ ctx }: { ctx: string }) {
   // The exact shape of `docker system df -v --format json` is unverified; if it can't be read, sizes show a dash.
   const sizes = usePoll(async () => parseVolumeSizes(await docker(ctx, ["system", "df", "-v", "--format", "json"]).catch(() => "")), [ctx], 30000);
   const [err, setErr] = useState<string | null>(null);
+  const [q, setQ] = useState("");
   const locked = useDockerLocked();
+
+  const shown = (data ?? []).filter((v) => score(`${v.Name} ${v.Driver}`, q) > 0);
 
   async function act(args: string[]) {
     // Checked again after the confirm: a copy may have started while it was open.
@@ -65,12 +70,21 @@ export default function Volumes({ ctx }: { ctx: string }) {
       <Banner error={error ?? usage.error ?? err} onClose={() => setErr(null)} />
       {data && data.length === 0 && <Empty title="No volumes">Volumes created by your containers will show up here.</Empty>}
       {data && data.length > 0 && (
-        <table>
-          <thead>
-            <tr><th scope="col">Name</th><th scope="col">Driver</th><th scope="col">Used by</th><th scope="col">Size</th><th scope="col"><span className="sr-only">Actions</span></th></tr>
-          </thead>
-          <tbody>
-            {data.map((v) => {
+        <>
+          <label className="search-field volume-search">
+            <Icon name="search" size={14} />
+            <input placeholder="Search your volumes" aria-label="Search your volumes" value={q} onChange={(e) => setQ(e.target.value)} />
+          </label>
+          {shown.length === 0 && (
+            <p className="hint pad">No volume here matches "{q.trim()}".</p>
+          )}
+          {shown.length > 0 && (
+            <table>
+              <thead>
+                <tr><th scope="col">Name</th><th scope="col">Driver</th><th scope="col">Used by</th><th scope="col">Size</th><th scope="col"><span className="sr-only">Actions</span></th></tr>
+              </thead>
+              <tbody>
+                {shown.map((v) => {
               const by = used.get(v.Name) ?? [];
               return (
                 <tr key={v.Name}>
@@ -100,6 +114,8 @@ export default function Volumes({ ctx }: { ctx: string }) {
           </tbody>
         </table>
       )}
+      </>
+    )}
     </section>
   );
 }
