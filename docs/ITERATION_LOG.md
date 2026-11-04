@@ -297,3 +297,29 @@
 - Auto-update via Tauri updater plugin
 
 **Blockers:** Apple Developer Program (99 USD/ano), Team ID, certificates
+
+---
+
+## Iteração 13 — Phase 7 Complete: Packaging (Homebrew + GitHub Releases + Notarization)
+
+**Feito:**
+- `tauri.conf.json`: updater plugin com public key, bundle config macOS hardened runtime, external binaries
+- `src-tauri/entitlements.plist`: JIT, network client, file access, audio input para WebKit
+- `.github/workflows/release.yml`: tauri-action build + sign + notarize + upload DMG + Homebrew tap auto-update
+- `homebrew-colima-ui/Casks/colima-ui.rb`: cask template com deps (colima, docker), auto_updates, caveats
+- Tauri updater keys: `private.key` (guardar segredo!) + `private.key.pub` (em `tauri.conf.json`)
+- `cargo tauri signer generate -w private.key -p public.key` executado
+- TypeScript compila ✅, 79 UI + 135 Rust = 214 testes passam ✅
+- Build de produção OK ✅
+
+**Testes:** 79 UI + 135 Rust = 214 passam
+
+**App:** `npm run tauri dev` ✅ funcional nativamente
+
+**Próximo:** Phase 8 — Polish (onboarding, accessibility audit, keyboard shortcuts, visual regression)
+- Onboarding tour first-run
+- Accessibility audit (WCAG 2.1 AA)
+- Keyboard shortcuts (Cmd+K palette, nav shortcuts)
+- Visual regression tests (light/dark/mid/phone)
+
+**Blockers:** Apple Developer Program (99 USD/ano) para notarização real, Team ID, certificados, HOMEBREW_TAP_TOKEN
