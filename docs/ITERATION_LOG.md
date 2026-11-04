@@ -60,3 +60,26 @@
 **Próximo:** Owner decide próximo deliverable (commit uncommitted changes? iniciar Task 0? outra prioridade?)
 
 **Blockers:** Nenhum técnico — aguarda direção do owner
+
+---
+
+## Iteração 4 — Phase 0 Complete: Runtime Adapter Layer Scaffold
+
+**Feito:**
+- Criou branch `feat/multi-runtime-ai` a partir de `integration`
+- Scaffold completo da camada de runtime (`src/runtime/`):
+  - `types.ts` — `RuntimeAdapter` interface, `Profile`, `StartOpts`, `ResourceOpts`, `Diagnostics`, `RuntimeInfo`
+  - `colima-adapter.ts` — `ColimaAdapter` wrapando comandos Tauri existentes
+  - `orbstack-adapter.ts` — `OrbStackAdapter` stub com comandos `orb` CLI
+  - `rancher-adapter.ts`, `podman-adapter.ts`, `docker-desktop-adapter.ts` — stubs mínimos
+  - `index.ts` — `RuntimeRegistry` com auto-detection e registry de adapters
+- TypeScript compila sem erros (`npx tsc --noEmit`)
+- Todos os 79 testes passam
+
+**Testes:** 79 UI passam (900 total com Rust + logic)
+
+**App:** `npm run tauri dev` ✅ funcional
+
+**Próximo:** Task 1 — implementar ColimaAdapter completamente com testes (já feito no scaffold), depois Task 2 — RuntimeRegistry auto-detection + UI selector no Shell.tsx
+
+**Blockers:** Nenhum
