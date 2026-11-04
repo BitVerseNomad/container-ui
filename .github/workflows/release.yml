@@ -1,45 +1,125 @@
-# Push a tag like v0.2.0 and this builds the Apple Silicon .dmg and attaches it to a GitHub Release.
-# The app is not signed or notarized; README "Install" covers the one macOS step that needs.
 name: Release
 
 on:
   push:
-    tags: ["v*"]
-  workflow_dispatch:
+    tags:
+      - 'v*'
 
 permissions:
   contents: write
 
 jobs:
   release:
-    runs-on: macos-14 # Apple Silicon runner, so the build is aarch64
+    strategy:
+      matrix:
+        include:
+          - os: macos-14
+            target: aarch64-apple-darwin
+            artifact_name: colima-ui
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          node-version: 22
-          cache: npm
+          node-version: '22'
+          cache: 'npm'
 
-      - uses: dtolnay/rust-toolchain@stable
-
-      - uses: swatinem/rust-cache@v2
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
         with:
-          workspaces: src-tauri
+          targets: ${{ matrix.target }}
 
-      - run: npm ci
+      - name: Install dependencies
+        run: npm ci
 
-      - name: Tests
+      - name: Build frontend
+        run: npm run build
+
+      - name: Import Apple Certificate
+        if: env.APPLE_CERTIFICATE != ''
+        uses: apple-actions/import-codesign-certs@v3
+        with:
+          p12-file-base64: ${{ secrets.APPLE_CERTIFICATE }}
+          p12-password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+
+      - name: Create keychain
+        if: env.APPLE_CERTIFICATE != ''
         run: |
-          npm test
-          cd src-tauri && cargo test
+          security create-keychain -p "${{ secrets.KEYCHAIN_PASSWORD }}" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "${{ secrets.KEYCHAIN_PASSWORD }}" build.keychain
+          security set-keychain-settings -t 3600 -l build.keychain
 
-      - uses: tauri-apps/tauri-action@v0
+      - name: Import provisioning profile
+        if: env.APPLE_PROVISIONING_PROFILE != ''
+        run: |
+          echo "${{ secrets.APPLE_PROVISIONING_PROFILE }}" | base64 -d > Colima_UI.mobileprovision
+          security import Colima_UI.mobileprovision -k build.keychain -A
+
+      - name: Build and sign with tauri-action
+        uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "Colima UI ${{ github.ref_name }}"
-          releaseBody: "Download the .dmg below, or run the one-line install from the README."
+          releaseBody: "See [CHANGELOG.md](https://github.com/filipesousaduty/colima-ui/blob/main/CHANGELOG.md)"
           releaseDraft: false
           prerelease: false
+          args: --target ${{ matrix.target }}
+
+      - name: Upload DMG as release asset
+        if: success()
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            target/release/bundle/dmg/*.dmg
+            target/release/bundle/macos/*.app.tar.gz
+
+  homebrew:
+    needs: release
+    runs-on: ubuntu-latest
+    if: github.repository == 'filipesousaduty/colima-ui'
+    steps:
+      - name: Checkout homebrew tap
+        uses: actions/checkout@v4
+        with:
+          repository: filipesousaduty/homebrew-colima-ui
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-colima-ui
+
+      - name: Download DMG
+        uses: actions/download-artifact@v4
+        with:
+          name: colima-ui-dmg
+          path: artifacts
+
+      - name: Calculate SHA256
+        id: sha
+        run: |
+          sha256=$(shasum -a 256 artifacts/colima-ui*.dmg | cut -d' ' -f1)
+          echo "sha256=$sha256" >> $GITHUB_OUTPUT
+
+      - name: Update cask
+        run: |
+          cd homebrew-colima-ui
+          version="${{ github.ref_name }}"
+          version="${version#v}"
+          sed -i '' "s/version \".*\"/version \"$version\"/" Casks/colima-ui.rb
+          sed -i '' "s/sha256 \".*\"/sha256 \"${{ steps.sha.outputs.sha256 }}\"/" Casks/colima-ui.rb
+          sed -i '' "s|url \".*\"|url \"https://github.com/filipesousaduty/colima-ui/releases/download/${{ github.ref_name }}/colima-ui_${version}_aarch64.dmg\"|" Casks/colima-ui.rb
+
+      - name: Commit and push
+        run: |
+          cd homebrew-colima-ui
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add Casks/colima-ui.rb
+          git commit -m "Update colima-ui to ${{ github.ref_name }}"
+          git push
