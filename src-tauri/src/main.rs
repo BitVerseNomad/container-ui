@@ -508,6 +508,50 @@ async fn run(args: Vec<String>) -> Result<String, String> {
     exec("colima", args, false).await
 }
 
+async fn orb(args: Vec<String>) -> Result<String, String> {
+    exec("orb", args, false).await
+}
+
+async fn orb_json(args: Vec<String>) -> Result<String, String> {
+    let mut a = args;
+    a.insert(0, "--format".into());
+    a.insert(1, "json".into());
+    exec("orb", a, false).await
+}
+
+#[tauri::command]
+async fn orb_version() -> Result<String, String> {
+    orb(vec!["version".into()]).await
+}
+
+#[tauri::command]
+async fn orb_list_vms() -> Result<Vec<Profile>, String> {
+    // `orb list --format json` prints one JSON object per line.
+    let out = orb_json(vec!["list".into()]).await?;
+    out.lines()
+        .filter(|l| !l.trim().is_empty())
+        .map(|l| serde_json::from_str(l).map_err(|e| format!("Unexpected orb output: {e}")))
+        .collect()
+}
+
+#[tauri::command]
+async fn orb_start_vm(name: String) -> Result<(), String> {
+    safe(&name)?;
+    orb(vec!["start".into(), name]).await.map(|_| ())
+}
+
+#[tauri::command]
+async fn orb_stop_vm(name: String) -> Result<(), String> {
+    safe(&name)?;
+    orb(vec!["stop".into(), name]).await.map(|_| ())
+}
+
+#[tauri::command]
+async fn orb_delete_vm(name: String) -> Result<(), String> {
+    safe(&name)?;
+    orb(vec!["delete".into(), name]).await.map(|_| ())
+}
+
 // Fix asks this for every step before it changes anything, so a run the backend would refuse never leaves a
 // container stopped halfway. Same rules as `docker`, nothing is run.
 #[tauri::command]
@@ -1727,6 +1771,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             list_profiles, docker, docker_check, docker_pull, env_check, install_tools, network_probe, kubectl, open_terminal, open_homebrew_install, start_profile, apply_resources,
             stop_profile, force_stop_profile, restart_profile, colima_config, network_facts, vm_dns_probe, apply_mounts, apply_env, force_restart_profile, delete_profile, cancel_vm_op, host_resources, vm_log_tail, reveal_vm_log, open_url, pick_folder, setup_report, setup_fix, find_compose_files, reveal_compose, compose_editor, open_compose, compose_config, compose_action, cancel_compose, compose_logs, compose_in_folder, container_shell,
+            orb_version, orb_list_vms, orb_start_vm, orb_stop_vm, orb_delete_vm,
             desktop::desktop_state, desktop::desktop_docker, desktop::desktop_copy, desktop::desktop_copy_stop, desktop::desktop_start, desktop::desktop_replace, desktop::open_docker_desktop
         ])
         .run(tauri::generate_context!())
