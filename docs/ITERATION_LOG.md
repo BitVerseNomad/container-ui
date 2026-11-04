@@ -258,3 +258,42 @@
 - Visual regression tests
 
 **Blockers:** Nenhum
+
+---
+
+## Iteração 12 — Phase 6 Complete: Design System (Tokens + Component Library)
+
+**Feito:**
+- `tokens.css` estendido com:
+  - Spacing scale: `--space-1` a `--space-8` (4px base)
+  - Radius scale: `--radius-sm` (4px), `--radius-md` (8px), `--radius-lg` (12px), `--radius-xl` (16px), `--radius-full`
+  - Shadow scale: `--shadow-1` a `--shadow-4` + `--shadow-focus`
+  - Typography scale: `--text-xs` a `--text-4xl` + font weights, line heights
+  - Motion tokens: easing curves, durations
+  - Z-index scale: `--z-0` a `--z-max`
+  - Material 3 semantic colors: `--md-sys-color-*` (primary, secondary, tertiary, error, surface, outline, shadow, scrim, inverse)
+  - Reduced motion, selection, scrollbar, focus-visible globals
+- Component library (`src/ui/components/`):
+  - `Button` — 5 variants (primary, secondary, ghost, danger, text), 3 sizes, loading state, icon support
+  - `Card` — 3 variants (elevated, outlined, filled), composable sub-components (Header, Title, Description, Content, Footer)
+  - `Select` — accessible combobox, searchable, keyboard nav, portal, descriptions
+  - `Dialog` / `Drawer` — focus trap, portal, Escape/overlay close, footer, sizes
+  - `Toast` — 4 types (success, error, warning, info), `useToast` hook, portal, actions
+  - `Tooltip` — 4 positions, delay, portal, auto-position
+  - `Table` — sortable, selectable (single/multiple), striped, hoverable, loading/empty states
+  - `Portal` / `FocusTrap` — primitives
+- `Icon` aceita `className`, `style`, SVG props
+- TypeScript compila ✅, 79 UI + 135 Rust = 214 testes passam ✅
+- Build de produção OK ✅
+
+**Testes:** 79 UI + 135 Rust = 214 passam
+
+**App:** `npm run tauri dev` ✅ funcional nativamente
+
+**Próximo:** Phase 7 — Packaging (Homebrew tap + GitHub Releases + Apple notarization)
+- `tauri.conf.json` bundle config, entitlements, signing
+- GitHub Actions workflow (tauri-action)
+- Homebrew tap repo + cask template
+- Auto-update via Tauri updater plugin
+
+**Blockers:** Apple Developer Program (99 USD/ano), Team ID, certificates
