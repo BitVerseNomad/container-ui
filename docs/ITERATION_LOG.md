@@ -106,3 +106,49 @@
 **Próximo:** Task 3 — Implementar OrbStackAdapter completamente com comandos Rust `orb_version`, `orb_list_vms`, `orb_start_vm`, `orb_stop_vm`, `orb_delete_vm`
 
 **Blockers:** Nenhum
+
+---
+
+## Iteração 6 — Task 3 Complete: OrbStackAdapter with Tauri Commands
+
+**Feito:**
+- 5 comandos Rust adicionados ao `main.rs`:
+  - `orb_version` — `orb version`
+  - `orb_list_vms` — `orb list --format json` → `Vec<Profile>`
+  - `orb_start_vm` — `orb start <name>`
+  - `orb_stop_vm` — `orb stop <name>`
+  - `orb_delete_vm` — `orb delete <name>`
+- Registrados no `tauri::generate_handler![]`
+- `OrbStackAdapter` atualizado para chamar novos comandos
+- `cargo check` ✅, `cargo test` ✅ (135 passam)
+- TypeScript compila ✅, 79 testes UI passam ✅, build OK ✅
+
+**Testes:** 79 UI + 135 Rust = 214 passam
+
+**App:** `npm run tauri dev` ✅ funcional nativamente
+
+**Próximo:** Task 4 — Implementar stubs básicos para Rancher, Podman, Docker Desktop com `isAvailable` verificando CLIs (`rdctl`, `podman`, `docker`) e contextos Docker
+
+**Blockers:** Nenhum
+
+---
+
+## Iteração 7 — Task 4 Complete: Rancher, Podman, Docker Desktop Adapters
+
+**Feito:**
+- 3 comandos Tauri adicionados ao `main.rs`:
+  - `rdctl_version` — `rdctl version`
+  - `podman_version` — `podman version --format json`
+  - `docker_desktop_version` — `docker version --format json` (verifica `Server.Platform`)
+- Registrados no `tauri::generate_handler![]`
+- Adapters `RancherAdapter`, `PodmanAdapter`, `DockerDesktopAdapter` já chamam novos comandos em `isAvailable()`/`getVersion()`
+- `cargo check` ✅, `cargo test` ✅ (135 passam)
+- TypeScript compila ✅, 79 testes UI passam ✅, build OK ✅
+
+**Testes:** 79 UI + 135 Rust = 214 passam
+
+**App:** `npm run tauri dev` ✅ funcional nativamente
+
+**Próximo:** Task 5 — Integração completa: testar app nativo com múltiplos runtimes, verificar runtime selector, profiles, containers
+
+**Blockers:** Nenhum
