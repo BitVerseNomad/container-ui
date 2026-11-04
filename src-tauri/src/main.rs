@@ -809,6 +809,126 @@ async fn docker_pull(app: tauri::AppHandle, context: String, image: String) -> R
     .map_err(|e| e.to_string())?
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct ChatMessage {
+    role: String,
+    content: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct OllamaModel {
+    name: String,
+    size: String,
+    modified: String,
+}
+
+/// Streams chat response from Ollama via Tauri events.
+/// Emits "ollama-chat-token" events for each token, then "ollama-chat-done" with the full response.
+#[tauri::command]
+async fn ollama_chat(app: tauri::AppHandle, model: String, messages: Vec<ChatMessage>) -> Result<String, String> {
+    use std::io::BufRead;
+
+    // Build the JSON request body
+    let request_body = serde_json::json!({
+        "model": model,
+        "messages": messages,
+        "stream": true
+    });
+
+    let mut cmd = Command::new("ollama");
+    cmd.arg("run")
+        .arg("--format")
+        .arg("json")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .env("PATH", path_env());
+
+    let mut child = cmd.spawn().map_err(|e| format!("Could not run ollama: {e}. Is it installed?"))?;
+
+    // Write request to stdin
+    if let Some(mut stdin) = child.stdin.take() {
+        use std::io::Write;
+        stdin.write_all(request_body.to_string().as_bytes()).map_err(|e| e.to_string())?;
+    }
+
+    let mut full_response = String::new();
+    let stdout = child.stdout.take().expect("piped stdout");
+    let stderr = child.stderr.take().expect("piped stderr");
+    let reader = BufReader::new(stdout);
+    let err_reader = BufReader::new(stderr);
+
+    // Read stdout line by line (streaming JSON)
+    for line in reader.lines().map_while(Result::ok) {
+        if line.trim().is_empty() {
+            continue;
+        }
+        // Try to parse as JSON response
+        if let Ok(json) = serde_json::from_str::<serde_json::Value>(&line) {
+            if let Some(token) = json.get("response").and_then(|v| v.as_str()) {
+                if !token.is_empty() {
+                    full_response.push_str(token);
+                    // Emit token event for streaming UI
+                    let _ = app.emit("ollama-chat-token", token);
+                }
+            }
+            if json.get("done").and_then(|v| v.as_bool()) == Some(true) {
+                break;
+            }
+        }
+    }
+
+    // Drain stderr
+    let err_output: String = err_reader.lines().map_while(Result::ok).collect::<Vec<_>>().join("\n");
+
+    let status = child.wait().map_err(|e| e.to_string())?;
+
+    if !status.success() && !err_output.is_empty() {
+        return Err(err_output);
+    }
+
+    // Emit done event with full response
+    let _ = app.emit("ollama-chat-done", full_response.clone());
+
+    Ok(full_response)
+}
+
+/// Lists available Ollama models with name, size, and modified time.
+#[tauri::command]
+async fn ollama_list_models() -> Result<Vec<OllamaModel>, String> {
+    let output = exec("ollama", vec!["list".into()], false).await?;
+
+    let mut models = Vec::new();
+    for line in output.lines().skip(1) {
+        // Skip header line
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        if parts.len() >= 3 {
+            // Format: NAME ID SIZE MODIFIED
+            // We want name, size, modified
+            let name = parts[0].to_string();
+            let size = if parts.len() >= 3 { parts[2].to_string() } else { "unknown".to_string() };
+            // Modified time is the rest
+            let modified = parts[3..].join(" ");
+            models.push(OllamaModel { name, size, modified });
+        }
+    }
+
+    Ok(models)
+}
+
+/// Pulls an Ollama model with progress streaming.
+/// Emits "ollama-pull-progress" events with progress updates.
+#[tauri::command]
+async fn ollama_pull(app: tauri::AppHandle, model: String) -> Result<(), String> {
+    safe(&model)?;
+
+    tauri::async_runtime::spawn_blocking(move || {
+        stream(&app, "ollama-pull-progress", "ollama", &["pull".into(), model])
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 #[derive(Serialize)]
 struct Tool {
     path: String,
@@ -1819,6 +1939,7 @@ fn main() {
             stop_profile, force_stop_profile, restart_profile, colima_config, network_facts, vm_dns_probe, apply_mounts, apply_env, force_restart_profile, delete_profile, cancel_vm_op, host_resources, vm_log_tail, reveal_vm_log, open_url, pick_folder, setup_report, setup_fix, find_compose_files, reveal_compose, compose_editor, open_compose, compose_config, compose_action, cancel_compose, compose_logs, compose_in_folder, container_shell,
             orb_version, orb_list_vms, orb_start_vm, orb_stop_vm, orb_delete_vm,
             colima_version, rdctl_version, podman_version, docker_desktop_version,
+            ollama_chat, ollama_list_models, ollama_pull,
             desktop::desktop_state, desktop::desktop_docker, desktop::desktop_copy, desktop::desktop_copy_stop, desktop::desktop_start, desktop::desktop_replace, desktop::open_docker_desktop
         ])
         .run(tauri::generate_context!())
