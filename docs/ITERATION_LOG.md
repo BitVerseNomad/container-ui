@@ -207,3 +207,28 @@
 - Integração com guidance core para contexto de problemas
 
 **Blockers:** Nenhum
+
+---
+
+## Iteração 10 — Phase 5 Complete: AI Assistant (Ollama + OpenRouter)
+
+**Feito:**
+- 3 comandos Tauri para Ollama: `ollama_chat`, `ollama_list_models`, `ollama_pull`
+- `src/ai/types.ts` — AIProvider, AIModel, ChatMessage, AIContext, SYSTEM_PROMPT
+- `src/ai/providers/ollama.ts` — OllamaProvider (local, streaming chat, model list, pull)
+- `src/ai/providers/openrouter.ts` — OpenRouterProvider (cloud fallback, free models, streaming)
+- `src/ai/index.ts` — AIManager com provider switching, availability check
+- `src/ai/ChatPanel.tsx` — UI chat panel com provider/model selector, suggestions
+- TypeScript compila ✅, 79 UI + 135 Rust = 214 testes passam ✅
+- Build de produção OK ✅
+
+**Testes:** 79 UI + 135 Rust = 214 passam
+
+**App:** `npm run tauri dev` ✅ funcional nativamente
+
+**Próximo:** Phase 6 — Design System (Material 3 + HIG + Tesla tokens, component library)
+- Estender `tokens.css` com cores Material 3
+- Componentes padronizados: Button, Card, Dialog, Toast, Tooltip, Select, Table
+- Visual regression tests
+
+**Blockers:** Nenhum
