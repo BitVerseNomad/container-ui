@@ -16,5 +16,13 @@
       "devCsp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src ipc: http://ipc.localhost ws://localhost:1420 http://localhost:1420; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
     }
   },
-  "bundle": { "active": true, "targets": "all", "icon": ["icons/icon.icns", "icons/icon.png"] }
+  "bundle": {
+    "active": true,
+    "targets": ["dmg"],
+    "icon": ["icons/icon.icns", "icons/icon.png"],
+    "macos": {
+      "entitlements": "entitlements.plist",
+      "signingIdentity": ""
+    }
+  }
 }
