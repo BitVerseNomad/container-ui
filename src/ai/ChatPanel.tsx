@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { aiManager, ProviderId } from "./index";
-import { AIContext, ChatMessage } from "./types";
+import { AIContext, ChatMessage, AIModel } from "./types";
 import { Icon, IconName } from "../ui/icons";
 import { usePoll } from "../hooks";
 import { invoke } from "@tauri-apps/api/core";
@@ -15,9 +15,12 @@ export default function AIChatPanel({
   const [messages, setMessages] = useState<Array<{ role: string; content: string }>>([]);
   const [input, setInput] = useState("");
   const [provider, setProvider] = useState<ProviderId>('ollama');
-  const [providers, setProviders] = useState<Record<ProviderId, boolean>>({ ollama: false, openrouter: false });
-  const [models, setModels] = useState<Record<ProviderId, Array<{ id: string; name: string }>>>({ ollama: [], openrouter: [] });
-  const [selectedModel, setSelectedModel] = useState("");
+  const [providers, setProviders] = useState<Record<ProviderId, { available: boolean; error?: string }>>({ 
+    ollama: { available: false }, 
+    openrouter: { available: false } 
+  });
+  const [models, setModels] = useState<Record<ProviderId, AIModel[]>>({ ollama: [], openrouter: [] });
+  const [selectedModelId, setSelectedModelId] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -29,7 +32,12 @@ export default function AIChatPanel({
   }, [], 10000, true);
 
   useEffect(() => {
-    if (availData) setProviders(availData);
+    if (availData) {
+      setProviders(prev => ({
+        ollama: { available: availData.ollama },
+        openrouter: { available: availData.openrouter },
+      }));
+    }
   }, [availData]);
 
   // Load models when provider changes
@@ -37,17 +45,34 @@ export default function AIChatPanel({
     const loadModels = async () => {
       const allModels = await aiManager.listAllModels();
       setModels(allModels);
-      if (allModels[provider]?.length) {
-        setSelectedModel(allModels[provider][0].id);
+      const providerModels = allModels[provider] || [];
+      if (providerModels.length) {
+        setSelectedModelId(providerModels[0].id);
       }
     };
     loadModels();
-  }, [provider, providers[provider]]);
+  }, [provider, providers[provider]?.available]);
 
   // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  const selectedModel = models[provider]?.find(m => m.id === selectedModelId);
+
+  const formatContextWindow = (tokens: number) => {
+    if (tokens >= 1000000) return `${(tokens / 1000000).toFixed(1)}M`;
+    if (tokens >= 1000) return `${(tokens / 1000).toFixed(0)}k`;
+    return tokens.toString();
+  };
+
+  const formatSize = (bytes?: string) => {
+    if (!bytes) return null;
+    const b = parseInt(bytes);
+    if (b >= 1024 * 1024 * 1024) return `${(b / 1024 / 1024 / 1024).toFixed(1)} GB`;
+    if (b >= 1024 * 1024) return `${(b / 1024 / 1024).toFixed(1)} MB`;
+    return `${(b / 1024).toFixed(0)} KB`;
+  };
 
   const sendMessage = async () => {
     if (!input.trim() || loading) return;
@@ -90,6 +115,114 @@ export default function AIChatPanel({
     }
   };
 
+  const renderProviderPicker = () => (
+    <div className="ai-provider-picker" role="radiogroup" aria-label="AI Provider">
+      {(['ollama', 'openrouter'] as ProviderId[]).map(id => {
+        const p = providers[id];
+        return (
+          <button
+            key={id}
+            className={`ai-provider-card ${provider === id ? 'active' : ''} ${!p?.available ? 'unavailable' : ''}`}
+            onClick={() => p?.available && setProvider(id)}
+            disabled={!p?.available || loading}
+            role="radio"
+            aria-checked={provider === id}
+            title={p?.available ? undefined : p?.error || 'Not available'}
+          >
+            <div className="ai-provider-icon">
+              {id === 'ollama' ? <Icon name="box" size={18} /> : <Icon name="terminal" size={18} />}
+            </div>
+            <div className="ai-provider-info">
+              <span className="ai-provider-name">{id === 'ollama' ? 'Ollama' : 'OpenRouter'}</span>
+              <span className="ai-provider-desc">{id === 'ollama' ? 'Local (privado)' : 'Cloud (modelos free)'}</span>
+            </div>
+            <span className={`ai-provider-status ${p?.available ? 'ok' : 'off'}`}>
+              {p?.available ? '✓' : '✗'}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  const renderModelSelector = () => {
+    const providerModels = models[provider] || [];
+    if (!providerModels.length) return null;
+
+    return (
+      <div className="ai-model-selector">
+        <select
+          className="ai-model-select"
+          value={selectedModelId}
+          onChange={(e) => setSelectedModelId(e.target.value)}
+          disabled={loading}
+          aria-label="Select model"
+        >
+          {providerModels.map(m => (
+            <option key={m.id} value={m.id}>
+              {m.name} {m.free ? '(Free)' : ''}
+            </option>
+          ))}
+        </select>
+        {selectedModel && (
+          <div className="ai-model-info">
+            <div className="ai-model-badges">
+              {selectedModel.free && <span className="ai-badge free">Free</span>}
+              <span className="ai-badge context">{formatContextWindow(selectedModel.contextWindow)} context</span>
+              {selectedModel.size && <span className="ai-badge size">{formatSize(selectedModel.size)}</span>}
+            </div>
+            <p className="ai-model-desc">{selectedModel.description}</p>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderWelcome = () => (
+    <div className="ai-chat-welcome">
+      <Icon name="hammer" size={28} />
+      <h3>Como posso ajudar?</h3>
+      <p>Pergunte sobre containers, Docker, Colima, Kafka, redes, volumes...</p>
+      <div className="ai-suggestions" role="list">
+        {[
+          { text: "Por que meu container reinicia?", icon: "restart" },
+          { text: "Como corrigir conflito de porta?", icon: "network" },
+          { text: "Kafka UI não conecta no Kafka", icon: "alert" },
+          { text: "Container sem memória (OOM)", icon: "gauge" },
+        ].map((s, i) => (
+          <button 
+            key={i} 
+            className="ai-suggestion-btn"
+            onClick={() => { setInput(s.text); sendMessage(); }}
+            disabled={loading}
+          >
+            <Icon name={s.icon as IconName} size={14} />
+            <span>{s.text}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
+  const renderMessages = () => (
+    <div className="ai-chat-messages">
+      {messages.length === 0 && renderWelcome()}
+      {messages.map((msg, i) => (
+        <div key={i} className={`ai-message ${msg.role}`}>
+          <div className="ai-message-bubble">{msg.content}</div>
+        </div>
+      ))}
+      {loading && (
+        <div className="ai-message assistant">
+          <div className="ai-message-bubble ai-typing">
+            <span></span><span></span><span></span>
+          </div>
+        </div>
+      )}
+      <div ref={messagesEndRef} />
+    </div>
+  );
+
   return (
     <div className="ai-chat-panel">
       <div className="ai-chat-header">
@@ -98,65 +231,18 @@ export default function AIChatPanel({
           <span>AI Assistant</span>
         </div>
         <div className="ai-chat-controls">
-          <select
-            className="ai-provider-select"
-            value={provider}
-            onChange={(e) => setProvider(e.target.value as ProviderId)}
-            disabled={loading}
-          >
-            {Object.entries(providers).map(([id, available]) => (
-              <option key={id} value={id} disabled={!available}>
-                {id === 'ollama' ? 'Ollama (Local)' : 'OpenRouter (Cloud)'} {available ? '✓' : '✗'}
-              </option>
-            ))}
-          </select>
-          {models[provider]?.length && (
-            <select
-              className="ai-model-select"
-              value={selectedModel}
-              onChange={(e) => setSelectedModel(e.target.value)}
-              disabled={loading}
-            >
-              {models[provider].map(m => (
-                <option key={m.id} value={m.id}>{m.name}</option>
-              ))}
-            </select>
-          )}
+          {renderProviderPicker()}
+          {renderModelSelector()}
           <button className="icon-btn" aria-label="Close" onClick={onClose}>
             <Icon name="close" size={14} />
           </button>
         </div>
       </div>
 
-      <div className="ai-chat-messages">
-        {messages.length === 0 && (
-          <div className="ai-chat-welcome">
-            <Icon name="hammer" size={24} />
-            <p>Ask me about container problems, Docker commands, or Colima setup.</p>
-            <div className="ai-suggestions">
-              <button onClick={() => { setInput("Why is my container restarting?"); sendMessage(); }}>Why is my container restarting?</button>
-              <button onClick={() => { setInput("How do I fix a port conflict?"); sendMessage(); }}>How do I fix a port conflict?</button>
-              <button onClick={() => { setInput("My Kafka UI can't connect to Kafka"); sendMessage(); }}>Kafka connection issues</button>
-            </div>
-          </div>
-        )}
-        {messages.map((msg, i) => (
-          <div key={i} className={`ai-message ${msg.role}`}>
-            <div className="ai-message-bubble">{msg.content}</div>
-          </div>
-        ))}
-        {loading && (
-          <div className="ai-message assistant">
-            <div className="ai-message-bubble ai-typing">
-              <span></span><span></span><span></span>
-            </div>
-          </div>
-        )}
-        <div ref={messagesEndRef} />
-      </div>
+      {renderMessages()}
 
       {error && (
-        <div className="ai-error">{error}</div>
+        <div className="ai-error" role="alert">{error}</div>
       )}
 
       <div className="ai-chat-input">
@@ -166,11 +252,12 @@ export default function AIChatPanel({
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Ask about containers, Docker, Colima..."
+          placeholder="Pergunte sobre containers, Docker, Colima..."
           disabled={loading}
           rows={2}
+          aria-label="Sua pergunta"
         />
-        <button className="primary ai-send" onClick={sendMessage} disabled={!input.trim() || loading}>
+        <button className="primary ai-send" onClick={sendMessage} disabled={!input.trim() || loading} aria-label="Enviar">
           {loading ? <Icon name="restart" size={14} /> : <Icon name="play" size={14} />}
         </button>
       </div>
