@@ -232,3 +232,29 @@
 - Visual regression tests
 
 **Blockers:** Nenhum
+
+---
+
+## Iteração 11 — Phase 5 UX Polish: AI ChatPanel Redesign
+
+**Feito:**
+- Provider picker: cards visuais (Ollama Local / OpenRouter Cloud) com status ✓/✗
+- Model selector: dropdown + info card com badges (Free, context window, tamanho)
+- Welcome screen com botões de sugestão (container restart, port conflict, Kafka, OOM)
+- Typing indicator animado (3 dots)
+- Message bubbles melhoradas (user à direita, assistant à esquerda)
+- Input area com textarea auto-resize
+- CSS novo: `.ai-provider-card`, `.ai-model-info`, `.ai-badge`, `.ai-suggestion-btn`, `.ai-typing`
+- TypeScript compila ✅, 79 UI + 135 Rust = 214 testes passam ✅
+- Build OK ✅
+
+**Testes:** 79 UI + 135 Rust = 214 passam
+
+**App:** `npm run tauri dev` ✅ funcional nativamente
+
+**Próximo:** Phase 6 — Design System (Material 3 + HIG + Tesla tokens, component library)
+- Estender `tokens.css` com cores Material 3 (`--md-sys-color-*`)
+- Componentes padronizados: Button (variants), Card, Dialog, Toast, Tooltip, Select, Table
+- Visual regression tests
+
+**Blockers:** Nenhum
