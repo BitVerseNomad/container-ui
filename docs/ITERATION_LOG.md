@@ -83,3 +83,26 @@
 **Próximo:** Task 1 — implementar ColimaAdapter completamente com testes (já feito no scaffold), depois Task 2 — RuntimeRegistry auto-detection + UI selector no Shell.tsx
 
 **Blockers:** Nenhum
+
+---
+
+## Iteração 5 — Task 2 Complete: RuntimeRegistry Auto-Detection + UI Selector
+
+**Feito:**
+- Runtime selector dropdown adicionado no sidebar do `Shell.tsx`
+- `App.tsx` conectado ao adapter ativo via `runtimeRegistry`
+- Substituído chamadas diretas a `invoke("list_profiles")` por `adapter.listProfiles()`
+- Evento `runtime-changed` disparado ao trocar runtime, recarregando profiles
+- Exportado `RuntimeInfo` do `src/runtime/index.ts`
+- CSS para `.runtime-selector`, `.runtime-label`, `.runtime-select`
+- TypeScript compila (`npx tsc --noEmit`)
+- **79 testes UI + 135 Rust = 214 testes passam**
+- Build de produção OK
+
+**Testes:** 79 UI + 135 Rust = 214 passam
+
+**App:** `npm run tauri dev` ✅ funcional nativamente
+
+**Próximo:** Task 3 — Implementar OrbStackAdapter completamente com comandos Rust `orb_version`, `orb_list_vms`, `orb_start_vm`, `orb_stop_vm`, `orb_delete_vm`
+
+**Blockers:** Nenhum
