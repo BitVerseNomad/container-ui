@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { CommandLog, CommandToast } from "./Commands";
 import { invoke } from "@tauri-apps/api/core";
 import { Profile, ctxFor } from "./api";
@@ -29,6 +29,7 @@ import { bringBusy, useBringBusy } from "./bringBusy";
 import { readDesktop, readDesktopOnFocus } from "./desktopOffer";
 import { dockerLocked, setVmBusy } from "./dockerLock";
 import { useHost } from "./useHostSize";
+import { runtimeRegistry } from "./runtime";
 
 // The profile a VM operation runs on: start takes { opts: { name } }, the others { name }.
 const opName = (vm: VmState) => { const a = vm.last?.args as { name?: string; opts?: { name?: string } } | undefined; return a?.opts?.name ?? a?.name; };
@@ -39,6 +40,20 @@ const NOUN: Record<string, string> = { Images: "images", Volumes: "volumes", Net
 export default function App() {
   const [tab, setTab] = useState<Tab>("Containers");
   const [appError, setAppError] = useState<string | null>(null);
+  const [activeRuntimeId, setActiveRuntimeId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const active = runtimeRegistry.getActive();
+    if (active) setActiveRuntimeId(active.id);
+
+    const onRuntimeChange = (e: CustomEvent) => {
+      setActiveRuntimeId(e.detail.runtimeId);
+      // Reload profiles and data for new runtime
+      reloadProfiles();
+    };
+    window.addEventListener("runtime-changed", onRuntimeChange as EventListener);
+    return () => window.removeEventListener("runtime-changed", onRuntimeChange as EventListener);
+  }, []);
   useEffect(() => {
     const on = (e: Event) => setAppError((e as CustomEvent<string>).detail);
     window.addEventListener("app-error", on);
@@ -53,8 +68,31 @@ export default function App() {
   const setVm = (next: VmState) => { setVmBusy(next.op !== null); setVmState(next); };
   const { env, recheck } = useEnv();
   const compose = useComposeScan();
-  const { data, error, reload } = usePoll(() => invoke<Profile[]>("list_profiles"), []);
-  const profiles = data ?? [];
+
+  // Load profiles from active runtime adapter
+  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [profilesError, setProfilesError] = useState<string | null>(null);
+
+  const reloadProfiles = useCallback(async () => {
+    const adapter = runtimeRegistry.getActive();
+    if (adapter) {
+      try {
+        const list = await adapter.listProfiles();
+        setProfiles(list);
+        setProfilesError(null);
+      } catch (e) {
+        setProfilesError(String(e));
+        setProfiles([]);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    reloadProfiles();
+    const interval = setInterval(reloadProfiles, 3000);
+    return () => clearInterval(interval);
+  }, [reloadProfiles, activeRuntimeId]);
+
   // Which profiles run Kubernetes. Without kubectl there is no way to ask, so the answer stays "not known".
   const kube = usePoll<string[]>(async () => (env?.kubectl ? contextNames(await invoke<string>("kubectl", { context: null, args: ["config", "get-contexts", "-o", "name"] })) : []), [env?.kubectl], 10000, !!env);
   // Profiles switched Kubernetes on this session; the tab shows up even if kubectl still has to be installed.
@@ -64,7 +102,7 @@ export default function App() {
     if (!profiles.some((p) => p.name === active)) {
       setActive((profiles.find((p) => p.status === "Running") ?? profiles[0])?.name ?? null);
     }
-  }, [data]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [profiles]);
 
   useEffect(() => setDetailId(null), [active]);
 
@@ -74,7 +112,7 @@ export default function App() {
     const now = profiles.find((p) => p.name === active)?.status;
     if (prevStatus.current !== "Running" && now === "Running" && vm.op === null) setVm({ op: null, failure: null });
     prevStatus.current = now;
-  }, [data, active]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [profiles, active]);
 
   const current = profiles.find((p) => p.name === active) ?? null;
   const ctx = current?.status === "Running" ? ctxFor(current.name) : null;
@@ -157,7 +195,7 @@ export default function App() {
     } catch (e) {
       setVm({ op: null, failure: String(e), last });
     }
-    reload();
+    reloadProfiles();
   }
   // The VM size fix's runner (src/Resize.tsx): the same VM state as every other VM button, so the sidebar, the VM
   // strip and container actions lock and show it, wherever the user goes meanwhile. Its failure is shown where it
@@ -172,7 +210,7 @@ export default function App() {
       return String(e);
     } finally {
       // Read the VM's new status before letting go of the lock, so no screen flashes "stopped" in between.
-      await reload().catch(() => {});
+      await reloadProfiles().catch(() => {});
       setVm({ op: null, failure: null, last });
     }
   };
@@ -195,7 +233,7 @@ export default function App() {
           ctx={ctx}
           vm={vm}
           onVm={setVm}
-          reload={reload}
+          reload={reloadProfiles}
           detailId={detailId}
           setDetailId={setDetailId}
           onPull={() => { setPullOnOpen(true); setTab("Images"); }}
@@ -224,7 +262,7 @@ export default function App() {
     ) : tab === "Profiles" ? (
       <Profiles
         profiles={profiles}
-        reload={() => { reload(); kube.reload(); }}
+        reload={() => { reloadProfiles(); kube.reload(); }}
         openNew={newProfileOnOpen}
         kubeOn={(name) => (kubeAsked.includes(name) ? true : kubernetesOn(ctxFor(name), kube.data))}
         onKubeAsked={(name) => setKubeAsked((l) => (l.includes(name) ? l : [...l, name]))}
@@ -266,7 +304,7 @@ export default function App() {
     <ResizeProvider value={{ profile: current, host, pick, runVm, containers: doc.containers, locked: vmLocked, vmBusy: vm.op !== null, onProfiles: () => setTab("Profiles") }}>
     <Shell onCommands={() => setLogOpen(true)} badges={{ Doctor: doctorTodo }} hidden={kubeOn ? [] : ["Kubernetes"]} nav={tab} onNav={(t) => { setDetailId(null); setPullOnOpen(false); setNewProfileOnOpen(false); setTab(t); }} profiles={profiles} active={active} onSelect={switchTo} onVm={vmFromAnywhere} onRestart={(name) => vmFromAnywhere(name, "starting", true)} vmBusy={vmLocked} vmOp={vm.op && opName(vm) ? { name: opName(vm)!, op: vm.op } : null} onNewProfile={() => { setDetailId(null); setNewProfileOnOpen(true); setTab("Profiles"); }}>
       {!(tab === "Containers" && detailId) && <PageHeader title={tab} />}
-      <Banner error={error} />
+      <Banner error={profilesError} />
       <Banner error={appError} onClose={() => setAppError(null)} />
       {page}
       <CommandToast onOpenLog={() => setLogOpen(true)} />

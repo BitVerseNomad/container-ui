@@ -5,6 +5,8 @@ import { RancherAdapter } from "./rancher-adapter";
 import { PodmanAdapter } from "./podman-adapter";
 import { DockerDesktopAdapter } from "./docker-desktop-adapter";
 
+export type { RuntimeAdapter, RuntimeInfo, RuntimeId };
+
 export class RuntimeRegistry {
   private adapters: Map<RuntimeId, RuntimeAdapter> = new Map();
   private activeAdapter: RuntimeAdapter | null = null;

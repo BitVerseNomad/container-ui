@@ -147,6 +147,11 @@ textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; 
 .brand b { display: block; font-size: 14px; }
 .brand small { color: var(--muted); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; }
 .logo { width: 24px; height: 24px; border-radius: 6px; background: var(--primary); color: var(--on-primary); display: grid; place-items: center; }
+
+.runtime-selector { padding: 0 6px 8px; border-bottom: 1px solid var(--border); margin-bottom: 4px; }
+.runtime-label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: 4px; }
+.runtime-select { width: 100%; padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); font-size: 12px; }
+
 .sidebar nav { display: flex; flex-direction: column; gap: 2px; flex: 1; }
 .nav-item { display: flex; align-items: center; gap: 8px; width: 100%; border: 0; text-align: left; padding: 5px 8px; border-radius: 6px; color: var(--ink); }
 .nav-item:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }

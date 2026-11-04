@@ -1,7 +1,9 @@
-import { ReactNode, useState } from "react";
+import { ReactNode, useState, useEffect } from "react";
 import { Profile } from "./api";
 import { Icon, IconName } from "./ui/icons";
 import Menu from "./ui/Menu";
+import { runtimeRegistry } from "./runtime";
+import type { RuntimeInfo } from "./runtime";
 
 export type Tab = "Containers" | "Images" | "Volumes" | "Networks" | "Kubernetes" | "Profiles" | "Doctor";
 
@@ -48,8 +50,34 @@ export default function Shell({ nav, onNav, profiles, active, onSelect, onNewPro
   const current = profiles.find((p) => p.name === active);
   const [folded, setFolded] = useState(readFolded);
   const fold = () => setFolded((f) => { saveFolded(!f); return !f; });
+  const [runtimes, setRuntimes] = useState<RuntimeInfo[]>([]);
+  const [activeRuntimeId, setActiveRuntimeId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const load = async () => {
+      const available = await runtimeRegistry.detectAvailable();
+      setRuntimes(available);
+      const active = runtimeRegistry.getActive();
+      if (active) setActiveRuntimeId(active.id);
+    };
+    load();
+  }, []);
+
   // While a start or stop runs, say so instead of the last state Colima reported.
   const shown = (p: Profile) => (vmOp?.name === p.name ? (vmOp.op === "starting" ? "Starting…" : vmOp.op === "restarting" ? "Restarting…" : "Stopping…") : p.status);
+
+  const handleRuntimeChange = (id: string) => {
+    const adapter = runtimes.find(r => r.adapter.id === id)?.adapter;
+    if (adapter) {
+      runtimeRegistry.setActive(adapter);
+      setActiveRuntimeId(id);
+      // Trigger app to reload with new runtime
+      window.dispatchEvent(new CustomEvent("runtime-changed", { detail: { runtimeId: id } }));
+    }
+  };
+
+  const activeRuntimeValue = activeRuntimeId ?? "";
+
   return (
     <div className={folded ? "shell folded" : "shell"}>
       <div className="sidebar">
@@ -84,6 +112,25 @@ export default function Shell({ nav, onNav, profiles, active, onSelect, onNewPro
             <Icon name="sidebar" size={15} />
           </button>
         </div>
+
+        {runtimes.length > 1 && (
+          <div className="runtime-selector" aria-label="Container runtime">
+            <label className="runtime-label" htmlFor="runtime-select">Runtime</label>
+            <select
+              id="runtime-select"
+              className="runtime-select"
+              value={activeRuntimeValue}
+              onChange={(e) => handleRuntimeChange(e.target.value)}
+              aria-label="Select container runtime"
+            >
+              {runtimes.map((r) => (
+                <option key={r.adapter.id} value={r.adapter.id}>
+                  {r.adapter.name} {r.version && `(${r.version})`}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         <nav aria-label="Main">
           {NAV.filter(({ tab }) => !hidden.includes(tab)).map(({ tab, icon }) => (
             <button key={tab} className={`nav-item${tab === nav ? " active" : ""}${tab === BOTTOM ? " nav-bottom" : ""}`} aria-label={badges[tab] ? `${tab}, ${badges[tab]} problem${badges[tab] === 1 ? "" : "s"}` : tab} title={tab} aria-current={tab === nav ? "page" : undefined} onClick={() => onNav(tab)}>
