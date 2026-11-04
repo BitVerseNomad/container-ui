@@ -169,6 +169,7 @@ export default function Volumes({ ctx }: { ctx: string }) {
                     <IconButton
                       label={by.length ? `Remove volume ${v.Name} (in use by ${by.join(", ")})` : `Remove volume ${v.Name}`}
                       icon="trash"
+                      text
                       danger
                       disabled={by.length > 0}
                       waiting={locked ? WAIT : undefined}

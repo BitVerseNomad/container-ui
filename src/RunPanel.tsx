@@ -269,11 +269,6 @@ export default function RunPanel({ ctx, image, arch, onClose, onRan }: Props) {
         : <><Banner error={dockerError} />{dockerError && hintFor(dockerError) && <p className="hint">{hintFor(dockerError)}</p>}</>}
       {busy && <p className="hint">Starting the container. If the image isn't downloaded yet, this includes the pull.</p>}
 
-      <details className="how run-cmd" open={showCmd} onToggle={(e) => setShowCmd(e.currentTarget.open)}>
-        <summary><Icon name="chevron" size={12} />Show command</summary>
-        <pre className="cmd" ref={cmdBox}>{built.ok ? ["docker", ...built.args].map(shellQuote).join(" ") : "Fix the problems above to see the command."}</pre>
-      </details>
-
       <div className="actions">
         <button disabled={busy} onClick={onClose}>Cancel</button>
         <button className="primary" disabled={busy} aria-disabled={locked || undefined} title={locked ? "Waits for what is changing Docker now" : undefined} onClick={run}>{busy ? "Starting…" : "Run"}</button>

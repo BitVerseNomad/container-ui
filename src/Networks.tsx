@@ -81,7 +81,7 @@ export default function Networks({ ctx }: { ctx: string }) {
                         <span key={m.id} className="member">
                           <b>{m.name}</b> <span className="mono">{m.ip}</span>
                           {!builtin && (
-                            <IconButton label={`Disconnect ${m.name} from ${n.name}`} icon="close" onClick={async () => (await confirm(`Disconnect ${m.name} from ${n.name}? It will no longer reach the others on this network.`, "Disconnect")) && act(["network", "disconnect", n.name, m.name])} />
+                            <IconButton label={`Disconnect ${m.name} from ${n.name}`} icon="close" text onClick={async () => (await confirm(`Disconnect ${m.name} from ${n.name}? It will no longer reach the others on this network.`, "Disconnect")) && act(["network", "disconnect", n.name, m.name])} />
                           )}
                         </span>
                       ))}
@@ -97,7 +97,7 @@ export default function Networks({ ctx }: { ctx: string }) {
                     )}
                   </td>
                   <td className="row-actions">
-                    {!builtin && <IconButton label={n.members.length ? `Remove network ${n.name} (still has containers)` : `Remove network ${n.name}`} icon="trash" danger disabled={n.members.length > 0} onClick={async () => (await confirm(`Remove network ${n.name}?`)) && act(["network", "rm", n.name])} />}
+                    {!builtin && <IconButton label={n.members.length ? `Remove network ${n.name} (still has containers)` : `Remove network ${n.name}`} icon="trash" text danger disabled={n.members.length > 0} onClick={async () => (await confirm(`Remove network ${n.name}?`)) && act(["network", "rm", n.name])} />}
                   </td>
                 </tr>
               );

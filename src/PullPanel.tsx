@@ -143,7 +143,7 @@ export default function PullPanel({ ctx, onClose, onPulled, onRun, searchFor }: 
       <div className="group">
         <h4>Image</h4>
         <span className="inline">
-          <input aria-label="Image to pull" value={image} placeholder="nginx or postgres:16" disabled={pulling} onChange={(e) => setImage(e.target.value)} onKeyDown={(e) => e.key === "Enter" && name && !pulling && pull()} />
+          <input aria-label="Image to pull" value={image} placeholder={!image ? "nginx or postgres:16" : undefined} disabled={pulling} onChange={(e) => setImage(e.target.value)} onKeyDown={(e) => e.key === "Enter" && name && !pulling && pull()} />
           <button className="primary" disabled={!name || pulling} onClick={pull}>
             {pulling ? "Pulling…" : name ? `Pull ${name}` : "Pull"}
           </button>
@@ -164,7 +164,7 @@ export default function PullPanel({ ctx, onClose, onPulled, onRun, searchFor }: 
           <input
             aria-label="Search Docker Hub"
             value={term}
-            placeholder="Search Docker Hub, like redis"
+            placeholder={!term ? "Search Docker Hub, like redis" : undefined}
             disabled={pulling}
             onChange={(e) => setTerm(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && search()}

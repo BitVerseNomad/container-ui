@@ -71,8 +71,8 @@ export default function Images({ ctx, onRan, startPull = false, arch }: { ctx: s
                   <td className="num">{parseBytes(i.Size) ? formatBytes(parseBytes(i.Size)) : i.Size}</td>
                   <td>{i.CreatedSince}</td>
                   <td className="row-actions">
-                    <IconButton label={`Run ${ref}`} icon="play" onClick={() => setRunning(ref)} />
-                    <IconButton label={`Remove ${ref}`} icon="trash" danger onClick={async () => (await confirm(`Remove image ${ref}?`)) && act(["rmi", ref])} />
+                    <IconButton label={`Run ${ref}`} icon="play" text onClick={() => setRunning(ref)} />
+                    <IconButton label={`Remove ${ref}`} icon="trash" text danger onClick={async () => (await confirm(`Remove image ${ref}?`)) && act(["rmi", ref])} />
                   </td>
                 </tr>
               );

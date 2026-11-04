@@ -104,14 +104,14 @@ export default function Profiles({ profiles, reload, openNew = false, kubeOn = (
                   <td className="row-actions">
                     {up ? (
                       <>
-                        <IconButton label={`Stop ${p.name}`} icon="stop" disabled={!!busy || fixing} onClick={() => act(p.name, "stopping", "stop_profile", { name: p.name })} />
-                        <IconButton label={`Restart ${p.name}`} icon="restart" disabled={!!busy || fixing} onClick={() => act(p.name, "restarting", "restart_profile", { name: p.name })} />
+                        <IconButton label={`Stop ${p.name}`} icon="stop" text disabled={!!busy || fixing} onClick={() => act(p.name, "stopping", "stop_profile", { name: p.name })} />
+                        <IconButton label={`Restart ${p.name}`} icon="restart" text disabled={!!busy || fixing} onClick={() => act(p.name, "restarting", "restart_profile", { name: p.name })} />
                       </>
                     ) : (
-                      <IconButton label={`Start ${p.name}`} icon="play" disabled={!!busy} onClick={() => act(p.name, "starting", "start_profile", { opts: { name: p.name } as StartOpts })} />
+                      <IconButton label={`Start ${p.name}`} icon="play" text disabled={!!busy} onClick={() => act(p.name, "starting", "start_profile", { opts: { name: p.name } as StartOpts })} />
                     )}
-                    <IconButton label={`Edit ${p.name}`} icon="sliders" disabled={!!busy || fixing} onClick={() => setEditing(p)} />
-                    <IconButton label={`Delete ${p.name}`} icon="trash" danger disabled={!!busy || fixing} onClick={async () => (await confirm(`Delete profile "${p.name}" and its VM? All its containers and images are removed.`, "Delete")) && act(p.name, "deleting", "delete_profile", { name: p.name })} />
+                    <IconButton label={`Edit ${p.name}`} icon="sliders" text disabled={!!busy || fixing} onClick={() => setEditing(p)} />
+                    <IconButton label={`Delete ${p.name}`} icon="trash" danger text disabled={!!busy || fixing} onClick={async () => (await confirm(`Delete profile "${p.name}" and its VM? All its containers and images are removed.`, "Delete")) && act(p.name, "deleting", "delete_profile", { name: p.name })} />
                   </td>
                 </tr>
               );
@@ -137,7 +137,7 @@ export default function Profiles({ profiles, reload, openNew = false, kubeOn = (
           onSubmit={(e) => {
             const f = new FormData(e.currentTarget);
             const opts: StartOpts = {
-              name: String(f.get("name") || "default"),
+              name: String(newName.trim() || f.get("name") || "default"),
               cpus: Number(f.get("cpus")),
               memory: Number(f.get("memory")),
               disk: Number(f.get("disk")),
