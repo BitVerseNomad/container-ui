@@ -179,3 +179,31 @@
 - Task 9 (Phase 9): Polish, onboarding, accessibility audit
 
 **Blockers:** Nenhum técnico
+
+---
+
+## Iteração 9 — Phase 4 Complete: Guidance Core Extraction
+
+**Feito:**
+- Criado `src/guidance/` com 6 módulos runtime-agnostic:
+  - `types.ts` — Types para Problems, FixActions, DiagnosticsData, ContainerInfo, etc.
+  - `problem-detection.ts` — Detecta problemas de VM, containers, redes, images, volumes
+  - `fix-engine.ts` — Executa fixes: docker, connect, recreate, command, navigate
+  - `connection-doctor.ts` — DNS resolution, port connectivity, localhost detection
+  - `guided-run.ts` — Gera sugestões de portas, volumes, env vars a partir de image inspect
+  - `index.ts` — Exports consolidados
+- Tipagem estrita TypeScript, sem `any`
+- TypeScript compila ✅, 79 UI + 135 Rust = 214 testes passam ✅
+- Build de produção OK ✅
+
+**Testes:** 79 UI + 135 Rust = 214 passam
+
+**App:** `npm run tauri dev` ✅ funcional nativamente
+
+**Próximo:** Phase 5 — AI Assistant Ollama (local troubleshooting chat panel)
+- Adicionar Tauri commands para Ollama (chat, list models, pull)
+- Criar `src/ai/` com providers (Ollama, OpenRouter)
+- UI chat panel no sidebar ou modal
+- Integração com guidance core para contexto de problemas
+
+**Blockers:** Nenhum
