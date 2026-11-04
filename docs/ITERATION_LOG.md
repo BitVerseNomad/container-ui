@@ -152,3 +152,30 @@
 **Próximo:** Task 5 — Integração completa: testar app nativo com múltiplos runtimes, verificar runtime selector, profiles, containers
 
 **Blockers:** Nenhum
+
+---
+
+## Iteração 8 — Task 5: Native App Integration Test + Runtime Selector Verified
+
+**Feito:**
+- Fix `tauri.conf.json` — `macOS` (case-sensitive) para bundle
+- App roda nativamente: `npm run tauri dev` ✅ (PID 62857)
+- Runtime selector dropdown visível no sidebar do Shell.tsx
+- Todos os 5 adapters registrados: Colima, OrbStack, Rancher, Podman, Docker Desktop
+- Auto-detection via `runtimeRegistry.detectAvailable()` funcionando
+- Troca de runtime dispara evento `runtime-changed` → recarrega profiles
+- `cargo check` ✅, `cargo test` ✅ (135), TypeScript ✅, 79 UI ✅, build OK ✅
+
+**Testes:** 79 UI + 135 Rust = 214 passam
+
+**App:** `npm run tauri dev` ✅ funcional nativamente no Mac
+
+**Próximo:** Phase 1-3 completa. Próximos passos (Phase 4+):
+- Task 4 (Phase 4): Guidance Core extraction (Doctor, Connection Doctor, Fix Engine)
+- Task 5 (Phase 5): AI Assistant Ollama (local troubleshooting chat)
+- Task 6 (Phase 6): AI Assistant OpenRouter (optional cloud fallback)
+- Task 7 (Phase 7): Design System Material 3 + HIG tokens
+- Task 8 (Phase 8): Packaging Homebrew + GitHub Releases + notarização
+- Task 9 (Phase 9): Polish, onboarding, accessibility audit
+
+**Blockers:** Nenhum técnico
