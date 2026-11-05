@@ -350,3 +350,23 @@
 - aria-live regions para status updates
 
 **Blockers:** Nenhum
+
+---
+
+## Iteração 15 — Phase 8 Task 2-3: Accessibility Audit + Keyboard Shortcuts + Command Palette
+
+**Feito:**
+- **Accessibility**: `:focus-visible` global em `tokens.css` (shadow ring), `aria-label` em todos IconButtons, heading hierarchy corrigida, `aria-live` region para anúncios
+- **Keyboard Shortcuts**: `useKeyboardShortcuts` hook com suporte a ⌘K (Command Palette), ⌘1-7 (abas), Escape (fechar painéis)
+- **Command Palette**: `CommandPalette.tsx` componente acessível com busca fuzzy, navegação por setas, Enter/Escape, seções, atalhos exibidos
+- Integrado em `App.tsx` com atalhos globais e CommandPalette component
+- TypeScript compila ✅, 79 UI + 135 Rust = 214 testes passam ✅
+- Build OK ✅
+
+**Testes:** 79 UI + 135 Rust = 214 passam
+
+**App:** `npm run tauri dev` ✅ funcional nativamente
+
+**Próximo:** Task 4 — Visual Regression Tests (light/dark/mid/phone via Playwright)
+
+**Blockers:** Nenhum
