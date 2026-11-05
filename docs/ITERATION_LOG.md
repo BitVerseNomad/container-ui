@@ -457,3 +457,29 @@
 **Próximo:** Phase 9 Task 4 — Final Polish (performance, empty states, loading states, micro-interactions)
 
 **Blockers:** Nenhum
+
+---
+
+## Iteração 20 — Native App Interaction Testing (Playwright on Tauri App)
+
+**Feito:**
+- App Tauri nativo rodando em `localhost:1420` (WebKit WebView)
+- Playwright test suite `scripts/native-interaction.test.ts` executando contra app nativo real
+- 8 testes de interação real passam:
+  - App carrega e mostra sidebar com profile switcher
+  - Navegação completa: Containers → Images → Volumes → Networks → Doctor → Profiles
+  - Onboarding modal abre e fecha corretamente
+  - Profile switcher abre e fecha corretamente
+  - Screenshots de cada aba salvas em `test-results/native/`
+- 2 testes skipados (Cmd+K Command Palette, Cmd+Shift+? Help Modal) - atalhos não implementados no app nativo ainda
+- TypeScript compila ✅, 79 UI + 135 Rust = 214 testes unitários passam ✅
+- Visual regression 6/6 passam ✅
+- Build de produção OK ✅
+
+**Testes:** 79 UI + 135 Rust + 6 visual + 8 native = 226 passam
+
+**App:** `npm run tauri dev` ✅ funcional nativamente em `localhost:1420`
+
+**Próximo:** Phase 9 Task 4 — Final Polish (empty states, loading states, micro-interactions, performance)
+
+**Blockers:** Nenhum
