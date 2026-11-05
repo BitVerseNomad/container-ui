@@ -323,3 +323,30 @@
 - Visual regression tests (light/dark/mid/phone)
 
 **Blockers:** Apple Developer Program (99 USD/ano) para notarização real, Team ID, certificados, HOMEBREW_TAP_TOKEN
+
+---
+
+## Iteração 14 — Phase 8 Task 1: Onboarding Tour (first-run)
+
+**Feito:**
+- `src/Onboarding.tsx`: 6-step modal tour (Welcome, Runtime, Profiles, Doctor, AI, Shortcuts)
+- Portal-rendered modal com progress bar, ilustrações, skip/next
+- localStorage persistence (`colima-ui:onboarding-complete`)
+- Integrado no `App.tsx` com estado `onboardingDone`
+- CSS: `.onboarding-overlay`, `.onboarding-modal`, progress bar, animações
+- TypeScript compila ✅, 79 UI + 135 Rust = 214 testes passam ✅
+- Build OK ✅
+
+**Testes:** 79 UI + 135 Rust = 214 passam
+
+**App:** `npm run tauri dev` ✅ funcional nativamente
+
+**Próximo:** Task 2 — Accessibility Audit (WCAG 2.1 AA)
+- Focus-visible em todos elementos interativos
+- aria-labels em botões icon-only
+- Heading hierarchy (h1-h6)
+- Color contrast 4.5:1
+- Keyboard navigation (Tab, arrows, Escape)
+- aria-live regions para status updates
+
+**Blockers:** Nenhum
