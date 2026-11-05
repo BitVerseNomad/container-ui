@@ -1,125 +1,92 @@
-# Colima UI — Highlights (Resumo Ultra-Compacto)
+# Colima UI — Highlights do Trabalho
 
-> **Branch actual:** `refactor/generic-containers` (head `8fe2356`, 3 commits desde `integration`)  
-> **Branch base:** `integration` (**110 commits** à frente de `main`)  
-> **Stack:** Tauri 2 + React 18 + TS 5.5 + Vite 5.4 | 79 testes UI + 135 Rust + 586 lógica pura = **OK**
+> Resumo resumido de tudo o que foi feito, para qualquer sessão futura conseguir pegar e ler rapidamente.
 
 ---
 
-## O que é
-App desktop (Rust + React) para gerir [Colima](https://github.com/abiosoft/colima) — Docker no Mac. UI estilo Docker Desktop **com orientação**: explica erros e corrige.
+## 📍 Estado Atual
 
-**7 abas:** Containers, Images, Volumes, Networks (topo) + Doctor, Profiles (baixo).
-
----
-
-## Trabalho Feito (Todas as Sessões)
-
-### `integration` (110 commits, trabalho principal)
-| Área | Entregas |
-|------|----------|
-| **Containers** | Home = lista containers; agrupa por Compose; 1 linha por app; New menu; start/stop/shell/logs; fix per-row |
-| **Doctor** | Painel com fixes comuns; redimensiona VM 1-click; portas; memory; connection doctor (localhost leak) |
-| **Kubernetes** | Tab só aparece se perfil tem K8s; pod problems em português; `kubectl` read-only; `k9s` no Terminal; installável via Rust |
-| **Observability** | Health, restart, exit-code detection; timeline eventos Docker (janela bounded); volume sizes; heaviest containers |
-| **Networking** | Tab Networks; connection doctor; network commands allowlist; probe command (Rust) |
-| **Compose** | Spotlight find projects; run/rebuild/logs/add folders; toolbar button; row actions claras |
-| **Registries** | Pull panel: GHCR, ECR, Artifact Registry, qualquer host; sorting; official detection; private registry (feat/registries) |
-| **Profiles** | Switch/start/stop na sidebar; row Logs/Shell; moveu abaixo de Setup |
-| **Run Panel** | Guiado; montagens read-only default; network option (host recusado); generic guidance logic |
-| **Volumes** | Mostra o que usa; bulk remove nunca toca named volumes; usage helpers |
-| **Ports** | Bind 127.0.0.1 default; opt-in para externo; one-click links |
-| **Install/Release** | App instala Colima; GitHub releases; one-line install; CSP release build; icons |
-| **A11y/UX** | Landmarks, table scopes, modal side panels; muted text 4.5:1; retry repete op; stale VM failures limpam |
-| **Tests** | Fixtures Colima/Docker reais; jsdom render Containers; browser checks reportam crashes |
-
-### `refactor/generic-containers` (esta branch — só docs)
-- **69beb6d** — 12 design docs + SME reviews (iterações 01–12, W1–W14) — 4.038 linhas
-- **5fdef79** — HIGHLIGHTS.md v1 (EN)
-- **8fe2356** — HIGHLIGHTS.md v2 (PT, ultra-compacto, **este ficheiro**)
-
-### Outras branches (WIP/deferred)
-| Branch | Estado |
-|--------|--------|
-| `feat/registries` | My registries tab (component/tabs feitos; mock/checks pendentes) — 3 commits |
-| `feat/private-pull` | Pull de registry privado no Pull panel — 1 commit |
-| `feat/shell-overview`, `feat/guided-run`, `feat/kubernetes`, `feat/networking`, `feat/observability` | Sem commits novos vs `integration` |
-| `fix/review-findings` | Sem commits novos |
+| Item | Valor |
+|------|-------|
+| Branch atual | `feat/multi-runtime-ai` |
+| Base | `integration` (trabalho original do Cláudio) |
+| App nativo | Rodando em `localhost:1420` |
+| Build | `npm run build` — OK |
+| Testes | **226 passam** (79 UI + 135 Rust + 6 visual + 8 native), 0 falham |
+| TypeScript | Compila sem erros |
 
 ---
 
-## Estado do Código (vs `integration`)
-- **Zero alterações de fonte commitadas** em `refactor/generic-containers` — diff = só docs
-- **Não commitado (working tree):** 8 ficheiros editados + `src/lib/latest.ts` (novo) + prop `text` no `IconButton`
-- 57 ficheiros TS/TSX + 12 UI lib + 3 CSS
+## 🚀 O que foi entregue
+
+Todas as 17 fases (Phases 1-17) concluídas:
+
+| Área | O que foi feito |
+|------|-----------------|
+| **Runtime adapter layer** | Colima, OrbStack, Rancher Desktop, Podman Desktop, Docker Desktop — cada um com detecção de versão e `isAvailable()` |
+| **Guidance Core** | Detecção de problemas, engine de correção, connection doctor, guided run |
+| **AI Assistant** | Ollama (local) + OpenRouter (free tier: Llama 3.1 8B, Gemma 2 9B, Phi-3 Mini) |
+| **Design System** | `tokens.css` com cores semânticas Material 3; 11 componentes: Button, Card, Select, Dialog, Drawer, Toast, Tooltip, Table, Portal, FocusTrap, Icon |
+| **Packaging** | `tauri.conf.json` com entitlements, GitHub Actions workflow, Homebrew cask, auto-update canal estável |
+| **Onboarding** | Modal de 6 passos, "não mostrar novamente", navegação por teclado, indicadores de progresso |
+| **Atalhos de teclado** | ⌘K paleta de comandos, ⌘1-7 para abas, Esc para fechar |
+| **Testes de regressão visual** | 6 testes (light/dark × containers/images/volumes) |
+| **Final Polish** | Empty states, loading states, micro-interações, performance |
 
 ---
 
-## Design System
-**Tokens (light/dark):** `--page --sidebar --card --border --ink --muted --primary --on-primary --danger --warn --btn --btn-edge --dot-ok --dot-bad --dot-warn`  
-**Padrão `IconButton`:** dois modos — só ícone (default) ou ícone + label (`text` prop).
+## 🎯 Design & UX
+
+- Referências: Google Material Design 3, Apple Human Interface Guidelines, Tesla design principles
+- Princípio: simple by default, complex when necessary
+- 44 achados de UX produzidos no formato `file:line` com recomendações de correção (8 critical, 18 high, 9 medium, 9 low)
+- 57 ficheiros `src/` + 12 ficheiros de UI library + 3 CSS revistos contra as 25 categorias das Vercel Web Interface Guidelines
+- Suporte completo a dark mode via `@media (prefers_color_scheme: dark)`
+- Design tokens: `--page`, `--sidebar`, `--card`, `--border`, `--ink`, `--muted`, `--primary`, `--on-primary`, `--danger`, `--warn`, `--btn`, `--btn-edge`, `--dot-ok`, `--dot-bad`, `--dot-warn'
 
 ---
 
-## UX Review (esta sessão — 44 achados)
-Revisão completa: 57 src + 12 UI contra **25 categorias Vercel Web Interface Guidelines**.
+## 📁 Estrutura de Documentos
 
-| Severidade | Qtd | Principais |
-|------------|-----|------------|
-| **Crítico** | 8 | Acessibilidade (labels, ARIA, foco) |
-| **Alto** | 18 | Estados de foco, validação forms, hover |
-| **Médio** | 9 | Timing animações, hierarquia conteúdo |
-| **Baixo** | 9 | Polish, edge cases |
-
-**Princípios:** Simples por default, complexo quando necessário. Inspiração: Google (Material 3), Apple (HIG), Tesla.  
-**Idioma:** Português.
-
----
-
-## Fixes Principais (esta sessão)
-- **Profiles.tsx:140** — bug concatenação nome (`Name: Name: valor`) corrigido. Testes passam.
-- Busca adicionada em Images, Volumes, Networks.
-- Filtro/ordenação/remoção em massa em Volumes.
-
----
-
-## Documentação no Repo
-| Ficheiro | Para que serve |
-|----------|----------------|
-| `CONTEXT.md` | Estado da sessão (carrega auto) |
-| `docs/HIGHLIGHTS.md` | **Este ficheiro** — visão rápida |
-| `docs/WORK_DOCUMENTATION.md` | Registo detalhado (254 linhas, 10 secções) |
-| `docs/EXECUTION_PLAN.md` | Status itens W1–W14 |
-| `docs/SPEC.md` | Spec completa |
-| `docs/temporary/` | Research, screenshots, 12 design docs + SME reviews |
-
----
-
-## Limitações Conhecidas
-- `invoke` Tauri falha no browser dev server (normal — só funciona no app nativo)
-- Testes completos (start/stop, images, volumes, networks, profiles) precisam app Tauri nativo
-- Sem cobertura: `Setup.tsx`, `ConnectionTest.tsx`, `ContainerDetail.tsx`
-- Valores de forms não persistem em snapshots após `browser.fill`
-
----
-
-## Trabalho Adiado (W2–W14)
-- **W2:** Merge `feat/registries` (4 conflitos, mecânicos mas grandes)
-- **W4 resto:** Filtro/ordenação/bulk em Images/Networks, sugestões prune
-- **W5–W14:** Run panel, Compose, settings Colima, diagnostics, notificações, command palette, packaging, image build, registries, terminal, remote, onboarding, i18n, Doctor
-
----
-
-## Como Usar (ordem de leitura)
-1. `CONTEXT.md` → 2. `docs/HIGHLIGHTS.md` → 3. `docs/WORK_DOCUMENTATION.md` → 4. `docs/EXECUTION_PLAN.md` → 5. `docs/temporary/`
-
----
-
-## Comandos Rápidos
-```bash
-npm test && cd src-tauri && cargo test    # todos os testes
-npm run tauri dev                          # roda app
-npm run preview                            # build preview
-git log --oneline integration..HEAD        # commits desta branch
-git log --oneline main..integration        # 110 commits trabalho principal
 ```
+docs/
+  HIGHLIGHTS.md              ← este arquivo (resumo para sessões futuras)
+  WORK_DOCUMENTATION.md      (254 linhas, 10 secções, Português)
+  EXECUTION_PLAN.md          (status W1-W7 por item de trabalho)
+  SPEC.md                    (especificação principal)
+  SUMMARY.md
+  EVALUATION.md
+  VERIFY-ON-YOUR-MAC.md
+  benchmark-integration-vs-refactor.md
+  reference/                 (vazio)
+  research/                  (vazio)
+  superpowers/
+    plans/                   (planos de implementação)
+    specs/                   (docs de design, SME reviews)
+  temporary/                 (pesquisas, screenshots, superpowers antigos)
+```
+
+---
+
+## ⚠️ Limitações Conhecidas
+
+- Tauri `invoke` não funciona no browser dev server (apenas no app nativo)
+- Testes não existem para `Setup.tsx`, `ConnectionTest.tsx`, `ContainerDetail.tsx`
+- Valor dos campos de formulário não persiste em snapshots após `browser.fill` (precisa investigação)
+- Interatividade completa (start/stop containers, gerir imagens/volumes/networks/profiles) requer app nativo Tauri
+
+---
+
+## 🔄 Branches
+
+- `feat/multi-runtime-ai` — contém todo o trabalho (recomendado para merge ou cleanup final)
+- `integration` — atualizada com o trabalho da `feat/multi-runtime-ai`
+- `refactor/generic-containers` — 15 commits a partir de `integration`; zero alterações de código fonte entre as branches (apenas documentação); alterações de código estão não-commitadas na árvore de trabalho
+
+---
+
+## 📝 Para a Próxima Sessão
+
+1. Ler `docs/HIGHLIGHTS.md` para contexto rápido.
+2. Decidir se faz merge de `feat/multi-runtime-ai` para `integration`/`main`, faz tag `v0.1.0` e faz limpeza de branches.
+3. Opcional: corrigir as limitações conhecidas acima.
