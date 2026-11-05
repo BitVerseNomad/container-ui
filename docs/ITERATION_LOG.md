@@ -392,3 +392,25 @@
 **Próximo:** Phase 9 — Polish final (onboarding refinements, keyboard shortcuts documentation, final accessibility review)
 
 **Blockers:** Nenhum
+
+---
+
+## Iteração 17 — Phase 9 Task 1: Onboarding Refinements
+
+**Feito:**
+- Adicionado checkbox "Não mostrar novamente" com persistência localStorage
+- Navegação Previous/Next/Finish com suporte a teclado (←/→/Enter/Esc)
+- Indicadores de passo clicáveis (dots) com progresso visual
+- Navegação por teclado (←/→/Enter/Esc)
+- Copy melhorado com descrições mais claras
+- localStorage: `colima-ui:onboarding-dont-show`
+- TypeScript compila ✅, 79 UI + 135 Rust = 214 testes passam ✅
+- Build OK ✅
+
+**Testes:** 79 UI + 135 Rust = 214 passam
+
+**App:** `npm run tauri dev` ✅ funcional nativamente
+
+**Próximo:** Task 2 — Keyboard Shortcuts Documentation (Help modal ⌘K, shortcuts list)
+
+**Blockers:** Nenhum
