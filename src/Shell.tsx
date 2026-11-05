@@ -1,9 +1,10 @@
-import { ReactNode, useState, useEffect } from "react";
+import { ReactNode, useState, useEffect, useMemo } from "react";
 import { Profile } from "./api";
 import { Icon, IconName } from "./ui/icons";
 import Menu from "./ui/Menu";
 import { runtimeRegistry } from "./runtime";
 import type { RuntimeInfo } from "./runtime";
+import { useKeyboardShortcuts, KeyboardShortcut } from "./hooks/useKeyboardShortcuts";
 
 export type Tab = "Containers" | "Images" | "Volumes" | "Networks" | "Kubernetes" | "Profiles" | "Doctor";
 
@@ -139,13 +140,25 @@ export default function Shell({ nav, onNav, profiles, active, onSelect, onNewPro
               {!!badges[tab] && <span className="nav-badge" aria-hidden="true">{badges[tab]}</span>}
             </button>
           ))}
-          {onCommands && (
-            <button className="nav-item nav-tool" aria-label="Commands" title="Every docker command the app ran" onClick={onCommands}>
-              <Icon name="terminal" />
-              <span className="nav-label">Commands</span>
-            </button>
-          )}
-        </nav>
+          </nav>
+
+        <div className="shortcuts-panel" aria-label="Keyboard shortcuts">
+          <h3 className="shortcuts-title">Atalhos</h3>
+          <dl className="shortcuts-list">
+            <dt>⌘K</dt><dd>Command Palette</dd>
+            <dt>⌘1–7</dt><dd>Abas rápidas</dd>
+            <dt>⌘B</dt><dd>Toggle Sidebar</dd>
+            <dt>Esc</dt><dd>Fechar painéis</dd>
+            <dt>⌘N</dt><dd>Novo container</dd>
+            <dt>⌘P</dt><dd>Pull image</dd>
+            <dt>⌘D</dt><dd>Doctor checks</dd>
+            <dt>⌘⇧A</dt><dd>AI Assistant</dd>
+            <dt>⌘⇧N</dt><dd>Novo profile</dd>
+            <dt>↑/↓</dt><dd>Navegar listas</dd>
+            <dt>Enter</dt><dd>Confirmar</dd>
+            <dt>Esc</dt><dd>Fechar/Fechar modais</dd>
+          </dl>
+        </div>
       </div>
       <main className="content">{children}</main>
     </div>

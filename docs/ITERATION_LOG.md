@@ -434,3 +434,26 @@
 **Próximo:** Task 3 — Final Accessibility Review + Keyboard Shortcuts List in Sidebar
 
 **Blockers:** Nenhum
+
+---
+
+## Iteração 19 — Phase 9 Task 3: Final Accessibility Review + Keyboard Shortcuts List in Sidebar
+
+**Feito:**
+- Shortcuts panel adicionado no sidebar (`shortcuts-panel` CSS + `shortcuts-list` HTML)
+- Atalhos categorizados: Navegação (⌘1-7, ⌘K, ⌘B), Ações (⌘N, ⌘P, ⌘D, ⌘⇧A, ⌘⇧N, ⌘⇧A), Listas (↑/↓, Enter, Esc)
+- CSS responsivo: panel oculto em mobile (< 700px)
+- Accessibility: `:focus-visible` global, `aria-label` em IconButtons, heading hierarchy, `aria-live` regions
+- Keyboard shortcuts globais via `useKeyboardShortcuts` hook
+- HelpModal acessível (Escape, overlay click, focus trap)
+- TypeScript compila ✅, 79 UI + 135 Rust = 214 testes passam ✅
+- Visual regression 6/6 passam ✅
+- Build OK ✅
+
+**Testes:** 79 UI + 135 Rust + 6 visual = 220 passam
+
+**App:** `npm run tauri dev` ✅ funcional nativamente
+
+**Próximo:** Phase 9 Task 4 — Final Polish (performance, empty states, loading states, micro-interactions)
+
+**Blockers:** Nenhum
