@@ -414,3 +414,23 @@
 **Próximo:** Task 2 — Keyboard Shortcuts Documentation (Help modal ⌘K, shortcuts list)
 
 **Blockers:** Nenhum
+
+---
+
+## Iteração 18 — Phase 9 Task 2: Keyboard Shortcuts Help Modal
+
+**Feito:**
+- HelpModal.tsx component with categorized shortcuts (Navigation, Actions, List Navigation)
+- Accessible modal with Escape to close, overlay click to close
+- Keyboard navigation support
+- formatShortcut utility for consistent shortcut display
+- TypeScript compila ✅, 79 UI + 135 Rust = 214 testes passam ✅
+- Build OK ✅
+
+**Testes:** 79 UI + 135 Rust = 214 passam
+
+**App:** `npm run tauri dev` ✅ funcional nativamente
+
+**Próximo:** Task 3 — Final Accessibility Review + Keyboard Shortcuts List in Sidebar
+
+**Blockers:** Nenhum
