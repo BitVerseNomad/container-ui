@@ -9,7 +9,8 @@
     "noEmit": true,
     "lib": [
       "ES2021",
-      "DOM"
+      "DOM",
+      "DOM.Iterable"
     ],
     "allowImportingTsExtensions": true
   },

@@ -23,7 +23,7 @@ Sidebar. Brand block, icon navigation (Overview, Containers, Images, Volumes, Pr
 
 Page header. Every page: breadcrumb (`COLIMA / <profile>`, small, letter-spaced), title (about 28px, bold), VM status pill on the right (`VM running`, `VM stopped`, `Starting…`, `Stopping…`, `VM error`).
 
-Light palette (sampled from the reference screenshots): page `#f3f5f3`, sidebar and table head `#e8ece8`, card `#f0f2f0`, border `#d3dad4`, ink `#1c2a27`, muted `#66726e`, primary `#397863`, danger `#a14b3f`. Dark palette: page `#121a18`, sidebar `#172321`, card `#1a2724`, border `#2b3a36`, ink `#e6eeea`, muted `#8fa09a`, primary `#5aa688` (text on primary `#0b1a15`), danger `#e07a6d`. Measured contrast: light ink 13.6, muted 4.57, white on primary 5.2, danger 5.3; dark ink 15.0, muted 6.5, on-primary 6.2, danger 6.1.
+Light palette (sampled from the reference screenshots): page `#f3f5f3`, sidebar and table head `#e8ece8`, card `#f0f2f0`, border `#d3dad4`, ink `#1c2a27`, muted `#5a6662`, primary `#397863`, danger `#a14b3f`. Dark palette: page `#121a18`, sidebar `#172321`, card `#1a2724`, border `#2b3a36`, ink `#e6eeea`, muted `#8fa09a`, primary `#5aa688` (text on primary `#0b1a15`), danger `#e07a6d`. Measured contrast: light ink 13.6, muted 5.0 on the sidebar, white on primary 5.2, danger 5.3; dark ink 15.0, muted 6.5, on-primary 6.2, danger 6.1.
 
 Type. System sans; titles bold about 28px; body 14px; monospace 13px for image references, IDs and ports.
 

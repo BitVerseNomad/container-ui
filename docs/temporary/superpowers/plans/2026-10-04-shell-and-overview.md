@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- Light palette: page `#f3f5f3`, sidebar and table head `#e8ece8`, card `#f0f2f0`, border `#d3dad4`, ink `#1c2a27`, muted `#66726e`, primary `#397863`, danger `#a14b3f`.
+- Light palette: page `#f3f5f3`, sidebar and table head `#e8ece8`, card `#f0f2f0`, border `#d3dad4`, ink `#1c2a27`, muted `#5a6662`, primary `#397863`, danger `#a14b3f`.
 - Dark palette: page `#121a18`, sidebar `#172321`, card `#1a2724`, border `#2b3a36`, ink `#e6eeea`, muted `#8fa09a`, primary `#5aa688` with text `#0b1a15`, danger `#e07a6d`.
 - Contrast minimums, both modes: ink on page 7:1; muted on page, text on primary, danger on page 4.5:1.
 - Layout: sidebar 232px; `html, body, #root` are `height: 100%; overflow: hidden`; `.content` is the only scroller; below 700px the sidebar becomes a top bar.

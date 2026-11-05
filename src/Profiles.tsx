@@ -1,78 +1,91 @@
 import { useEffect, useRef, useState } from "react";
-import { listen } from "@tauri-apps/api/event";
+import Status from "./ui/Status";
+import { useHostSize } from "./useHostSize";
 import { useConfirm } from "./ui";
 import { invoke } from "@tauri-apps/api/core";
 import { Profile, StartOpts, gbOf } from "./api";
 import EditPanel from "./EditPanel";
-import { Banner, Empty } from "./ui";
+import { Empty } from "./ui";
+import IconButton from "./ui/IconButton";
+import OutputLog from "./ui/OutputLog";
+import { useFixRuns } from "./FixIt";
+import { ranVm } from "./lib/activity";
 
-const gb = (bytes: number) => `${gbOf(bytes)} GB`;
+const gb = (bytes: number) => `${gbOf(bytes)} GiB`;
 
-export default function Profiles({ profiles, reload }: { profiles: Profile[]; reload: () => void }) {
+type Props = {
+  profiles: Profile[];
+  reload: () => void;
+  openNew?: boolean;
+  // whether a profile runs Kubernetes; null while that is not known yet
+  kubeOn?: (name: string) => boolean | null;
+  onKubeAsked?: (name: string) => void;
+};
+
+export default function Profiles({ profiles, reload, openNew = false, kubeOn = () => null, onKubeAsked }: Props) {
+  const size = useHostSize();
   const confirm = useConfirm();
   const [busy, setBusy] = useState<string | null>(null);
+  // A container fix in the middle of a VM stop or restart is left half done, so the VM waits for it.
+  const fixing = useFixRuns().some((r) => r.step != null);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<Profile | null>(null);
   const dialog = useRef<HTMLDialogElement>(null);
-  const [log, setLog] = useState<string[]>([]);
-  const [newName, setNewName] = useState("default");
-  const logBox = useRef<HTMLPreElement>(null);
+  // "Customize first" on the first-run card lands here with the form already open.
+  useEffect(() => {
+    if (openNew) openForm();
+  }, [openNew]); // eslint-disable-line react-hooks/exhaustive-deps
+  // The form opens on a name that is free, so it never starts with an error showing. The free name follows the list of
+  // profiles (it may still be arriving when the form opens) until the user types their own.
+  const [typedName, setTypedName] = useState<string | null>(null);
+  const newName = typedName ?? (["default", "dev", "work", "test"].find((n) => !profiles.some((p) => p.name === n)) ?? "profile2");
+  function openForm() {
+    setTypedName(null);
+    dialog.current?.showModal();
+  }
   const taken = profiles.some((p) => p.name === newName.trim());
 
-  useEffect(() => {
-    const un = listen<string>("colima-progress", (e) => setLog((l) => [...l.slice(-300), e.payload]));
-    return () => {
-      un.then((f) => f());
-    };
-  }, []);
-  useEffect(() => {
-    logBox.current?.scrollTo({ top: logBox.current.scrollHeight });
-  }, [log]);
 
-  async function act(name: string, label: string, cmd: string, args: Record<string, unknown>) {
+  async function act(name: string, label: string, cmd: string, args: Record<string, unknown>): Promise<boolean> {
     setBusy(`${name}: ${label}`);
-    setLog([]);
     setError(null);
     try {
-      await invoke(cmd, args);
+      await ranVm(cmd, args, () => invoke(cmd, args));
+      return true;
     } catch (e) {
       setError(String(e));
+      return false;
     } finally {
       setBusy(null);
       reload();
     }
   }
 
+  // The same action the Kubernetes page offers: start the VM with Kubernetes on (a running VM restarts first).
+  async function turnOnKubernetes(p: Profile) {
+    const warn = p.status === "Running" ? " The VM restarts, so running containers stop for a minute and start again." : "";
+    if (!(await confirm(`Turn on Kubernetes for "${p.name}"?${warn}`, "Turn on", { safe: true }))) return;
+    if (await act(p.name, "turning on Kubernetes", "apply_resources", { opts: { name: p.name, kubernetes: true } as StartOpts, restart: p.status === "Running" })) onKubeAsked?.(p.name);
+  }
+
   return (
     <section>
       <header>
-        <h2>Colima</h2>
         <button
           className="primary"
-          onClick={() => {
-            setNewName(["default", "dev", "work", "test"].find((n) => !profiles.some((p) => p.name === n)) ?? "profile2");
-            dialog.current?.showModal();
-          }}
+          onClick={openForm}
         >
           New profile
         </button>
         {busy && <span className="state">{busy}</span>}
       </header>
-      <Banner error={error} onClose={() => setError(null)} />
-      {log.length > 0 && (
-        <div className="out">
-          <div className="row-head">
-            <span className="state">Colima output</span>
-            <button disabled={!!busy} onClick={() => setLog([])}>Clear</button>
-          </div>
-          <pre ref={logBox} className="pull-log">{log.join("\n")}</pre>
-        </div>
-      )}
+      <p className="hint lead">A profile is a separate Colima VM with its own containers, images and volumes. Most people only need <b>default</b>.</p>
+      <OutputLog event="colima-progress" active={!!busy} failure={error} onClear={() => setError(null)} />
       {profiles.length === 0 && <Empty title="No Colima profiles yet">Create one to start a container runtime on this machine.</Empty>}
       {profiles.length > 0 && (
         <table>
           <thead>
-            <tr><th>Profile</th><th>Status</th><th>CPUs</th><th>Memory</th><th>Disk</th><th>Runtime</th><th /></tr>
+            <tr><th scope="col">Profile</th><th scope="col">Status</th><th scope="col">CPUs</th><th scope="col">Memory</th><th scope="col">Disk</th><th scope="col">Runtime</th><th scope="col">Kubernetes</th><th scope="col"><span className="sr-only">Actions</span></th></tr>
           </thead>
           <tbody>
             {profiles.map((p) => {
@@ -80,38 +93,25 @@ export default function Profiles({ profiles, reload }: { profiles: Profile[]; re
               return (
                 <tr key={p.name}>
                   <td>{p.name}</td>
-                  <td><span className={up ? "badge on" : "badge"}>{p.status}</span></td>
+                  <td><Status level={up ? "on" : "off"}>{p.status}</Status></td>
                   <td className="mono">{p.cpus}</td>
                   <td className="mono">{gb(p.memory)}</td>
                   <td className="mono">{gb(p.disk)}</td>
                   <td>{p.runtime}</td>
+                  <td>
+                    {kubeOn(p.name) === true ? <Status level="on">On</Status> : kubeOn(p.name) === false ? <button disabled={!!busy} onClick={() => turnOnKubernetes(p)}>Turn on Kubernetes</button> : <span className="hint">–</span>}
+                  </td>
                   <td className="row-actions">
                     {up ? (
                       <>
-                        <button disabled={!!busy} onClick={() => act(p.name, "stopping", "stop_profile", { name: p.name })}>Stop</button>
-                        <button disabled={!!busy} onClick={() => act(p.name, "restarting", "restart_profile", { name: p.name })}>Restart</button>
+                        <IconButton label={`Stop ${p.name}`} icon="stop" text disabled={!!busy || fixing} onClick={() => act(p.name, "stopping", "stop_profile", { name: p.name })} />
+                        <IconButton label={`Restart ${p.name}`} icon="restart" text disabled={!!busy || fixing} onClick={() => act(p.name, "restarting", "restart_profile", { name: p.name })} />
                       </>
                     ) : (
-                      <button
-                        disabled={!!busy}
-                        onClick={() =>
-                          act(p.name, "starting", "start_profile", { opts: { name: p.name } as StartOpts })
-                        }
-                      >
-                        Start
-                      </button>
+                      <IconButton label={`Start ${p.name}`} icon="play" text disabled={!!busy} onClick={() => act(p.name, "starting", "start_profile", { opts: { name: p.name } as StartOpts })} />
                     )}
-                    <button disabled={!!busy} onClick={() => setEditing(p)}>Edit</button>
-                    <button
-                      className="danger"
-                      disabled={!!busy}
-                      onClick={async () =>
-                        (await confirm(`Delete profile "${p.name}" and its VM? All its containers and images are removed.`, "Delete")) &&
-                        act(p.name, "deleting", "delete_profile", { name: p.name })
-                      }
-                    >
-                      Delete
-                    </button>
+                    <IconButton label={`Edit ${p.name}`} icon="sliders" text disabled={!!busy || fixing} onClick={() => setEditing(p)} />
+                    <IconButton label={`Delete ${p.name}`} icon="trash" danger text disabled={!!busy || fixing} onClick={async () => (await confirm(`Delete profile "${p.name}" and its VM? All its containers and images are removed.`, "Delete")) && act(p.name, "deleting", "delete_profile", { name: p.name })} />
                   </td>
                 </tr>
               );
@@ -137,7 +137,7 @@ export default function Profiles({ profiles, reload }: { profiles: Profile[]; re
           onSubmit={(e) => {
             const f = new FormData(e.currentTarget);
             const opts: StartOpts = {
-              name: String(f.get("name") || "default"),
+              name: String(newName.trim() || f.get("name") || "default"),
               cpus: Number(f.get("cpus")),
               memory: Number(f.get("memory")),
               disk: Number(f.get("disk")),
@@ -148,11 +148,11 @@ export default function Profiles({ profiles, reload }: { profiles: Profile[]; re
           }}
         >
           <h3>New profile</h3>
-          <label>Name<input name="name" value={newName} onChange={(e) => setNewName(e.target.value)} required pattern="[a-zA-Z0-9_-]+" /></label>
+          <label>Name<input name="name" value={newName} onChange={(e) => setTypedName(e.target.value)} required pattern="[a-zA-Z0-9_-]+" /></label>
           {taken && <p className="hint err">A profile named "{newName}" already exists. Use Edit on it instead.</p>}
-          <label>CPUs<input name="cpus" type="number" min={1} defaultValue={2} /></label>
-          <label>Memory (GB)<input name="memory" type="number" min={1} defaultValue={4} /></label>
-          <label>Disk (GB)<input name="disk" type="number" min={10} defaultValue={60} /></label>
+          <label>CPUs<input key={size?.cpus} name="cpus" type="number" min={1} defaultValue={size?.cpus ?? 2} /></label>
+          <label>Memory (GiB)<input key={size?.memory} name="memory" type="number" min={1} defaultValue={size?.memory ?? 4} /></label>
+          <label>Disk (GiB)<input name="disk" type="number" min={10} defaultValue={60} /></label>
           <label>Runtime
             <select name="runtime" defaultValue="docker">
               <option>docker</option>

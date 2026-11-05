@@ -1,0 +1,122 @@
+/* The Containers home: one row per app. Written whole for this layout; nothing here patches older rules. */
+
+/* Plain push buttons everywhere: a fill and an edge, so they read as buttons (HIG: Buttons). */
+button:not([class]):not([role^=menuitem]), button.main, button.small:not(.primary) {
+  background: var(--btn); border: 1px solid var(--btn-edge); box-shadow: 0 .5px 1px rgb(0 0 0 / .12);
+}
+button:not([class]):not([role^=menuitem]):hover:not(:disabled), button.main:hover:not([aria-disabled=true]), button.small:not(.primary):hover { border-color: var(--muted); }
+
+.home .apps, .home .svc { list-style: none; margin: 0; padding: 0; }
+.home .apps { margin-top: 4px; border-top: 1px solid var(--border); }
+.home .app { border-bottom: 1px solid var(--border); }
+
+/* chevron | mark | name | port | state | main | more */
+.app-row, .svc-row {
+  display: grid; align-items: center; column-gap: 8px;
+  grid-template-columns: 16px 16px minmax(0, 1fr) 96px 104px 76px 28px;
+  min-height: 40px; padding: 0 4px 0 8px;
+}
+.app-row:hover, .svc-row:hover { background: color-mix(in srgb, var(--ink) 4%, transparent); }
+/* No chevron and no main button: the mark sits under the parent's mark, the name under its name, and the empty
+   main-button column keeps State and "..." in line with the row above. */
+.svc-row { min-height: 32px; grid-template-columns: 16px minmax(0, 1fr) 96px 104px 76px 28px; padding-left: 48px; }
+.svc-image { margin-left: 6px; font: 11px ui-monospace, "SF Mono", Menlo, monospace; color: var(--muted); }
+.svc-row > .menu { grid-column: 6; }
+/* Eight "…" in a column read as a dotted line; on a service they come up when the row is pointed at or focused. */
+@media (hover: hover) {
+  .svc-row button.more { opacity: .45; }
+  .svc-row:hover button.more, .svc-row:focus-within button.more, .svc-row button.more[aria-expanded=true] { opacity: 1; }
+}
+
+.app-chev { display: flex; justify-content: center; }
+.chev { display: grid; place-items: center; width: 16px; height: 16px; padding: 0; border: 0; background: transparent; color: var(--muted); transform: rotate(-90deg); transition: transform .12s; }
+.chev.open { transform: none; }
+
+.mark { display: grid; place-items: center; width: 16px; height: 16px; }
+.mark.bad { color: var(--dot-bad); }
+.mark.warn { color: var(--dot-warn); }
+.mark .dot { width: 8px; height: 8px; border-radius: 50%; box-sizing: border-box; }
+.mark .dot.small { width: 6px; height: 6px; }
+.mark .dot.on { background: var(--dot-ok); }
+.mark .dot.off { border: 1.5px solid var(--muted); }
+.mark .dot.part { border: 1.5px solid var(--dot-ok); background: linear-gradient(90deg, var(--dot-ok) 50%, transparent 50%); }
+.mark .spin { width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid color-mix(in srgb, var(--muted) 35%, transparent); border-top-color: var(--muted); animation: home-spin .8s linear infinite; }
+@keyframes home-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .mark .spin { animation: none; } .chev { transition: none; } }
+
+/* Only the name truncates; numbers and states never clip. */
+.app-name, .svc-name {
+  justify-self: start; max-width: 100%; padding: 0; border: 0; background: transparent; text-align: left;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink);
+}
+.app-name { font-size: 13px; font-weight: 600; }
+.svc-name { font-size: 13px; }
+.app-row.is-off .app-name { font-weight: 400; color: var(--muted); }
+.app-name:hover, .svc-name:hover { text-decoration: underline; text-underline-offset: 2px; }
+
+.app-port, .svc-ports { display: flex; align-items: center; gap: 4px; white-space: nowrap; overflow: hidden; }
+.app-port .port-link, .svc-ports .port-link { border: 0; padding: 2px 4px; min-height: 24px; background: transparent; font-size: 12px; color: var(--primary); }
+.app-port .port-link:hover, .svc-ports .port-link:hover { text-decoration: underline; }
+.svc-ports .port-link.muted { color: var(--muted); }
+.more-ports { font-size: 12px; }
+
+.app-state { font-size: 12px; color: var(--muted); white-space: nowrap; }
+
+button.main { justify-self: stretch; min-height: 26px; padding: 0 10px; border-radius: 6px; font-size: 12px; font-weight: 500; white-space: nowrap; }
+button.main[aria-disabled=true] { opacity: .55; cursor: default; }
+
+.app button.more { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--muted); }
+.app button.more:hover, .app button.more[aria-expanded=true] { background: color-mix(in srgb, var(--ink) 7%, transparent); color: var(--ink); }
+
+/* A problem: under its row; its button's right edge sits on the main buttons' right edge (row padding 4 + "…" 28 + gap 8 = 40). */
+/* A problem: under its row, once, a sentence that wraps, and one button. */
+.problem {
+  display: flex; align-items: center; gap: 8px; margin: 0 34px 6px 28px; padding: 5px 6px; border-radius: 6px;
+  font-size: 12px; color: var(--ink); background: color-mix(in srgb, var(--dot-bad) 8%, var(--page));
+}
+.problem > svg, .problem > .problem-lead > svg { flex: none; color: var(--dot-bad); }
+.problem.warn { background: color-mix(in srgb, var(--dot-warn) 11%, var(--page)); }
+.problem.warn > svg, .problem.warn > .problem-lead > svg { color: var(--dot-warn); }
+.problem.ok { background: color-mix(in srgb, var(--dot-ok) 9%, var(--page)); }
+.problem.ok > svg, .problem.ok > .problem-lead > svg { color: var(--dot-ok); }
+.problem.busy { background: var(--card); }
+.problem.busy > svg, .problem.busy > .problem-lead > svg { color: var(--muted); }
+/* A resize run under its home line: the result takes its own row under the line's text, so neither is squeezed. */
+.problem:has(.resize-status .resize-result, .resize-status .resize-progress) { flex-wrap: wrap; }
+.problem:has(.resize-status .resize-result, .resize-status .resize-progress) > .resize-or { flex-basis: 100%; align-items: flex-start; padding-left: 22px; }
+.problem.off { background: var(--card); }
+.problem.off > svg, .problem.off > .problem-lead > svg { color: var(--muted); }
+/* A VM size result on its own row: the down line's tint, its own icon and text, Dismiss at the right edge. */
+.problem.result { background: var(--card); }
+.problem.result > .resize-status { flex: 1; min-width: 0; flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; margin-top: 0; }
+.problem.result .resize-result { flex: 1; min-width: 0; line-height: 1.4; }
+.problem.result .resize-actions { padding-left: 0; }
+.problem.result .out-more, .problem.result .resize-progress { flex-basis: 100%; padding-left: 20px; }
+.svc .problem { margin-left: 44px; }
+.problem-text { flex: 1; min-width: 0; white-space: normal; line-height: 1.4; }
+/* The icon on the first line of text (a 1.4 line-height line is 1.4em; the icon is 14px), for one line or several. */
+.problem-lead { flex: 1; min-width: 0; display: flex; align-items: flex-start; gap: 8px; }
+.problem-lead > svg { margin-top: calc((1.4em - 14px) / 2); }
+/* `compose.yaml` and the like, in the code font as on Doctor (.finding code); buttons keep the sans font. */
+.problem-text code { font: 12px ui-monospace, "SF Mono", Menlo, monospace; }
+button.small { flex: none; min-height: 24px; padding: 0 10px; border-radius: 6px; font-size: 12px; font-weight: 500; white-space: nowrap; }
+
+.home-search { max-width: 280px; }
+
+/* Empty and stopped states: centered, no card (HIG: no content). */
+.blank { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; margin: 12vh auto 0; max-width: 72ch; }
+.blank-icon { color: var(--muted); margin-bottom: 4px; }
+.blank h2 { margin: 0; font-size: 15px; font-weight: 600; }
+.blank .hint { font-size: 13px; max-width: 44ch; }
+/* One row, main action first; it wraps only when the window is narrow, and labels never break. */
+.blank .actions-inline { margin-top: 8px; justify-content: center; flex-wrap: wrap; row-gap: 8px; }
+.blank .actions-inline button { white-space: nowrap; }
+
+@media (max-width: 700px) {
+  .app-row { grid-template-columns: 16px 16px minmax(0, 1fr) 72px 76px 28px; }
+  .svc-row { grid-template-columns: 16px minmax(0, 1fr) 72px 76px 28px; }
+  .svc-row > .menu { grid-column: 5; }
+  .app-row .app-state, .svc-row .app-state { display: none; }
+}
+/* Said once after compose.yaml opened in TextEdit; under the line's text (the polite region says it too). */
+.limit-hint { display: block; margin-top: 2px; font-size: 12px; }

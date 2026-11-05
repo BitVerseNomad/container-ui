@@ -1,26 +1,47 @@
 import { useState } from "react";
+import { openShell } from "./lib/shell";
+import { activity as commands, dockerLine } from "./lib/activity";
+import Status from "./ui/Status";
 import { useConfirm } from "./ui";
 import { invoke } from "@tauri-apps/api/core";
 import { docker } from "./api";
-import { Inspect, publishedPorts } from "./containerInfo";
+import { Inspect, publishedPortPairs } from "./containerInfo";
+import { isWebPort } from "./lib/webPort";
+import { CopyPort } from "./ui/PortLinks";
 import { usePoll } from "./hooks";
 import { Banner } from "./ui";
 import Logs from "./Logs";
 import StatsTab from "./StatsTab";
+import ConnectionTest from "./ConnectionTest";
+import { ActivityList, HealthPanel } from "./Health";
+import { useResizeEnv } from "./Resize";
+import { FixStatus, useFixRuns } from "./FixIt";
+import { busy } from "./lib/fixStore";
+import { useDockerLocked } from "./dockerLock";
+import { Problem, parseState, problemsFor } from "./lib/health";
+import { crashLead } from "./lib/crashLead";
 
-const TABS = ["Logs", "Inspect", "Stats", "Mounts"] as const;
+// Next to the state word, so a red dot beside "Running" says why.
+const SHORT: Record<string, string> = { unhealthy: "Unhealthy", restarting: "Keeps restarting", oom: "Out of memory", crashed: "Stopped with an error", "kafka-localhost": "Only reachable from your Mac", "kafka-ui-empty": "No Kafka set up", "kafka-ui-localhost": "Can't reach Kafka" };
+import { isKubeOwned } from "./lib/compose";
+import { eventWindow, parseEvents, timeline } from "./lib/events";
+
+const TABS = ["Logs", "Inspect", "Stats", "Mounts", "Network", "Activity"] as const;
 type Tab = (typeof TABS)[number];
-type Props = { ctx: string; id: string; onBack: () => void };
+// appProblems: the Doctor's findings about this container that need the other containers to work out.
+type Props = { ctx: string; id: string; appProblems?: Problem[]; onBack: () => void; onReplaced?: (name: string) => void; listed?: string[] };
 
-export default function ContainerDetail({ ctx, id, onBack }: Props) {
+export default function ContainerDetail({ ctx, id, appProblems, onBack, onReplaced, listed = [] }: Props) {
   const confirm = useConfirm();
   const [tab, setTab] = useState<Tab>("Logs");
   const [err, setErr] = useState<string | null>(null);
+  const [testing, setTesting] = useState(false);
   const { data: c, error, reload } = usePoll(async () => JSON.parse(await docker(ctx, ["inspect", id]))[0] as Inspect, [ctx, id]);
 
   async function act(args: string[], done?: () => void) {
+    if (locked) return;
     try {
-      await docker(ctx, args);
+      await commands.ran(args[0], dockerLine(ctx, args.map((a) => (a === id ? name : a))), () => docker(ctx, args), name);
       setErr(null);
       done?.();
     } catch (e) {
@@ -30,37 +51,64 @@ export default function ContainerDetail({ ctx, id, onBack }: Props) {
   }
 
   const name = c?.Name.replace(/^\//, "") ?? "Container";
+  // The VM, a resize, a Bring over copy, a Compose run or a Fix on this container is changing Docker right now.
+  const locked = useDockerLocked([name]);
+  const wait = locked || undefined;
   const paused = !!c?.State.Paused;
   const running = !!c?.State.Running && !paused;
-  const status = paused ? "paused" : c?.State.Status ?? "";
-  const ports = running ? publishedPorts(c?.NetworkSettings.Ports) : [];
+  const raw = paused ? "paused" : c?.State.Status ?? "";
+  const status = raw.charAt(0).toUpperCase() + raw.slice(1);
+  const ports = running ? publishedPortPairs(c?.NetworkSettings.Ports) : [];
+  const state = c ? parseState(JSON.stringify([c])) : null;
+  // A crash or restart loop: read the last lines and put the error, and what to do, next to the problem.
+  const crashing = !!state && problemsFor(state).some((p) => p.id === "restarting" || p.id === "crashed");
+  const tail = usePoll(() => docker(ctx, ["logs", "--tail", "80", name], true), [ctx, name], 10000, crashing);
+  const lead = crashing && tail.data ? crashLead(tail.data, c?.Mounts ?? []) : null;
+  const leadProblem: Problem[] = lead ? [{ id: "last-error", level: "warn", title: "Its last error", detail: `"${lead.line.slice(0, 300)}"${lead.hint ? ` ${lead.hint}` : ""}` }] : [];
+  const extra = [...leadProblem, ...(appProblems ?? [])];
+  const vm = useResizeEnv()?.profile;
+  const problem = state ? [...problemsFor(state, vm?.status === "Running" ? vm.memory : undefined), ...extra][0] : undefined;
+  const activity = usePoll(async () => timeline(parseEvents(await docker(ctx, ["events", ...eventWindow(Date.now(), 86_400_000), "--filter", `container=${name}`, "--filter", "type=container", "--format", "{{json .}}"])), 50, name), [ctx, name], 10000, !!c && tab === "Activity");
+  // The cluster owns these: stopping or removing one by hand only makes Kubernetes start it again, or breaks the pod.
+  const kube = !!c && (isKubeOwned({ Names: name }) || !!c.Config.Labels?.["io.kubernetes.pod.name"]);
   const ip = Object.values(c?.NetworkSettings.Networks ?? {})[0]?.IPAddress;
+  // While a Fix swaps this container, Start, Stop or Remove would break the swap or lose the old one.
+  const fixing = busy(useFixRuns(), name);
 
   return (
     <section className="detail">
-      <button className="back" onClick={onBack}>Back to containers</button>
+      <button className="back" onClick={onBack}>← Containers</button>
       <header>
         <h2>{name}</h2>
-        <span className={running ? "state on" : "state"}>{status}</span>
-        {c && (
+        <Status level={problem?.level ?? (running ? "on" : paused ? "warn" : "off")}>{problem ? `${status} · ${problem.short ?? SHORT[problem.id] ?? problem.title}` : status}</Status>
+        {c && kube && (
+          <div className="actions-inline">
+            {running && <button onClick={() => openShell(ctx, name).catch((e) => setErr(e instanceof Error ? e.message : String(e)))}>Open a shell</button>}
+            <span className="hint">Managed by Kubernetes. Restart or remove it from the cluster, not here.</span>
+          </div>
+        )}
+        {c && !kube && fixing && <span className="hint">A fix is running for this container.</span>}
+        {c && !kube && !fixing && (
           <div className="actions-inline">
             {running && (
               <>
-                <button onClick={() => act(["stop", id])}>Stop</button>
-                <button onClick={() => act(["restart", id])}>Restart</button>
-                <button onClick={() => act(["pause", id])}>Pause</button>
+                <button onClick={() => openShell(ctx, name).catch((e) => setErr(e instanceof Error ? e.message : String(e)))}>Open a shell</button>
+                <button aria-disabled={wait} onClick={() => act(["restart", id])}>Restart</button>
+                <button aria-disabled={wait} onClick={() => act(["stop", id])}>Stop</button>
+                <button aria-disabled={wait} onClick={() => act(["pause", id])}>Pause</button>
               </>
             )}
             {paused && (
               <>
-                <button onClick={() => act(["unpause", id])}>Resume</button>
-                <button onClick={() => act(["stop", id])}>Stop</button>
+                <button aria-disabled={wait} onClick={() => act(["unpause", id])}>Resume</button>
+                <button aria-disabled={wait} onClick={() => act(["stop", id])}>Stop</button>
               </>
             )}
-            {!running && !paused && <button onClick={() => act(["start", id])}>Start</button>}
-            <button className="danger" onClick={async () => (await confirm(`Remove container "${name}"?`)) && act(["rm", "-f", id], onBack)}>
+            {!running && !paused && <button aria-disabled={wait} onClick={() => act(["start", id])}>Start</button>}
+            <button className="danger" aria-disabled={wait} onClick={async () => !locked && (await confirm(`Remove container "${name}"?`)) && act(["rm", "-f", id], onBack)}>
               Remove
             </button>
+            {locked && <span className="hint">Waits for what is changing Docker now.</span>}
           </div>
         )}
       </header>
@@ -70,13 +118,20 @@ export default function ContainerDetail({ ctx, id, onBack }: Props) {
       {ports.length > 0 && (
         <p className="ports">
           Published on{" "}
-          {ports.map((p) => (
-            <button key={p} className="link mono" onClick={() => invoke("open_url", { url: `http://localhost:${p}` }).catch((e) => setErr(String(e)))}>
-              localhost:{p}
-            </button>
-          ))}
+          {ports.map((p) =>
+            isWebPort(p.container, p.host) ? (
+              <button key={p.host} className="link mono" onClick={() => invoke("open_url", { url: `http://localhost:${p.host}` }).catch((e) => setErr(String(e)))}>
+                localhost:{p.host}
+              </button>
+            ) : (
+              <CopyPort key={p.host} label={String(p.host)} />
+            ),
+          )}
         </p>
       )}
+
+      {c && <FixStatus name={name} />}
+      {state && <HealthPanel state={state} extra={extra} ctx={ctx} onFixed={onReplaced} listed={listed} onLogs={tab === "Logs" ? undefined : () => setTab("Logs")} />}
 
       <div className="tabs" role="tablist">
         {TABS.map((t) => (
@@ -89,6 +144,34 @@ export default function ContainerDetail({ ctx, id, onBack }: Props) {
       <div className="tabpane" role="tabpanel">
         {tab === "Logs" && <Logs ctx={ctx} id={id} />}
         {tab === "Stats" && <StatsTab ctx={ctx} id={id} running={running} />}
+        {tab === "Activity" && (
+          <>
+            <p className="hint">What happened to {name} in the last day, newest first.</p>
+            {activity.data === null ? <p className="hint">Loading…</p> : <ActivityList lines={activity.data} empty="Nothing notable has happened to this container recently." />}
+          </>
+        )}
+        {tab === "Network" && c && (
+          <>
+            <p className="hint">Other containers on a shared network reach this one as <code>{name}</code>. The default bridge network doesn't do name lookup.</p>
+            {Object.keys(c.NetworkSettings.Networks ?? {}).length === 0 ? (
+              <p className="hint">This container isn't on any network.</p>
+            ) : (
+              <table>
+                <thead><tr><th scope="col">Network</th><th scope="col">Address</th><th scope="col">Also known as</th></tr></thead>
+                <tbody>
+                  {Object.entries(c.NetworkSettings.Networks ?? {}).map(([net, v]) => (
+                    <tr key={net}>
+                      <td>{net}{net === "bridge" && <span className="tag">No name lookup</span>}</td>
+                      <td className="mono">{v.IPAddress || "none"}</td>
+                      <td className="mono">{(v.Aliases ?? []).join(", ") || "none"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            <div><button onClick={() => setTesting(true)}>Test a connection…</button></div>
+          </>
+        )}
         {tab === "Mounts" && c && (
           c.Mounts.length === 0 ? (
             <p className="hint">No mounts. Data written inside this container is lost when it is removed.</p>
@@ -128,6 +211,7 @@ export default function ContainerDetail({ ctx, id, onBack }: Props) {
           </>
         )}
       </div>
+      {testing && <ConnectionTest ctx={ctx} from={name} onClose={() => setTesting(false)} />}
     </section>
   );
 }
