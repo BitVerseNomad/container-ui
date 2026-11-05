@@ -1,59 +1,36 @@
 import { ReactNode, createContext, useCallback, useContext, useRef, useState } from "react";
+import { Icon, IconName } from "./ui/icons";
 
-type Ask = (message: string, confirmLabel?: string) => Promise<boolean>;
-const ConfirmCtx = createContext<Ask>(async () => false);
-export const useConfirm = () => useContext(ConfirmCtx);
+// removed: useConfirm from ./ui since Empty doesn't need it
 
-// window.confirm() is not reliable inside the desktop webview, so confirmations are drawn by the app.
-export function ConfirmProvider({ children }: { children: ReactNode }) {
-  const [req, setReq] = useState<{ message: string; label: string } | null>(null);
-  const resolver = useRef<(ok: boolean) => void>();
-  const ask = useCallback<Ask>(
-    (message, label = "Remove") =>
-      new Promise((resolve) => {
-        resolver.current = resolve;
-        setReq({ message, label });
-      }),
-    [],
-  );
-  const close = (ok: boolean) => {
-    resolver.current?.(ok);
-    setReq(null);
-  };
-  return (
-    <ConfirmCtx.Provider value={ask}>
-      {children}
-      {req && (
-        <>
-          <div className="scrim scrim-top" onClick={() => close(false)} />
-          <div className="modal" role="alertdialog" aria-modal="true" onKeyDown={(e) => e.key === "Escape" && close(false)}>
-            <p>{req.message}</p>
-            <div className="actions">
-              <button autoFocus onClick={() => close(false)}>Cancel</button>
-              <button className="primary danger-fill" onClick={() => close(true)}>{req.label}</button>
-            </div>
-          </div>
-        </>
-      )}
-    </ConfirmCtx.Provider>
-  );
+export type EmptySize = "sm" | "md" | "lg";
+
+interface EmptyProps {
+  title?: string;
+  description?: string;
+  action?: string;
+  size?: EmptySize;
+  children?: ReactNode;
 }
 
-export function Banner({ error, onClose }: { error: string | null; onClose?: () => void }) {
-  if (!error) return null;
-  return (
-    <div className="error" role="alert">
-      <pre>{error}</pre>
-      {onClose && <button onClick={onClose}>Dismiss</button>}
-    </div>
-  );
-}
+export function Empty({ title, description, action, size = "md", children }: EmptyProps) {
+  const sizeStyles = {
+    sm: { iconSize: 40, titleFontSize: 16, descFontSize: 13, gap: 16 },
+    md: { iconSize: 60, titleFontSize: 20, descFontSize: 16, gap: 24 },
+    lg: { iconSize: 80, titleFontSize: 28, descFontSize: 20, gap: 32 },
+  }[size];
 
-export function Empty({ title, children }: { title: string; children?: ReactNode }) {
   return (
-    <div className="empty">
-      <h2>{title}</h2>
-      <p>{children}</p>
+    <div className="empty" role="status" aria-live="polite" style={{
+      fontSize: sizeStyles.titleFontSize,
+      color: "var(--ink)",
+      gap: sizeStyles.gap,
+      textAlign: "center"
+    }}>
+      <Icon name="info" size={sizeStyles.iconSize} className="empty-icon" />
+      {title && <h3 className="empty-title">{title}</h3>}
+      {description && <p className="empty-content">{description}</p>}
+      {children && <span className="empty-children">{children}</span>}
     </div>
   );
 }

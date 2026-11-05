@@ -1,0 +1,43 @@
+// "Space inside the VM" card checks (run after: node scripts/build-preview.mjs). Needs playwright resolvable.
+import { createRequire } from "node:module";
+import path from "node:path";
+const require = createRequire(import.meta.url);
+// PW_ENGINE=webkit runs the same check in the engine the app ships with.
+const chromium = require("playwright")[process.env.PW_ENGINE || "chromium"];
+const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+let failed = 0;
+const check = (c, m) => { console.log(c ? "ok" : "FAIL", m); if (!c) failed++; };
+
+const browser = await chromium.launch();
+const p = await browser.newPage({ viewport: { width: 980, height: 640 } });
+await p.goto(`file://${root}/preview/index.html`);
+await p.waitForSelector(".content");
+await p.locator(".sidebar").getByRole("button", { name: "Images", exact: true }).click();
+const card = p.locator(".disk-card");
+await card.waitFor();
+await p.waitForFunction(() => !/…/.test(document.querySelector(".disk-card .disk-table")?.textContent ?? "…"), null, { timeout: 5000 }).catch(() => {});
+check(/Space inside the VM/.test(await card.innerText()), "disk: card is titled Space inside the VM");
+check(await card.locator("[role=row]:not(.disk-head)").count() === 4, "disk: four rows");
+const cacheRow = card.locator("[role=row]", { hasText: "Build cache" });
+const clear = cacheRow.getByRole("button", { name: "Clear build cache" });
+check(await clear.count() === 1, "disk: build cache has a Clear button");
+const volRow = card.locator("[role=row]", { hasText: "Volumes" });
+check(await volRow.getByRole("button").count() === 0, "disk: volumes have no prune button");
+check(/one by one in Volumes/.test(await volRow.innerText()), "disk: volumes row points to the Volumes screen");
+check(/does not always shrink/.test(await card.innerText()), "disk: card explains the VM disk file may not shrink");
+const sizeOf = async () => (await cacheRow.locator("[role=cell]").nth(1).innerText()).trim();
+const before = await sizeOf();
+check(/GB/.test(before), `disk: build cache starts non-empty (${before})`);
+await clear.click();
+await p.waitForSelector("[role=alertdialog]");
+check(/build cache/i.test(await p.locator("[role=alertdialog]").innerText()), "disk: the confirmation names the build cache");
+await p.locator("[role=alertdialog] .primary").click();
+await p.waitForFunction(() => /^0 B/.test(document.querySelector(".disk-card .disk-row:nth-child(2) > :nth-child(2)")?.textContent ?? ""), null, { timeout: 5000 }).catch(() => {});
+const after = await sizeOf();
+check(after !== before && /^0 B/.test(after), `disk: build cache size dropped (${before} -> ${after})`);
+check(/Freed 3\.4 GB from build cache\./.test(await card.innerText()), "disk: it says how much it freed");
+check(await clear.isDisabled(), "disk: with nothing left to free, the button is off");
+const scrollsSideways = await p.evaluate(() => document.scrollingElement.scrollWidth > window.innerWidth + 1 || [...document.querySelectorAll(".content, .content > *")].some((e) => e.scrollWidth > e.clientWidth + 1));
+check(!scrollsSideways, "disk: no horizontal scroll at 980x640");
+await browser.close();
+process.exit(failed ? 1 : 0);

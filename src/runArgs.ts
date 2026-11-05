@@ -1,8 +1,9 @@
 // Pure helpers for the "Run image" panel: validate form input and build `docker run` arguments.
 
 export type PortRow = { host: string; container: string };
-export type VolRow = { source: string; target: string };
-export type RunSpec = { image: string; name: string; ports: PortRow[]; volumes: VolRow[]; env: string };
+// `writable` only matters for a host folder; it defaults to read-only.
+export type VolRow = { source: string; target: string; writable?: boolean };
+export type RunSpec = { image: string; name: string; ports: PortRow[]; volumes: VolRow[]; env: string; exposeAll?: boolean; network?: string };
 export type RunResult = { ok: true; args: string[] } | { ok: false; errors: string[] };
 
 const NAME = /^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/;
@@ -40,7 +41,7 @@ export function parseExposedPorts(json: string): string[] {
   }
 }
 
-function repoName(image: string): string {
+export function repoName(image: string): string {
   const noDigest = image.split("@")[0];
   const last = noDigest.split("/").pop() ?? noDigest;
   return last.split(":")[0];
@@ -56,6 +57,19 @@ export const presetEnv = (image: string) => ENV_PRESETS[repoName(image)] ?? "";
 
 export const defaultName = (image: string, suffix: string) => `${repoName(image)}-${suffix}`;
 
+export const isHostFolder = (source: string) => source.trim().startsWith("/");
+
+// A host folder that holds passwords or login items: anything in ~/Library, or any hidden folder on the path.
+// null when the source is fine here (or not a folder at all).
+export function folderProblem(source: string): string | null {
+  const s = source.trim();
+  if (!isHostFolder(s)) return null;
+  const parts = s.split("/").slice(1);
+  const inLibrary = parts[0] === "Users" && parts[2]?.toLowerCase() === "library";
+  const hidden = parts.some((c) => c.startsWith("."));
+  return inLibrary || hidden ? "Folders inside Library or hidden folders can't be shared, they hold your passwords and login items." : null;
+}
+
 export function buildRunArgs(spec: RunSpec): RunResult {
   const errors: string[] = [];
   const args = ["run", "-d"];
@@ -69,6 +83,13 @@ export function buildRunArgs(spec: RunSpec): RunResult {
   }
   if (name) args.push("--name", name);
 
+  const network = (spec.network ?? "").trim();
+  if (network) {
+    // Host networking removes the container's isolation, so the app doesn't offer it.
+    if (network === "host" || network === "none" || !NAME.test(network)) errors.push(`"${network}" can't be used as a network name here.`);
+    else args.push("--network", network);
+  }
+
   for (const p of spec.ports) {
     const host = p.host.trim();
     const container = p.container.trim();
@@ -78,7 +99,9 @@ export function buildRunArgs(spec: RunSpec): RunResult {
     } else if (host && !validPort(host)) {
       errors.push(`Host port "${host}" must be a number from 1 to 65535.`);
     } else {
-      args.push("-p", host ? `${host}:${container}` : container);
+      // Published ports are reachable from other devices on the network unless bound to loopback.
+      const mapping = host ? `${host}:${container}` : container;
+      args.push("-p", spec.exposeAll ? mapping : host ? `127.0.0.1:${mapping}` : `127.0.0.1::${container}`);
     }
   }
 
@@ -86,13 +109,18 @@ export function buildRunArgs(spec: RunSpec): RunResult {
     const source = v.source.trim();
     const target = v.target.trim();
     if (!source && !target) continue;
-    const sourceOk = NAME.test(source) || (source.startsWith("/") && !source.includes(":"));
-    if (!sourceOk) {
-      errors.push(`Volume source "${source}" must be a volume name or an absolute path.`);
+    const parts = source.split("/").slice(1);
+    // Colima only shares the Mac home folder; hidden folders (~/.ssh, ~/.aws) and ~/Library stay out. The backend checks the same.
+    const folderOk = source.startsWith("/Users/") && parts.length >= 3 && !folderProblem(source) && parts.every((c) => c) && !source.includes(":");
+    if (!NAME.test(source) && !folderOk) {
+      errors.push(folderProblem(source) ?? (source.startsWith("/")
+        ? `Folder "${source}" can't be shared. Use a folder inside your home, like ~/code/app.`
+        : `Volume source "${source}" must be a volume name or a folder path.`));
     } else if (!target.startsWith("/") || target.includes(":")) {
       errors.push(`Volume path "${target}" inside the container must be absolute, like /data.`);
     } else {
-      args.push("-v", `${source}:${target}`);
+      // A host folder is read-only unless the user said the container may change it. A named volume is the container's own storage.
+      args.push("-v", isHostFolder(source) && !v.writable ? `${source}:${target}:ro` : `${source}:${target}`);
     }
   }
 

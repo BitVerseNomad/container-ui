@@ -1,0 +1,114 @@
+import { useSyncExternalStore } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import { docker } from "./api";
+import { useConfirm } from "./ui";
+import { Icon } from "./ui/icons";
+import type { Problem } from "./lib/health";
+import { describe } from "./lib/fixRun";
+import { dockerLocked, useDockerLocked } from "./dockerLock";
+import { busy, dismiss, runFor, snapshot, startConnect, startFix, subscribe } from "./lib/fixStore";
+
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+export const useFixRuns = () => useSyncExternalStore(subscribe, snapshot);
+
+// A problem's fix: a Fix button when the app can do it, and the same steps as commands to copy.
+// The run's progress and result show in FixStatus on the page, which stays while this panel comes and goes.
+export type Go = NonNullable<NonNullable<Problem["fix"]>["go"]>;
+type Fix = NonNullable<Problem["fix"]>;
+type Confirm = ReturnType<typeof useConfirm>;
+type Runs = ReturnType<typeof useFixRuns>;
+
+// The one-click part of a fix (Replace or Connect), shared by the full Fix and the Containers row's button.
+// Null when the app can't run it, so the caller offers the commands instead.
+// locked: something else is changing Docker (the VM, a resize, a copy, Compose, another Fix on these containers).
+export function fixAction(fix: Fix, ctx: string | undefined, confirm: Confirm, runs: Runs, onFixed?: (name: string) => void) {
+  if (!ctx) return null;
+  if (fix.connect) {
+    const c = fix.connect;
+    const running = c.containers.some((n) => busy(runs, n));
+    const locked = !running && dockerLocked(c.containers);
+    const go = async () => {
+      if (locked) return;
+      const what = `${c.create ? `Create the network ${c.network} and connect` : `Connect`} ${c.containers.join(" and ")}${c.create ? "" : ` to ${c.network}`}? Their other networks stay as they are.`;
+      if (running || !(await confirm(what, "Connect", { safe: true }))) return;
+      startConnect(c, (args) => docker(ctx, args), (r) => r.ok && onFixed?.(c.containers[0]));
+    };
+    return { label: "Connect", busyLabel: "Connecting…", running, locked, go, hint: `Adds ${c.containers.join(" and ")} to ${c.network}. Nothing is restarted.` };
+  }
+  if (!fix.steps) return null;
+  const steps = fix.steps;
+  const names = steps.map((s) => s.name);
+  const running = names.some((n) => busy(runs, n));
+  const locked = !running && dockerLocked(names);
+  const go = async () => {
+    if (locked) return;
+    if (running || !(await confirm(fix.confirm ?? `Replace ${names.join(" and ")}?`, names.length > 1 ? "Replace both" : "Replace", { safe: true }))) return;
+    startFix(
+      steps,
+      (args) => docker(ctx, args, args[0] === "logs"),
+      sleep,
+      (args) => invoke<void>("docker_check", { args }),
+      (r) => r.ok && onFixed?.(names[names.length - 1]),
+    );
+  };
+  return { label: names.length > 1 ? `Fix ${names.join(" and ")}` : "Fix", busyLabel: "Fixing…", running, locked, go, hint: names.length > 1 ? `Replaces ${names.join(", then ")}.` : `Replaces ${names[0]}.` };
+}
+
+export default function FixIt({ fix, ctx, onFixed, onGo }: { fix: NonNullable<Problem["fix"]>; ctx?: string; onFixed?: (name: string) => void; onGo?: (page: Go) => void }) {
+  const confirm = useConfirm();
+  const runs = useFixRuns();
+  // Re-renders when what fixAction's lock reads changes.
+  useDockerLocked();
+  if (fix.go) return onGo ? <span className="actions-inline"><button onClick={() => onGo(fix.go!)}>{fix.label}</button></span> : null;
+  const run = fixAction(fix, ctx, confirm, runs, onFixed);
+  const canRun = !!run;
+  const copy = (
+    <>
+      <pre className="cmd" aria-label={fix.label}>{fix.text}</pre>
+      <span className="actions-inline">
+        <button onClick={() => navigator.clipboard.writeText(fix.text)}><Icon name="copy" size={14} /> Copy commands</button>
+        {!canRun && <span className="hint">Run them in your terminal.{fix.note ? ` ${fix.note}` : ""}</span>}
+      </span>
+    </>
+  );
+  if (!run) return copy;
+
+  // Joining a network only adds, so it asks once and needs no undo.
+  return (
+    <>
+      <span className="actions-inline">
+        <button className="primary" disabled={run.running || run.locked} title={run.locked ? "Waits for what is changing Docker now" : undefined} onClick={run.go}>{run.running ? run.busyLabel : run.label}</button>
+        <span className="hint">{run.hint}</span>
+      </span>
+      <details className="fix-commands">
+        <summary>Or run the commands yourself</summary>
+        {copy}
+        {fix.note && !fix.connect && <p className="hint">{fix.note}</p>}
+      </details>
+    </>
+  );
+}
+
+// Progress and the outcome of a fix that involves this container, until dismissed or the next fix.
+export function FixStatus({ name }: { name: string }) {
+  const run = runFor(useFixRuns(), name);
+  if (!run) return null;
+  if (run.step) return <p className="fix-result" role="status" aria-live="polite">{run.step}</p>;
+  const r = run.result;
+  if (!r) return null;
+  return (
+    <div className={`fix-result ${r.ok ? "ok" : "bad"}`} role="status">
+      <p>
+        {r.ok && <Icon name="check" size={14} />} {describe(r)}{" "}
+        <button className="small fix-dismiss" onClick={() => dismiss(name)}>Dismiss</button>
+      </p>
+      {!r.ok && r.logs && <pre className="cmd">{r.logs.trim().split("\n").slice(-12).join("\n")}</pre>}
+    </div>
+  );
+}
+
+// Every fix started from a page that lists many problems. A fixed problem leaves the list, so its result shows here.
+export function FixRuns() {
+  const runs = useFixRuns();
+  return <>{runs.map((r) => <FixStatus key={r.names.join(",")} name={r.names[0]} />)}</>;
+}
