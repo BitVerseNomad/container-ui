@@ -30,6 +30,7 @@ import { readDesktop, readDesktopOnFocus } from "./desktopOffer";
 import { dockerLocked, setVmBusy } from "./dockerLock";
 import { useHost } from "./useHostSize";
 import { runtimeRegistry } from "./runtime";
+import Onboarding from "./Onboarding";
 
 // The profile a VM operation runs on: start takes { opts: { name } }, the others { name }.
 const opName = (vm: VmState) => { const a = vm.last?.args as { name?: string; opts?: { name?: string } } | undefined; return a?.opts?.name ?? a?.name; };
@@ -300,8 +301,13 @@ export default function App() {
       <Kubernetes key={ctx} profile={current!} ctx={ctx} />
     );
 
+  const [onboardingDone, setOnboardingDone] = useState(false);
+
+  const completeOnboarding = () => setOnboardingDone(true);
+
   return (
     <ResizeProvider value={{ profile: current, host, pick, runVm, containers: doc.containers, locked: vmLocked, vmBusy: vm.op !== null, onProfiles: () => setTab("Profiles") }}>
+      {!onboardingDone && <Onboarding onComplete={completeOnboarding} />}
     <Shell onCommands={() => setLogOpen(true)} badges={{ Doctor: doctorTodo }} hidden={kubeOn ? [] : ["Kubernetes"]} nav={tab} onNav={(t) => { setDetailId(null); setPullOnOpen(false); setNewProfileOnOpen(false); setTab(t); }} profiles={profiles} active={active} onSelect={switchTo} onVm={vmFromAnywhere} onRestart={(name) => vmFromAnywhere(name, "starting", true)} vmBusy={vmLocked} vmOp={vm.op && opName(vm) ? { name: opName(vm)!, op: vm.op } : null} onNewProfile={() => { setDetailId(null); setNewProfileOnOpen(true); setTab("Profiles"); }}>
       {!(tab === "Containers" && detailId) && <PageHeader title={tab} />}
       <Banner error={profilesError} />
