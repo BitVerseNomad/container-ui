@@ -65,8 +65,7 @@ describe("VmChangeButton", () => {
     mount({ runVm });
     fireEvent.click(screen.getByRole("button", { name: /^Share folder…/ }));
     const dlg = await screen.findByRole("alertdialog");
-    expect(dlg).toHaveTextContent("Share /Volumes/data with the VM?");
-    expect(dlg.querySelector("code")).toHaveTextContent("/Volumes/data");
+    expect(dlg).toHaveTextContent("Share `/Volumes/data` with the VM?");
     expect(screen.getByRole("button", { name: "Share and restart" })).toBeInTheDocument();
     expect(dlg).toHaveTextContent("Images, volumes and containers stay");
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
