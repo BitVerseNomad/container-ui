@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { CommandLog, CommandToast } from "./Commands";
 import { invoke } from "@tauri-apps/api/core";
 import { Profile, ctxFor } from "./api";
@@ -31,6 +31,8 @@ import { dockerLocked, setVmBusy } from "./dockerLock";
 import { useHost } from "./useHostSize";
 import { runtimeRegistry } from "./runtime";
 import Onboarding from "./Onboarding";
+import CommandPalette from "./CommandPalette";
+import { useKeyboardShortcuts, KeyboardShortcut, Command } from "./hooks/useKeyboardShortcuts";
 
 // The profile a VM operation runs on: start takes { opts: { name } }, the others { name }.
 const opName = (vm: VmState) => { const a = vm.last?.args as { name?: string; opts?: { name?: string } } | undefined; return a?.opts?.name ?? a?.name; };
@@ -304,6 +306,40 @@ export default function App() {
   const [onboardingDone, setOnboardingDone] = useState(false);
 
   const completeOnboarding = () => setOnboardingDone(true);
+
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+
+  const commands = useMemo<Command[]>(() => [
+    { id: "new-container", label: "Run Container", description: "Run a new container from an image", icon: "play", section: "Containers", action: () => { setTab("Images"); }, shortcut: "⌘N" },
+    { id: "pull-image", label: "Pull Image", description: "Pull an image from Docker Hub or registry", icon: "download", section: "Images", action: () => { setTab("Images"); }, shortcut: "⌘P" },
+    { id: "new-profile", label: "New Profile", description: "Create a new VM profile", icon: "plus", section: "Profiles", action: () => { setTab("Profiles"); }, shortcut: "⌘Shift+N" },
+    { id: "doctor", label: "Run Doctor Checks", description: "Run all diagnostic checks", icon: "check", section: "Doctor", action: () => { setTab("Doctor"); }, shortcut: "⌘D" },
+    { id: "switch-containers", label: "Containers", description: "Switch to Containers tab", icon: "box", action: () => setTab("Containers"), shortcut: "⌘1" },
+    { id: "switch-images", label: "Images", description: "Switch to Images tab", icon: "image", action: () => setTab("Images"), shortcut: "⌘2" },
+    { id: "switch-volumes", label: "Volumes", description: "Switch to Volumes tab", icon: "database", action: () => setTab("Volumes"), shortcut: "⌘3" },
+    { id: "switch-networks", label: "Networks", description: "Switch to Networks tab", icon: "network", action: () => setTab("Networks"), shortcut: "⌘4" },
+    { id: "switch-k8s", label: "Kubernetes", description: "Switch to Kubernetes tab", icon: "cluster", action: () => { if (kubeOn) setTab("Kubernetes"); }, shortcut: "⌘5" },
+    { id: "switch-doctor", label: "Doctor", description: "Switch to Doctor tab", icon: "check", action: () => setTab("Doctor"), shortcut: "⌘6" },
+    { id: "switch-profiles", label: "Profiles", description: "Switch to Profiles tab", icon: "sliders", action: () => setTab("Profiles"), shortcut: "⌘7" },
+    { id: "toggle-sidebar", label: "Toggle Sidebar", description: "Fold/unfold sidebar", icon: "sidebar", action: () => { /* handled by Shell */ }, shortcut: "⌘B" },
+    { id: "command-palette", label: "Command Palette", description: "Open command palette", icon: "search", action: () => setCommandPaletteOpen(true), shortcut: "⌘K" },
+    { id: "ai-assistant", label: "AI Assistant", description: "Open AI troubleshooting chat", icon: "hammer", action: () => { /* TODO: open AI panel */ }, shortcut: "⌘Shift+A" },
+  ], []);
+
+  const keyboardShortcuts = useMemo<KeyboardShortcut[]>(() => [
+    { key: "k", meta: true, action: () => setCommandPaletteOpen(true), description: "Open Command Palette" },
+    { key: "1", meta: true, action: () => setTab("Containers"), description: "Containers tab" },
+    { key: "2", meta: true, action: () => setTab("Images"), description: "Images tab" },
+    { key: "3", meta: true, action: () => setTab("Volumes"), description: "Volumes tab" },
+    { key: "4", meta: true, action: () => setTab("Networks"), description: "Networks tab" },
+    { key: "5", meta: true, action: () => { if (kubeOn) setTab("Kubernetes"); }, description: "Kubernetes tab" },
+    { key: "6", meta: true, action: () => setTab("Doctor"), description: "Doctor tab" },
+    { key: "7", meta: true, action: () => setTab("Profiles"), description: "Profiles tab" },
+    { key: "b", meta: true, action: () => { /* sidebar fold handled by Shell */ }, description: "Toggle sidebar" },
+    { key: "Escape", action: () => { setCommandPaletteOpen(false); setLogOpen(false); setPullOnOpen(false); setNewProfileOnOpen(false); }, description: "Close panels" },
+  ], [kubeOn, setTab, setCommandPaletteOpen, setLogOpen, setPullOnOpen, setNewProfileOnOpen]);
+
+  useKeyboardShortcuts(keyboardShortcuts);
 
   return (
     <ResizeProvider value={{ profile: current, host, pick, runVm, containers: doc.containers, locked: vmLocked, vmBusy: vm.op !== null, onProfiles: () => setTab("Profiles") }}>
