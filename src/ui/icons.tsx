@@ -35,9 +35,9 @@ const PATHS: Record<IconName, ReactNode> = {
   finder: <><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" /><path d="M12 13h5M14.5 10.5L17 13l-2.5 2.5" /></>,
 };
 
-export function Icon({ name, size = 16 }: { name: IconName; size?: number }) {
+export function Icon({ name, size = 16, className = "", style, ...props }: { name: IconName; size?: number; className?: string; style?: React.CSSProperties } & React.SVGAttributes<SVGSVGElement>) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className={className} style={style} {...props}>
       {PATHS[name]}
     </svg>
   );

@@ -508,6 +508,96 @@ async fn run(args: Vec<String>) -> Result<String, String> {
     exec("colima", args, false).await
 }
 
+async fn orb(args: Vec<String>) -> Result<String, String> {
+    exec("orb", args, false).await
+}
+
+async fn orb_json(args: Vec<String>) -> Result<String, String> {
+    let mut a = args;
+    a.insert(0, "--format".into());
+    a.insert(1, "json".into());
+    exec("orb", a, false).await
+}
+
+#[tauri::command]
+async fn orb_version() -> Result<String, String> {
+    orb(vec!["version".into()]).await
+}
+
+#[tauri::command]
+async fn colima_version() -> Result<String, String> {
+    run(vec!["version".into()]).await
+}
+
+#[tauri::command]
+async fn rdctl_version() -> Result<String, String> {
+    exec("rdctl", vec!["version".into()], false).await
+}
+
+#[tauri::command]
+async fn podman_version() -> Result<String, String> {
+    let out = exec("podman", vec!["version".into(), "--format".into(), "json".into()], false).await?;
+    let parsed: serde_json::Value = serde_json::from_str(&out)
+        .map_err(|e| format!("Failed to parse podman version JSON: {e}"))?;
+    // Podman version JSON has a "Version" field at the root or in a Client/Server object
+    parsed.get("Version")
+        .or_else(|| parsed.get("Client").and_then(|c| c.get("Version")))
+        .or_else(|| parsed.get("Server").and_then(|s| s.get("Version")))
+        .and_then(|v| v.as_str())
+        .map(|v| v.to_string())
+        .ok_or_else(|| "Podman version not found in output".into())
+}
+
+#[tauri::command]
+async fn docker_desktop_version() -> Result<String, String> {
+    let out = exec("docker", vec!["version".into(), "--format".into(), "json".into()], false).await?;
+    let parsed: serde_json::Value = serde_json::from_str(&out)
+        .map_err(|e| format!("Failed to parse docker version JSON: {e}"))?;
+    // Check if it's Docker Desktop by looking at the Platform field
+    let is_desktop = parsed.get("Server")
+        .and_then(|s| s.get("Platform"))
+        .and_then(|p| p.as_str())
+        .map(|p| p.to_lowercase().contains("docker desktop"))
+        .unwrap_or(false);
+    if is_desktop {
+        parsed.get("Server")
+            .and_then(|s| s.get("Version"))
+            .and_then(|v| v.as_str())
+            .map(|v| v.to_string())
+            .ok_or_else(|| "Docker Desktop version not found in output".into())
+    } else {
+        Err("Not Docker Desktop".into())
+    }
+}
+
+#[tauri::command]
+async fn orb_list_vms() -> Result<Vec<Profile>, String> {
+    // `orb list --format json` prints one JSON object per line.
+    let out = orb_json(vec!["list".into()]).await?;
+    out.lines()
+        .filter(|l| !l.trim().is_empty())
+        .map(|l| serde_json::from_str(l).map_err(|e| format!("Unexpected orb output: {e}")))
+        .collect()
+}
+
+#[tauri::command]
+async fn orb_start_vm(name: String) -> Result<(), String> {
+    safe(&name)?;
+    orb(vec!["start".into(), name]).await.map(|_| ())
+}
+
+#[tauri::command]
+async fn orb_stop_vm(name: String) -> Result<(), String> {
+    safe(&name)?;
+    orb(vec!["stop".into(), name]).await.map(|_| ())
+}
+
+#[tauri::command]
+async fn orb_delete_vm(name: String) -> Result<(), String> {
+    safe(&name)?;
+    orb(vec!["delete".into(), name]).await.map(|_| ())
+}
+
 // Fix asks this for every step before it changes anything, so a run the backend would refuse never leaves a
 // container stopped halfway. Same rules as `docker`, nothing is run.
 #[tauri::command]
@@ -714,6 +804,126 @@ async fn docker_pull(app: tauri::AppHandle, context: String, image: String) -> R
     }
     tauri::async_runtime::spawn_blocking(move || {
         stream(&app, "pull-progress", "docker", &["--context".into(), context, "pull".into(), image])
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct ChatMessage {
+    role: String,
+    content: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct OllamaModel {
+    name: String,
+    size: String,
+    modified: String,
+}
+
+/// Streams chat response from Ollama via Tauri events.
+/// Emits "ollama-chat-token" events for each token, then "ollama-chat-done" with the full response.
+#[tauri::command]
+async fn ollama_chat(app: tauri::AppHandle, model: String, messages: Vec<ChatMessage>) -> Result<String, String> {
+    use std::io::BufRead;
+
+    // Build the JSON request body
+    let request_body = serde_json::json!({
+        "model": model,
+        "messages": messages,
+        "stream": true
+    });
+
+    let mut cmd = Command::new("ollama");
+    cmd.arg("run")
+        .arg("--format")
+        .arg("json")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .env("PATH", path_env());
+
+    let mut child = cmd.spawn().map_err(|e| format!("Could not run ollama: {e}. Is it installed?"))?;
+
+    // Write request to stdin
+    if let Some(mut stdin) = child.stdin.take() {
+        use std::io::Write;
+        stdin.write_all(request_body.to_string().as_bytes()).map_err(|e| e.to_string())?;
+    }
+
+    let mut full_response = String::new();
+    let stdout = child.stdout.take().expect("piped stdout");
+    let stderr = child.stderr.take().expect("piped stderr");
+    let reader = BufReader::new(stdout);
+    let err_reader = BufReader::new(stderr);
+
+    // Read stdout line by line (streaming JSON)
+    for line in reader.lines().map_while(Result::ok) {
+        if line.trim().is_empty() {
+            continue;
+        }
+        // Try to parse as JSON response
+        if let Ok(json) = serde_json::from_str::<serde_json::Value>(&line) {
+            if let Some(token) = json.get("response").and_then(|v| v.as_str()) {
+                if !token.is_empty() {
+                    full_response.push_str(token);
+                    // Emit token event for streaming UI
+                    let _ = app.emit("ollama-chat-token", token);
+                }
+            }
+            if json.get("done").and_then(|v| v.as_bool()) == Some(true) {
+                break;
+            }
+        }
+    }
+
+    // Drain stderr
+    let err_output: String = err_reader.lines().map_while(Result::ok).collect::<Vec<_>>().join("\n");
+
+    let status = child.wait().map_err(|e| e.to_string())?;
+
+    if !status.success() && !err_output.is_empty() {
+        return Err(err_output);
+    }
+
+    // Emit done event with full response
+    let _ = app.emit("ollama-chat-done", full_response.clone());
+
+    Ok(full_response)
+}
+
+/// Lists available Ollama models with name, size, and modified time.
+#[tauri::command]
+async fn ollama_list_models() -> Result<Vec<OllamaModel>, String> {
+    let output = exec("ollama", vec!["list".into()], false).await?;
+
+    let mut models = Vec::new();
+    for line in output.lines().skip(1) {
+        // Skip header line
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        if parts.len() >= 3 {
+            // Format: NAME ID SIZE MODIFIED
+            // We want name, size, modified
+            let name = parts[0].to_string();
+            let size = if parts.len() >= 3 { parts[2].to_string() } else { "unknown".to_string() };
+            // Modified time is the rest
+            let modified = parts[3..].join(" ");
+            models.push(OllamaModel { name, size, modified });
+        }
+    }
+
+    Ok(models)
+}
+
+/// Pulls an Ollama model with progress streaming.
+/// Emits "ollama-pull-progress" events with progress updates.
+#[tauri::command]
+async fn ollama_pull(app: tauri::AppHandle, model: String) -> Result<(), String> {
+    safe(&model)?;
+
+    tauri::async_runtime::spawn_blocking(move || {
+        stream(&app, "ollama-pull-progress", "ollama", &["pull".into(), model])
     })
     .await
     .map_err(|e| e.to_string())?
@@ -1727,6 +1937,9 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             list_profiles, docker, docker_check, docker_pull, env_check, install_tools, network_probe, kubectl, open_terminal, open_homebrew_install, start_profile, apply_resources,
             stop_profile, force_stop_profile, restart_profile, colima_config, network_facts, vm_dns_probe, apply_mounts, apply_env, force_restart_profile, delete_profile, cancel_vm_op, host_resources, vm_log_tail, reveal_vm_log, open_url, pick_folder, setup_report, setup_fix, find_compose_files, reveal_compose, compose_editor, open_compose, compose_config, compose_action, cancel_compose, compose_logs, compose_in_folder, container_shell,
+            orb_version, orb_list_vms, orb_start_vm, orb_stop_vm, orb_delete_vm,
+            colima_version, rdctl_version, podman_version, docker_desktop_version,
+            ollama_chat, ollama_list_models, ollama_pull,
             desktop::desktop_state, desktop::desktop_docker, desktop::desktop_copy, desktop::desktop_copy_stop, desktop::desktop_start, desktop::desktop_replace, desktop::open_docker_desktop
         ])
         .run(tauri::generate_context!())
