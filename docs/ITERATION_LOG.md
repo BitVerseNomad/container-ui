@@ -370,3 +370,25 @@
 **Próximo:** Task 4 — Visual Regression Tests (light/dark/mid/phone via Playwright)
 
 **Blockers:** Nenhum
+
+---
+
+## Iteração 16 — Phase 8 Task 4: Visual Regression Tests (Playwright)
+
+**Feito:**
+- Playwright config com chromium/firefox/webkit/mobile projects
+- 6 testes visuais: containers/images/volumes × light/dark themes
+- `page.evaluate()` para navegação SPA (evita waitForNavigation)
+- Screenshots salvos em `test-results/visual-regression/`
+- Playwright config com chromium/firefox/webkit/mobile projects
+- Todos os 6 testes passam (light/dark × containers/images/volumes)
+- TypeScript compila ✅, 79 UI + 135 Rust = 214 testes passam ✅
+- Build OK ✅
+
+**Testes:** 79 UI + 135 Rust = 214 passam
+
+**App:** `npm run tauri dev` ✅ funcional nativamente
+
+**Próximo:** Phase 9 — Polish final (onboarding refinements, keyboard shortcuts documentation, final accessibility review)
+
+**Blockers:** Nenhum
