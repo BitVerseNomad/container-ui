@@ -41,19 +41,28 @@ export function ProjectTerminal({ environmentId, onClose }: ProjectTerminalProps
       setCommand("");
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
-      if (historyIndex < history.length - 1) {
-        setHistoryIndex((prev) => prev + 1);
-        setCommand(history[history.length - 1 - historyIndex]);
-      }
+      setHistoryIndex((prev) => {
+        const nextIndex = prev + 1;
+        if (nextIndex < history.length) {
+          setCommand(history[history.length - 1 - nextIndex]);
+        }
+        return Math.min(nextIndex, history.length - 1);
+      });
     } else if (e.key === "ArrowDown") {
       e.preventDefault();
-      if (historyIndex > 0) {
-        setHistoryIndex((prev) => prev - 1);
-        setCommand(history[history.length - historyIndex]);
-      } else {
-        setHistoryIndex(-1);
-        setCommand("");
-      }
+      setHistoryIndex((prev) => {
+        if (prev <= 0) {
+          setCommand("");
+          return -1;
+        }
+        const nextIndex = prev - 1;
+        if (nextIndex >= 0) {
+          setCommand(history[history.length - 1 - nextIndex]);
+        } else {
+          setCommand("");
+        }
+        return nextIndex;
+      });
     } else if (e.key === "c" && (e.ctrlKey || e.metaKey)) {
       // Ctrl+C - send interrupt
       e.preventDefault();
@@ -74,7 +83,7 @@ export function ProjectTerminal({ environmentId, onClose }: ProjectTerminalProps
         terminalRef.current.write("\x04");
       }
     }
-  }, [command, history, historyIndex, executeCommand, terminalRef]);
+  }, [command, history, executeCommand, terminalRef]);
 
   const handleSendCommand = useCallback(() => {
     if (command.trim()) {

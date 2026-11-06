@@ -20,7 +20,8 @@ export function ProjectPorts({ environmentId }: ProjectPortsProps) {
   const queryClient = useQueryClient();
   const [newPort, setNewPort] = useState("");
   const [copiedPort, setCopiedPort] = useState<number | null>(null);
-  const [collisionErrors, setCollisionErrors] = useState<Record<number, string>>({});
+  const [collisionErrors, setCollisionErrors] = useState<Record<string, string>>({});
+  const [forwardingPorts, setForwardingPorts] = useState<Set<number>>(new Set());
 
   const { data: ports = [], isLoading } = useQuery({
     queryKey: ["project-ports", environmentId],
@@ -32,7 +33,8 @@ export function ProjectPorts({ environmentId }: ProjectPortsProps) {
   const forwardMutation = useMutation({
     mutationFn: (port: number) => projectsApi.forwardPort(environmentId, port),
     onMutate: async (port) => {
-      // Store the port for use in onSuccess/onError
+      // Track this port as being forwarded
+      setForwardingPorts((prev) => new Set(prev).add(port));
       return { port };
     },
     onSuccess: (_, __, context) => {
@@ -40,7 +42,17 @@ export function ProjectPorts({ environmentId }: ProjectPortsProps) {
       if (port) {
         setCollisionErrors((prev) => {
           const next = { ...prev };
-          delete next[port];
+          // Clear error for this port+protocol combo
+          Object.keys(next).forEach((key) => {
+            if (key.startsWith(`${port}:`)) {
+              delete next[key];
+            }
+          });
+          return next;
+        });
+        setForwardingPorts((prev) => {
+          const next = new Set(prev);
+          next.delete(port);
           return next;
         });
       }
@@ -49,8 +61,17 @@ export function ProjectPorts({ environmentId }: ProjectPortsProps) {
     onError: (error, port) => {
       const errorMsg = error instanceof Error ? error.message : "Failed to forward port";
       if (errorMsg.includes("address in use") || errorMsg.includes("EADDRINUSE")) {
-        setCollisionErrors((prev) => ({ ...prev, [port]: "Port already in use on host" }));
+        // Key by port:protocol to handle multiple protocols on same port
+        // For now we use just port since protocol comes from the port mapping
+        const portMapping = ports.find(p => p.containerPort === port);
+        const protocol = portMapping?.protocol || "tcp";
+        setCollisionErrors((prev) => ({ ...prev, [`${port}:${protocol}`]: "Port already in use on host" }));
       }
+      setForwardingPorts((prev) => {
+        const next = new Set(prev);
+        next.delete(port);
+        return next;
+      });
     },
   });
 
@@ -75,9 +96,14 @@ export function ProjectPorts({ environmentId }: ProjectPortsProps) {
   const handleUnforward = useCallback(async (port: number) => {
     try {
       await unforwardMutation.mutateAsync(port);
+      // Clear any collision error for this port
       setCollisionErrors((prev) => {
         const next = { ...prev };
-        delete next[port];
+        Object.keys(next).forEach((key) => {
+          if (key.startsWith(`${port}:`)) {
+            delete next[key];
+          }
+        });
         return next;
       });
     } catch (e) {
@@ -85,9 +111,15 @@ export function ProjectPorts({ environmentId }: ProjectPortsProps) {
     }
   }, [unforwardMutation]);
 
-  const handleRetry = useCallback(async (port: number) => {
+  const handleRetry = useCallback(async (port: number, protocol: string) => {
     try {
       await forwardMutation.mutateAsync(port);
+      // Clear error on successful retry
+      setCollisionErrors((prev) => {
+        const next = { ...prev };
+        delete next[`${port}:${protocol}`];
+        return next;
+      });
     } catch (e) {
       // Error handled by onError
     }
@@ -146,13 +178,16 @@ export function ProjectPorts({ environmentId }: ProjectPortsProps) {
         ) : (
           <div className="space-y-2 max-h-[400px] overflow-y-auto">
             {displayPorts.map((port) => {
-              const hasCollision = collisionErrors[port.containerPort];
+              const protocol = port.protocol || "tcp";
+              const collisionKey = `${port.containerPort}:${protocol}`;
+              const hasCollision = collisionErrors[collisionKey];
               const hostPort = port.hostPort;
               const url = hostPort ? `http://localhost:${hostPort}` : null;
+              const isForwarding = forwardingPorts.has(port.containerPort);
 
               return (
                 <div
-                  key={port.containerPort}
+                  key={collisionKey}
                   className={cn(
                     "flex items-center justify-between p-3 bg-[var(--color-bg-tertiary)] rounded-lg",
                     hasCollision && "border border-red-500/50"
@@ -163,18 +198,23 @@ export function ProjectPorts({ environmentId }: ProjectPortsProps) {
                       <span className="font-mono text-lg">{port.containerPort}</span>
                       <Badge
                         variant="outline"
-                        className={cn("text-xs", getProtocolColor(port.protocol))}
-                        title={`Protocol: ${formatProtocol(port.protocol)}`}
+                        className={cn("text-xs", getProtocolColor(protocol))}
+                        title={`Protocol: ${formatProtocol(protocol)}`}
                       >
-                        {formatProtocol(port.protocol)}
+                        {formatProtocol(protocol)}
                       </Badge>
                     </div>
                     {hasCollision && (
                       <div className="flex items-center gap-2 text-sm text-red-400">
                         <AlertTriangle className="h-4 w-4" />
-                        <span>{collisionErrors[port.containerPort]}</span>
-                        <Button variant="ghost" size="icon" onClick={() => handleRetry(port.containerPort)} disabled={forwardMutation.isPending}>
-                          <Loader2 className={cn("h-3 w-3", forwardMutation.isPending && "animate-spin")} />
+                        <span>{collisionErrors[collisionKey]}</span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleRetry(port.containerPort, protocol)}
+                          disabled={forwardMutation.isPending || isForwarding}
+                        >
+                          <Loader2 className={cn("h-3 w-3", (forwardMutation.isPending || isForwarding) && "animate-spin")} />
                         </Button>
                       </div>
                     )}

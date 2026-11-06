@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
 import { projectsApi, useDetectProjectConfig, useRefreshProjectGitInfo, useOpenProjectInIde, useRestartEnvironment } from "@/lib/projectsApi";
@@ -49,13 +49,15 @@ export function ProjectDetail({
   const projectEnvironment = envData?.[0] || null;
 
   // Sync local environment state with query data
-  if (projectEnvironment && (!environment || environment.id !== projectEnvironment.id)) {
-    setEnvironment(projectEnvironment);
-  } else if (!projectEnvironment && environment) {
-    setEnvironment(null);
-    setConfig(null);
-    setConfigType(null);
-  }
+  useEffect(() => {
+    if (projectEnvironment && (!environment || environment.id !== projectEnvironment.id)) {
+      setEnvironment(projectEnvironment);
+    } else if (!projectEnvironment && environment) {
+      setEnvironment(null);
+      setConfig(null);
+      setConfigType(null);
+    }
+  }, [projectEnvironment, environment]);
 
   const detectConfigMutation = useDetectProjectConfig();
 

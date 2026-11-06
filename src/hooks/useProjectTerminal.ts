@@ -39,6 +39,8 @@ export function useProjectTerminal({
   const [reconnectAttempts, setReconnectAttempts] = useState(0);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isMountedRef = useRef(true);
+  const initializedRef = useRef(false);
+  const scrollbackWrittenRef = useRef(0);
 
   const execMutation = useMutation({
     mutationFn: (input: { environmentId: string; command: string[] }) =>
@@ -57,6 +59,7 @@ export function useProjectTerminal({
 
   const clearScrollback = useCallback(() => {
     setScrollback([]);
+    scrollbackWrittenRef.current = 0;
   }, []);
 
   const initializeTerminal = useCallback(() => {
@@ -103,10 +106,11 @@ export function useProjectTerminal({
     // Write welcome message and restore scrollback
     terminal.write("Welcome to Container UI Terminal\r\n");
     terminal.write(`Connected to environment ${environmentId.slice(0, 12)}\r\n\r\n`);
-    
+
     if (scrollback.length > 0) {
       terminal.write(scrollback.join(""));
       terminal.write("\r\n--- Scrollback restored ---\r\n\r\n");
+      scrollbackWrittenRef.current = scrollback.length;
     }
 
     setIsConnected(true);
@@ -120,19 +124,19 @@ export function useProjectTerminal({
       window.removeEventListener("resize", handleResize);
       terminal.dispose();
     };
-  }, [environmentId, scrollback, onReconnect]);
+  }, [environmentId, onReconnect, scrollback]);
 
   const executeCommand = useCallback(async (command: string) => {
     if (!terminalRef.current) return;
-    
+
     terminalRef.current.write(`\r\n$ ${command}\r\n`);
-    
+
     try {
       const result = await execMutation.mutateAsync({
         environmentId,
         command: ["sh", "-c", command],
       });
-      
+
       if (result.stdout) {
         terminalRef.current.write(result.stdout);
         addToScrollback([result.stdout]);
@@ -147,7 +151,7 @@ export function useProjectTerminal({
       const errorMsg = `Error: ${error instanceof Error ? error.message : "Unknown error"}\r\n`;
       terminalRef.current.write(errorMsg);
       addToScrollback([errorMsg]);
-      
+
       // Check if it's a network error that warrants reconnection
       if (error instanceof Error && (
         error.message.includes("network") ||
@@ -162,10 +166,10 @@ export function useProjectTerminal({
 
   const handleDisconnect = useCallback(() => {
     if (!isMountedRef.current) return;
-    
+
     setIsConnected(false);
     if (onDisconnect) onDisconnect();
-    
+
     // Schedule reconnection
     if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
       if (reconnectTimeoutRef.current) {
@@ -182,16 +186,22 @@ export function useProjectTerminal({
 
   const reconnect = useCallback(async () => {
     setReconnectAttempts(0);
+    scrollbackWrittenRef.current = 0;
     initializeTerminal();
   }, [initializeTerminal]);
 
-  // Initialize terminal on mount
+  // Initialize terminal on mount and when environmentId changes
   useEffect(() => {
     isMountedRef.current = true;
+    initializedRef.current = false;
+    scrollbackWrittenRef.current = 0;
+
     const cleanup = initializeTerminal();
-    
+    initializedRef.current = true;
+
     return () => {
       isMountedRef.current = false;
+      initializedRef.current = false;
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
       }
@@ -199,17 +209,18 @@ export function useProjectTerminal({
       terminalRef.current = null;
       fitAddonRef.current = null;
     };
-  }, [initializeTerminal]);
-
-  // Re-initialize when environmentId changes
-  useEffect(() => {
-    if (terminalRef.current) {
-      terminalRef.current.dispose();
-      terminalRef.current = null;
-      fitAddonRef.current = null;
-    }
-    initializeTerminal();
   }, [environmentId, initializeTerminal]);
+
+  // Restore new scrollback lines when they are added (without re-initializing terminal)
+  useEffect(() => {
+    if (initializedRef.current && terminalRef.current && scrollback.length > scrollbackWrittenRef.current) {
+      const newLines = scrollback.slice(scrollbackWrittenRef.current);
+      if (newLines.length > 0) {
+        terminalRef.current.write(newLines.join(""));
+        scrollbackWrittenRef.current = scrollback.length;
+      }
+    }
+  }, [scrollback]);
 
   return {
     terminalRef,

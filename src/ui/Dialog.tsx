@@ -1,4 +1,4 @@
-import { Fragment, HTMLAttributes, ReactNode, useEffect, useRef } from "react";
+import { Fragment, HTMLAttributes, ReactNode, useEffect, useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { clsx } from "clsx";
 import { X } from "./icons";
@@ -58,7 +58,7 @@ export function Dialog({
   const contentRef = useRef<HTMLDivElement>(null);
   const previousActiveElement = useRef<HTMLElement | null>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (open) {
       previousActiveElement.current = document.activeElement as HTMLElement;
       document.body.style.overflow = "hidden";
@@ -84,12 +84,13 @@ export function Dialog({
       };
       document.addEventListener("keydown", handleKeyDown);
       // Focus first focusable element or close button
-      setTimeout(() => {
+      // Use requestAnimationFrame to ensure portal has mounted
+      requestAnimationFrame(() => {
         const firstFocusable = contentRef.current?.querySelector<HTMLElement>(
           'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
         );
         firstFocusable?.focus();
-      }, 0);
+      });
       return () => {
         document.removeEventListener("keydown", handleKeyDown);
         document.body.style.overflow = "";
