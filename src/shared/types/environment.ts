@@ -65,3 +65,10 @@ export interface ForwardPortInput {
 }
 
 export type PortMapping = import("@/shared/types/project").PortMapping;
+
+export interface InjectedEnvVar {
+  key: string;
+  source: "ssh_agent" | "git_user" | "git_email" | "gh_token" | "custom";
+  enabled: boolean;
+  value?: string; // For custom
+}

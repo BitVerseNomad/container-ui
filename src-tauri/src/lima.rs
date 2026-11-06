@@ -383,6 +383,37 @@ async fn create_devcontainer_env(
         run_args.extend(args.iter().cloned());
     }
     
+    // Auto-inject credentials (SSH, Git, GH)
+    // SSH_AUTH_SOCK
+    if let Ok(sock) = get_ssh_auth_sock() {
+        run_args.push("-e".into());
+        run_args.push(format!("SSH_AUTH_SOCK={}", sock));
+    }
+    
+    // Git user.name
+    if let Ok(name) = git_config_get("user.name".to_string()) {
+        run_args.push("-e".into());
+        run_args.push(format!("GIT_AUTHOR_NAME={}", name.clone()));
+        run_args.push("-e".into());
+        run_args.push(format!("GIT_COMMITTER_NAME={}", name));
+    }
+    
+    // Git user.email
+    if let Ok(email) = git_config_get("user.email".to_string()) {
+        run_args.push("-e".into());
+        run_args.push(format!("GIT_AUTHOR_EMAIL={}", email.clone()));
+        run_args.push("-e".into());
+        run_args.push(format!("GIT_COMMITTER_EMAIL={}", email));
+    }
+    
+    // GH_TOKEN
+    if let Ok(token) = get_gh_token() {
+        run_args.push("-e".into());
+        run_args.push(format!("GH_TOKEN={}", token));
+        run_args.push("-e".into());
+        run_args.push(format!("GITHUB_TOKEN={}", token));
+    }
+    
     // Set working directory
     run_args.push("-w".into());
     run_args.push("/workspace".into());

@@ -5,7 +5,8 @@ export type IconName =
   | "cluster" | "check" | "alert" | "network" | "logs" | "trash" | "search" | "download" | "close" | "info" | "copy" | "folder" | "sidebar" | "plus" | "chevron" | "tick" | "terminal" | "more" | "finder" | "hammer"
   | "chevron-right" | "external-link" | "link" | "rotate-ccw" | "send" | "pause" | "stop-circle" | "trash-2"
   | "chevron-left" | "loader" | "send-icon" | "pause-icon" | "play-icon"
-  | "pause" | "loader2" | "chevron-left-icon";
+  | "pause" | "loader2" | "chevron-left-icon"
+  | "shield" | "git-branch" | "message-square" | "key";
 
 const PATHS: Record<IconName, ReactNode> = {
   gauge: <><path d="M12 14l4-4" /><path d="M3.3 17a9 9 0 1 1 17.4 0" /></>,
@@ -51,6 +52,10 @@ const PATHS: Record<IconName, ReactNode> = {
   "send": <path d="M22 2L11 13 M22 2l-7 20-4-9-9-8 20 4" />,
   "stop-circle": <g><circle cx="12" cy="12" r="10" /><rect x="9" y="9" width="6" height="6" /></g>,
   "trash-2": <path d="M3 6h18 M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6 M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />,
+  shield: <><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></>,
+  "git-branch": <><path d="M6 3v12" /><path d="M18 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" /><path d="M6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" /><path d="M18 9a9 9 0 0 1-12 6" /></>,
+  "message-square": <><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></>,
+  key: <><path d="M15.5 3.5a2.5 2.5 0 0 0-5 0L4 12l3 3 3-3 3 3 3-3 3 3 3-3 3 3L20 12 15.5 3.5z" /><path d="M9 11a2 2 0 0 0 0 4h.5" /></>,
 };
 
 export function Icon({ name, size = 16, className = "", style, ...props }: { name: IconName; size?: number; className?: string; style?: React.CSSProperties } & React.SVGAttributes<SVGSVGElement>) {
@@ -192,4 +197,32 @@ export const ChevronLeft = createIcon(
 
 export const SendIcon = createIcon(
   'M22 2L11 13 M22 2l-7 20-4-9-9-8 20 4'
+);
+
+export const Eye = createIcon(
+  'M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8z'
+);
+
+export const EyeOff = createIcon(
+  'M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19M1 1l22 22'
+);
+
+export const Save = createIcon(
+  'M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7 M3 7v13a2 2 0 0 0 2 2h14'
+);
+
+export const Shield = createIcon(
+  'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z'
+);
+
+export const GitBranch = createIcon(
+  'M6 3v12 M18 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M18 9a9 9 0 0 1-12 6'
+);
+
+export const MessageSquare = createIcon(
+  'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z'
+);
+
+export const Key = createIcon(
+  'M15.5 3.5a2.5 2.5 0 0 0-5 0L4 12l3 3 3-3 3 3 3-3 3 3 3-3 3 3L20 12 15.5 3.5z M9 11a2 2 0 0 0 0 4h.5'
 );

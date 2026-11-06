@@ -1,4 +1,4 @@
-import { forwardRef, InputHTMLAttributes, LabelHTMLAttributes, TextareaHTMLAttributes } from "react";
+import { forwardRef, InputHTMLAttributes, LabelHTMLAttributes, TextareaHTMLAttributes, useId } from "react";
 import { clsx } from "clsx";
 
 export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
@@ -10,7 +10,8 @@ export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(
   ({ className, label, error, hint, fullWidth, id, ...props }, ref) => {
-    const inputId = id || props.name;
+    const generatedId = useId();
+    const inputId = id || props.name || generatedId;
 
     return (
       <div className={clsx("flex flex-col gap-1.5", fullWidth && "w-full")}>
@@ -65,7 +66,8 @@ export interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElemen
 
 export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
   ({ className, label, error, hint, fullWidth, id, ...props }, ref) => {
-    const textareaId = id || props.name;
+    const generatedId = useId();
+    const textareaId = id || props.name || generatedId;
 
     return (
       <div className={clsx("flex flex-col gap-1.5", fullWidth && "w-full")}>
