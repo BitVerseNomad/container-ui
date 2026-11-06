@@ -12,12 +12,21 @@
       "DOM",
       "DOM.Iterable"
     ],
-    "allowImportingTsExtensions": true
+    "allowImportingTsExtensions": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"],
+      "@shared/*": ["src/shared/*"],
+      "@features/*": ["src/features/*"],
+      "@ui/*": ["src/ui/*"],
+      "@lib/*": ["src/lib/*"]
+    }
   },
   "include": [
     "src"
   ],
   "exclude": [
-    "src/**/*.test.ts"
+    "src/**/*.test.ts",
+    "src/**/*.test.tsx"
   ]
 }

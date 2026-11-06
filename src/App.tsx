@@ -33,6 +33,7 @@ import { runtimeRegistry } from "./runtime";
 import Onboarding from "./Onboarding";
 import CommandPalette from "./CommandPalette";
 import { useKeyboardShortcuts, KeyboardShortcut, Command } from "./hooks/useKeyboardShortcuts";
+import { ProjectsPage } from "./features/projects/ProjectsPage";
 
 // The profile a VM operation runs on: start takes { opts: { name } }, the others { name }.
 const opName = (vm: VmState) => { const a = vm.last?.args as { name?: string; opts?: { name?: string } } | undefined; return a?.opts?.name ?? a?.name; };
@@ -41,7 +42,7 @@ const opName = (vm: VmState) => { const a = vm.last?.args as { name?: string; op
 const NOUN: Record<string, string> = { Images: "images", Volumes: "volumes", Networks: "networks", Kubernetes: "cluster" };
 
 export default function App() {
-  const [tab, setTab] = useState<Tab>("Containers");
+  const [tab, setTab] = useState<Tab>("Projects");
   const [appError, setAppError] = useState<string | null>(null);
   const [activeRuntimeId, setActiveRuntimeId] = useState<string | null>(null);
 
@@ -226,7 +227,9 @@ export default function App() {
   };
 
   const page =
-    tab === "Containers" ? (
+    tab === "Projects" ? (
+      <ProjectsPage key={activeRuntimeId} />
+    ) : tab === "Containers" ? (
       env && toolsMissing ? (
         <InstallCard env={env} onDone={recheck} />
       ) : (
@@ -310,10 +313,12 @@ export default function App() {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
 
   const commands = useMemo<Command[]>(() => [
+    { id: "new-project", label: "New Project", description: "Create a new project from a directory", icon: "plus", section: "Projects", action: () => { setTab("Projects"); }, shortcut: "⌘Shift+P" },
     { id: "new-container", label: "Run Container", description: "Run a new container from an image", icon: "play", section: "Containers", action: () => { setTab("Images"); }, shortcut: "⌘N" },
     { id: "pull-image", label: "Pull Image", description: "Pull an image from Docker Hub or registry", icon: "download", section: "Images", action: () => { setTab("Images"); }, shortcut: "⌘P" },
     { id: "new-profile", label: "New Profile", description: "Create a new VM profile", icon: "plus", section: "Profiles", action: () => { setTab("Profiles"); }, shortcut: "⌘Shift+N" },
     { id: "doctor", label: "Run Doctor Checks", description: "Run all diagnostic checks", icon: "check", section: "Doctor", action: () => { setTab("Doctor"); }, shortcut: "⌘D" },
+    { id: "switch-projects", label: "Projects", description: "Switch to Projects tab", icon: "folder", action: () => setTab("Projects"), shortcut: "⌘0" },
     { id: "switch-containers", label: "Containers", description: "Switch to Containers tab", icon: "box", action: () => setTab("Containers"), shortcut: "⌘1" },
     { id: "switch-images", label: "Images", description: "Switch to Images tab", icon: "image", action: () => setTab("Images"), shortcut: "⌘2" },
     { id: "switch-volumes", label: "Volumes", description: "Switch to Volumes tab", icon: "database", action: () => setTab("Volumes"), shortcut: "⌘3" },
@@ -328,6 +333,7 @@ export default function App() {
 
   const keyboardShortcuts = useMemo<KeyboardShortcut[]>(() => [
     { key: "k", meta: true, action: () => setCommandPaletteOpen(true), description: "Open Command Palette" },
+    { key: "0", meta: true, action: () => setTab("Projects"), description: "Projects tab" },
     { key: "1", meta: true, action: () => setTab("Containers"), description: "Containers tab" },
     { key: "2", meta: true, action: () => setTab("Images"), description: "Images tab" },
     { key: "3", meta: true, action: () => setTab("Volumes"), description: "Volumes tab" },

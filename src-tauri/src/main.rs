@@ -1944,7 +1944,9 @@ fn main() {
             ollama_chat, ollama_list_models, ollama_pull,
             desktop::desktop_state, desktop::desktop_docker, desktop::desktop_copy, desktop::desktop_copy_stop, desktop::desktop_start, desktop::desktop_replace, desktop::open_docker_desktop,
             lima::lima_status, lima::lima_ensure_vm, lima::project_env_create, lima::project_env_start, lima::project_env_stop, lima::project_env_delete, lima::project_env_list, lima::project_env_get, lima::project_env_logs, lima::project_env_exec, lima::project_env_forward_port, lima::project_env_unforward_port, lima::project_set_environment, lima::get_ssh_auth_sock, lima::git_config_get, lima::get_gh_token, lima::get_home_dir, lima::dialog_open, lima::fs_read_dir, lima::fs_read_text_file,
-            projects::project_create_cmd, projects::project_list_cmd, projects::project_delete_cmd, projects::project_set_environment_cmd, projects::environment_create_cmd, projects::environment_list_cmd, projects::environment_delete_cmd
+            lima::project_env_restart, lima::project_env_list_ports, lima::project_detect_config, lima::project_open_in_ide, lima::project_refresh_git_info,
+            projects::project_create_cmd, projects::project_get_cmd, projects::project_list_cmd, projects::project_delete_cmd, projects::project_set_environment_cmd, projects::project_refresh_git_info_cmd,
+            projects::environment_create_cmd, projects::environment_get_cmd, projects::environment_list_cmd, projects::environment_update_state_cmd, projects::environment_update_container_id_cmd, projects::environment_update_ports_cmd, projects::environment_delete_cmd
         ])
         .run(tauri::generate_context!())
         .expect("error while running Container UI");

@@ -742,6 +742,430 @@ pub struct DialogOpenOptions {
 // These are defined in main.rs so we'll use them via the existing pattern
 // use crate::{stream, stream_with};
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct DetectResult {
+    pub config_type: String,
+    pub devcontainer: Option<DevContainerSpec>,
+    pub compose: Option<ComposeSpec>,
+    pub dockerfile: Option<String>,
+    pub language: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct GitInfo {
+    pub remote_url: Option<String>,
+    pub current_branch: Option<String>,
+    pub commit_hash: Option<String>,
+    pub has_uncommitted_changes: bool,
+}
+
+// Restart project environment
+#[tauri::command]
+pub async fn project_env_restart(_app: tauri::AppHandle, env_id: String) -> Result<(), String> {
+    // Stop then start
+    project_env_stop(_app.clone(), env_id.clone()).await?;
+    project_env_start(_app, env_id).await
+}
+
+// List ports for project environment
+#[tauri::command]
+pub async fn project_env_list_ports(env_id: String) -> Result<Vec<PortMapping>, String> {
+    let envs = PROJECT_ENVS.lock().unwrap();
+    let env = envs.get(&env_id).ok_or("Environment not found")?;
+    let ports: Vec<PortMapping> = serde_json::from_str(&env.ports_json).unwrap_or_default();
+    Ok(ports)
+}
+
+// Detect project configuration
+#[tauri::command]
+pub async fn project_detect_config(project_id: String, project_path: String) -> Result<DetectResult, String> {
+    // Read directory entries
+    let entries = fs_read_dir(project_path.clone())?;
+    
+    // 1. Check .devcontainer/devcontainer.json
+    if entries.iter().any(|e| e == ".devcontainer") {
+        let devcontainer_entries = fs_read_dir(format!("{}/.devcontainer", project_path))?;
+        if devcontainer_entries.iter().any(|e| e == "devcontainer.json") {
+            let content = fs_read_text_file(format!("{}/.devcontainer/devcontainer.json", project_path))?;
+            let spec = parse_devcontainer_json(&content, &project_path).await?;
+            
+            // Check for referenced docker-compose
+            let has_compose = devcontainer_entries.iter().any(|e| e.ends_with(".yml") || e.ends_with(".yaml"));
+            
+            return Ok(DetectResult {
+                config_type: "devcontainer".to_string(),
+                devcontainer: Some(spec),
+                compose: None,
+                dockerfile: None,
+                language: None,
+            });
+        }
+    }
+    
+    // 2. Check for compose files
+    for file in ["docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml"] {
+        if entries.iter().any(|e| e == file) {
+            let services = parse_compose_services(&format!("{}/{}", project_path, file)).await?;
+            return Ok(DetectResult {
+                config_type: "compose".to_string(),
+                devcontainer: None,
+                compose: Some(ComposeSpec {
+                    file: file.to_string(),
+                    service: services.first().cloned().unwrap_or_else(|| "app".to_string()),
+                    env_file: entries.iter().find(|e| *e == ".env").map(|_| ".env".to_string()),
+                }),
+                dockerfile: None,
+                language: None,
+            });
+        }
+    }
+    
+    // 3. Check for Dockerfile
+    for file in ["Dockerfile", "Dockerfile.dev", "Dockerfile.development"] {
+        if entries.iter().any(|e| e == file) {
+            return Ok(DetectResult {
+                config_type: "dockerfile".to_string(),
+                devcontainer: Some(DevContainerSpec {
+                    image: None,
+                    dockerfile: Some(file.to_string()),
+                    build: Some(BuildSpec {
+                        context: ".".to_string(),
+                        dockerfile: file.to_string(),
+                        args: None,
+                    }),
+                    run_args: None,
+                    container_env: None,
+                    remote_env: None,
+                    mounts: None,
+                    ports: None,
+                    forward_ports: Some(vec![3000, 8080, 5173]),
+                    post_create_command: None,
+                    post_start_command: None,
+                    customizations: None,
+                }),
+                compose: None,
+                dockerfile: Some(file.to_string()),
+                language: None,
+            });
+        }
+    }
+    
+    // 4. Language defaults
+    let language = detect_language(&entries);
+    let defaults = get_language_defaults(&language);
+    Ok(DetectResult {
+        config_type: "auto".to_string(),
+        devcontainer: Some(defaults),
+        compose: None,
+        dockerfile: None,
+        language: Some(language),
+    })
+}
+
+// Open project in IDE
+#[tauri::command]
+pub async fn project_open_in_ide(project_path: String) -> Result<(), String> {
+    // Try VS Code first, then Cursor, then default
+    let editors = ["code", "cursor"];
+    
+    for editor in editors {
+        let output = Command::new("which")
+            .arg(editor)
+            .output();
+        
+        if let Ok(out) = output {
+            if out.status.success() {
+                let path = String::from_utf8_lossy(&out.stdout).trim().to_string();
+                if !path.is_empty() {
+                    let _ = Command::new(&path)
+                        .arg(&project_path)
+                        .spawn();
+                    return Ok(());
+                }
+            }
+        }
+    }
+    
+    // Fallback to macOS open command
+    if cfg!(target_os = "macos") {
+        Command::new("open")
+            .arg(&project_path)
+            .spawn()
+            .map_err(|e| format!("Failed to open in IDE: {e}"))?;
+        return Ok(());
+    }
+    
+    Err("No suitable IDE found. Please install VS Code or Cursor.".to_string())
+}
+
+// Refresh git info for project
+#[tauri::command]
+pub async fn project_refresh_git_info(project_id: String) -> Result<GitInfo, String> {
+    // We need to get the project path from the database
+    // For now, we'll just run git commands in the project directory
+    // The caller should pass the path, but we can also look it up
+    
+    // This is a placeholder - the actual implementation will need the project path
+    // For now, return empty git info
+    Ok(GitInfo {
+        remote_url: None,
+        current_branch: None,
+        commit_hash: None,
+        has_uncommitted_changes: false,
+    })
+}
+
+async fn parse_devcontainer_json(content: &str, project_path: &str) -> Result<DevContainerSpec, String> {
+    // Strip JSON comments (devcontainer.json supports // and /* */)
+    let stripped = strip_json_comments(content);
+    let parsed: serde_json::Value = serde_json::from_str(&stripped).map_err(|e| format!("Failed to parse devcontainer.json: {e}"))?;
+    
+    let home_dir = get_home_dir();
+    
+    // Parse mounts
+    let mounts = parsed.get("mounts").and_then(|v| v.as_array()).map(|arr| {
+        arr.iter().filter_map(|m| {
+            let source = m.get("source")?.as_str()?.replace("~", &home_dir);
+            let target = m.get("target")?.as_str()?;
+            let mount_type = m.get("type").and_then(|v| v.as_str()).unwrap_or("bind");
+            let readonly = m.get("readonly").and_then(|v| v.as_bool()).unwrap_or(false);
+            Some(MountSpec {
+                source,
+                target: target.to_string(),
+                writable: !readonly,
+            })
+        }).collect()
+    });
+    
+    // Parse ports
+    let forward_ports = parsed.get("forwardPorts").and_then(|v| v.as_array()).map(|arr| {
+        arr.iter().filter_map(|v| v.as_u64().map(|n| n as u16)).collect()
+    }).or_else(|| {
+        parsed.get("ports").and_then(|v| v.as_array()).map(|arr| {
+            arr.iter().filter_map(|v| v.as_u64().map(|n| n as u16)).collect()
+        })
+    });
+    
+    // Parse build
+    let build = parsed.get("build").and_then(|v| v.as_object()).map(|obj| {
+        BuildSpec {
+            context: obj.get("context").and_then(|v| v.as_str()).unwrap_or(".").to_string(),
+            dockerfile: obj.get("dockerfile").and_then(|v| v.as_str()).unwrap_or("Dockerfile").to_string(),
+            args: obj.get("args").and_then(|v| v.as_object()).map(|args_obj| {
+                args_obj.iter().filter_map(|(k, v)| v.as_str().map(|s| (k.clone(), s.to_string()))).collect()
+            }),
+        }
+    });
+    
+    Ok(DevContainerSpec {
+        image: parsed.get("image").and_then(|v| v.as_str()).map(|s| s.to_string()),
+        dockerfile: parsed.get("dockerfile").and_then(|v| v.as_str()).map(|s| s.to_string()),
+        build,
+        run_args: parsed.get("runArgs").and_then(|v| v.as_array()).map(|arr| {
+            arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect()
+        }),
+        container_env: parsed.get("containerEnv").and_then(|v| v.as_object()).map(|obj| {
+            obj.iter().filter_map(|(k, v)| v.as_str().map(|s| (k.clone(), s.to_string()))).collect()
+        }),
+        remote_env: parsed.get("remoteEnv").and_then(|v| v.as_object()).map(|obj| {
+            obj.iter().filter_map(|(k, v)| v.as_str().map(|s| (k.clone(), s.to_string()))).collect()
+        }),
+        mounts,
+        ports: parsed.get("ports").and_then(|v| v.as_array()).map(|arr| {
+            arr.iter().filter_map(|v| v.as_u64().map(|n| n as u16)).collect()
+        }),
+        forward_ports,
+        post_create_command: parsed.get("postCreateCommand").and_then(|v| v.as_str()).map(|s| s.to_string()),
+        post_start_command: parsed.get("postStartCommand").and_then(|v| v.as_str()).map(|s| s.to_string()),
+        customizations: parsed.get("customizations").and_then(|v| v.as_object()).map(|obj| {
+            obj.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
+        }),
+    })
+}
+
+async fn parse_compose_services(file_path: &str) -> Result<Vec<String>, String> {
+    let content = fs_read_text_file(file_path.to_string())?;
+    // Simple YAML parsing for services - look for "services:" key
+    let mut services = Vec::new();
+    let mut in_services = false;
+    
+    for line in content.lines() {
+        let trimmed = line.trim();
+        if trimmed == "services:" {
+            in_services = true;
+            continue;
+        }
+        if in_services {
+            if trimmed.is_empty() || trimmed.starts_with('#') {
+                continue;
+            }
+            if trimmed.starts_with(' ') || trimmed.starts_with('\t') {
+                if let Some(service_name) = trimmed.strip_suffix(':') {
+                    let name = service_name.trim();
+                    if !name.is_empty() && !name.starts_with('#') {
+                        services.push(name.to_string());
+                    }
+                }
+            } else {
+                break;
+            }
+        }
+    }
+    
+    Ok(services)
+}
+
+fn detect_language(entries: &[String]) -> String {
+    if entries.iter().any(|e| e == "package.json") { return "node".to_string(); }
+    if entries.iter().any(|e| e == "pyproject.toml" || e == "requirements.txt") { return "python".to_string(); }
+    if entries.iter().any(|e| e == "Cargo.toml") { return "rust".to_string(); }
+    if entries.iter().any(|e| e == "go.mod") { return "go".to_string(); }
+    if entries.iter().any(|e| e == "pom.xml" || e == "build.gradle") { return "java".to_string(); }
+    "generic".to_string()
+}
+
+fn get_language_defaults(language: &str) -> DevContainerSpec {
+    match language {
+        "node" => DevContainerSpec {
+            image: Some("node:20-bookworm".to_string()),
+            dockerfile: None,
+            build: None,
+            run_args: None,
+            container_env: None,
+            remote_env: None,
+            mounts: None,
+            ports: None,
+            forward_ports: Some(vec![3000, 8080, 5173]),
+            post_create_command: Some("npm install".to_string()),
+            post_start_command: None,
+            customizations: None,
+        },
+        "python" => DevContainerSpec {
+            image: Some("python:3.12-bookworm".to_string()),
+            dockerfile: None,
+            build: None,
+            run_args: None,
+            container_env: None,
+            remote_env: None,
+            mounts: None,
+            ports: None,
+            forward_ports: Some(vec![8000, 8080]),
+            post_create_command: Some("pip install -e .".to_string()),
+            post_start_command: None,
+            customizations: None,
+        },
+        "rust" => DevContainerSpec {
+            image: Some("rust:1.78-bookworm".to_string()),
+            dockerfile: None,
+            build: None,
+            run_args: None,
+            container_env: None,
+            remote_env: None,
+            mounts: None,
+            ports: None,
+            forward_ports: None,
+            post_create_command: Some("cargo build".to_string()),
+            post_start_command: None,
+            customizations: None,
+        },
+        "go" => DevContainerSpec {
+            image: Some("golang:1.22-bookworm".to_string()),
+            dockerfile: None,
+            build: None,
+            run_args: None,
+            container_env: None,
+            remote_env: None,
+            mounts: None,
+            ports: None,
+            forward_ports: None,
+            post_create_command: Some("go mod download".to_string()),
+            post_start_command: None,
+            customizations: None,
+        },
+        _ => DevContainerSpec {
+            image: Some("ubuntu:22.04".to_string()),
+            dockerfile: None,
+            build: None,
+            run_args: None,
+            container_env: None,
+            remote_env: None,
+            mounts: None,
+            ports: None,
+            forward_ports: None,
+            post_create_command: None,
+            post_start_command: None,
+            customizations: None,
+        },
+    }
+}
+
+fn strip_json_comments(json: &str) -> String {
+    let mut result = String::new();
+    let mut chars = json.chars().peekable();
+    let mut in_string = false;
+    let mut in_line_comment = false;
+    let mut in_block_comment = false;
+    
+    while let Some(&c) = chars.peek() {
+        chars.next();
+        
+        if in_line_comment {
+            if c == '\n' {
+                in_line_comment = false;
+                result.push(c);
+            }
+            continue;
+        }
+        
+        if in_block_comment {
+            if c == '*' && chars.peek() == Some(&'/') {
+                in_block_comment = false;
+                chars.next(); // consume '/'
+            }
+            continue;
+        }
+        
+        if in_string {
+            result.push(c);
+            if c == '"' {
+                // Check if escaped
+                let mut escaped = false;
+                let mut i = result.len();
+                while i > 1 && result.as_bytes()[i - 2] == b'\\' {
+                    escaped = !escaped;
+                    i -= 1;
+                }
+                if !escaped {
+                    in_string = false;
+                }
+            }
+            continue;
+        }
+        
+        if c == '/' {
+            if let Some(&next) = chars.peek() {
+                if next == '/' {
+                    in_line_comment = true;
+                    chars.next();
+                    continue;
+                } else if next == '*' {
+                    in_block_comment = true;
+                    chars.next();
+                    continue;
+                }
+            }
+        }
+        
+        if c == '"' {
+            in_string = true;
+        }
+        
+        result.push(c);
+    }
+    
+    result
+}
+
 #[cfg(test)]
 mod tests {
     #[test]

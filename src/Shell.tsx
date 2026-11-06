@@ -6,11 +6,12 @@ import { runtimeRegistry } from "./runtime";
 import type { RuntimeInfo } from "./runtime";
 import { useKeyboardShortcuts, KeyboardShortcut } from "./hooks/useKeyboardShortcuts";
 
-export type Tab = "Containers" | "Images" | "Volumes" | "Networks" | "Kubernetes" | "Profiles" | "Doctor";
+export type Tab = "Projects" | "Containers" | "Images" | "Volumes" | "Networks" | "Kubernetes" | "Profiles" | "Doctor";
 
 // Doctor and Profiles are for when something is off, so they sit at the bottom; daily work stays at the top.
 const BOTTOM: Tab = "Doctor";
 const NAV: { tab: Tab; icon: IconName }[] = [
+  { tab: "Projects", icon: "folder" },
   { tab: "Containers", icon: "box" },
   { tab: "Images", icon: "image" },
   { tab: "Volumes", icon: "database" },
