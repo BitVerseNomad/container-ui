@@ -14,14 +14,14 @@ interface OnboardingStep {
 const STEPS: OnboardingStep[] = [
   {
     id: "welcome",
-    title: "Bem-vindo ao Colima UI",
+    title: "Bem-vindo ao Container UI",
     description: "Gerencie containers, images, volumes, redes e Kubernetes — tudo com orientação para evitar problemas antes que aconteçam.",
     illustration: <Icon name="box" size={48} />,
   },
   {
     id: "runtime",
     title: "Escolha seu Runtime",
-    description: "O Colima UI detecta automaticamente Colima, OrbStack, Rancher Desktop, Podman Desktop e Docker Desktop. Troque na sidebar quando quiser.",
+    description: "O Container UI detecta automaticamente Colima, OrbStack, Rancher Desktop, Podman Desktop e Docker Desktop. Troque na sidebar quando quiser.",
     illustration: <Icon name="terminal" size={48} />,
   },
   {

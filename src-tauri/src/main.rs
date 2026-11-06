@@ -1943,7 +1943,7 @@ fn main() {
             desktop::desktop_state, desktop::desktop_docker, desktop::desktop_copy, desktop::desktop_copy_stop, desktop::desktop_start, desktop::desktop_replace, desktop::open_docker_desktop
         ])
         .run(tauri::generate_context!())
-        .expect("error while running Colima UI");
+        .expect("error while running Container UI");
 }
 
 #[cfg(test)]

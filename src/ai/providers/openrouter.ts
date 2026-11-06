@@ -63,7 +63,7 @@ export class OpenRouterProvider implements AIProvider {
         'Authorization': `Bearer ${this.apiKey}`,
         'Content-Type': 'application/json',
         'HTTP-Referer': 'https://github.com/filipesousaduty/colima-ui',
-        'X-Title': 'Colima UI',
+        'X-Title': 'Container UI',
       },
       body: JSON.stringify({
         model: 'meta-llama/llama-3.1-8b-instruct:free',

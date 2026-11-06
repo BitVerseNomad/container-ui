@@ -1,4 +1,4 @@
-# Colima UI — Highlights do Trabalho
+# Container UI — Highlights do Trabalho
 
 > Resumo resumido de tudo o que foi feito, para qualquer sessão futura conseguir pegar e ler rapidamente.
 
@@ -8,9 +8,9 @@
 
 | Item | Valor |
 |------|-------|
-| Branch atual | `feat/multi-runtime-ai` |
-| Base | `integration` (trabalho original do Cláudio) |
-| App nativo | Rodando em `localhost:1420` |
+| Branch atual | `main` (v0.1.0 tagged) |
+| Base | `feat/multi-runtime-ai` merged → `integration` → `main` |
+| App nativo | Rodando via `cargo run` (Tauri dev) |
 | Build | `npm run build` — OK |
 | Testes | **226 passam** (79 UI + 135 Rust + 6 visual + 8 native), 0 falham |
 | TypeScript | Compila sem erros |
@@ -79,14 +79,14 @@ docs/
 
 ## 🔄 Branches
 
-- `feat/multi-runtime-ai` — contém todo o trabalho (recomendado para merge ou cleanup final)
-- `integration` — atualizada com o trabalho da `feat/multi-runtime-ai`
-- `refactor/generic-containers` — 15 commits a partir de `integration`; zero alterações de código fonte entre as branches (apenas documentação); alterações de código estão não-commitadas na árvore de trabalho
+- `main` — contém todo o trabalho, v0.1.0 tagged
+- `feat/multi-runtime-ai` — merged and deleted
+- `integration` — merged and deleted
+- `refactor/generic-containers` — historical, 15 commits from old `integration`; zero source code changes between branches (docs only); source changes were uncommitted
 
 ---
 
 ## 📝 Para a Próxima Sessão
 
 1. Ler `docs/HIGHLIGHTS.md` para contexto rápido.
-2. Decidir se faz merge de `feat/multi-runtime-ai` para `integration`/`main`, faz tag `v0.1.0` e faz limpeza de branches.
-3. Opcional: corrigir as limitações conhecidas acima.
+2. v0.1.0 já está tagged. Próximos passos: Homebrew tap publish, notarization, user feedback iteration.

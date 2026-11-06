@@ -77,7 +77,7 @@ const css = read("src", "ui", "tokens.css") + read("src", "styles.css").replace(
 const html = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Colima UI (preview)</title>
+<title>Container UI (preview)</title>
 <style>:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 ${css}
 .preview-note{position:fixed;right:10px;bottom:calc(8px + env(safe-area-inset-bottom,0px));font-size:11px;color:var(--muted);pointer-events:none;background:var(--page);padding:2px 6px;border-radius:6px}</style></head>
