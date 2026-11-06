@@ -1,4 +1,4 @@
-import { ReactNode, useState, useEffect, useCallback } from "react";
+import { ReactNode, useState, useEffect, useCallback, createContext, useContext, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { Icon, IconName } from "../icons";
 
@@ -21,7 +21,7 @@ const typeStyles: Record<ToastType, { bg: string; icon: IconName; border: string
   info: { bg: "color-mix(in srgb, var(--md-sys-color-primary) 12%, transparent)", icon: "info", border: "var(--md-sys-color-primary)" },
 };
 
-function ToastItem({ toast, onClose }: { toast: ToastProps & { id: string }; onClose: (id: string) => void }) {
+function ToastItem({ toast, onClose }: { toast: ToastState; onClose: (id: string) => void }) {
   const { type, title, message, action, duration = 5000 } = toast;
   const style = typeStyles[type];
 
@@ -56,7 +56,7 @@ function ToastItem({ toast, onClose }: { toast: ToastProps & { id: string }; onC
 }
 
 interface ToastContainerProps {
-  toasts: (ToastProps & { id: string })[];
+  toasts: ToastState[];
   onClose: (id: string) => void;
   position?: "top-right" | "top-left" | "bottom-right" | "bottom-left" | "top-center" | "bottom-center";
 }
@@ -93,29 +93,70 @@ export function ToastContainer({ toasts, onClose, position = "top-right" }: Toas
   );
 }
 
-export interface ToastState extends ToastProps {
+export interface ToastState {
   id: string;
+  type: ToastType;
+  title: string;
+  message?: string;
+  action?: { label: string; onClick: () => void };
+  duration?: number;
+  onClose: (id: string) => void;
 }
 
-export function useToast() {
-  const [toasts, setToasts] = useState<ToastState[]>([]);
+interface ToastContextValue {
+  toasts: ToastState[];
+  show: (toast: Omit<ToastState, "id" | "onClose">) => string;
+  close: (id: string) => void;
+  success: (title: string, message?: string, action?: { label: string; onClick: () => void }) => string;
+  error: (title: string, message?: string, action?: { label: string; onClick: () => void }) => string;
+  warning: (title: string, message?: string, action?: { label: string; onClick: () => void }) => string;
+  info: (title: string, message?: string, action?: { label: string; onClick: () => void }) => string;
+}
 
-  const show = useCallback((toast: Omit<ToastState, "id">) => {
-    const id = Math.random().toString(36).slice(2);
-    setToasts((prev) => [...prev, { ...toast, id }]);
-    return id;
-  }, []);
+// Default no-op context for tests and components outside provider
+const noopToastContext: ToastContextValue = {
+  toasts: [],
+  show: () => "",
+  close: () => {},
+  success: () => "",
+  error: () => "",
+  warning: () => "",
+  info: () => "",
+};
+
+const ToastContext = createContext<ToastContextValue>(noopToastContext);
+
+export function ToastProvider({ children, position = "top-right" }: { children: ReactNode; position?: ToastContainerProps["position"] }) {
+  const [toasts, setToasts] = useState<ToastState[]>([]);
 
   const close = useCallback((id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
-  const success = useCallback((title: string, message?: string, action?: { label: string; onClick: () => void }) => show({ type: "success", title, message, action, onClose: close }), [show, close]);
-  const error = useCallback((title: string, message?: string, action?: { label: string; onClick: () => void }) => show({ type: "error", title, message, action, onClose: close }), [show, close]);
-  const warning = useCallback((title: string, message?: string, action?: { label: string; onClick: () => void }) => show({ type: "warning", title, message, action, onClose: close }), [show, close]);
-  const info = useCallback((title: string, message?: string, action?: { label: string; onClick: () => void }) => show({ type: "info", title, message, action, onClose: close }), [show, close]);
+  const show = useCallback((toast: Omit<ToastState, "id" | "onClose">) => {
+    const id = Math.random().toString(36).slice(2);
+    setToasts((prev) => [...prev, { ...toast, id, onClose: close }]);
+    return id;
+  }, [close]);
 
-  return { toasts, show, close, success, error, warning, info };
+  const success = useCallback((title: string, message?: string, action?: { label: string; onClick: () => void }) => show({ type: "success", title, message, action, duration: 5000 }), [show]);
+  const error = useCallback((title: string, message?: string, action?: { label: string; onClick: () => void }) => show({ type: "error", title, message, action, duration: 8000 }), [show]);
+  const warning = useCallback((title: string, message?: string, action?: { label: string; onClick: () => void }) => show({ type: "warning", title, message, action, duration: 6000 }), [show]);
+  const info = useCallback((title: string, message?: string, action?: { label: string; onClick: () => void }) => show({ type: "info", title, message, action, duration: 5000 }), [show]);
+
+  const value = useMemo<ToastContextValue>(() => ({ toasts, show, close, success, error, warning, info }), [toasts, show, close, success, error, warning, info]);
+
+  return (
+    <ToastContext.Provider value={value}>
+      {children}
+      <ToastContainer toasts={toasts} onClose={close} position={position} />
+    </ToastContext.Provider>
+  );
+}
+
+export function useToast() {
+  const context = useContext(ToastContext);
+  return context;
 }
 
 export type { ToastProps };

@@ -6,7 +6,7 @@ export type IconName =
   | "chevron-right" | "external-link" | "link" | "rotate-ccw" | "send" | "pause" | "stop-circle" | "trash-2"
   | "chevron-left" | "loader" | "send-icon" | "pause-icon" | "play-icon"
   | "pause" | "loader2" | "chevron-left-icon"
-  | "shield" | "git-branch" | "message-square" | "key";
+  | "shield" | "git-branch" | "message-square" | "key" | "file-text" | "home";
 
 const PATHS: Record<IconName, ReactNode> = {
   gauge: <><path d="M12 14l4-4" /><path d="M3.3 17a9 9 0 1 1 17.4 0" /></>,
@@ -56,6 +56,8 @@ const PATHS: Record<IconName, ReactNode> = {
   "git-branch": <><path d="M6 3v12" /><path d="M18 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" /><path d="M6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" /><path d="M18 9a9 9 0 0 1-12 6" /></>,
   "message-square": <><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></>,
   key: <><path d="M15.5 3.5a2.5 2.5 0 0 0-5 0L4 12l3 3 3-3 3 3 3-3 3 3 3-3 3 3L20 12 15.5 3.5z" /><path d="M9 11a2 2 0 0 0 0 4h.5" /></>,
+  "file-text": <><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><polyline points="10 9 9 9 8 9" /></>,
+  home: <><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></>,
 };
 
 export function Icon({ name, size = 16, className = "", style, ...props }: { name: IconName; size?: number; className?: string; style?: React.CSSProperties } & React.SVGAttributes<SVGSVGElement>) {
@@ -225,4 +227,16 @@ export const MessageSquare = createIcon(
 
 export const Key = createIcon(
   'M15.5 3.5a2.5 2.5 0 0 0-5 0L4 12l3 3 3-3 3 3 3-3 3 3 3-3 3 3L20 12 15.5 3.5z M9 11a2 2 0 0 0 0 4h.5'
+);
+
+export const FileText = createIcon(
+  'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6 M16 13H8 M16 17H8 M10 9H9'
+);
+
+export const Home = createIcon(
+  'M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z M9 22V12h6v10'
+);
+
+export const Copy = createIcon(
+  'M9 9h11a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V11a2 2 0 0 1 2-2z M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1'
 );

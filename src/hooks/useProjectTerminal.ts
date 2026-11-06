@@ -1,9 +1,38 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { Terminal } from "xterm";
-import { FitAddon } from "@xterm/addon-fit";
-import { WebglAddon } from "@xterm/addon-webgl";
 import { projectsApi, type ExecResult } from "@/lib/projectsApi";
+
+// Type definitions for xterm modules (using any for constructor compatibility)
+type TerminalConstructor = new (options: any) => any;
+type FitAddonConstructor = new () => any;
+type WebglAddonConstructor = new () => any;
+
+// Lazy-loaded xterm modules
+let TerminalClass: TerminalConstructor | null = null;
+let FitAddonClass: FitAddonConstructor | null = null;
+let WebglAddonClass: WebglAddonConstructor | null = null;
+
+async function loadXtermModules(): Promise<{
+  Terminal: TerminalConstructor;
+  FitAddon: FitAddonConstructor;
+  WebglAddon: WebglAddonConstructor;
+}> {
+  if (TerminalClass && FitAddonClass && WebglAddonClass) {
+    return { Terminal: TerminalClass, FitAddon: FitAddonClass, WebglAddon: WebglAddonClass };
+  }
+
+  const [xterm, fitAddon, webglAddon] = await Promise.all([
+    import("xterm"),
+    import("@xterm/addon-fit"),
+    import("@xterm/addon-webgl"),
+  ]);
+
+  TerminalClass = xterm.Terminal;
+  FitAddonClass = fitAddon.FitAddon;
+  WebglAddonClass = webglAddon.WebglAddon;
+
+  return { Terminal: TerminalClass, FitAddon: FitAddonClass, WebglAddon: WebglAddonClass };
+}
 
 interface UseProjectTerminalOptions {
   environmentId: string;
@@ -12,8 +41,8 @@ interface UseProjectTerminalOptions {
 }
 
 interface UseProjectTerminalReturn {
-  terminalRef: React.RefObject<Terminal | null>;
-  fitAddonRef: React.RefObject<FitAddon | null>;
+  terminalRef: React.RefObject<any>;
+  fitAddonRef: React.RefObject<any>;
   containerRef: React.MutableRefObject<HTMLDivElement | null>;
   executeCommand: (command: string) => Promise<void>;
   isConnected: boolean;
@@ -32,8 +61,8 @@ export function useProjectTerminal({
   onReconnect,
 }: UseProjectTerminalOptions): UseProjectTerminalReturn {
   const containerRef = useRef<HTMLDivElement>(null);
-  const terminalRef = useRef<Terminal | null>(null);
-  const fitAddonRef = useRef<FitAddon | null>(null);
+  const terminalRef = useRef<any>(null);
+  const fitAddonRef = useRef<any>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [scrollback, setScrollback] = useState<string[]>([]);
   const [reconnectAttempts, setReconnectAttempts] = useState(0);
@@ -62,8 +91,10 @@ export function useProjectTerminal({
     scrollbackWrittenRef.current = 0;
   }, []);
 
-  const initializeTerminal = useCallback(() => {
+  const initializeTerminal = useCallback(async () => {
     if (!containerRef.current || terminalRef.current) return;
+
+    const { Terminal, FitAddon, WebglAddon } = await loadXtermModules();
 
     const terminal = new Terminal({
       cursorBlink: true,
@@ -205,7 +236,10 @@ export function useProjectTerminal({
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
       }
-      if (cleanup) cleanup();
+      if (cleanup) {
+        // cleanup is a Promise, we need to await it
+        Promise.resolve(cleanup).then((fn) => fn?.());
+      }
       terminalRef.current = null;
       fitAddonRef.current = null;
     };
