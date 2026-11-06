@@ -31,6 +31,7 @@ export function ProjectLogs({ environmentId, onClose }: ProjectLogsProps) {
   const [virtualized, setVirtualized] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const scrollAnchorRef = useRef<HTMLDivElement>(null);
+  const unlistenRef = useRef<(() => void) | null>(null);
 
   const filteredLogs = useMemo(() => {
     return logs.filter((log) => {
@@ -104,6 +105,9 @@ export function ProjectLogs({ environmentId, onClose }: ProjectLogsProps) {
       );
       return unlisten;
     },
+    onSuccess: (unlisten) => {
+      unlistenRef.current = unlisten;
+    },
     onError: (error) => {
       console.error("Failed to subscribe to logs:", error);
     },
@@ -112,7 +116,10 @@ export function ProjectLogs({ environmentId, onClose }: ProjectLogsProps) {
   useEffect(() => {
     subscribeLogs.mutate(environmentId);
     return () => {
-      // cleanup handled by hook
+      if (unlistenRef.current) {
+        unlistenRef.current();
+        unlistenRef.current = null;
+      }
     };
   }, [environmentId, subscribeLogs]);
 
@@ -172,7 +179,7 @@ export function ProjectLogs({ environmentId, onClose }: ProjectLogsProps) {
   // Virtualized rendering
   const visibleItems = useMemo(() => {
     if (!virtualized || !listRef.current) return filteredLogs;
-    
+
     const container = listRef.current;
     const scrollTop = container.scrollTop;
     const containerHeight = container.clientHeight;
@@ -181,13 +188,13 @@ export function ProjectLogs({ environmentId, onClose }: ProjectLogsProps) {
       filteredLogs.length,
       Math.ceil((scrollTop + containerHeight) / ITEM_HEIGHT) + 10
     );
-    
+
     return filteredLogs.slice(startIndex, endIndex);
   }, [filteredLogs, virtualized]);
 
   const totalHeight = virtualized ? filteredLogs.length * ITEM_HEIGHT : undefined;
-  const offsetY = virtualized && listRef.current 
-    ? Math.max(0, Math.floor(listRef.current.scrollTop / ITEM_HEIGHT) - 10) * ITEM_HEIGHT 
+  const offsetY = virtualized && listRef.current
+    ? Math.max(0, Math.floor(listRef.current.scrollTop / ITEM_HEIGHT) - 10) * ITEM_HEIGHT
     : 0;
 
   return (
@@ -285,7 +292,6 @@ export function ProjectLogs({ environmentId, onClose }: ProjectLogsProps) {
                       "whitespace-pre-wrap break-all py-0.5",
                       getStreamColor(log.stream)
                     )}
-                    style={{ height: ITEM_HEIGHT, lineHeight: `${ITEM_HEIGHT}px` }}
                     title={log.timestamp}
                   >
                     <span className="text-[var(--color-fg-tertiary)] mr-2">{formatRelativeTime(log.timestamp)}</span>

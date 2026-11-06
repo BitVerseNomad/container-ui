@@ -900,19 +900,97 @@ pub async fn project_open_in_ide(project_path: String) -> Result<(), String> {
 
 // Refresh git info for project
 #[tauri::command]
-pub async fn project_refresh_git_info(project_id: String) -> Result<GitInfo, String> {
-    // We need to get the project path from the database
-    // For now, we'll just run git commands in the project directory
-    // The caller should pass the path, but we can also look it up
+pub async fn project_refresh_git_info(app: tauri::AppHandle, project_id: String) -> Result<GitInfo, String> {
+    // Get the project path from the database via projects.rs
+    let pool = crate::projects::init_db(&app).await.map_err(|e| e.to_string())?;
+    let project = crate::projects::project_get(&pool, &project_id).await?.ok_or("Project not found")?;
+    let project_path = project.path;
     
-    // This is a placeholder - the actual implementation will need the project path
-    // For now, return empty git info
-    Ok(GitInfo {
-        remote_url: None,
-        current_branch: None,
-        commit_hash: None,
-        has_uncommitted_changes: false,
-    })
+    // Run git commands in the project directory
+    let remote_url = get_git_remote_url(&project_path).await.ok();
+    let current_branch = get_git_current_branch(&project_path).await.ok();
+    let commit_hash = get_git_commit_hash(&project_path).await.ok();
+    let has_uncommitted_changes = get_git_has_uncommitted_changes(&project_path).await.unwrap_or(false);
+    
+    let git_info = GitInfo {
+        remote_url,
+        current_branch,
+        commit_hash,
+        has_uncommitted_changes,
+    };
+    
+    // Update the project in the database
+    let now = chrono::Utc::now().to_rfc3339();
+    sqlx::query(
+        r#"
+        UPDATE projects 
+        SET git_remote_url = ?, git_branch = ?, git_commit = ?, git_dirty = ?, updated_at = ?
+        WHERE id = ?
+        "#,
+    )
+    .bind(&git_info.remote_url)
+    .bind(&git_info.current_branch)
+    .bind(&git_info.commit_hash)
+    .bind(git_info.has_uncommitted_changes)
+    .bind(&now)
+    .bind(&project_id)
+    .execute(&pool)
+    .await
+    .map_err(|e| e.to_string())?;
+    
+    Ok(git_info)
+}
+
+async fn get_git_remote_url(path: &str) -> Result<String, String> {
+    let output = Command::new("git")
+        .args(["config", "--get", "remote.origin.url"])
+        .current_dir(path)
+        .output()
+        .map_err(|e| e.to_string())?;
+    
+    if output.status.success() {
+        Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+    } else {
+        Err("No remote URL".to_string())
+    }
+}
+
+async fn get_git_current_branch(path: &str) -> Result<String, String> {
+    let output = Command::new("git")
+        .args(["rev-parse", "--abbrev-ref", "HEAD"])
+        .current_dir(path)
+        .output()
+        .map_err(|e| e.to_string())?;
+    
+    if output.status.success() {
+        Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+    } else {
+        Err("No branch".to_string())
+    }
+}
+
+async fn get_git_commit_hash(path: &str) -> Result<String, String> {
+    let output = Command::new("git")
+        .args(["rev-parse", "HEAD"])
+        .current_dir(path)
+        .output()
+        .map_err(|e| e.to_string())?;
+    
+    if output.status.success() {
+        Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+    } else {
+        Err("No commit".to_string())
+    }
+}
+
+async fn get_git_has_uncommitted_changes(path: &str) -> Result<bool, String> {
+    let output = Command::new("git")
+        .args(["status", "--porcelain"])
+        .current_dir(path)
+        .output()
+        .map_err(|e| e.to_string())?;
+    
+    Ok(!String::from_utf8_lossy(&output.stdout).trim().is_empty())
 }
 
 async fn parse_devcontainer_json(content: &str, project_path: &str) -> Result<DevContainerSpec, String> {

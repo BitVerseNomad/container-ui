@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import type {
   Project,
   CreateProjectInput,
@@ -61,8 +62,6 @@ export const projectsApi = {
     return listen<LogLine>(`project-env-logs-${environmentId}`, (e) => onLog(e.payload));
   },
 };
-
-import { listen } from "@tauri-apps/api/event";
 
 export function useProjects() {
   return useQuery({
