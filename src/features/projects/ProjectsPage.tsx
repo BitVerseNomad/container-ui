@@ -13,13 +13,17 @@ import { Button } from "@/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/ui/Card";
 import { Badge } from "@/ui/Badge";
 import { Spinner } from "@/ui/Spinner";
-import { Plus, RefreshCw, FolderOpen, Search, ChevronLeft, Stop, RotateCcw, Play, Terminal, ExternalLink, Download, Trash2, ChevronRight } from "@/ui/icons";
+import { ProjectCardSkeleton } from "@/ui/Skeleton";
+import { ErrorBoundary } from "@/ui/ErrorBoundary";
+import { useToast } from "@/ui/components/Toast";
+import { Plus, RefreshCw, FolderOpen, Search, ChevronLeft, Stop, RotateCcw, Play, Terminal, ExternalLink, Download, Trash2, ChevronRight, AlertTriangle, Home } from "@/ui/icons";
 import { cn } from "@/lib/cn";
 import type { Project } from "@/shared/types/project";
 import type { Environment } from "@/shared/types/environment";
 
-export function ProjectsPage() {
+function ProjectsPageContent() {
   const queryClient = useQueryClient();
+  const { success, error: toastError } = useToast();
   const [createOpen, setCreateOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [detailView, setDetailView] = useState(false);
@@ -35,9 +39,11 @@ export function ProjectsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["projects"] });
       setCreateOpen(false);
+      success("Project created", "Your new project has been added successfully.");
     },
     onError: (error) => {
       console.error("Create project failed:", error);
+      toastError("Failed to create project", error instanceof Error ? error.message : "Unknown error");
     },
   });
 
@@ -45,6 +51,10 @@ export function ProjectsPage() {
     mutationFn: (id: string) => projectsApi.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["projects"] });
+      success("Project deleted", "The project has been removed.");
+    },
+    onError: (error) => {
+      toastError("Failed to delete project", error instanceof Error ? error.message : "Unknown error");
     },
   });
 
@@ -65,11 +75,16 @@ export function ProjectsPage() {
 
   if (detailView && selectedProject) {
     return (
-      <ProjectDetail
-        project={selectedProject}
-        onBack={() => setDetailView(false)}
-        onRefresh={refetch}
-      />
+      <ErrorBoundary
+        fallback={<ProjectDetailErrorFallback error={new Error("Failed to load project detail")} resetErrorBoundary={() => setDetailView(false)} />}
+        resetKeys={[selectedProject.id]}
+      >
+        <ProjectDetail
+          project={selectedProject}
+          onBack={() => setDetailView(false)}
+          onRefresh={refetch}
+        />
+      </ErrorBoundary>
     );
   }
 
@@ -82,7 +97,7 @@ export function ProjectsPage() {
         </div>
         <div className="flex items-center gap-2">
           <CreateProjectDialog onSubmit={handleCreate} onOpenChange={setCreateOpen} />
-          <Button variant="outline" onClick={() => refetch()} disabled={createMutation.isPending}>
+          <Button variant="outline" onClick={() => refetch()} disabled={createMutation.isPending} aria-label="Refresh projects list">
             <RefreshCw className={cn("h-4 w-4 mr-1", createMutation.isPending && "animate-spin")} />
             Refresh
           </Button>
@@ -91,13 +106,15 @@ export function ProjectsPage() {
 
       <div className="flex-1 overflow-auto p-4">
         {isLoading && !projects && (
-          <div className="flex items-center justify-center h-64">
-            <Spinner />
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" role="status" aria-label="Loading projects">
+            {Array.from({ length: 8 }, (_, i) => (
+              <ProjectCardSkeleton key={i} />
+            ))}
           </div>
         )}
 
         {error && (
-          <div className="text-center py-8 text-[var(--color-brand-danger)]">
+          <div className="text-center py-8 text-[var(--color-brand-danger)]" role="alert">
             Failed to load projects: {error instanceof Error ? error.message : "Unknown error"}
             <Button variant="outline" size="sm" className="ml-2" onClick={() => refetch()}>
               <RefreshCw className="h-4 w-4 mr-1" /> Retry
@@ -117,7 +134,7 @@ export function ProjectsPage() {
         )}
 
         {projects && projects.length > 0 && (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" role="list" aria-label="Projects">
             {projects.map((project) => (
               <ProjectCard
                 key={project.id}
@@ -131,4 +148,36 @@ export function ProjectsPage() {
       </div>
     </div>
   );
+}
+
+function ProjectDetailErrorFallback({ error, resetErrorBoundary }: { error: Error; resetErrorBoundary: () => void }) {
+  return (
+    <div className="flex h-full items-center justify-center p-4">
+      <Card className="max-w-md w-full">
+        <CardContent className="pt-6 pb-6 px-6 text-center">
+          <div className="mx-auto mb-4 p-3 bg-[var(--color-brand-danger)]/10 rounded-full w-16 h-16 flex items-center justify-center">
+            <AlertTriangle className="h-8 w-8 text-[var(--color-brand-danger)]" />
+          </div>
+          <h2 className="text-lg font-semibold mb-2">Failed to load project</h2>
+          <p className="text-[var(--color-fg-secondary)] text-sm mb-6">
+            {error.message || "An unexpected error occurred while loading the project details."}
+          </p>
+          <div className="flex gap-2 justify-center">
+            <Button variant="outline" onClick={resetErrorBoundary}>
+              <RefreshCw className="h-4 w-4 mr-1" />
+              Retry
+            </Button>
+            <Button onClick={resetErrorBoundary}>
+              <Home className="h-4 w-4 mr-1" />
+              Back to Projects
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+export function ProjectsPage() {
+  return <ProjectsPageContent />;
 }

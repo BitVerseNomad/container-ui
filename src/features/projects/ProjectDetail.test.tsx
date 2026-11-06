@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ProjectDetail } from "./ProjectDetail";
 import type { Project } from "../../../shared/types/project";
@@ -83,7 +83,7 @@ const mockEnvironment: Environment = {
 const createWrapper = () => {
   const queryClient = new QueryClient({
     defaultOptions: {
-      queries: { retry: false },
+      queries: { retry: false, refetchInterval: false },
       mutations: { retry: false },
     },
   });
@@ -95,6 +95,7 @@ const createWrapper = () => {
 describe("ProjectDetail", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockProjectsApi.listEnvironments.mockResolvedValue([]);
   });
 
   it("renders project name and path", () => {
@@ -113,7 +114,7 @@ describe("ProjectDetail", () => {
       { wrapper: createWrapper() }
     );
 
-    expect(screen.getByText("Detect Config")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /detect project configuration/i })).toBeInTheDocument();
   });
 
   it("shows environment controls when environment exists", async () => {
@@ -124,7 +125,7 @@ describe("ProjectDetail", () => {
       { wrapper: createWrapper() }
     );
 
-    waitFor(() => {
+    await waitFor(() => {
       expect(screen.getByText("Environment")).toBeInTheDocument();
       expect(screen.getByText("running")).toBeInTheDocument();
     });
@@ -167,12 +168,12 @@ describe("ProjectDetail", () => {
       { wrapper: createWrapper() }
     );
 
-    waitFor(() => {
-      const terminalButton = screen.getByText("Terminal");
+    await waitFor(() => {
+      const terminalButton = screen.getByRole("button", { name: /open terminal/i });
       fireEvent.click(terminalButton);
     });
 
-    waitFor(() => {
+    await waitFor(() => {
       expect(screen.getByTestId("project-terminal")).toBeInTheDocument();
     });
   });
@@ -185,12 +186,12 @@ describe("ProjectDetail", () => {
       { wrapper: createWrapper() }
     );
 
-    waitFor(() => {
-      const logsButton = screen.getByText("Logs");
+    await waitFor(() => {
+      const logsButton = screen.getByRole("button", { name: /view environment logs/i });
       fireEvent.click(logsButton);
     });
 
-    waitFor(() => {
+    await waitFor(() => {
       expect(screen.getByTestId("project-logs")).toBeInTheDocument();
     });
   });
@@ -202,7 +203,8 @@ describe("ProjectDetail", () => {
       { wrapper: createWrapper() }
     );
 
-    fireEvent.click(screen.getByLabelText("Back to projects"));
+    const backButton = screen.getByRole("button", { name: /back to projects list/i });
+    fireEvent.click(backButton);
     expect(onBack).toHaveBeenCalled();
   });
 
@@ -214,6 +216,11 @@ describe("ProjectDetail", () => {
       { wrapper: createWrapper() }
     );
 
+    // Wait for initial render - the Detect Config button should be visible
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /detect project configuration/i })).toBeInTheDocument();
+    });
+
     // Simulate config detection
     mockUseDetectProjectConfig.mockReturnValue({
       mutateAsync: vi.fn().mockResolvedValue({
@@ -222,8 +229,12 @@ describe("ProjectDetail", () => {
       isPending: false,
     });
 
-    waitFor(() => {
-      expect(screen.getByText("Create & Start Environment")).toBeInTheDocument();
+    // Click detect config button
+    const detectButton = screen.getByRole("button", { name: /detect project configuration/i });
+    fireEvent.click(detectButton);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /create & start environment/i })).toBeInTheDocument();
     });
   });
 });

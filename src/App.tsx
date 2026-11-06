@@ -34,6 +34,7 @@ import Onboarding from "./Onboarding";
 import CommandPalette from "./CommandPalette";
 import { useKeyboardShortcuts, KeyboardShortcut, Command } from "./hooks/useKeyboardShortcuts";
 import { ProjectsPage } from "./features/projects/ProjectsPage";
+import { ToastProvider } from "./ui/components/Toast";
 
 // The profile a VM operation runs on: start takes { opts: { name } }, the others { name }.
 const opName = (vm: VmState) => { const a = vm.last?.args as { name?: string; opts?: { name?: string } } | undefined; return a?.opts?.name ?? a?.name; };
@@ -350,26 +351,28 @@ export default function App() {
   return (
     <ResizeProvider value={{ profile: current, host, pick, runVm, containers: doc.containers, locked: vmLocked, vmBusy: vm.op !== null, onProfiles: () => setTab("Profiles") }}>
       {!onboardingDone && <Onboarding onComplete={completeOnboarding} />}
-    <Shell onCommands={() => setLogOpen(true)} badges={{ Doctor: doctorTodo }} hidden={kubeOn ? [] : ["Kubernetes"]} nav={tab} onNav={(t) => { setDetailId(null); setPullOnOpen(false); setNewProfileOnOpen(false); setTab(t); }} profiles={profiles} active={active} onSelect={switchTo} onVm={vmFromAnywhere} onRestart={(name) => vmFromAnywhere(name, "starting", true)} vmBusy={vmLocked} vmOp={vm.op && opName(vm) ? { name: opName(vm)!, op: vm.op } : null} onNewProfile={() => { setDetailId(null); setNewProfileOnOpen(true); setTab("Profiles"); }}>
-      {!(tab === "Containers" && detailId) && <PageHeader title={tab} />}
-      <Banner error={profilesError} />
-      <Banner error={appError} onClose={() => setAppError(null)} />
-      {page}
-      <CommandToast onOpenLog={() => setLogOpen(true)} />
-      <ResizeAnnouncer />
-      {logOpen && <CommandLog onClose={() => setLogOpen(false)} />}
-      <div className="sr-only" data-app-announcer role="status" aria-live="polite">{bringSaid}</div>
-      {bringing && (
-        <BringOver
-          ctx={bringing.ctx}
-          only={bringing.only}
-          forVm={current && bringing.name !== current.name ? bringing.name : undefined}
-          onClose={closeBring}
-          onDone={(ok) => { if (ok) copied.current = true; void Promise.all([setup.reload(), doc.reload(), readDesktop(bringing.ctx)]); }}
-          onProfiles={() => { setBringing(null); setTab("Profiles"); }}
-        />
-      )}
-    </Shell>
+      <ToastProvider position="top-right">
+        <Shell onCommands={() => setLogOpen(true)} badges={{ Doctor: doctorTodo }} hidden={kubeOn ? [] : ["Kubernetes"]} nav={tab} onNav={(t) => { setDetailId(null); setPullOnOpen(false); setNewProfileOnOpen(false); setTab(t); }} profiles={profiles} active={active} onSelect={switchTo} onVm={vmFromAnywhere} onRestart={(name) => vmFromAnywhere(name, "starting", true)} vmBusy={vmLocked} vmOp={vm.op && opName(vm) ? { name: opName(vm)!, op: vm.op } : null} onNewProfile={() => { setDetailId(null); setNewProfileOnOpen(true); setTab("Profiles"); }}>
+          {!(tab === "Containers" && detailId) && <PageHeader title={tab} />}
+          <Banner error={profilesError} />
+          <Banner error={appError} onClose={() => setAppError(null)} />
+          {page}
+          <CommandToast onOpenLog={() => setLogOpen(true)} />
+          <ResizeAnnouncer />
+          {logOpen && <CommandLog onClose={() => setLogOpen(false)} />}
+          <div className="sr-only" data-app-announcer role="status" aria-live="polite">{bringSaid}</div>
+          {bringing && (
+            <BringOver
+              ctx={bringing.ctx}
+              only={bringing.only}
+              forVm={current && bringing.name !== current.name ? bringing.name : undefined}
+              onClose={closeBring}
+              onDone={(ok) => { if (ok) copied.current = true; void Promise.all([setup.reload(), doc.reload(), readDesktop(bringing.ctx)]); }}
+              onProfiles={() => { setBringing(null); setTab("Profiles"); }}
+            />
+          )}
+        </Shell>
+      </ToastProvider>
     </ResizeProvider>
   );
 }

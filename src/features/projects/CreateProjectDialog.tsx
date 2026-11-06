@@ -1,11 +1,12 @@
-import { useState, FormEvent } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/ui/Dialog";
+import { useState, FormEvent, useId, useEffect } from "react";
+import { Dialog } from "@/ui/components/Dialog";
 import { Button } from "@/ui/Button";
 import { Input } from "@/ui/Input";
 import { Label } from "@/ui/Label";
-import { Plus, FolderOpen } from "@/ui/icons";
+import { Plus, FolderOpen, Loader2 } from "@/ui/icons";
 import { invoke } from "@tauri-apps/api/core";
 import { CreateProjectInput } from "@/shared/types/project";
+import { FocusTrap } from "@/ui/components/FocusTrap";
 
 interface CreateProjectDialogProps {
   onSubmit: (input: CreateProjectInput) => Promise<void>;
@@ -18,6 +19,8 @@ export function CreateProjectDialog({ onSubmit, onOpenChange }: CreateProjectDia
   const [name, setName] = useState("");
   const [selecting, setSelecting] = useState(false);
   const [error, setError] = useState("");
+  const pathInputId = useId();
+  const nameInputId = useId();
 
   const handleSelectPath = async () => {
     setSelecting(true);
@@ -50,6 +53,7 @@ export function CreateProjectDialog({ onSubmit, onOpenChange }: CreateProjectDia
     try {
       await onSubmit({ path, name: name || undefined });
       setIsOpen(false);
+      onOpenChange(false);
       setPath("");
       setName("");
     } catch (e) {
@@ -58,17 +62,15 @@ export function CreateProjectDialog({ onSubmit, onOpenChange }: CreateProjectDia
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger>
-        <Button>
-          <Plus className="h-4 w-4 mr-2" /> New Project
-        </Button>
-      </DialogTrigger>
-      <DialogContent>
+    <FocusTrap enabled={isOpen} onEscape={() => { setIsOpen(false); onOpenChange(false); }}>
+      <Dialog
+        isOpen={isOpen}
+        onClose={() => { setIsOpen(false); onOpenChange(false); }}
+        title="Add Project"
+        description="Select a directory to create a new project from"
+        size="md"
+      >
         <form onSubmit={handleSubmit}>
-          <DialogHeader>
-            <DialogTitle>Add Project</DialogTitle>
-          </DialogHeader>
           <div className="grid gap-4 py-2">
             {error && (
               <div className="text-sm text-[var(--color-brand-danger)] p-3 bg-[var(--color-brand-danger)]/10 rounded-lg" role="alert">
@@ -76,16 +78,18 @@ export function CreateProjectDialog({ onSubmit, onOpenChange }: CreateProjectDia
               </div>
             )}
             <div className="grid gap-2">
-              <Label htmlFor="path">Project Path</Label>
+              <Label htmlFor={pathInputId}>Project Path</Label>
               <div className="flex gap-2">
                 <Input
-                  id="path"
+                  id={pathInputId}
                   value={path}
                   onChange={(e) => setPath(e.target.value)}
                   placeholder="/path/to/project"
                   disabled={selecting}
                   className="flex-1"
                   error={error && !path ? "Please select a directory" : undefined}
+                  required
+                  aria-describedby={error && !path ? `${pathInputId}-error` : undefined}
                 />
                 <Button
                   type="button"
@@ -93,15 +97,17 @@ export function CreateProjectDialog({ onSubmit, onOpenChange }: CreateProjectDia
                   onClick={handleSelectPath}
                   disabled={selecting}
                   aria-label="Browse for folder"
+                  aria-busy={selecting}
+                  className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand-primary)] rounded"
                 >
-                  <FolderOpen className="h-4 w-4" />
+                  {selecting ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <FolderOpen className="h-4 w-4" aria-hidden="true" />}
                 </Button>
               </div>
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="name">Name (optional)</Label>
+              <Label htmlFor={nameInputId}>Name (optional)</Label>
               <Input
-                id="name"
+                id={nameInputId}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Auto-detected from folder name"
@@ -109,16 +115,16 @@ export function CreateProjectDialog({ onSubmit, onOpenChange }: CreateProjectDia
               />
             </div>
           </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setIsOpen(false)} disabled={selecting}>
+          <div className="flex justify-end gap-2 mt-4">
+            <Button type="button" variant="outline" onClick={() => { setIsOpen(false); onOpenChange(false); }} disabled={selecting} className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand-primary)] rounded">
               Cancel
             </Button>
-            <Button type="submit" disabled={!path || selecting}>
+            <Button type="submit" disabled={!path || selecting} className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand-primary)] rounded">
               {selecting ? "Selecting..." : "Create Project"}
             </Button>
-          </DialogFooter>
+          </div>
         </form>
-      </DialogContent>
-    </Dialog>
+      </Dialog>
+    </FocusTrap>
   );
 }
