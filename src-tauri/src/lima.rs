@@ -713,6 +713,24 @@ pub async fn dialog_open(options: DialogOpenOptions) -> Result<String, String> {
     }
 }
 
+// Read directory entries
+#[tauri::command]
+pub fn fs_read_dir(path: String) -> Result<Vec<String>, String> {
+    let entries = std::fs::read_dir(&path)
+        .map_err(|e| format!("Failed to read directory: {e}"))?
+        .filter_map(|e| e.ok())
+        .map(|e| e.file_name().to_string_lossy().to_string())
+        .collect();
+    Ok(entries)
+}
+
+// Read text file
+#[tauri::command]
+pub fn fs_read_text_file(path: String) -> Result<String, String> {
+    std::fs::read_to_string(&path)
+        .map_err(|e| format!("Failed to read file: {e}"))
+}
+
 #[derive(Deserialize)]
 pub struct DialogOpenOptions {
     title: Option<String>,
