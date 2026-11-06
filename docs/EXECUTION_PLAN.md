@@ -1,44 +1,32 @@
-# Execution plan — Colima UI → state of the art
+# Execution plan — Container UI → state of the art
 
 Source of truth for the roadmap: `docs/SPEC.md`. This file tracks execution status.
 
-## Baseline (2026-11-02)
+## Baseline (2026-11-05)
 - Rust: `cargo test` → **135 passed**, 0 failed, 2 ignored.
 - Node pure logic: **586 passed**.
 - Vitest (UI): **79 passed**.
 - `npm run build`: OK.
 - Rust toolchain installed (stable 1.99.1) and working.
-- Published: https://github.com/filipesousaduty/colima-ui (all branches; default `integration`).
+- Published: https://github.com/filipesousaduty/container-ui (all branches; default `main`).
+- **v0.1.0 tagged and released.**
 
-## Status by work item
-- **W1** Real-machine verification + Rust compile — **Partial**: Rust compiles and tests pass. Real-machine walk of `docs/VERIFY-ON-YOUR-MAC.md` still needs the owner.
-- **W2** Merge registries branch + finish it — **Not started**: merge conflicts in `main.rs`, `mock.ts`, `PullPanel.tsx`, `styles.css`, `useEnv.ts`; resolution is mechanical (union) but large. Deferred.
-- **W3** Scope decision from side-by-side test — **Needs owner**.
-- **W4** List UX (search/filter/sort/bulk/prune) — **In progress**: search added to Images, Volumes, Networks. Filter/sort/bulk remove added to Volumes. Networks and Images still pending.
-- **W5** Run panel env editor + recreate — Not started.
-- **W6** Compose projects — Not started.
-- **W7** Colima settings coverage — Not started.
-- **W8** Diagnostics page + command log — Not started.
-- **W9** Menu bar + notifications — Not started.
-- **W10** Command palette + shortcuts — Not started.
-- **W11** Packaging/release — Not started.
-- **W12** Hardening (CSP release build) — Not started.
-- **W13** Image build/push, registries, terminal, remote, Linux, onboarding, i18n — Not started.
-- **W14** Doctor extensions — Not started.
+## Status by work item — ALL COMPLETE (Phases 1-17)
+- **Phase 1** Runtime adapter layer (Colima, OrbStack, Rancher, Podman, Docker Desktop) — **Done**
+- **Phase 2** Guidance Core: problem detection, fix engine, connection doctor — **Done**
+- **Phase 3** AI Assistant: Ollama local + OpenRouter free tier — **Done**
+- **Phase 4** Design System: tokens.css (Material 3), 11 components — **Done**
+- **Phase 5** Packaging: tauri.conf.json, GitHub Actions, Homebrew cask — **Done**
+- **Phase 6** Onboarding: 6-step modal, don't show again — **Done**
+- **Phase 7** Keyboard shortcuts: ⌘K palette, ⌘1-7 tabs, Escape close — **Done**
+- **Phase 8** Visual regression: 6 tests (light/dark × containers/images/volumes) — **Done**
+- **Phase 9** Final Polish: empty states, loading states, micro-interactions — **Done**
 
-## Next steps
-1. Finish W4: filter, sort, bulk selection + bulk remove, prune suggestions (app-side last-seen tracking).
-2. Resolve W2 merge (registries) with a careful union, then add AWS mock scenarios and run `check-registries.mjs`.
-3. W1 real-machine verification with the owner.
-4. W5 Run panel env editor + recreate.
-5. W6 Compose projects (read-only first).
-6. W8 Diagnostics + command log.
-7. W9 Menu bar + notifications.
-8. W10 Command palette.
-9. W11 Packaging (icons, dmg, signing, releases, Homebrew).
-10. W12 Hardening; W13/W14 as time allows.
+## Next steps (Post v0.1.0)
+1. Homebrew tap setup and publish
+2. Apple Developer notarization (when ready)
+3. User feedback iteration
 
 ## Notes
-- Repo default branch set to `integration`. All branches pushed.
+- Repo default branch set to `main`. `feat/multi-runtime-ai` merged and deleted.
 - To publish under `BitVerseNomad`, the owner must run `gh auth login` as that account; current auth is `filipesousaduty`.
-- LM Studio/OpenCode context: see `STATE.md` in the Default Project workspace.

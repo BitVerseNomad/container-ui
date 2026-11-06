@@ -171,7 +171,7 @@ pub fn parse_testcontainers_host(props: &str) -> Option<String> {
 // Testcontainers reads the socket override only from the environment, so the fix puts it in the login shell's
 // profile. fish has its own syntax; zsh is the macOS default.
 const TC_OVERRIDE: &str = "TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE";
-const TC_MARK: &str = "# Added by Colima UI (Testcontainers)";
+const TC_MARK: &str = "# Added by Container UI (Testcontainers)";
 
 // The file the login shell really reads. A login bash reads only the first of these that exists, so a new
 // .bash_profile would hide a ~/.profile. zsh reads .zshrc from ZDOTDIR when .zshenv sets it.
@@ -619,7 +619,7 @@ mod tests {
     #[test]
     fn given_a_shell_profile_when_the_override_is_added_then_it_is_one_marked_line_and_is_seen_next_time() {
         let out = add_override("export PATH=x", false);
-        assert_eq!(out, "export PATH=x\n\n# Added by Colima UI (Testcontainers)\nexport TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock\n");
+        assert_eq!(out, "export PATH=x\n\n# Added by Container UI (Testcontainers)\nexport TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock\n");
         assert!(has_override(&out));
         assert!(add_override("", true).ends_with("set -gx TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE /var/run/docker.sock\n"));
         assert!(!has_override("# export TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock\n"));

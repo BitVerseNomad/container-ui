@@ -68,7 +68,7 @@ jobs:
           TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
         with:
           tagName: ${{ github.ref_name }}
-          releaseName: "Colima UI ${{ github.ref_name }}"
+          releaseName: "Container UI ${{ github.ref_name }}"
           releaseBody: "See [CHANGELOG.md](https://github.com/filipesousaduty/colima-ui/blob/main/CHANGELOG.md)"
           releaseDraft: false
           prerelease: false

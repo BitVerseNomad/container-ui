@@ -1,10 +1,10 @@
-# Colima UI
+# Container UI
 
 **Docker on your Mac, without Docker Desktop.** Free, fast, and it tells you what's wrong before you go digging.
 
 ![Containers: every app on one screen, with what's broken and the button that fixes it](docs/screenshots/home.png)
 
-Colima UI is a native Mac app for [Colima](https://github.com/abiosoft/colima), the open-source way to run Docker. You get the Docker Desktop experience you're used to: your containers, images, volumes and Compose projects on one screen. There's no license, no sign-in, and no heavy background app.
+Container UI is a native Mac app for container runtimes: [Colima](https://github.com/abiosoft/colima), OrbStack, Rancher Desktop, Podman Desktop, and Docker Desktop. You get a unified interface for containers, images, volumes, networks, and Compose projects. No license, no sign-in, no heavy background app.
 
 ## Install in one line
 
@@ -51,7 +51,7 @@ This is early, and your feedback shapes it.
 
 ## Install by hand
 
-1. Download the `.dmg` from the [latest release](../../releases/latest), open it, and drag Colima UI to Applications.
+1. Download the `.dmg` from the [latest release](../../releases/latest), open it, and drag Container UI to Applications.
 2. The app isn't signed by Apple, so the first time you open it macOS says it can't check it. Open System Settings, then Privacy & Security, and click **Open Anyway**. You only do this once.
 
 **For contributors:** `docs/SUMMARY.md` (what was built and learned), `docs/SPEC.md` (what is left), `docs/VERIFY-ON-YOUR-MAC.md` (15-minute real-machine check), `docs/EVALUATION.md` (comparison with other tools), `CHANGELOG.md`.

@@ -160,7 +160,7 @@ export default function App() {
     const returnTo = bringing?.returnTo;
     setBringing(null);
     // Said once, here, after the panel's own result was read with its Done button.
-    if (copied.current) { setBringSaid(""); setTimeout(() => setBringSaid("Volumes are in Colima now."), 50); }
+    if (copied.current) { setBringSaid(""); setTimeout(() => setBringSaid("Volumes are in the VM now."), 50); }
     copied.current = false;
     // After a copy the button that opened it may be gone (the offer ends), so focus would drop to the page.
     requestAnimationFrame(() => {
@@ -255,7 +255,7 @@ export default function App() {
       !env ? null : toolsMissing ? (
         <div className="blank">
           <span className="blank-icon"><Icon name="download" size={28} /></span>
-          <h2>Install Colima and Docker first</h2>
+          <h2>Install a container runtime and Docker first</h2>
           <p className="hint">The checks need both.</p>
           <span className="actions-inline"><button className="primary" onClick={() => setTab("Containers")}>Install them</button></span>
         </div>
@@ -272,8 +272,8 @@ export default function App() {
       />
     ) : !ctx ? (
       toolsMissing ? (
-        <Empty title="Colima isn't installed yet" action={<button className="primary" onClick={() => setTab("Containers")}>Install it</button>}>
-          Containers installs Colima and Docker with one click.
+        <Empty title="No container runtime yet" action={<button className="primary" onClick={() => setTab("Containers")}>Install one</button>}>
+          Container UI installs Colima, OrbStack, Rancher Desktop, Podman Desktop, or Docker Desktop with one click.
         </Empty>
       ) : current ? (
         <Empty title={`${current.name} is stopped`} action={<button className="primary" disabled={vm.op !== null} onClick={startFromAnywhere}>{`Start ${current.name}`}</button>}>
@@ -281,7 +281,7 @@ export default function App() {
         </Empty>
       ) : (
         <Empty title="No VM yet" action={<button className="primary" onClick={() => setTab("Containers")}>Create your first VM</button>}>
-          Colima needs one small Linux VM. Containers sets it up for you.
+          Container UI creates a small Linux VM for you.
         </Empty>
       )
     ) : tab === "Images" ? (
