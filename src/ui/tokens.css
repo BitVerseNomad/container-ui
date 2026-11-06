@@ -1,251 +1,130 @@
-/* Design tokens. Palette sampled from the reference screenshots; contrast is pinned by src/lib/contrast.test.ts. */
+/* Design tokens - Single source of truth for visual design */
 :root {
-  /* === Color Palette (existing) === */
-  --page: #f3f5f3;
-  --sidebar: #e8ece8;
-  --card: #f0f2f0;
-  --border: #d3dad4;
-  --ink: #1c2a27;
-  --muted: #5a6662;
-  --primary: #397863;
-  --on-primary: #ffffff;
-  --danger: #a14b3f;
-  --warn: #6e5208;
-  --btn: #ffffff;
-  --btn-edge: #c2cbc4;
-  --dot-ok: #397863;
-  --dot-bad: #c93c32;
-  --dot-warn: #a06a1a;
+  /* Colors - Semantic tokens */
+  --color-bg-primary: #ffffff;
+  --color-bg-secondary: #f8fafc;
+  --color-bg-tertiary: #f1f5f9;
+  --color-bg-hover: #e2e8f0;
+  --color-bg-active: #cbd5e1;
 
-  /* === Material 3 Semantic Colors === */
-  --md-sys-color-primary: var(--primary);
-  --md-sys-color-on-primary: var(--on-primary);
-  --md-sys-color-primary-container: color-mix(in srgb, var(--primary) 15%, transparent);
-  --md-sys-color-on-primary-container: var(--ink);
-  --md-sys-color-secondary: color-mix(in srgb, var(--primary) 40%, var(--ink));
-  --md-sys-color-on-secondary: var(--on-primary);
-  --md-sys-color-tertiary: var(--warn);
-  --md-sys-color-on-tertiary: var(--ink);
-  --md-sys-color-error: var(--danger);
-  --md-sys-color-on-error: #ffffff;
-  --md-sys-color-error-container: color-mix(in srgb, var(--danger) 15%, transparent);
-  --md-sys-color-on-error-container: var(--ink);
-  --md-sys-color-surface: var(--card);
-  --md-sys-color-on-surface: var(--ink);
-  --md-sys-color-surface-variant: var(--sidebar);
-  --md-sys-color-on-surface-variant: var(--muted);
-  --md-sys-color-outline: var(--border);
-  --md-sys-color-outline-variant: color-mix(in srgb, var(--border) 60%, transparent);
-  --md-sys-color-shadow: rgba(0, 0, 0, 0.12);
-  --md-sys-color-scrim: rgba(0, 0, 0, 0.5);
-  --md-sys-color-inverse-surface: var(--ink);
-  --md-sys-color-inverse-on-surface: var(--page);
-  --md-sys-color-inverse-primary: var(--primary);
+  --color-fg-primary: #0f172a;
+  --color-fg-secondary: #334155;
+  --color-fg-tertiary: #64748b;
+  --color-fg-inverse: #ffffff;
 
-  /* === Spacing Scale (4px base) === */
-  --space-0: 0;
-  --space-1: 4px;   /* 0.25rem */
-  --space-2: 8px;   /* 0.5rem */
-  --space-3: 12px;  /* 0.75rem */
-  --space-4: 16px;  /* 1rem */
-  --space-5: 24px;  /* 1.5rem */
-  --space-6: 32px;  /* 2rem */
-  --space-7: 48px;  /* 3rem */
-  --space-8: 64px;  /* 4rem */
+  --color-brand-primary: #3b82f6;
+  --color-brand-primary-hover: #2563eb;
+  --color-brand-primary-light: #dbeafe;
+  --color-brand-secondary: #8b5cf6;
+  --color-brand-success: #10b981;
+  --color-brand-warning: #f59e0b;
+  --color-brand-danger: #ef4444;
+  --color-brand-info: #06b6d4;
 
-  /* === Border Radius Scale === */
-  --radius-none: 0;
-  --radius-sm: 4px;   /* buttons, inputs, badges */
-  --radius-md: 8px;   /* cards, panels, dropdowns */
-  --radius-lg: 12px;  /* drawers, modals, dialogs */
-  --radius-xl: 16px;  /* sheets, large modals */
-  --radius-full: 9999px; /* pills, avatars */
+  --color-border-light: #e2e8f0;
+  --color-border-medium: #cbd5e1;
+  --color-border-focus: #3b82f6;
 
-  /* === Shadow / Elevation Scale === */
-  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.08);   /* level 1: cards, buttons */
-  --shadow-2: 0 4px 8px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.06);   /* level 2: dropdowns, cards */
-  --shadow-3: 0 8px 16px rgba(0, 0, 0, 0.1), 0 4px 8px rgba(0, 0, 0, 0.08);   /* level 3: drawers, dialogs */
-  --shadow-4: 0 16px 32px rgba(0, 0, 0, 0.12), 0 8px 16px rgba(0, 0, 0, 0.1);  /* level 4: modals, sheets */
-  --shadow-focus: 0 0 0 2px var(--primary); /* focus ring */
+  --color-shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --color-shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --color-shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --color-shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
 
-  /* === Typography Scale === */
-  --text-xs: 11px;   /* captions, labels */
-  --text-sm: 12px;   /* body small, secondary */
-  --text-base: 13px; /* body default */
-  --text-md: 14px;   /* body large */
-  --text-lg: 15px;   /* subtitle */
-  --text-xl: 16px;   /* title small */
-  --text-2xl: 20px;  /* h3, section title */
-  --text-3xl: 24px;  /* h2 */
-  --text-4xl: 28px;  /* h1, page title */
+  /* Spacing scale */
+  --space-1: 0.25rem;  /* 4px */
+  --space-2: 0.5rem;   /* 8px */
+  --space-3: 0.75rem;  /* 12px */
+  --space-4: 1rem;     /* 16px */
+  --space-5: 1.25rem;  /* 20px */
+  --space-6: 1.5rem;   /* 24px */
+  --space-8: 2rem;     /* 32px */
+  --space-10: 2.5rem;  /* 40px */
+  --space-12: 3rem;    /* 48px */
+  --space-16: 4rem;    /* 64px */
 
-  --font-sans: system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
-  --font-weight-normal: 400;
-  --font-weight-medium: 500;
-  --font-weight-semibold: 600;
-  --font-weight-bold: 700;
+  /* Border radius */
+  --radius-sm: 0.25rem;  /* 4px */
+  --radius-md: 0.375rem; /* 6px */
+  --radius-lg: 0.5rem;   /* 8px */
+  --radius-xl: 0.75rem;  /* 12px */
+  --radius-full: 9999px;
 
-  --line-height-tight: 1.2;
-  --line-height-normal: 1.4;
-  --line-height-relaxed: 1.6;
+  /* Typography */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
 
-  /* === Motion === */
-  --motion-ease: cubic-bezier(0.2, 0, 0, 1);
-  --motion-ease-out: cubic-bezier(0, 0, 0.2, 1);
-  --motion-ease-in: cubic-bezier(0.4, 0, 1, 1);
-  --motion-duration-50: 50ms;
-  --motion-duration-100: 100ms;
-  --motion-duration-150: 150ms;
-  --motion-duration-200: 200ms;
-  --motion-duration-300: 300ms;
-  --motion-duration-500: 500ms;
+  --text-xs: 0.75rem;    /* 12px */
+  --text-sm: 0.875rem;   /* 14px */
+  --text-base: 1rem;     /* 16px */
+  --text-lg: 1.125rem;   /* 18px */
+  --text-xl: 1.25rem;    /* 20px */
+  --text-2xl: 1.5rem;    /* 24px */
+  --text-3xl: 1.875rem;  /* 30px */
+  --text-4xl: 2.25rem;   /* 36px */
 
-  /* === Z-Index Scale === */
-  --z-0: 0;
-  --z-10: 10;    /* base */
-  --z-20: 20;    /* dropdowns */
-  --z-30: 30;    /* sticky headers */
-  --z-40: 40;    /* drawers */
-  --z-50: 50;    /* modals, dialogs */
-  --z-60: 60;    /* toasts */
-  --z-70: 70;    /* tooltips */
-  --z-max: 9999; /* critical */
+  --leading-tight: 1.25;
+  --leading-snug: 1.375;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.625;
 
-  /* === Breakpoints (for reference in JS) === */
-  --bp-sm: 640px;
-  --bp-md: 768px;
-  --bp-lg: 1024px;
-  --bp-xl: 1280px;
-  --bp-2xl: 1536px;
+  --font-normal: 400;
+  --font-medium: 500;
+  --font-semibold: 600;
+  --font-bold: 700;
+
+  /* Transitions */
+  --transition-fast: 150ms ease;
+  --transition-normal: 200ms ease;
+  --transition-slow: 300ms ease;
+
+  /* Z-index */
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-modal: 300;
+  --z-popover: 400;
+  --z-tooltip: 500;
+  --z-toast: 600;
 }
 
+/* Dark mode */
 @media (prefers-color-scheme: dark) {
   :root {
-    /* === Color Palette (existing dark) === */
-    --page: #121a18;
-    --sidebar: #172321;
-    --card: #1a2724;
-    --border: #2b3a36;
-    --ink: #e6eeea;
-    --muted: #8fa09a;
-    --primary: #5aa688;
-    --on-primary: #0b1a15;
-    --danger: #e07a6d;
-    --warn: #e3c26b;
-    --btn: #22312d;
-    --btn-edge: #3a4c47;
-    --dot-ok: #5aa688;
-    --dot-bad: #e07a6d;
-    --dot-warn: #e3c26b;
+    --color-bg-primary: #0f172a;
+    --color-bg-secondary: #1e293b;
+    --color-bg-tertiary: #334155;
+    --color-bg-hover: #475569;
+    --color-bg-active: #64748b;
 
-    /* === Material 3 Semantic Colors (dark) === */
-    --md-sys-color-primary: var(--primary);
-    --md-sys-color-on-primary: var(--on-primary);
-    --md-sys-color-primary-container: color-mix(in srgb, var(--primary) 30%, transparent);
-    --md-sys-color-on-primary-container: var(--page);
-    --md-sys-color-secondary: color-mix(in srgb, var(--primary) 40%, var(--page));
-    --md-sys-color-on-secondary: var(--ink);
-    --md-sys-color-tertiary: var(--warn);
-    --md-sys-color-on-tertiary: var(--ink);
-    --md-sys-color-error: var(--danger);
-    --md-sys-color-on-error: #ffffff;
-    --md-sys-color-error-container: color-mix(in srgb, var(--danger) 30%, transparent);
-    --md-sys-color-on-error-container: var(--page);
-    --md-sys-color-surface: var(--card);
-    --md-sys-color-on-surface: var(--ink);
-    --md-sys-color-surface-variant: var(--sidebar);
-    --md-sys-color-on-surface-variant: var(--muted);
-    --md-sys-color-outline: var(--border);
-    --md-sys-color-outline-variant: color-mix(in srgb, var(--border) 60%, transparent);
-    --md-sys-color-shadow: rgba(0, 0, 0, 0.3);
-    --md-sys-color-scrim: rgba(0, 0, 0, 0.6);
-    --md-sys-color-inverse-surface: var(--page);
-    --md-sys-color-inverse-on-surface: var(--ink);
-    --md-sys-color-inverse-primary: var(--primary);
+    --color-fg-primary: #f8fafc;
+    --color-fg-secondary: #e2e8f0;
+    --color-fg-tertiary: #94a3b8;
+    --color-fg-inverse: #0f172a;
 
-    /* Shadows darker in dark mode */
-    --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.2), 0 1px 3px rgba(0, 0, 0, 0.3);
-    --shadow-2: 0 4px 8px rgba(0, 0, 0, 0.25), 0 2px 4px rgba(0, 0, 0, 0.2);
-    --shadow-3: 0 8px 16px rgba(0, 0, 0, 0.3), 0 4px 8px rgba(0, 0, 0, 0.25);
-    --shadow-4: 0 16px 32px rgba(0, 0, 0, 0.35), 0 8px 16px rgba(0, 0, 0, 0.3);
-    --shadow-focus: 0 0 0 2px var(--primary);
+    --color-brand-primary: #60a5fa;
+    --color-brand-primary-hover: #93c5fd;
+    --color-brand-primary-light: #1e3a5f;
+    --color-brand-secondary: #a78bfa;
+    --color-brand-success: #34d399;
+    --color-brand-warning: #fbbf24;
+    --color-brand-danger: #f87171;
+    --color-brand-info: #22d3ee;
+
+    --color-border-light: #334155;
+    --color-border-medium: #475569;
+    --color-border-focus: #60a5fa;
+
+    --color-shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+    --color-shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4), 0 2px 4px -2px rgb(0 0 0 / 0.3);
+    --color-shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.4), 0 4px 6px -4px rgb(0 0 0 / 0.3);
+    --color-shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.4), 0 8px 10px -6px rgb(0 0 0 / 0.3);
   }
 }
 
-/* Drawer background fix for dark mode */
-.drawer { background: var(--card); }
-.scrim { background: var(--md-sys-color-scrim); }
-
-/* === Global Focus Visible === */
-:focus-visible {
-  outline: none;
-  box-shadow: var(--shadow-focus);
-  border-radius: var(--radius-sm);
-}
-
-/* === Reduced Motion === */
+/* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
-  }
-}
-
-/* === Selection === */
-::selection {
-  background: color-mix(in srgb, var(--primary) 25%, transparent);
-  color: var(--ink);
-}
-
-/* === Scrollbar (WebKit) === */
-::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: var(--radius-full); }
-::-webkit-scrollbar-thumb:hover { background: var(--muted); }
-::-webkit-scrollbar-corner { background: transparent; }
-
-/* === Shortcuts Panel (Sidebar) === */
-.shortcuts-panel {
-  margin-top: auto;
-  padding: var(--space-4) var(--space-3);
-  border-top: 1px solid var(--border);
-  background: var(--sidebar);
-}
-.shortcuts-title {
-  margin: 0 0 var(--space-3);
-  font-size: var(--text-xs);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--muted);
-}
-.shortcuts-list {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: var(--space-2) var(--space-4);
-  margin: 0;
-  padding: 0;
-}
-.shortcuts-list dt {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  color: var(--primary);
-  font-weight: 600;
-  white-space: nowrap;
-}
-.shortcuts-list dd {
-  margin: 0;
-  font-size: var(--text-xs);
-  color: var(--muted);
-  line-height: var(--line-height-normal);
-}
-@media (max-width: 700px) {
-  .shortcuts-panel {
-    display: none;
+  :root {
+    --transition-fast: 0ms;
+    --transition-normal: 0ms;
+    --transition-slow: 0ms;
   }
 }
