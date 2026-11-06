@@ -10,6 +10,7 @@ use std::time::{Duration, Instant};
 use tauri::Emitter;
 
 mod desktop;
+mod lima;
 mod setup;
 
 #[derive(Serialize, Deserialize)]
@@ -701,16 +702,16 @@ fn run_steps(steps: &[Vec<String>], cancelled: &AtomicBool, mut step: impl FnMut
     Ok(())
 }
 
-fn stream(app: &tauri::AppHandle, event: &str, bin: &str, args: &[String]) -> Result<(), String> {
+pub fn stream(app: &tauri::AppHandle, event: &str, bin: &str, args: &[String]) -> Result<(), String> {
     stream_with(app, event, bin, args, STREAM_SILENCE, |_| {})
 }
 
-fn stream_with(app: &tauri::AppHandle, event: &str, bin: &str, args: &[String], silence: Duration, on_spawn: impl Fn(Option<u32>)) -> Result<(), String> {
+pub fn stream_with(app: &tauri::AppHandle, event: &str, bin: &str, args: &[String], silence: Duration, on_spawn: impl Fn(Option<u32>)) -> Result<(), String> {
     stream_in(app, event, bin, args, None, silence, on_spawn)
 }
 
 // cwd: the folder to run in, for commands that find their files there (docker compose).
-fn stream_in(app: &tauri::AppHandle, event: &str, bin: &str, args: &[String], cwd: Option<&str>, silence: Duration, on_spawn: impl Fn(Option<u32>)) -> Result<(), String> {
+pub fn stream_in(app: &tauri::AppHandle, event: &str, bin: &str, args: &[String], cwd: Option<&str>, silence: Duration, on_spawn: impl Fn(Option<u32>)) -> Result<(), String> {
     let mut cmd = Command::new("sh");
     if let Some(dir) = cwd {
         cmd.current_dir(dir);
@@ -1940,7 +1941,8 @@ fn main() {
             orb_version, orb_list_vms, orb_start_vm, orb_stop_vm, orb_delete_vm,
             colima_version, rdctl_version, podman_version, docker_desktop_version,
             ollama_chat, ollama_list_models, ollama_pull,
-            desktop::desktop_state, desktop::desktop_docker, desktop::desktop_copy, desktop::desktop_copy_stop, desktop::desktop_start, desktop::desktop_replace, desktop::open_docker_desktop
+            desktop::desktop_state, desktop::desktop_docker, desktop::desktop_copy, desktop::desktop_copy_stop, desktop::desktop_start, desktop::desktop_replace, desktop::open_docker_desktop,
+            lima::lima_status, lima::lima_ensure_vm, lima::project_env_create, lima::project_env_start, lima::project_env_stop, lima::project_env_delete, lima::project_env_list, lima::project_env_get, lima::project_env_logs, lima::project_env_exec, lima::project_env_forward_port, lima::project_env_unforward_port, lima::project_set_environment, lima::get_ssh_auth_sock, lima::git_config_get, lima::get_gh_token, lima::get_home_dir, lima::dialog_open
         ])
         .run(tauri::generate_context!())
         .expect("error while running Container UI");
