@@ -6,11 +6,12 @@ import { detectProjectConfig, DevContainerSpec, ComposeSpec } from "@/lib/projec
 import { ProjectTerminal } from "./ProjectTerminal";
 import { ProjectLogs } from "./ProjectLogs";
 import { ProjectPorts } from "./ProjectPorts";
+import { ProjectEnvVars } from "./ProjectEnvVars";
 import { Button } from "@/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/ui/Card";
 import { Badge } from "@/ui/Badge";
 import { Spinner } from "@/ui/Spinner";
-import { Plus, RefreshCw, FolderOpen, Search, ChevronLeft, Stop, RotateCcw, Play, Terminal, ExternalLink, Download, Trash2, ChevronRight, AlertTriangle, Activity, Network } from "@/ui/icons";
+import { Plus, RefreshCw, FolderOpen, Search, ChevronLeft, Stop, RotateCcw, Play, Terminal, ExternalLink, Download, Trash2, ChevronRight, AlertTriangle, Activity, Network, Key, Settings, Shield, GitBranch } from "@/ui/icons";
 import { cn } from "@/lib/cn";
 import type { Project } from "@/shared/types/project";
 import type { Environment } from "@/shared/types/environment";
@@ -35,6 +36,7 @@ export function ProjectDetail({
   const [loading, setLoading] = useState(false);
   const [showTerminal, setShowTerminal] = useState(false);
   const [showLogs, setShowLogs] = useState(false);
+  const [showEnvVars, setShowEnvVars] = useState(false);
   const [detecting, setDetecting] = useState(false);
 
   // Fetch environment for this project
@@ -222,6 +224,47 @@ export function ProjectDetail({
           </Card>
         )}
 
+        {/* Injected Credentials Section */}
+        {environment && isRunning && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <span className="flex items-center gap-2">
+                  <Key className="h-4 w-4" />
+                  Injected Credentials
+                </span>
+                <Button variant="ghost" size="sm" onClick={() => setShowEnvVars(true)}>
+                  <Settings className="h-4 w-4 mr-1" />
+                  Manage
+                </Button>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2 text-sm">
+                <div className="flex items-center gap-3 text-[var(--color-fg-secondary)]">
+                  <Badge variant="info" size="sm"><Key className="h-3 w-3 mr-1" />SSH Agent</Badge>
+                  <span>SSH_AUTH_SOCK</span>
+                </div>
+                <div className="flex items-center gap-3 text-[var(--color-fg-secondary)]">
+                  <Badge variant="default" size="sm"><GitBranch className="h-3 w-3 mr-1" />Git User</Badge>
+                  <span>GIT_AUTHOR_NAME, GIT_COMMITTER_NAME</span>
+                </div>
+                <div className="flex items-center gap-3 text-[var(--color-fg-secondary)]">
+                  <Badge variant="default" size="sm"><GitBranch className="h-3 w-3 mr-1" />Git Email</Badge>
+                  <span>GIT_AUTHOR_EMAIL, GIT_COMMITTER_EMAIL</span>
+                </div>
+                <div className="flex items-center gap-3 text-[var(--color-fg-secondary)]">
+                  <Badge variant="warning" size="sm"><Shield className="h-3 w-3 mr-1" />GitHub Token</Badge>
+                  <span>GH_TOKEN, GITHUB_TOKEN</span>
+                </div>
+                <p className="text-xs text-[var(--color-fg-tertiary)] mt-2">
+                  Auto-injected from your host system. Click "Manage" to enable/disable or add custom variables.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {!environment && config && (
           <Card>
             <CardContent className="pt-0">
@@ -276,6 +319,9 @@ export function ProjectDetail({
       )}
       {showLogs && environment && (
         <ProjectLogs environmentId={environment.id} onClose={() => setShowLogs(false)} />
+      )}
+      {showEnvVars && environment && (
+        <ProjectEnvVars environmentId={environment.id} isOpen={showEnvVars} onClose={() => setShowEnvVars(false)} />
       )}
     </div>
   );

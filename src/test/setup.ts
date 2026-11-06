@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom/vitest";
-import { afterEach, vi } from "vitest";
+import { afterEach, vi, beforeEach } from "vitest";
 import { cleanup } from "@testing-library/react";
 
 // Mock HTMLCanvasElement.getContext for xterm WebGL addon
@@ -70,7 +70,6 @@ HTMLCanvasElement.prototype.getContext = vi.fn((contextId: string) => {
       attachShader: vi.fn(),
       detachShader: vi.fn(),
       linkProgram: vi.fn(),
-      useProgram: vi.fn(),
       validateProgram: vi.fn(),
       deleteProgram: vi.fn(),
       deleteShader: vi.fn(),
@@ -103,5 +102,14 @@ HTMLCanvasElement.prototype.getContext = vi.fn((contextId: string) => {
   }
   return null;
 }) as typeof HTMLCanvasElement.prototype.getContext;
+
+// Ensure portal-root exists for Portal component
+beforeEach(() => {
+  if (!document.getElementById("portal-root")) {
+    const portalRoot = document.createElement("div");
+    portalRoot.id = "portal-root";
+    document.body.appendChild(portalRoot);
+  }
+});
 
 afterEach(() => cleanup());
