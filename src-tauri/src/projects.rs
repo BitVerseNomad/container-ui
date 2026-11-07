@@ -3,6 +3,7 @@
 use serde::{Deserialize, Serialize};
 use sqlx::{SqlitePool, sqlite::SqliteConnectOptions, migrate::MigrateDatabase, Row};
 use std::path::PathBuf;
+use std::process::Command;
 use tauri::{AppHandle, Manager};
 use uuid::Uuid;
 use chrono::{DateTime, Utc};
