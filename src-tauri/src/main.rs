@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::io::{BufReader, Read};
 use std::os::unix::process::CommandExt;
 use std::process::{Command, Stdio};
@@ -8,6 +9,8 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, TryLockError};
 use std::time::{Duration, Instant};
 use tauri::Emitter;
+
+include!(concat!(env!("OUT_DIR"), "/embedded_assets.rs"));
 
 mod desktop;
 mod lima;
@@ -1934,8 +1937,33 @@ fn cancel_compose() -> bool {
     pid.map(kill_group).is_some()
 }
 
+use std::env;
+use std::path::PathBuf;
+
 fn main() {
+    let assets: HashMap<String, &'static [u8]> = get_embedded_assets();
+    
     tauri::Builder::default()
+        .register_uri_scheme_protocol("tauri", move |_webview, request| {
+            let uri_str = request.uri().to_string();
+            let path = uri_str.strip_prefix("tauri://localhost").unwrap_or("/");
+            let path = if path.is_empty() || path == "/" { "/index.html" } else { path };
+            
+            let (status, content_type, body) = if let Some(contents) = assets.get(path.trim_start_matches('/')) {
+                let content_type = mime_guess::from_path(path).first_or_text_plain().to_string();
+                (200, content_type, contents.to_vec())
+            } else {
+                // Fallback to index.html for SPA routing
+                let contents = assets.get("index.html").copied().unwrap_or(b"Frontend not found");
+                (200, "text/html".to_string(), contents.to_vec())
+            };
+            
+            tauri::http::Response::builder()
+                .status(status)
+                .header("Content-Type", content_type)
+                .body(body)
+                .unwrap()
+        })
         .invoke_handler(tauri::generate_handler![
             list_profiles, docker, docker_check, docker_pull, env_check, install_tools, network_probe, kubectl, open_terminal, open_homebrew_install, start_profile, apply_resources,
             stop_profile, force_stop_profile, restart_profile, colima_config, network_facts, vm_dns_probe, apply_mounts, apply_env, force_restart_profile, delete_profile, cancel_vm_op, host_resources, vm_log_tail, reveal_vm_log, open_url, pick_folder, setup_report, setup_fix, find_compose_files, reveal_compose, compose_editor, open_compose, compose_config, compose_action, cancel_compose, compose_logs, compose_in_folder, container_shell,
