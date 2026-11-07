@@ -67,13 +67,12 @@ export function ProjectPorts({ environmentId }: ProjectPortsProps) {
     onSuccess: (_, __, context) => {
       const port = context?.port;
       if (port) {
+        const portMapping = ports.find((p) => p.containerPort === port);
+        const protocol = portMapping?.protocol || "tcp";
+        const collisionKey = `${port}:${protocol}`;
         setCollisionErrors((prev) => {
           const next = { ...prev };
-          Object.keys(next).forEach((key) => {
-            if (key.startsWith(`${port}:`)) {
-              delete next[key];
-            }
-          });
+          delete next[collisionKey];
           return next;
         });
         setForwardingPorts((prev) => {

@@ -83,14 +83,6 @@ export function Dialog({
         }
       };
       document.addEventListener("keydown", handleKeyDown);
-      // Focus first focusable element or close button
-      // Use requestAnimationFrame to ensure portal has mounted
-      requestAnimationFrame(() => {
-        const firstFocusable = contentRef.current?.querySelector<HTMLElement>(
-          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-        );
-        firstFocusable?.focus();
-      });
       return () => {
         document.removeEventListener("keydown", handleKeyDown);
         document.body.style.overflow = "";
