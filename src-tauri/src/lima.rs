@@ -821,7 +821,7 @@ pub async fn project_detect_config(project_id: String, project_path: String) -> 
             let spec = parse_devcontainer_json(&content, &project_path).await?;
             
             // Check for referenced docker-compose
-            let has_compose = devcontainer_entries.iter().any(|e| e.ends_with(".yml") || e.ends_with(".yaml"));
+            let _has_compose = devcontainer_entries.iter().any(|e| e.ends_with(".yml") || e.ends_with(".yaml"));
             
             return Ok(DetectResult {
                 config_type: "devcontainer".to_string(),
@@ -1024,7 +1024,7 @@ async fn get_git_has_uncommitted_changes(path: &str) -> Result<bool, String> {
     Ok(!String::from_utf8_lossy(&output.stdout).trim().is_empty())
 }
 
-async fn parse_devcontainer_json(content: &str, project_path: &str) -> Result<DevContainerSpec, String> {
+async fn parse_devcontainer_json(content: &str, _project_path: &str) -> Result<DevContainerSpec, String> {
     // Strip JSON comments (devcontainer.json supports // and /* */)
     let stripped = strip_json_comments(content);
     let parsed: serde_json::Value = serde_json::from_str(&stripped).map_err(|e| format!("Failed to parse devcontainer.json: {e}"))?;
@@ -1036,7 +1036,7 @@ async fn parse_devcontainer_json(content: &str, project_path: &str) -> Result<De
         arr.iter().filter_map(|m| {
             let source = m.get("source")?.as_str()?.replace("~", &home_dir);
             let target = m.get("target")?.as_str()?;
-            let mount_type = m.get("type").and_then(|v| v.as_str()).unwrap_or("bind");
+            let _mount_type = m.get("type").and_then(|v| v.as_str()).unwrap_or("bind");
             let readonly = m.get("readonly").and_then(|v| v.as_bool()).unwrap_or(false);
             Some(MountSpec {
                 source,
@@ -1277,6 +1277,8 @@ fn strip_json_comments(json: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    use super::lima_cli;
+
     #[test]
     fn test_lima_cli_path() {
         let cli = lima_cli();

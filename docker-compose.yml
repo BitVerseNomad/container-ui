@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  container-ui:
+    image: ${{env.APP_IMAGE:-ghcr.io/bitverse/container-ui:latest}}
+    ports:
+      - "1420:1420"
+    environment:
+      - DATABASE_URL=sqlite:///./data/containers.db
+      - NODE_ENV=production
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      - docker
+    
+  docker:
+    image: docker:24.0-dind
+    privileged: true
+    environment:
+      - DOCKER_TLS_CERTDIR=/certs
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./certs:/certs
+    command: ["dockerd", "--host=unix:///var/run/docker.sock", "--userland-proxy=false"]
+    
+  compose:
+    image: docker/compose:2.27.0
+    depends_on:
+      - docker
+    volumes:
+      - ./docker-compose.yml:/etc/docker-compose.yml
+    command: ["up", "--abort-on-container-exit"]
