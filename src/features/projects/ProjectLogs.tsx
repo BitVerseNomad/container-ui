@@ -19,7 +19,6 @@ interface ProjectLogsProps {
 const STORAGE_KEY = "project-logs-";
 const MAX_STORED_LOGS = 5000;
 const VIRTUALIZATION_THRESHOLD = 1000;
-const ITEM_HEIGHT = 22;
 
 type LogStream = "all" | "stdout" | "stderr" | "system";
 
@@ -32,12 +31,22 @@ export function ProjectLogs({ environmentId, onClose }: ProjectLogsProps) {
   const [showFilters, setShowFilters] = useState(false);
   const [virtualized, setVirtualized] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [itemHeight, setItemHeight] = useState(22);
   const listRef = useRef<HTMLDivElement>(null);
   const scrollAnchorRef = useRef<HTMLDivElement>(null);
   const unlistenRef = useRef<(() => void) | null>(null);
   const logsTitleId = useId();
   const logsStatusId = useId();
   const searchInputId = useId();
+  const firstItemRef = useRef<HTMLDivElement>(null);
+
+  // Measure actual line height for virtualization
+  useEffect(() => {
+    if (firstItemRef.current) {
+      const h = firstItemRef.current.getBoundingClientRect().height;
+      setItemHeight(Math.max(22, Math.ceil(h)));
+    }
+  }, []);
 
   const filteredLogs = useMemo(() => {
     return logs.filter((log) => {
@@ -190,18 +199,18 @@ export function ProjectLogs({ environmentId, onClose }: ProjectLogsProps) {
     const container = listRef.current;
     const scrollTop = container.scrollTop;
     const containerHeight = container.clientHeight;
-    const startIndex = Math.max(0, Math.floor(scrollTop / ITEM_HEIGHT) - 10);
+    const startIndex = Math.max(0, Math.floor(scrollTop / itemHeight) - 10);
     const endIndex = Math.min(
       filteredLogs.length,
-      Math.ceil((scrollTop + containerHeight) / ITEM_HEIGHT) + 10
+      Math.ceil((scrollTop + containerHeight) / itemHeight) + 10
     );
 
     return filteredLogs.slice(startIndex, endIndex);
-  }, [filteredLogs, virtualized]);
+  }, [filteredLogs, virtualized, itemHeight]);
 
-  const totalHeight = virtualized ? filteredLogs.length * ITEM_HEIGHT : undefined;
+  const totalHeight = virtualized ? filteredLogs.length * itemHeight : undefined;
   const offsetY = virtualized && listRef.current
-    ? Math.max(0, Math.floor(listRef.current.scrollTop / ITEM_HEIGHT) - 10) * ITEM_HEIGHT
+    ? Math.max(0, Math.floor(listRef.current.scrollTop / itemHeight) - 10) * itemHeight
     : 0;
 
   // Handle Escape key to close
@@ -376,6 +385,7 @@ export function ProjectLogs({ environmentId, onClose }: ProjectLogsProps) {
                       {visibleItems.map((log, index) => (
                         <div
                           key={index}
+                          ref={index === 0 ? firstItemRef : undefined}
                           className={cn(
                             "whitespace-pre-wrap break-all py-0.5",
                             getStreamColor(log.stream)

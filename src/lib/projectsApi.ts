@@ -197,9 +197,7 @@ export function useUnforwardPort() {
 export function useEnvironmentLogs(environmentId: string | null, onLog: (log: import("@/shared/types/environment").LogLine) => void) {
   return useMutation({
     mutationFn: async (id: string) => {
-      const unlisten = await import("@tauri-apps/api/event").then(({ listen }) =>
-        listen<import("@/shared/types/environment").LogLine>(`project-env-logs-${id}`, (e) => onLog(e.payload))
-      );
+      const unlisten = await listen<import("@/shared/types/environment").LogLine>(`project-env-logs-${id}`, (e) => onLog(e.payload));
       return unlisten;
     },
   });

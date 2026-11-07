@@ -139,9 +139,9 @@ export function useProjectTerminal({
     terminal.write(`Connected to environment ${environmentId.slice(0, 12)}\r\n\r\n`);
 
     if (scrollback.length > 0) {
+      scrollbackWrittenRef.current = scrollback.length; // SET FIRST
       terminal.write(scrollback.join(""));
       terminal.write("\r\n--- Scrollback restored ---\r\n\r\n");
-      scrollbackWrittenRef.current = scrollback.length;
     }
 
     setIsConnected(true);
@@ -195,11 +195,18 @@ export function useProjectTerminal({
     }
   }, [environmentId, execMutation, addToScrollback]);
 
-  const handleDisconnect = useCallback(() => {
+  const handleDisconnect = useCallback(async () => {
     if (!isMountedRef.current) return;
 
     setIsConnected(false);
     if (onDisconnect) onDisconnect();
+
+    // Quick health check
+    try {
+      await projectsApi.getEnvironment(environmentId); // Verify env exists
+    } catch {
+      return; // Don't reconnect if env gone
+    }
 
     // Schedule reconnection
     if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
@@ -213,7 +220,7 @@ export function useProjectTerminal({
         }
       }, RECONNECT_INTERVAL);
     }
-  }, [reconnectAttempts, initializeTerminal, onDisconnect]);
+  }, [reconnectAttempts, initializeTerminal, onDisconnect, environmentId]);
 
   const reconnect = useCallback(async () => {
     setReconnectAttempts(0);

@@ -42,6 +42,7 @@ export function ProjectDetail({
   const [showEnvVars, setShowEnvVars] = useState(false);
   const [detecting, setDetecting] = useState(false);
   const [envLoading, setEnvLoading] = useState(true);
+  const [showVmStartPrompt, setShowVmStartPrompt] = useState(false);
 
   // Fetch environment for this project
   const { data: envData, refetch: refetchEnvironment, isLoading: envQueryLoading } = useQuery({
@@ -110,7 +111,11 @@ export function ProjectDetail({
       success("Environment started", "The development environment is now running.");
     },
     onError: (err) => {
-      toastError("Failed to start environment", err instanceof Error ? err.message : "Unknown error");
+      const msg = err instanceof Error ? err.message : "";
+      if (msg.includes("VM not running") || msg.includes("lima") || msg.includes("colima")) {
+        setShowVmStartPrompt(true);
+      }
+      toastError("Failed to start environment", msg);
     },
   });
 
@@ -341,6 +346,26 @@ export function ProjectDetail({
                   Delete
                 </Button>
               </div>
+
+              {showVmStartPrompt && (
+                <Button
+                  variant="outline"
+                  onClick={async () => {
+                    try {
+                      await invoke("lima_ensure_vm");
+                      success("VM started", "Lima VM is now running. You can start the environment.");
+                      setShowVmStartPrompt(false);
+                      startEnv.mutate(environment.id);
+                    } catch (e) {
+                      toastError("Failed to start VM", e instanceof Error ? e.message : "Unknown error");
+                    }
+                  }}
+                  className="w-full sm:w-auto"
+                >
+                  <Activity className="h-4 w-4 mr-1" />
+                  Start Lima VM
+                </Button>
+              )}
 
               {isRunning && (
                 <>

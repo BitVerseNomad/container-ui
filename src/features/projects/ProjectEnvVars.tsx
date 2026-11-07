@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useId } from "react";
+import { useState, useEffect, useCallback, useId, useRef, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Dialog } from "@/ui/components/Dialog";
 import { Button } from "@/ui/Button";
@@ -107,6 +107,36 @@ export function ProjectEnvVars({ environmentId, isOpen, onClose }: ProjectEnvVar
   const [valueError, setValueError] = useState("");
   const keyInputId = useId();
   const valueInputId = useId();
+
+  // Virtualization for custom vars list
+  const VIRTUALIZATION_THRESHOLD = 20;
+  const [virtualized, setVirtualized] = useState(false);
+  const listRef = useRef<HTMLDivElement>(null);
+  const ITEM_HEIGHT = 60;
+
+  useEffect(() => {
+    setVirtualized(customVars.length > VIRTUALIZATION_THRESHOLD);
+  }, [customVars.length]);
+
+  const visibleCustomVars = useMemo(() => {
+    if (!virtualized || !listRef.current) return customVars;
+
+    const container = listRef.current;
+    const scrollTop = container.scrollTop;
+    const containerHeight = container.clientHeight;
+    const startIndex = Math.max(0, Math.floor(scrollTop / ITEM_HEIGHT) - 5);
+    const endIndex = Math.min(
+      customVars.length,
+      Math.ceil((scrollTop + containerHeight) / ITEM_HEIGHT) + 5
+    );
+
+    return customVars.slice(startIndex, endIndex);
+  }, [customVars, virtualized]);
+
+  const totalHeight = virtualized ? customVars.length * ITEM_HEIGHT : undefined;
+  const offsetY = virtualized && listRef.current
+    ? Math.max(0, Math.floor(listRef.current.scrollTop / ITEM_HEIGHT) - 5) * ITEM_HEIGHT
+    : 0;
 
   // Load environment variables from backend
   useEffect(() => {
@@ -383,49 +413,107 @@ export function ProjectEnvVars({ environmentId, isOpen, onClose }: ProjectEnvVar
               )}
 
               {customVars.length > 0 && (
-                <dl className="space-y-3" aria-label="Custom environment variables">
-                  {customVars.map((v) => (
+                <>
+                  {virtualized ? (
                     <div
-                      key={v.key}
-                      className={cn(
-                        "flex items-center justify-between p-3 rounded-lg border transition-colors",
-                        v.enabled
-                          ? "bg-[var(--color-bg-primary)] border-[var(--color-border-medium)]"
-                          : "bg-[var(--color-bg-tertiary)]/50 border-[var(--color-border-medium)] opacity-60"
-                      )}
+                      ref={listRef}
+                      className="max-h-[300px] overflow-y-auto"
+                      role="list"
+                      aria-label="Custom environment variables"
                     >
-                      <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <dt>
-                          <Badge variant="outline" size="sm" className="flex-shrink-0" aria-label="Custom variable">
-                            {SOURCE_ICONS.custom}
-                            Custom
-                          </Badge>
-                        </dt>
-                        <dd className="min-w-0">
-                          <code className="font-mono text-sm text-[var(--color-fg-primary)] truncate block">{v.key}</code>
-                          <MaskedValue value={v.value || ""} />
-                        </dd>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Switch
-                          checked={v.enabled}
-                          onChange={(enabled) => toggleVar(v.key, v.source, v.enabled)}
-                          ariaLabel={`${v.enabled ? "Disable" : "Enable"} ${v.key}`}
-                        />
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDeleteCustomVar(v.key)}
-                          disabled={saving}
-                          aria-label={`Delete ${v.key}`}
-                          className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand-primary)] rounded"
-                        >
-                          <Trash2 className="h-4 w-4 text-[var(--color-brand-danger)]" aria-hidden="true" />
-                        </Button>
+                      <div style={{ height: totalHeight, position: "relative" }}>
+                        <div style={{ transform: `translateY(${offsetY}px)` }}>
+                          {visibleCustomVars.map((v) => (
+                            <div
+                              key={v.key}
+                              className={cn(
+                                "flex items-center justify-between p-3 rounded-lg border transition-colors",
+                                v.enabled
+                                  ? "bg-[var(--color-bg-primary)] border-[var(--color-border-medium)]"
+                                  : "bg-[var(--color-bg-tertiary)]/50 border-[var(--color-border-medium)] opacity-60"
+                              )}
+                              role="listitem"
+                            >
+                              <div className="flex items-center gap-3 flex-1 min-w-0">
+                                <dt>
+                                  <Badge variant="outline" size="sm" className="flex-shrink-0" aria-label="Custom variable">
+                                    {SOURCE_ICONS.custom}
+                                    Custom
+                                  </Badge>
+                                </dt>
+                                <dd className="min-w-0">
+                                  <code className="font-mono text-sm text-[var(--color-fg-primary)] truncate block">{v.key}</code>
+                                  <MaskedValue value={v.value || ""} />
+                                </dd>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Switch
+                                  checked={v.enabled}
+                                  onChange={(enabled) => toggleVar(v.key, v.source, v.enabled)}
+                                  ariaLabel={`${v.enabled ? "Disable" : "Enable"} ${v.key}`}
+                                />
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => handleDeleteCustomVar(v.key)}
+                                  disabled={saving}
+                                  aria-label={`Delete ${v.key}`}
+                                  className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand-primary)] rounded"
+                                >
+                                  <Trash2 className="h-4 w-4 text-[var(--color-brand-danger)]" aria-hidden="true" />
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     </div>
-                  ))}
-                </dl>
+                  ) : (
+                    <dl className="space-y-3" aria-label="Custom environment variables">
+                      {customVars.map((v) => (
+                        <div
+                          key={v.key}
+                          className={cn(
+                            "flex items-center justify-between p-3 rounded-lg border transition-colors",
+                            v.enabled
+                              ? "bg-[var(--color-bg-primary)] border-[var(--color-border-medium)]"
+                              : "bg-[var(--color-bg-tertiary)]/50 border-[var(--color-border-medium)] opacity-60"
+                          )}
+                        >
+                          <div className="flex items-center gap-3 flex-1 min-w-0">
+                            <dt>
+                              <Badge variant="outline" size="sm" className="flex-shrink-0" aria-label="Custom variable">
+                                {SOURCE_ICONS.custom}
+                                Custom
+                              </Badge>
+                            </dt>
+                            <dd className="min-w-0">
+                              <code className="font-mono text-sm text-[var(--color-fg-primary)] truncate block">{v.key}</code>
+                              <MaskedValue value={v.value || ""} />
+                            </dd>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Switch
+                              checked={v.enabled}
+                              onChange={(enabled) => toggleVar(v.key, v.source, v.enabled)}
+                              ariaLabel={`${v.enabled ? "Disable" : "Enable"} ${v.key}`}
+                            />
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleDeleteCustomVar(v.key)}
+                              disabled={saving}
+                              aria-label={`Delete ${v.key}`}
+                              className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand-primary)] rounded"
+                            >
+                              <Trash2 className="h-4 w-4 text-[var(--color-brand-danger)]" aria-hidden="true" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </dl>
+                  )}
+                </>
               )}
             </CardContent>
           </Card>
