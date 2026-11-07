@@ -10,7 +10,15 @@
     "frontendDist": "../dist"
   },
   "app": {
-    "windows": [{ "title": "Container UI", "width": 980, "height": 640, "minWidth": 720, "minHeight": 480 }],
+    "windows": [
+      {
+        "title": "Container UI",
+        "width": 980,
+        "height": 640,
+        "minWidth": 720,
+        "minHeight": 480
+      }
+    ],
     "security": {
       "csp": "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src ipc: http://ipc.localhost; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
       "devCsp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src ipc: http://ipc.localhost ws://localhost:1420 http://localhost:1420; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
@@ -18,13 +26,35 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["dmg"],
-    "icon": ["icons/icon.icns", "icons/icon.png"],
+    "targets": [
+      "dmg",
+      "msi",
+      "appimage",
+      "deb"
+    ],
+    "icon": [
+      "icons/icon.icns",
+      "icons/icon.png",
+      "icons/icon.ico"
+    ],
     "macOS": {
       "entitlements": "entitlements.plist",
       "signingIdentity": "-",
-      "hardenedRuntime": true
-    }
+      "hardenedRuntime": true,
+      "minimumSystemVersion": "13.0"
+    },
+    "linux": {
+      "deb": {
+        "depends": [
+          "docker.io",
+          "docker-compose-plugin"
+        ]
+      },
+      "appimage": {
+        "bundleMediaFramework": true
+      }
+    },
+    "longDescription": "Container UI is a native application for managing container runtimes (Colima, OrbStack, Rancher Desktop, Podman Desktop, Docker Desktop). Provides unified interface for containers, images, volumes, networks, and Compose projects."
   },
   "plugins": {
     "updater": {
@@ -32,7 +62,9 @@
       "endpoints": [
         "https://github.com/BitVerseNomad/container-ui/releases/latest/download/{{target}}/{{current_version}}.json"
       ],
-      "windows": { "installMode": "passive" }
+      "windows": {
+        "installMode": "passive"
+      }
     }
   }
 }

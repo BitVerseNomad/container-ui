@@ -510,11 +510,15 @@ mod tests {
 
     #[tokio::test]
     async fn test_project_crud() {
+        std::env::set_var("HOME", "/tmp");
+        let temp_dir = std::env::temp_dir();
+        std::fs::create_dir_all(format!("{}/test-project", temp_dir.display())).unwrap();
+        
         let pool = test_pool().await;
         
         // Create
         let project = project_create(&pool, CreateProjectInput {
-            path: "/tmp/test-project".to_string(),
+            path: format!("{}/test-project", temp_dir.display()).to_string(),
             name: Some("Test Project".to_string()),
         }).await.unwrap();
         assert_eq!(project.name, "Test Project");
