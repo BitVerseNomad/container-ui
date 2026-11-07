@@ -1,11 +1,11 @@
 cask "container-ui" do
-  version "0.1.0"
-  sha256 "REPLACE_WITH_SHA256"
+  version "0.2.0"
+  sha256 "413529c42fcf3a8801c2657749b8518ca55d6f05bf8794e21f801fea16792a68"
 
-  url "https://github.com/filipesousaduty/container-ui/releases/download/v#{version}/container-ui_#{version}_aarch64.dmg"
+  url "https://github.com/BitVerseNomad/container-ui/releases/download/v#{version}/Container.UI_#{version}_aarch64.dmg"
   name "Container UI"
   desc "Unified container runtime UI - manage Colima, OrbStack, Rancher Desktop, Podman Desktop, Docker Desktop"
-  homepage "https://github.com/filipesousaduty/container-ui"
+  homepage "https://github.com/BitVerseNomad/container-ui"
 
   depends_on formula: "colima"
   depends_on formula: "docker"
