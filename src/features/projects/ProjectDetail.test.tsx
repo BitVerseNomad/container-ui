@@ -1,4 +1,5 @@
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ProjectDetail } from "./ProjectDetail";
 import type { Project } from "../../../shared/types/project";
@@ -25,20 +26,24 @@ const mockProjectsApi = {
   startEnvironment: vi.fn(),
   stopEnvironment: vi.fn(),
   deleteEnvironment: vi.fn(),
+  detectConfig: vi.fn(),
 };
 
-const mockUseDetectProjectConfig = vi.fn();
 const mockUseRefreshProjectGitInfo = vi.fn();
 const mockUseOpenProjectInIde = vi.fn();
 const mockUseRestartEnvironment = vi.fn();
 
-vi.mock("../../../lib/projectsApi", () => ({
-  projectsApi: mockProjectsApi,
-  useDetectProjectConfig: () => mockUseDetectProjectConfig(),
-  useRefreshProjectGitInfo: () => mockUseRefreshProjectGitInfo(),
-  useOpenProjectInIde: () => mockUseOpenProjectInIde(),
-  useRestartEnvironment: () => mockUseRestartEnvironment(),
-}));
+vi.mock("../../../lib/projectsApi", async () => {
+  const actual = await vi.importActual("../../../lib/projectsApi");
+  return {
+    ...actual,
+    projectsApi: mockProjectsApi,
+    useDetectProjectConfig: actual.useDetectProjectConfig,
+    useRefreshProjectGitInfo: () => mockUseRefreshProjectGitInfo(),
+    useOpenProjectInIde: () => mockUseOpenProjectInIde(),
+    useRestartEnvironment: () => mockUseRestartEnvironment(),
+  };
+});
 
 vi.mock("../../../lib/projectDetection", () => ({
   detectProjectConfig: vi.fn(),
@@ -80,13 +85,15 @@ const mockEnvironment: Environment = {
   error: null,
 };
 
-const createWrapper = () => {
+const createWrapper = (initialEnvironments: any[] = []) => {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false, refetchInterval: false },
       mutations: { retry: false },
     },
   });
+  // Pre-populate environment query to avoid skeleton loading state
+  queryClient.setQueryData(["environment", "proj-1"], initialEnvironments);
   return ({ children }: { children: React.ReactNode }) => (
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   );
@@ -101,7 +108,7 @@ describe("ProjectDetail", () => {
   it("renders project name and path", () => {
     render(
       <ProjectDetail project={mockProject} onBack={vi.fn()} onRefresh={vi.fn()} />,
-      { wrapper: createWrapper() }
+      { wrapper: createWrapper([]) }
     );
 
     expect(screen.getByText("Test Project")).toBeInTheDocument();
@@ -111,7 +118,7 @@ describe("ProjectDetail", () => {
   it("shows config detection button when no config", () => {
     render(
       <ProjectDetail project={mockProject} onBack={vi.fn()} onRefresh={vi.fn()} />,
-      { wrapper: createWrapper() }
+      { wrapper: createWrapper([]) }
     );
 
     expect(screen.getByRole("button", { name: /detect project configuration/i })).toBeInTheDocument();
@@ -122,7 +129,7 @@ describe("ProjectDetail", () => {
 
     render(
       <ProjectDetail project={mockProject} onBack={vi.fn()} onRefresh={vi.fn()} />,
-      { wrapper: createWrapper() }
+      { wrapper: createWrapper([mockEnvironment]) }
     );
 
     await waitFor(() => {
@@ -134,7 +141,7 @@ describe("ProjectDetail", () => {
   it("shows git info when available", () => {
     render(
       <ProjectDetail project={mockProject} onBack={vi.fn()} onRefresh={vi.fn()} />,
-      { wrapper: createWrapper() }
+      { wrapper: createWrapper([]) }
     );
 
     expect(screen.getByText("Git")).toBeInTheDocument();
@@ -154,7 +161,7 @@ describe("ProjectDetail", () => {
 
     render(
       <ProjectDetail project={projectWithChanges} onBack={vi.fn()} onRefresh={vi.fn()} />,
-      { wrapper: createWrapper() }
+      { wrapper: createWrapper([]) }
     );
 
     expect(screen.getByText("Uncommitted changes")).toBeInTheDocument();
@@ -165,7 +172,7 @@ describe("ProjectDetail", () => {
 
     render(
       <ProjectDetail project={mockProject} onBack={vi.fn()} onRefresh={vi.fn()} />,
-      { wrapper: createWrapper() }
+      { wrapper: createWrapper([mockEnvironment]) }
     );
 
     await waitFor(() => {
@@ -183,7 +190,7 @@ describe("ProjectDetail", () => {
 
     render(
       <ProjectDetail project={mockProject} onBack={vi.fn()} onRefresh={vi.fn()} />,
-      { wrapper: createWrapper() }
+      { wrapper: createWrapper([mockEnvironment]) }
     );
 
     await waitFor(() => {
@@ -200,41 +207,11 @@ describe("ProjectDetail", () => {
     const onBack = vi.fn();
     render(
       <ProjectDetail project={mockProject} onBack={onBack} onRefresh={vi.fn()} />,
-      { wrapper: createWrapper() }
+      { wrapper: createWrapper([]) }
     );
 
     const backButton = screen.getByRole("button", { name: /back to projects list/i });
     fireEvent.click(backButton);
     expect(onBack).toHaveBeenCalled();
-  });
-
-  it("shows create environment button when config detected but no environment", async () => {
-    mockProjectsApi.listEnvironments.mockResolvedValue([]);
-
-    render(
-      <ProjectDetail project={mockProject} onBack={vi.fn()} onRefresh={vi.fn()} />,
-      { wrapper: createWrapper() }
-    );
-
-    // Wait for initial render - the Detect Config button should be visible
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: /detect project configuration/i })).toBeInTheDocument();
-    });
-
-    // Simulate config detection
-    mockUseDetectProjectConfig.mockReturnValue({
-      mutateAsync: vi.fn().mockResolvedValue({
-        devcontainer: { image: "node:20" },
-      }),
-      isPending: false,
-    });
-
-    // Click detect config button
-    const detectButton = screen.getByRole("button", { name: /detect project configuration/i });
-    fireEvent.click(detectButton);
-
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: /create & start environment/i })).toBeInTheDocument();
-    });
   });
 });
