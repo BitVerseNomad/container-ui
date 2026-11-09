@@ -359,7 +359,7 @@ export default function App() {
       <ResizeProvider value={{ profile: current, host, pick, runVm, containers: doc.containers, locked: vmLocked, vmBusy: vm.op !== null, onProfiles: () => setTab("Profiles") }}>
         <ToastProvider position="top-right">
           <Shell onCommands={() => setLogOpen(true)} badges={{ Doctor: doctorTodo }} hidden={kubeOn ? [] : ["Kubernetes"]} nav={tab} onNav={(t) => { setDetailId(null); setPullOnOpen(false); setNewProfileOnOpen(false); setTab(t); }} profiles={profiles} active={active} onSelect={switchTo} onVm={vmFromAnywhere} onRestart={(name) => vmFromAnywhere(name, "starting", true)} vmBusy={vmLocked} vmOp={vm.op && opName(vm) ? { name: opName(vm)!, op: vm.op } : null} onNewProfile={() => { setDetailId(null); setNewProfileOnOpen(true); setTab("Profiles"); }}>
-            {!(tab === "Containers" && detailId) && <PageHeader title={tab} />}
+            {!(tab === "Containers" && detailId) && tab !== "Projects" && <PageHeader title={tab} />}
             <Banner error={profilesError} />
             <Banner error={appError} onClose={() => setAppError(null)} />
             {page}

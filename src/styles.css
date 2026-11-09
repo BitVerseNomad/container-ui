@@ -1,4 +1,4 @@
-.ai-send:disabled { opacity: 0.5; cursor: not-allowed; }
+*{box-sizing:border-box}html,body,#root{height:100%}body{margin:0;background:var(--color-bg-primary);color:var(--color-fg-primary);font-family:var(--font-sans);-webkit-font-smoothing:antialiased}.page-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 20px;border-bottom:1px solid var(--color-border-light);background:var(--color-bg-primary);flex-shrink:0}.page-head h1{margin:0;font-size:18px;font-weight:600;line-height:1.2}.ai-send:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* Onboarding Modal (legacy - kept for reference) */
 .onboarding-overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); display: flex; align-items: center; justify-content: center; z-index: var(--z-toast); padding: var(--space-4); animation: onboarding-fade-in 0.2s ease-out; }
