@@ -14,11 +14,11 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const variantClasses: Record<ButtonVariant, string> = {
-  primary: "bg-[var(--md-sys-color-primary)] text-[var(--md-sys-color-on-primary)] border-[var(--md-sys-color-primary)] hover:bg-[var(--md-sys-color-primary)]/90 active:bg-[var(--md-sys-color-primary)]",
-  secondary: "bg-[var(--md-sys-color-surface-container)] text-[var(--md-sys-color-on-surface)] border-[var(--md-sys-color-outline)] hover:bg-[var(--md-sys-color-surface-variant)] active:bg-[var(--md-sys-color-surface-variant)]",
-  ghost: "bg-transparent text-[var(--md-sys-color-primary)] border-transparent hover:bg-[var(--md-sys-color-primary-container)] active:bg-[var(--md-sys-color-primary-container)]",
-  danger: "bg-[var(--md-sys-color-error)] text-[var(--md-sys-color-on-error)] border-[var(--md-sys-color-error)] hover:bg-[var(--md-sys-color-error)]/90 active:bg-[var(--md-sys-color-error)]",
-  text: "bg-transparent text-[var(--md-sys-color-primary)] border-transparent hover:bg-[var(--md-sys-color-primary-container)] active:bg-[var(--md-sys-color-primary-container)] px-0",
+  primary: "bg-[var(--color-brand-primary)] text-[var(--color-on-primary)] border-[var(--color-brand-primary)] hover:bg-[var(--color-brand-primary-hover)] active:bg-[var(--color-brand-primary)]",
+  secondary: "bg-[var(--color-bg-tertiary)] text-[var(--color-fg-primary)] border-[var(--color-border-medium)] hover:bg-[var(--color-bg-hover)] active:bg-[var(--color-bg-active)]",
+  ghost: "bg-transparent text-[var(--color-brand-primary)] border-transparent hover:bg-[var(--color-brand-primary-light)] active:bg-[var(--color-brand-primary-light)]",
+  danger: "bg-[var(--color-brand-danger)] text-[var(--color-on-primary)] border-[var(--color-brand-danger)] hover:bg-[var(--color-brand-danger)]/90 active:bg-[var(--color-brand-danger)]",
+  text: "bg-transparent text-[var(--color-brand-primary)] border-transparent hover:bg-[var(--color-brand-primary-light)] active:bg-[var(--color-brand-primary-light)] px-0",
 };
 
 const sizeClasses: Record<ButtonSize, string> = {
