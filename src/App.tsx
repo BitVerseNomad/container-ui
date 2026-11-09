@@ -31,7 +31,7 @@ import { readDesktop, readDesktopOnFocus } from "./desktopOffer";
 import { dockerLocked, setVmBusy } from "./dockerLock";
 import { useHost } from "./useHostSize";
 import { runtimeRegistry } from "./runtime";
-import Onboarding from "./Onboarding";
+
 import CommandPalette from "./CommandPalette";
 import { useKeyboardShortcuts, KeyboardShortcut, Command } from "./hooks/useKeyboardShortcuts";
 import { ProjectsPage } from "./features/projects/ProjectsPage";
@@ -317,10 +317,6 @@ export default function App() {
       <Kubernetes key={ctx} profile={current!} ctx={ctx} />
     );
 
-  const [onboardingDone, setOnboardingDone] = useState(false);
-
-  const completeOnboarding = () => setOnboardingDone(true);
-
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
 
   const commands = useMemo<Command[]>(() => [
@@ -361,7 +357,6 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ResizeProvider value={{ profile: current, host, pick, runVm, containers: doc.containers, locked: vmLocked, vmBusy: vm.op !== null, onProfiles: () => setTab("Profiles") }}>
-        {!onboardingDone && <Onboarding onComplete={completeOnboarding} />}
         <ToastProvider position="top-right">
           <Shell onCommands={() => setLogOpen(true)} badges={{ Doctor: doctorTodo }} hidden={kubeOn ? [] : ["Kubernetes"]} nav={tab} onNav={(t) => { setDetailId(null); setPullOnOpen(false); setNewProfileOnOpen(false); setTab(t); }} profiles={profiles} active={active} onSelect={switchTo} onVm={vmFromAnywhere} onRestart={(name) => vmFromAnywhere(name, "starting", true)} vmBusy={vmLocked} vmOp={vm.op && opName(vm) ? { name: opName(vm)!, op: vm.op } : null} onNewProfile={() => { setDetailId(null); setNewProfileOnOpen(true); setTab("Profiles"); }}>
             {!(tab === "Containers" && detailId) && <PageHeader title={tab} />}

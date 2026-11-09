@@ -145,20 +145,20 @@ export default function Shell({ nav, onNav, profiles, active, onSelect, onNewPro
           </nav>
 
         <div className="shortcuts-panel" aria-label="Keyboard shortcuts">
-          <h3 className="shortcuts-title">Atalhos</h3>
+          <h3 className="shortcuts-title">Shortcuts</h3>
           <dl className="shortcuts-list">
             <dt>⌘K</dt><dd>Command Palette</dd>
-            <dt>⌘1–7</dt><dd>Abas rápidas</dd>
+            <dt>⌘0–7</dt><dd>Tabs</dd>
             <dt>⌘B</dt><dd>Toggle Sidebar</dd>
-            <dt>Esc</dt><dd>Fechar painéis</dd>
-            <dt>⌘N</dt><dd>Novo container</dd>
-            <dt>⌘P</dt><dd>Pull image</dd>
-            <dt>⌘D</dt><dd>Doctor checks</dd>
+            <dt>Esc</dt><dd>Close Panels</dd>
+            <dt>⌘N</dt><dd>New Container</dd>
+            <dt>⌘P</dt><dd>Pull Image</dd>
+            <dt>⌘D</dt><dd>Doctor Checks</dd>
             <dt>⌘⇧A</dt><dd>AI Assistant</dd>
-            <dt>⌘⇧N</dt><dd>Novo profile</dd>
-            <dt>↑/↓</dt><dd>Navegar listas</dd>
-            <dt>Enter</dt><dd>Confirmar</dd>
-            <dt>Esc</dt><dd>Fechar/Fechar modais</dd>
+            <dt>⌘⇧N</dt><dd>New Profile</dd>
+            <dt>↑/↓</dt><dd>Navigate Lists</dd>
+            <dt>Enter</dt><dd>Confirm</dd>
+            <dt>Esc</dt><dd>Close/Close Modals</dd>
           </dl>
         </div>
       </div>
