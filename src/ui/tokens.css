@@ -11,6 +11,7 @@
   --color-fg-secondary: #334155;
   --color-fg-tertiary: #64748b;
   --color-fg-inverse: #ffffff;
+  --color-on-primary: #ffffff;
 
   --color-brand-primary: #3b82f6;
   --color-brand-primary-hover: #2563eb;
@@ -99,6 +100,7 @@
     --color-fg-secondary: #e2e8f0;
     --color-fg-tertiary: #94a3b8;
     --color-fg-inverse: #0f172a;
+    --color-on-primary: #0f172a;
 
     --color-brand-primary: #60a5fa;
     --color-brand-primary-hover: #93c5fd;
