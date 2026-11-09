@@ -1277,6 +1277,8 @@ fn strip_json_comments(json: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    use super::lima_cli;
+
     #[test]
     fn test_lima_cli_path() {
         let cli = lima_cli();

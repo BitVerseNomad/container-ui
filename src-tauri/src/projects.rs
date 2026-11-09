@@ -512,9 +512,12 @@ mod tests {
     async fn test_project_crud() {
         let pool = test_pool().await;
         
+        // Use a path that exists (current working directory)
+        let test_path = std::env::current_dir().unwrap().to_string_lossy().to_string();
+        
         // Create
         let project = project_create(&pool, CreateProjectInput {
-            path: "/tmp/test-project".to_string(),
+            path: test_path,
             name: Some("Test Project".to_string()),
         }).await.unwrap();
         assert_eq!(project.name, "Test Project");

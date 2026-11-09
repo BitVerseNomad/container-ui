@@ -1,0 +1,193 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., 0.1.0)'
+        required: true
+        type: string
+      dry_run:
+        description: 'Dry run (skip publishing)'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+env:
+  CARGO_INCREMENTAL: 0
+  RUST_BACKTRACE: short
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    outputs:
+      release_id: ${{ steps.create_release.outputs.id }}
+      version: ${{ steps.get_version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get version
+        id: get_version
+        env:
+          RELEASE_INPUT_VERSION: ${{ github.event.inputs.version }}
+          RELEASE_REF: ${{ github.ref }}
+        run: |
+          if [[ -n "$RELEASE_INPUT_VERSION" ]]; then
+            echo "version=$RELEASE_INPUT_VERSION" >> "$GITHUB_OUTPUT"
+          elif [[ "$RELEASE_REF" == refs/tags/* ]]; then
+            echo "version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=0.0.0-dev" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create GitHub Release (draft)
+        id: create_release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.get_version.outputs.version }}
+          draft: true
+          generate_release_notes: true
+          name: Container UI v${{ steps.get_version.outputs.version }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-macos:
+    needs: create-release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            arch: arm64
+            runner: macos-14
+          - target: x86_64-apple-darwin
+            arch: x64
+            runner: macos-13
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_IDENTITY: ${{ secrets.APPLE_CERTIFICATE_NAME }}
+          TAURI_APPLE_ID: ${{ secrets.APPLE_ID }}
+          TAURI_APPLE_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          TAURI_APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        with:
+          tagName: v${{ needs.create-release.outputs.version }}
+          releaseName: Container UI v${{ needs.create-release.outputs.version }}
+          releaseBody: |
+            ## Container UI v${{ needs.create-release.outputs.version }}
+
+            ### Features
+            - Project management with auto-detection (devcontainer, compose, Dockerfile)
+            - Environment lifecycle (create, start, stop, restart, delete)
+            - Terminal with xterm.js (reconnection, scrollback, Ctrl+C/L/D)
+            - Logs (filter, search, pause, virtualization >1000 lines)
+            - Port forwarding (collision handling, inline retry, copy to clipboard)
+            - Auto-injected credentials (SSH agent, Git user/email, GH_TOKEN)
+
+          args: --target ${{ matrix.target }}
+
+      - name: Upload DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dmg-${{ matrix.arch }}
+          path: src-tauri/target/release/bundle/dmg/*.dmg
+          retention-days: 7
+
+      - name: Upload update manifest artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: latest-yml-${{ matrix.target }}
+          path: src-tauri/target/release/bundle/macos/*.yml
+          retention-days: 1
+
+  combine-and-publish:
+    needs: [create-release, build-macos]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download arm64 artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dmg-arm64
+          path: artifacts/arm64
+
+      - name: Download x64 artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dmg-x64
+          path: artifacts/x64
+
+      - name: Download arm64 update manifest
+        uses: actions/download-artifact@v4
+        with:
+          name: latest-yml-aarch64-apple-darwin
+          path: artifacts/arm64/manifest
+
+      - name: Download x64 update manifest
+        uses: actions/download-artifact@v4
+        with:
+          name: latest-yml-x86_64-apple-darwin
+          path: artifacts/x64/manifest
+
+      - name: Create universal update manifests
+        run: |
+          # Create combined latest.yml (for x64)
+          cat artifacts/x64/manifest/latest.yml > artifacts/latest.yml
+          
+          # Create arm64-specific manifest
+          cat artifacts/arm64/manifest/latest.yml > artifacts/latest-arm64.yml
+          
+          # Create universal manifest (points to both)
+          cat > artifacts/latest.yml <<EOF
+          version: ${VERSION}
+          notes: ""
+          pub_date: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          platforms:
+            darwin-x86_64:
+              signature: ""
+              url: https://github.com/${GITHUB_REPOSITORY}/releases/download/v${VERSION}/Container%20UI_${VERSION}_x64.dmg
+            darwin-arm64:
+              signature: ""
+              url: https://github.com/${GITHUB_REPOSITORY}/releases/download/v${VERSION}/Container%20UI_${VERSION}_arm64.dmg
+          EOF
+
+      - name: Upload all assets to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.create-release.outputs.version }}
+          draft: false
+          files: |
+            artifacts/arm64/Container UI_*.dmg
+            artifacts/x64/Container UI_*.dmg
+            artifacts/latest.yml
+            artifacts/latest-arm64.yml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
