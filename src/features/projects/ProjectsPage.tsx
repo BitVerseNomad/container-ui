@@ -90,10 +90,10 @@ function ProjectsPageContent() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between p-4 border-b">
+      <div className="flex items-center justify-between px-5 py-3 border-b">
         <div>
-          <h1 className="text-xl font-semibold">Projects</h1>
-          <p className="text-sm text-[var(--color-fg-tertiary)]">Manage your containerized development environments</p>
+          <h1 className="text-lg font-semibold leading-tight">Projects</h1>
+          <p className="text-xs text-[var(--color-fg-tertiary)] mt-0.5">Containerized development environments</p>
         </div>
         <div className="flex items-center gap-2">
           <CreateProjectDialog onSubmit={handleCreate} onOpenChange={setCreateOpen} />
@@ -123,12 +123,12 @@ function ProjectsPageContent() {
         )}
 
         {projects && projects.length === 0 && !isLoading && (
-          <div className="text-center py-16">
-            <div className="mx-auto mb-4 p-3 bg-[var(--color-bg-tertiary)] rounded-full w-16 h-16 flex items-center justify-center">
-              <FolderOpen className="h-8 w-8 text-[var(--color-fg-tertiary)]" />
+          <div className="text-center py-10">
+            <div className="mx-auto mb-3 p-3 bg-[var(--color-bg-tertiary)] rounded-full w-14 h-14 flex items-center justify-center">
+              <FolderOpen className="h-7 w-7 text-[var(--color-fg-tertiary)]" />
             </div>
-            <h2 className="text-lg font-medium text-[var(--color-fg-secondary)] mb-2">No projects yet</h2>
-            <p className="text-[var(--color-fg-tertiary)] mb-6">Create your first project to get started with containerized development environments.</p>
+            <h2 className="text-base font-medium text-[var(--color-fg-secondary)] mb-1">No projects yet</h2>
+            <p className="text-sm text-[var(--color-fg-tertiary)] mb-4">Create your first project to get started.</p>
             <CreateProjectDialog onSubmit={handleCreate} onOpenChange={setCreateOpen} />
           </div>
         )}

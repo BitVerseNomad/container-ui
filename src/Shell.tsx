@@ -44,7 +44,7 @@ type Props = {
   onCommands?: () => void;
 };
 
-const FOLD_KEY = "colima-ui:sidebar-folded";
+const FOLD_KEY = "container-ui:sidebar-folded";
 // Storage can be blocked; the sidebar then simply starts open.
 const readFolded = () => { try { return localStorage.getItem(FOLD_KEY) === "1"; } catch { return false; } };
 const saveFolded = (v: boolean) => { try { localStorage.setItem(FOLD_KEY, v ? "1" : "0"); } catch { /* not remembered */ } };
