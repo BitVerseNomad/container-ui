@@ -2,6 +2,7 @@ import { ReactNode, useState, useMemo, useCallback } from "react";
 import { forwardRef } from "react";
 import { Icon, IconName } from "../icons";
 import { Button } from "./Button";
+import "./Table.css";
 
 export interface Column<T> {
   key: string;
