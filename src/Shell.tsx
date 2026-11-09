@@ -5,6 +5,7 @@ import Menu from "./ui/Menu";
 import { runtimeRegistry } from "./runtime";
 import type { RuntimeInfo } from "./runtime";
 import { useKeyboardShortcuts, KeyboardShortcut } from "./hooks/useKeyboardShortcuts";
+import "./Shell.css";
 
 export type Tab = "Projects" | "Containers" | "Images" | "Volumes" | "Networks" | "Kubernetes" | "Profiles" | "Doctor";
 
