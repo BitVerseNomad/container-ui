@@ -11,7 +11,7 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(
     const variants = {
       default: "bg-[var(--color-bg-elevated)] border border-[var(--color-border)]",
       outlined: "bg-transparent border-2 border-[var(--color-border)]",
-      elevated: "bg-[var(--color-bg-elevated)] shadow-[0_4px_8px_rgba(0,0,0,0.08)] border-none",
+      elevated: "bg-[var(--color-bg-elevated)] shadow-[var(--color-shadow-base)] border-none",
     };
 
     const paddings = {

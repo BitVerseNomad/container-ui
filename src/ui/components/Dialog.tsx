@@ -87,7 +87,7 @@ export function Dialog({
                 <button
                   className="dialog-close"
                   onClick={onClose}
-                  aria-label="Fechar"
+                  aria-label="Close"
                   type="button"
                 >
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
@@ -178,7 +178,7 @@ export function Drawer({
           {(title) && (
             <div className="drawer-header">
               <h2 id="drawer-title" className="drawer-title">{title}</h2>
-              <button className="drawer-close" onClick={onClose} aria-label="Fechar" type="button">
+              <button className="drawer-close" onClick={onClose} aria-label="Close" type="button">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                   <path d="M18 6L6 18M6 6l12 12" />
                 </svg>

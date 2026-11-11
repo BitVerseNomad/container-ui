@@ -9,13 +9,13 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default:
-          "bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent-hover)] shadow-sm",
+          "bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent-hover)] shadow-[var(--color-shadow-sm)]",
         primary:
-          "bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent-hover)] shadow-sm",
+          "bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent-hover)] shadow-[var(--color-shadow-sm)]",
         destructive:
-          "bg-[var(--color-danger)] text-white hover:bg-[var(--color-danger)]/90 shadow-sm",
+          "bg-[var(--color-danger)] text-white hover:bg-[var(--color-danger)]/90 shadow-[var(--color-shadow-sm)]",
         danger:
-          "bg-[var(--color-danger)] text-white hover:bg-[var(--color-danger)]/90 shadow-sm",
+          "bg-[var(--color-danger)] text-white hover:bg-[var(--color-danger)]/90 shadow-[var(--color-shadow-sm)]",
         outline:
           "border border-[var(--color-border)] bg-transparent hover:bg-[var(--color-accent-muted)] hover:text-[var(--color-accent)]",
         secondary:

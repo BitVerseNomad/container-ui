@@ -137,7 +137,7 @@ export function Dialog({
               </button>
             </div>
           )}
-          <div className="p-6 max-h-[calc(90vh-120px)] overflow-y-auto">{children}</div>
+          <div className="p-6 max-h-[calc(90vh-7.5rem)] overflow-y-auto">{children}</div>
         </div>
       </div>
     </Fragment>,

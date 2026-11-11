@@ -1,5 +1,5 @@
 import { ReactNode, useState, useEffect, useMemo } from "react";
-import { Profile } from "./api";
+import { Profile, openUrl } from "./api";
 import { Icon, IconName } from "./ui/icons";
 import Menu from "./ui/Menu";
 import { runtimeRegistry } from "./runtime";
@@ -96,9 +96,10 @@ export default function Shell({ nav, onNav, profiles, active, onSelect, onNewPro
                   ? { label: "Stop VM", ariaLabel: `Stop the VM ${p.name}`, disabled: vmBusy, onSelect: () => onVm(p.name, "stopping") }
                   : { label: "Start VM", ariaLabel: `Start the VM ${p.name}`, disabled: vmBusy, onSelect: () => onVm(p.name, "starting") } })),
               // The VM's own Restart, which used to sit in the strip on the Containers screen.
-              ...(current?.status === "Running" && onRestart ? [{ label: "Restart VM", ariaLabel: `Restart the VM ${current.name}`, icon: <Icon name="restart" size={13} />, divider: true, disabled: vmBusy, onSelect: () => onRestart(current.name) }] : []),
-              { label: "New profile", icon: <Icon name="plus" size={13} />, divider: profiles.length > 0, onSelect: onNewProfile },
-              { label: "Manage profiles", icon: <Icon name="sliders" size={13} />, onSelect: () => onNav("Profiles") },
+              ...(current?.status === "Running" && onRestart ? [{ label: "Restart VM", ariaLabel: `Restart the VM ${current.name}`, icon: <Icon name="restart" size={13} />, divider: true, hint: "Restarts the VM without losing containers", disabled: vmBusy, onSelect: () => onRestart(current.name) }] : []),
+              { label: "New profile", icon: <Icon name="plus" size={13} />, divider: profiles.length > 0, hint: "Creates a new container VM profile", onSelect: onNewProfile },
+              { label: "Manage profiles", icon: <Icon name="sliders" size={13} />, hint: "Opens the Profiles screen", onSelect: () => onNav("Profiles") },
+              { label: "Give feedback", icon: <Icon name="external-link" size={13} />, hint: "Opens GitHub Discussions in your browser", onSelect: () => void openUrl("https://github.com/BitVerseNomad/container-ui/discussions") },
             ]}
           >
             <span className="logo">

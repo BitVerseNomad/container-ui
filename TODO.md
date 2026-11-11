@@ -24,7 +24,7 @@ Benchmark against `docs/SPEC.md` (spec) and `AGENTS.md` (UX rules).
 | X5 | Update `README.md` text for new UI | ✅ DONE | Screenshots retaken; feature text still accurate (design system migration = visual only, no functional changes) |
 | X6 | Verify `AGENTS.md` reflects design-system reality | ✅ DONE | UX rules are principle-based, still valid, no changes needed |
 | X7 | Cut GitHub releases for Mac/Windows/Linux | ❌ BLOCKED | OAuth token lacks `workflow` scope; GitHub rejects push (main + tag v0.2.1) because it would trigger `.github/workflows/release.yml`. Need a token with `workflow` scope, or push from a machine with proper credentials. Versions bumped to 0.2.1 locally (package.json, tauri.conf.json, Cargo.toml), committed locally as 87e6b7b but NOT pushed. Tag v0.2.1 created locally but NOT pushed. |
-| X8 | Add in-app feedback → GitHub Discussions entry point | ❌ NOT STARTED | Need to add a "Give feedback" button/link in the app pointing to GitHub Discussions |
+| X8 | Add in-app feedback → GitHub Discussions entry point | ✅ DONE | "Give feedback" menu item added to the profile switcher in Shell.tsx, opens GitHub Discussions in browser via openUrl() |
 | X9 | Final green check across both engines (WebKit + Chromium) | ✅ PARTIAL | Verified: npm test 98/98, tsc clean, npm run build succeeds, cargo 137 passed. Browser: WebKit + Chromium both load, all 7 tabs switch, menus open, keyboard works, zero console errors. Full `npm run check` (Playwright) not re-run after final commits but was green before. |
 
 ## Deferred (from SPEC.md, not this session)
