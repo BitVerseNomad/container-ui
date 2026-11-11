@@ -7,8 +7,8 @@ import OutputLog from "./ui/OutputLog";
 import ComposeLogs from "./ComposeLogs";
 import { Banner, useConfirm } from "./ui";
 import { Icon } from "./ui/icons";
-import Menu from "./ui/Menu";
-import type { MenuItem } from "./ui/Menu";
+import { Button } from "@ui/components/Button";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@ui/components/DropdownMenu";
 import { ComposeScan } from "./useComposeScan";
 import { cdPath, portHolder, projectName, projectsFrom, shellQuote, whyFailed } from "./lib/composeScan";
 import { docker, pinComposeStop } from "./api";
@@ -183,16 +183,6 @@ export default function ComposeProjects({ ctx, scan, containers, attention, onCl
           );
           // The common action is the button: Start when the project has stopped services, Stop when it runs. The rest are
           // under "More actions", each with a line on when you would use it.
-          const more: MenuItem[] = [
-            ...(up && stopped > 0 ? [{ label: "Stop", ariaLabel: `Stop ${p.name}`, hint: "When you're done for now. The containers stay, so Start is quick", disabled: off, onSelect: () => void run(p, "stop") }] : []),
-            ...(up ? [{ label: "Restart", ariaLabel: `Restart ${p.name}`, hint: "After you change a setting in compose.yaml", disabled: off, onSelect: () => void run(p, "restart") }] : []),
-            { label: "Rebuild and start", ariaLabel: `Rebuild ${p.name}`, hint: "After you change a Dockerfile or the code it copies in", disabled: off, onSelect: () => void run(p, "build") },
-            { label: "Update images and start", ariaLabel: `Update images of ${p.name}`, hint: "When a newer version of an image is out", disabled: off, onSelect: () => void run(p, "pull") },
-            ...(p.total > 0 ? [{ label: logsHere ? "Hide logs" : "Show logs", ariaLabel: `Logs of ${p.name}`, hint: "When something misbehaves and you want to see why", divider: true, onSelect: () => setLogsDir(logsHere ? null : p.dir) }] : []),
-            { label: cmdsOpen.has(p.dir) ? "Hide the commands" : "Run it yourself", ariaLabel: `${cmdsOpen.has(p.dir) ? "Hide" : "Show"} the commands to run ${p.name} yourself`, hint: "If you'd rather run it in Terminal yourself", onSelect: () => setCmdsOpen((o) => { const n = new Set(o); if (!n.delete(p.dir)) n.add(p.dir); return n; }) },
-            { label: "Show in Finder", ariaLabel: `Show ${p.name} in Finder`, hint: "To edit compose.yaml or the project's files", onSelect: () => void invoke("reveal_compose", { path: `${p.dir}/${p.files[0]}` }).then(() => setErr(null), (e) => setErr(String(e))) },
-            ...((up || leftovers) ? [{ label: "Remove containers", ariaLabel: `Remove containers of ${p.name}`, hint: "To start clean. Volumes and data are kept", danger: true, divider: true, disabled: off, onSelect: () => void run(p, "down") }] : []),
-          ];
           return (
             <li key={p.dir} className="compose-item">
               <div className="compose-head">
@@ -204,7 +194,63 @@ export default function ComposeProjects({ ctx, scan, containers, attention, onCl
               <div className="actions-inline">
                 {up && stopped === 0 ? btn("stop") : btn("up")}
                 {mine && <button className="small" onClick={() => invoke("cancel_compose").catch(() => {})}>Cancel</button>}
-                {!mine && <Menu label={`More actions for ${p.name}`} className="more" align="left" items={more}><Icon name="more" size={16} /></Menu>}
+                {!mine && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="sm" className="more" aria-label={`More actions for ${p.name}`}>
+                        <Icon name="more" size={16} />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent>
+                      {up && stopped > 0 && (
+                        <DropdownMenuItem key="stop" disabled={off} onSelect={() => void run(p, "stop")} aria-label={`Stop ${p.name}`}>
+                          <span>Stop</span>
+                          <span className="ml-auto text-xs opacity-60" aria-hidden="true">When you're done for now. The containers stay, so Start is quick.</span>
+                        </DropdownMenuItem>
+                      )}
+                      {up && (
+                        <DropdownMenuItem key="restart" disabled={off} onSelect={() => void run(p, "restart")} aria-label={`Restart ${p.name}`}>
+                          <span>Restart</span>
+                          <span className="ml-auto text-xs opacity-60" aria-hidden="true">After you change a setting in compose.yaml.</span>
+                        </DropdownMenuItem>
+                      )}
+                      <DropdownMenuItem key="build" disabled={off} onSelect={() => void run(p, "build")} aria-label={`Rebuild and start ${p.name}`}>
+                        <span>Rebuild and start</span>
+                        <span className="ml-auto text-xs opacity-60" aria-hidden="true">After you change a Dockerfile or the code it copies in.</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem key="pull" disabled={off} onSelect={() => void run(p, "pull")} aria-label={`Update images and start ${p.name}`}>
+                        <span>Update images and start</span>
+                        <span className="ml-auto text-xs opacity-60" aria-hidden="true">When a newer version of an image is out.</span>
+                      </DropdownMenuItem>
+                      {p.total > 0 && (
+                        <DropdownMenuSeparator key="sep" />
+                      )}
+                      {p.total > 0 && (
+                        <DropdownMenuItem key="logs" disabled={off} onSelect={() => setLogsDir(logsHere ? null : p.dir)} aria-label={`${logsHere ? "Hide" : "Show"} logs ${p.name}`}>
+                          <span>{logsHere ? "Hide logs" : "Show logs"}</span>
+                          <span className="ml-auto text-xs opacity-60" aria-hidden="true">When something misbehaves and you want to see why.</span>
+                        </DropdownMenuItem>
+                      )}
+                      <DropdownMenuItem key="run-yourself" onSelect={() => setCmdsOpen((o) => { const n = new Set(o); if (!n.delete(p.dir)) n.add(p.dir); return n; })} aria-label={`${cmdsOpen.has(p.dir) ? "Hide the commands" : "Run it yourself"} ${p.name}`}>
+                        <span>{cmdsOpen.has(p.dir) ? "Hide the commands" : "Run it yourself"}</span>
+                        <span className="ml-auto text-xs opacity-60" aria-hidden="true">If you'd rather run it in Terminal yourself.</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem key="finder" onSelect={() => void invoke("reveal_compose", { path: `${p.dir}/${p.files[0]}` }).then(() => setErr(null), (e) => setErr(String(e)))} aria-label={`Show ${p.name} in Finder`}>
+                        <span>Show in Finder</span>
+                        <span className="ml-auto text-xs opacity-60" aria-hidden="true">To edit compose.yaml or the project's files.</span>
+                      </DropdownMenuItem>
+                      {(up || leftovers) && (
+                        <DropdownMenuSeparator key="sep2" />
+                      )}
+                      {(up || leftovers) && (
+                        <DropdownMenuItem key="down" disabled={off} onSelect={() => void run(p, "down")} aria-label={`Remove containers of ${p.name}`}>
+                          <span>Remove containers</span>
+                          <span className="ml-auto text-xs opacity-60" aria-hidden="true">To start clean. Volumes and data are kept.</span>
+                        </DropdownMenuItem>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
               </div>
               {failed?.dir === p.dir && failed.why && !mine && (
                 <div className="note" role="status">

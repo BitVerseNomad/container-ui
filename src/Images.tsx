@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { score } from "./lib/fuzzy";
-import IconButton from "./ui/IconButton";
+import { Button } from "@ui/components/Button";
 import { useConfirm } from "./ui";
 import { docker, dockerJson } from "./api";
 import { usePoll } from "./hooks";
@@ -71,8 +71,8 @@ export default function Images({ ctx, onRan, startPull = false, arch }: { ctx: s
                   <td className="num">{parseBytes(i.Size) ? formatBytes(parseBytes(i.Size)) : i.Size}</td>
                   <td>{i.CreatedSince}</td>
                   <td className="row-actions">
-                    <IconButton label={`Run ${ref}`} icon="play" text onClick={() => setRunning(ref)} />
-                    <IconButton label={`Remove ${ref}`} icon="trash" text danger onClick={async () => (await confirm(`Remove image ${ref}?`)) && act(["rmi", ref])} />
+                    <Button variant="ghost" size="sm" icon={<Icon name="play" size={13} />} aria-label={`Run ${ref}`} onClick={() => setRunning(ref)}>Run</Button>
+                    <Button variant="destructive" size="sm" icon={<Icon name="trash" size={13} />} aria-label={`Remove ${ref}`} onClick={async () => (await confirm(`Remove image ${ref}?`)) && act(["rmi", ref])}>Remove</Button>
                   </td>
                 </tr>
               );

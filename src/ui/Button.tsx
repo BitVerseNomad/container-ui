@@ -11,46 +11,42 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant = "primary", size = "md", loading, fullWidth, disabled, children, ...props }, ref) => {
     const baseStyles = [
-      "inline-flex items-center justify-center font-medium rounded-lg",
+      "inline-flex items-center justify-center font-medium rounded-sm",
       "transition-colors duration-150 ease",
       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
+      "focus-visible:ring-[var(--color-focus)] focus-visible:ring-offset-[var(--color-bg)]",
       "disabled:opacity-50 disabled:pointer-events-none",
       "active:scale-[0.98]",
     ];
 
     const variants = {
       primary: [
-        "bg-[var(--color-brand-primary)] text-white",
-        "hover:bg-[var(--color-brand-primary-hover)]",
-        "focus-visible:ring-[var(--color-brand-primary)]",
+        "bg-[var(--color-accent)] text-white",
+        "hover:bg-[var(--color-accent-hover)]",
       ],
       secondary: [
-        "bg-[var(--color-bg-tertiary)] text-[var(--color-fg-primary)]",
-        "hover:bg-[var(--color-bg-hover)]",
-        "focus-visible:ring-[var(--color-border-medium)]",
+        "bg-[var(--color-border)] text-[var(--color-fg)]",
+        "hover:bg-[var(--color-border)]/80",
       ],
       outline: [
-        "border border-[var(--color-border-medium)] bg-transparent",
-        "hover:bg-[var(--color-bg-hover)]",
-        "focus-visible:ring-[var(--color-border-medium)]",
+        "border border-[var(--color-border)] bg-transparent",
+        "hover:bg-[var(--color-accent-muted)] hover:text-[var(--color-accent)]",
       ],
       ghost: [
         "bg-transparent",
-        "hover:bg-[var(--color-bg-hover)]",
-        "focus-visible:ring-[var(--color-border-medium)]",
+        "hover:bg-[var(--color-border)] hover:text-[var(--color-fg)]",
       ],
       danger: [
-        "bg-[var(--color-brand-danger)] text-white",
-        "hover:bg-[var(--color-brand-danger)]/90",
-        "focus-visible:ring-[var(--color-brand-danger)]",
+        "bg-[var(--color-danger)] text-white",
+        "hover:bg-[var(--color-danger)]/90",
       ],
     };
 
     const sizes = {
-      sm: "px-3 py-1.5 text-sm gap-1.5",
-      md: "px-4 py-2 text-sm gap-2",
-      lg: "px-6 py-3 text-base gap-2",
-      icon: "p-2",
+      sm: "h-8 px-3 text-xs gap-1.5",
+      md: "h-9 px-4 text-sm gap-2",
+      lg: "h-10 px-6 text-base gap-2",
+      icon: "h-9 w-9",
     };
 
     return (

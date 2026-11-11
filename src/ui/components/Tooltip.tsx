@@ -1,99 +1,27 @@
-import { ReactNode, useState, useRef, useEffect, useCallback } from "react";
-import { createPortal } from "react-dom";
+"use client";
 
-interface TooltipProps {
-  content: ReactNode;
-  children: ReactNode;
-  position?: "top" | "bottom" | "left" | "right";
-  delay?: number;
-  offset?: number;
-}
+import * as React from "react";
+import * as TooltipPrimitive from "@radix-ui/react-tooltip";
+import { cn } from "../utils";
 
-export function Tooltip({ content, children, position = "top", delay = 200, offset = 8 }: TooltipProps) {
-  const [isVisible, setIsVisible] = useState(false);
-  const [tooltipRect, setTooltipRect] = useState<DOMRect | null>(null);
-  const triggerRef = useRef<HTMLElement>(null);
-  const tooltipRef = useRef<HTMLDivElement>(null);
-  const timeoutRef = useRef<number>();
+const TooltipProvider = TooltipPrimitive.Provider;
+const Tooltip = TooltipPrimitive.Root;
+const TooltipTrigger = TooltipPrimitive.Trigger;
 
-  const showTooltip = useCallback(() => {
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    timeoutRef.current = window.setTimeout(() => setIsVisible(true), delay);
-  }, [delay]);
+const TooltipContent = React.forwardRef<
+  React.ElementRef<typeof TooltipPrimitive.Content>,
+  React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Content>
+>(({ className, sideOffset = 4, ...props }, ref) => (
+  <TooltipPrimitive.Content
+    ref={ref}
+    sideOffset={sideOffset}
+    className={cn(
+      "z-50 overflow-hidden rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] px-3 py-1.5 text-xs text-[var(--color-fg)] shadow-lg animate-in fade-in-0 zoom-in-95 data-[state=delayed-open]:animate-in data-[state=delayed-open]:fade-in-0 data-[state=delayed-open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
+      className
+    )}
+    {...props}
+  />
+));
+TooltipContent.displayName = TooltipPrimitive.Content.displayName;
 
-  const hideTooltip = useCallback(() => {
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    setIsVisible(false);
-  }, []);
-
-  const updatePosition = useCallback(() => {
-    if (!triggerRef.current || !tooltipRef.current) return;
-    const triggerRect = triggerRef.current.getBoundingClientRect();
-    const tooltipWidth = tooltipRef.current.offsetWidth;
-    const tooltipHeight = tooltipRef.current.offsetHeight;
-
-    let top = 0;
-    let left = 0;
-
-    switch (position) {
-      case "top":
-        top = triggerRect.top - tooltipHeight - offset;
-        left = triggerRect.left + (triggerRect.width - tooltipWidth) / 2;
-        break;
-      case "bottom":
-        top = triggerRect.bottom + offset;
-        left = triggerRect.left + (triggerRect.width - tooltipWidth) / 2;
-        break;
-      case "left":
-        top = triggerRect.top + (triggerRect.height - tooltipHeight) / 2;
-        left = triggerRect.left - tooltipWidth - offset;
-        break;
-      case "right":
-        top = triggerRect.top + (triggerRect.height - tooltipHeight) / 2;
-        left = triggerRect.right + offset;
-        break;
-    }
-
-    setTooltipRect({ top, left, width: tooltipWidth, height: tooltipHeight, bottom: 0, right: 0, x: left, y: top, toJSON: () => {} });
-  }, [position, offset]);
-
-  useEffect(() => {
-    if (isVisible) {
-      updatePosition();
-      window.addEventListener("scroll", updatePosition);
-      window.addEventListener("resize", updatePosition);
-      return () => {
-        window.removeEventListener("scroll", updatePosition);
-        window.removeEventListener("resize", updatePosition);
-      };
-    }
-  }, [isVisible, updatePosition]);
-
-  return (
-    <>
-      <span ref={triggerRef} onMouseEnter={showTooltip} onMouseLeave={hideTooltip} onFocus={showTooltip} onBlur={hideTooltip}>
-        {children}
-      </span>
-      {isVisible && typeof window !== "undefined" && createPortal(
-        <div
-          ref={tooltipRef}
-          className="tooltip"
-          style={{
-            top: tooltipRect?.top,
-            left: tooltipRect?.left,
-            position: "fixed",
-            zIndex: 9999,
-            pointerEvents: "none",
-          }}
-          role="tooltip"
-        >
-          <div className="tooltip-arrow" />
-          <div className="tooltip-content">{content}</div>
-        </div>,
-        document.body
-      )}
-    </>
-  );
-}
-
-export type { TooltipProps };
+export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider };

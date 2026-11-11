@@ -6,7 +6,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { Profile, StartOpts, gbOf } from "./api";
 import EditPanel from "./EditPanel";
 import { Empty } from "./ui";
-import IconButton from "./ui/IconButton";
+import { Button } from "@ui/components/Button";
+import { Icon } from "./ui/icons";
 import OutputLog from "./ui/OutputLog";
 import { useFixRuns } from "./FixIt";
 import { ranVm } from "./lib/activity";
@@ -104,14 +105,14 @@ export default function Profiles({ profiles, reload, openNew = false, kubeOn = (
                   <td className="row-actions">
                     {up ? (
                       <>
-                        <IconButton label={`Stop ${p.name}`} icon="stop" text disabled={!!busy || fixing} onClick={() => act(p.name, "stopping", "stop_profile", { name: p.name })} />
-                        <IconButton label={`Restart ${p.name}`} icon="restart" text disabled={!!busy || fixing} onClick={() => act(p.name, "restarting", "restart_profile", { name: p.name })} />
+                        <Button variant="default" size="sm" icon={<Icon name="stop" size={13} />} aria-label={`Stop ${p.name}`} disabled={!!busy || fixing} onClick={() => act(p.name, "stopping", "stop_profile", { name: p.name })}>Stop</Button>
+                        <Button variant="ghost" size="sm" icon={<Icon name="restart" size={13} />} aria-label={`Restart ${p.name}`} disabled={!!busy || fixing} onClick={() => act(p.name, "restarting", "restart_profile", { name: p.name })}>Restart</Button>
                       </>
                     ) : (
-                      <IconButton label={`Start ${p.name}`} icon="play" text disabled={!!busy} onClick={() => act(p.name, "starting", "start_profile", { opts: { name: p.name } as StartOpts })} />
+                      <Button variant="default" size="sm" icon={<Icon name="play" size={13} />} aria-label={`Start ${p.name}`} disabled={!!busy} onClick={() => act(p.name, "starting", "start_profile", { opts: { name: p.name } as StartOpts })}>Start</Button>
                     )}
-                    <IconButton label={`Edit ${p.name}`} icon="sliders" text disabled={!!busy || fixing} onClick={() => setEditing(p)} />
-                    <IconButton label={`Delete ${p.name}`} icon="trash" danger text disabled={!!busy || fixing} onClick={async () => (await confirm(`Delete profile "${p.name}" and its VM? All its containers and images are removed.`, "Delete")) && act(p.name, "deleting", "delete_profile", { name: p.name })} />
+                    <Button variant="ghost" size="sm" icon={<Icon name="sliders" size={13} />} aria-label={`Edit ${p.name}`} disabled={!!busy || fixing} onClick={() => setEditing(p)}>Edit</Button>
+                    <Button variant="destructive" size="sm" icon={<Icon name="trash" size={13} />} aria-label={`Delete ${p.name}`} disabled={!!busy || fixing} onClick={async () => (await confirm(`Delete profile "${p.name}" and its VM? All its containers and images are removed.`, "Delete")) && act(p.name, "deleting", "delete_profile", { name: p.name })}>Delete</Button>
                   </td>
                 </tr>
               );

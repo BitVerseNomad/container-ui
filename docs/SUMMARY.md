@@ -2,7 +2,13 @@
 
 > Snapshot from 2026-10-11, kept as a record. Several lines are out of date (the Rust now compiles and its tests pass; the Overview was replaced by the Containers home). For today's state read `README.md` and `CHANGELOG.md`.
 
-Status date: 2026-10-11. Branch to use: `integration` (everything except the AWS registries tab). Nothing is merged into `main`.
+Status date: 2026-11-11. Primary work branch: `feat/design-system-containers` (design-system rollout, uncommitted); `integration` holds everything except the AWS registries tab. Nothing is merged into `main`.
+
+**Health today (all green):**
+- `npm test`: 98 passed / 10 files
+- `tsc --noEmit`: clean
+- `npm run build`: succeeds
+- `cargo test`: 137 passed / 0 failed / 2 ignored
 
 ## 1. What this is
 A desktop app for people who run containers on a Mac with **Colima** and want a Docker-Desktop-like UI that also **guides** them: it explains what is wrong in plain words, links to the image's own documentation, and fixes the common cross-container mistakes. Stack: **Tauri 2** (small Rust backend that launches `colima`, `docker`, `kubectl`, `brew`) with a **React + TypeScript** UI. About 4,450 lines of TypeScript and 800 lines of Rust.
@@ -40,7 +46,7 @@ It was driven by the owner's own pains: a Kafka container and a Kafka UI contain
 ## 4. Verification status (be honest)
 | Verified | Not verified |
 |---|---|
-| 142 unit tests (pure logic) pass; 10 browser suites (204 assertions) pass against the **simulated** backend; screenshots reviewed in light, dark, mid and phone widths | The **Rust has never been compiled** (no toolchain in the authoring sandbox); 24 Rust tests are written but unrun (23 more on `feat/registries`) |
+| 142 unit tests (pure logic) pass; 10 browser suites (204 assertions) pass against the **simulated** backend; screenshots reviewed in light, dark, mid and phone widths | **Rust compiles** (`cargo test`: 137 passed, 0 failed, 2 ignored) but the **strict CSP release build has never been opened on a real Mac**; 24 Rust tests are written but unrun on `main` (23 more on `feat/registries`) |
 | Every feature was test-first for its pure logic | Real Docker, Colima, kubectl, AWS, Terminal automation, the helper container's real output, the real JSON of `docker events` and `docker system df -v`, the Colima Kubernetes context name |
 | Self-review found and fixed real bugs (see below) | Tauri CSP is not set; Homebrew/notarized packaging not done |
 
@@ -68,8 +74,8 @@ Bugs found by our own testing and fixed: stale poll answers overwriting newer on
 ## 7. How to run things
 ```
 npm install && npx tauri icon icon.png        # one time (any square PNG)
-npm test                                       # 142 unit tests (Node 22.6+)
-cd src-tauri && cargo test                     # Rust tests (never run yet)
+npm test                                       # 98 unit + UI tests (10 files, Node 22.6+)
+cd src-tauri && cargo test                     # Rust tests: 137 passed, 0 failed, 2 ignored
 npm run tauri dev                              # the real app
 npm run preview                                # builds preview/index.html (simulated)
 # browser suites (need playwright resolvable): node scripts/check-<name>.mjs

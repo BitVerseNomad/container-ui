@@ -9,9 +9,9 @@ export interface CardProps extends HTMLAttributes<HTMLDivElement> {
 export const Card = forwardRef<HTMLDivElement, CardProps>(
   ({ className, variant = "default", padding = "md", children, ...props }, ref) => {
     const variants = {
-      default: "bg-[var(--color-bg-primary)] border border-[var(--color-border-light)]",
-      outlined: "bg-transparent border-2 border-[var(--color-border-medium)]",
-      elevated: "bg-[var(--color-bg-primary)] shadow-[var(--color-shadow-lg)] border-none",
+      default: "bg-[var(--color-bg-elevated)] border border-[var(--color-border)]",
+      outlined: "bg-transparent border-2 border-[var(--color-border)]",
+      elevated: "bg-[var(--color-bg-elevated)] shadow-[0_4px_8px_rgba(0,0,0,0.08)] border-none",
     };
 
     const paddings = {
@@ -25,7 +25,7 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(
       <div
         ref={ref}
         className={clsx(
-          "rounded-xl transition-all duration-200",
+          "rounded-md transition-all duration-200",
           variants[variant],
           paddings[padding],
           className
@@ -39,8 +39,6 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(
 );
 
 Card.displayName = "Card";
-
-export default Card;
 
 export const CardHeader = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
   ({ className, children, ...props }, ref) => (
@@ -59,7 +57,7 @@ export const CardTitle = forwardRef<HTMLHeadingElement, HTMLAttributes<HTMLHeadi
   ({ className, children, ...props }, ref) => (
     <h3
       ref={ref}
-      className={clsx("text-lg font-semibold text-[var(--color-fg-primary)]", className)}
+      className={clsx("text-heading leading-none", className)}
       {...props}
     >
       {children}
@@ -72,7 +70,7 @@ export const CardDescription = forwardRef<HTMLParagraphElement, HTMLAttributes<H
   ({ className, children, ...props }, ref) => (
     <p
       ref={ref}
-      className={clsx("text-sm text-[var(--color-fg-tertiary)] mt-1", className)}
+      className={clsx("text-[var(--color-fg-muted)] text-body-sm", className)}
       {...props}
     >
       {children}
@@ -94,7 +92,7 @@ export const CardFooter = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivEleme
   ({ className, children, ...props }, ref) => (
     <div
       ref={ref}
-      className={clsx("mt-4 pt-4 border-t border-[var(--color-border-light)] flex items-center gap-2", className)}
+      className={clsx("mt-4 pt-4 border-t border-[var(--color-border)] flex items-center gap-2", className)}
       {...props}
     >
       {children}
@@ -102,3 +100,5 @@ export const CardFooter = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivEleme
   )
 );
 CardFooter.displayName = "CardFooter";
+
+export default Card;

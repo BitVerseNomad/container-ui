@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import Status from "./ui/Status";
 import { invoke } from "@tauri-apps/api/core";
 import { Profile, ctxFor } from "./api";
 import { usePoll } from "./hooks";
@@ -10,15 +9,16 @@ import { ago } from "./lib/events";
 import { Banner } from "./ui";
 import Card from "./ui/Card";
 import { Icon } from "./ui/icons";
+import { Badge } from "@ui/components/Badge";
 import OutputLog from "./ui/OutputLog";
 import { useEnv } from "./useEnv";
 
 const VIEWS = ["Pods", "Deployments", "Services", "Events"] as const;
 const kubectl = (context: string | null, args: string[]) => invoke<string>("kubectl", { context, args });
 const age = (ms: number) => ago(Date.now() - ms, Date.now()).replace(" ago", "");
-const LEVEL = { healthy: "on", starting: "warn", unhealthy: "bad" } as const;
 const badge = (status: string) =>
   ["Running", "Succeeded", "Completed"].includes(status) ? "healthy" : ["Pending", "ContainerCreating", "PodInitializing", "Terminating"].includes(status) ? "starting" : "unhealthy";
+const STATUS_VARIANT: Record<string, "success" | "warning" | "destructive"> = { healthy: "success", starting: "warning", unhealthy: "destructive" };
 
 export default function Kubernetes({ profile, ctx }: { profile: Profile; ctx: string }) {
   void ctx;
@@ -145,7 +145,7 @@ export default function Kubernetes({ profile, ctx }: { profile: Profile; ctx: st
                   <td><button className="link-plain" onClick={() => setOpen(p)}><b>{p.name}</b></button></td>
                   <td>{p.namespace}</td>
                   <td className="mono">{p.ready}</td>
-                  <td><Status level={LEVEL[badge(p.status)]}>{p.status}</Status></td>
+                  <td><Badge variant={STATUS_VARIANT[badge(p.status)]}>{p.status}</Badge></td>
                   <td className="mono">{p.restarts}</td>
                   <td>{age(p.ageMs)}</td>
                 </tr>

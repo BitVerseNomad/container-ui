@@ -75,12 +75,12 @@ describe("ProjectEnvVars", () => {
       // SSH Agent badge should have info variant (blue) - includes opacity /15
       const sshBadgeText = screen.getByText(/SSH Agent/);
       const sshBadge = sshBadgeText.closest("span[class*='inline-flex']");
-      expect(sshBadge).toHaveClass("bg-[var(--color-brand-info)]/15");
+      expect(sshBadge).toHaveClass("bg-[var(--color-info-bg)]");
       
       // GitHub Token badge should have warning variant (yellow/orange)
       const ghBadgeTexts = screen.getAllByText(/GitHub Token/);
       const ghBadge = ghBadgeTexts[0].closest("span[class*='inline-flex']");
-      expect(ghBadge).toHaveClass("bg-[var(--color-brand-warning)]/15");
+      expect(ghBadge).toHaveClass("bg-[var(--color-warning-bg)]");
     });
   });
 

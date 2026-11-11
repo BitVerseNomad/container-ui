@@ -6,7 +6,7 @@ import { docker, dockerJson } from "./api";
 import { usePoll } from "./hooks";
 import { NetInfo, parseNetworks } from "./lib/network";
 import { Banner, Empty, useConfirm } from "./ui";
-import IconButton from "./ui/IconButton";
+import { Button } from "@ui/components/Button";
 import ConnectionTest from "./ConnectionTest";
 
 const BUILTIN = new Set(["bridge", "host", "none"]);
@@ -81,7 +81,7 @@ export default function Networks({ ctx }: { ctx: string }) {
                         <span key={m.id} className="member">
                           <b>{m.name}</b> <span className="mono">{m.ip}</span>
                           {!builtin && (
-                            <IconButton label={`Disconnect ${m.name} from ${n.name}`} icon="close" text onClick={async () => (await confirm(`Disconnect ${m.name} from ${n.name}? It will no longer reach the others on this network.`, "Disconnect")) && act(["network", "disconnect", n.name, m.name])} />
+                            <Button variant="ghost" size="sm" icon={<Icon name="close" size={13} />} aria-label={`Disconnect ${m.name} from ${n.name}`} onClick={async () => (await confirm(`Disconnect ${m.name} from ${n.name}? It will no longer reach the others on this network.`, "Disconnect")) && act(["network", "disconnect", n.name, m.name])}>Disconnect</Button>
                           )}
                         </span>
                       ))}
@@ -97,7 +97,7 @@ export default function Networks({ ctx }: { ctx: string }) {
                     )}
                   </td>
                   <td className="row-actions">
-                    {!builtin && <IconButton label={n.members.length ? `Remove network ${n.name} (still has containers)` : `Remove network ${n.name}`} icon="trash" text danger disabled={n.members.length > 0} onClick={async () => (await confirm(`Remove network ${n.name}?`)) && act(["network", "rm", n.name])} />}
+                    {!builtin && <Button variant="destructive" size="sm" icon={<Icon name="trash" size={13} />} aria-label={n.members.length ? `Remove network ${n.name} (still has containers)` : `Remove network ${n.name}`} disabled={n.members.length > 0} onClick={async () => (await confirm(`Remove network ${n.name}?`)) && act(["network", "rm", n.name])}>Remove</Button>}
                   </td>
                 </tr>
               );

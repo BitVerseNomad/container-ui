@@ -267,6 +267,10 @@ describe("Containers", () => {
     for (const name of ["Restart", "Remove…"]) expect(within(menu).getByRole("menuitem", { name })).toHaveAttribute("aria-disabled", "true");
     await user.click(within(menu).getByRole("menuitem", { name: "Remove…" }));
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    await waitFor(() => {
+      expect(screen.queryByRole("menu", { name: "More actions for web" })).not.toBeInTheDocument();
+    });
     await user.click(screen.getByRole("button", { name: "Stop web" }));
     expect(backend.current!.dockerCalls().some((a) => a[0] === "stop" || a[0] === "rm")).toBe(false);
   });

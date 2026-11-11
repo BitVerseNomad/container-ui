@@ -1,6 +1,12 @@
 # Spec: what is left to do
 
-Status date: 2026-10-23 (backend facts below; the backlog items keep their original wording). Read `README.md` for what exists today and `docs/SUMMARY.md` for the Oct 11 snapshot. Work on branch `integration`. Effort: S under a day, M a few days, L a week or more.
+Status date: 2026-11-11 (backend facts below; the backlog items keep their original wording). Read `README.md` for what exists today and `docs/SUMMARY.md` for the snapshot. Work on branch `feat/design-system-containers` (uncommitted design-system work) plus `integration`. Effort: S under a day, M a few days, L a week or more.
+
+**Health today (all green):**
+- `npm test`: 98 passed / 10 files
+- `tsc --noEmit`: clean
+- `npm run build`: succeeds
+- `cargo test`: 137 passed / 0 failed / 2 ignored
 
 ## 1. Product
 **One line:** a Colima/Docker desktop app that explains what is wrong in plain words and fixes the common mistakes, instead of only listing containers.
@@ -36,10 +42,10 @@ Status date: 2026-10-23 (backend facts below; the backlog items keep their origi
 ## 4. Work items
 
 ### P0: do first
-**W1. Real-machine verification and Rust compile (S, needs the owner's Mac)**
-- Done: `cargo test` runs and passes on `integration`; `feat/registries` still to check.
+**W1. Real-machine verification (S, needs the owner's Mac)**
+- Done: `cargo test` runs and passes (137 passed, 0 failed, 2 ignored) on `feat/design-system-containers`; `feat/registries` still to check.
 - Walk `docs/VERIFY-ON-YOUR-MAC.md`; capture the real outputs it asks for (helper container `nslookup`/`nc`, `docker events` JSON, `docker system df -v --format json`, Colima Kubernetes context names, `docker ps` health text).
-- Acceptance: app launches; Containers home, Setup, Run, delete, Networks, doctor, Activity, Volumes sizes, Kubernetes behave on a real VM; parsers adjusted to the real output; list of fixes closed.
+- Acceptance: app launches; Containers home, Setup, Run, delete, Networks, doctor, Volumes sizes, Kubernetes behave on a real VM; parsers adjusted to the real output; list of fixes closed.
 
 **W2. Merge the registries branch and finish it (M)**
 - Resolve as in section 3; then add the AWS scenarios to `preview/mock.ts` that `scripts/check-registries.mjs` expects: `?aws=ready|expired|noaws|noconfig|nohelper`; mock `aws` (`configure list-profiles`, `configure get sso_session|sso_start_url|role_arn|region`, `sts get-caller-identity`, `ecr describe-repositories`, `ecr describe-images`), `docker_config_read/write`, `env_check` with `aws` and `ecr_helper`, `install_tools` for `awscli` and `docker-credential-helper-ecr`.
