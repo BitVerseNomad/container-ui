@@ -15,7 +15,7 @@ Benchmark against `docs/SPEC.md` (spec) and `AGENTS.md` (UX rules).
 
 ## Immediate execution (this session)
 
-- [ ] X1: Commit all uncommitted work on `feat/design-system-containers` (27 modified + 20+ untracked files)
+- [x] X1: Commit all uncommitted work on `feat/design-system-containers` (54 files, commit 4d75654)
 - [ ] X2: Create `CONTRIBUTING.md` (missing entirely)
 - [ ] X3: Update `CHANGELOG.md` with design-system / tab-migration entry
 - [ ] X4: Retake README screenshots (`npm run preview && node scripts/readme-shots.mjs`)
