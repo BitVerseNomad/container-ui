@@ -2,6 +2,18 @@
 
 Newest first. Older entries record what was true when they were written; later entries supersede them (the Overview, for example, was replaced by the Containers home screen).
 
+## Design system rollout: all tabs migrated to @ui/components
+
+All seven tabs (Containers, Images, Volumes, Networks, Doctor, Profiles, Kubernetes) now use the `@ui/components` design system instead of legacy `IconButton`/`Menu`/`Spinner` components.
+
+1. **Status is a labeled Badge** ("Running", "Stopped", "Error") instead of an icon-only dot — scannable at a glance, color paired with text so it's not color-only.
+2. **⋯ menus use Radix DropdownMenu** — keyboard navigation, focus trap, Escape-to-close, `aria-disabled` on disabled items, portal rendering.
+3. **Every menu item has a hint** (AGENTS.md rule 3): a one-line "when you'd use it" on Doctor and ComposeProjects menus.
+4. **Buttons never wrap** (`whitespace-nowrap`), disabled states are visually distinct (opacity + no pointer events), loading states use `aria-busy` + spinner, focus rings on `:focus-visible`.
+5. **One main action per row**: the common action (Start/Stop) is on the row; everything else goes in the `⋯` menu.
+6. **Docs honesty**: SPEC.md, SUMMARY.md, and EXECUTION_PLAN.md updated to match reality — no false claims about completed phases.
+7. **All green**: `npm test` 98/98 (10 files), `tsc --noEmit` clean, `npm run build` succeeds, `cargo test` 137 passed / 0 failed / 2 ignored.
+
 ## Loop 5, round 43: copy-out commands never lose data
 
 1. **Doctor amd64 row** shows only the `pull --platform` line under "Or run it yourself". The text says to recreate the container the way you first created it (its Compose file or your own run command). No `rm -f` and no bare `docker run` in any Doctor block (the replace fixes keep their rename-first form).
