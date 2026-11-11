@@ -23,8 +23,8 @@ import { fixAllPlan } from "./lib/setup";
 import { biggerFix } from "./lib/sharedFix";
 import type { SetupFinding } from "./lib/setup";
 import { Banner, useConfirm } from "./ui";
-import Menu from "./ui/Menu";
-import type { MenuItem } from "./ui/Menu";
+import { Button } from "@ui/components/Button";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@ui/components/DropdownMenu";
 import { Icon } from "./ui/icons";
 import Ticks, { plain } from "./ui/Ticks";
 import { LimitActions, isListed } from "./Health";
@@ -210,10 +210,6 @@ export default function Doctor({ ctx, setup, doc, onProfiles, onBring, onGo, onO
     const shared = biggerFix(f.fix, listed.map((x) => x.fix));
     const owner = shared && listed.find((x) => x.fix === shared);
     const elsewhere = owner && owner !== f ? owner : undefined;
-    const more: MenuItem[] = [
-      ...(f.subject ? [{ label: `Open ${f.subject}`, icon: <Icon name="logs" size={13} />, onSelect: () => onOpen(f.subject!) }] : []),
-      { label: "Not an issue", icon: <Icon name="check" size={13} />, onSelect: () => setMuted(f.key, true) },
-    ];
     const limitRow = !elsewhere && !f.fix?.resize && !!f.fix?.reveal;
     return (
       <li key={f.key} className={`finding ${cls}${limitRow && isListed(f.fix!.reveal!, composePaths) ? " limit" : ""}`} data-key={f.key}>
@@ -256,7 +252,27 @@ export default function Doctor({ ctx, setup, doc, onProfiles, onBring, onGo, onO
           ) : limitRow && !isListed(f.fix!.reveal!, composePaths) ? (
             f.subject ? <button className="small" onClick={() => onOpen(f.subject!)}>Open {f.subject}</button> : null
           ) : limitRow ? null : f.fix ? <DoctorFix fix={f.fix} title={f.title} ctx={ctx} onGo={onGo} onFixed={() => doc.reload()} /> : f.subject ? <button className="small" onClick={() => onOpen(f.subject!)}>Open {f.subject}</button> : null}
-          <Menu label={`More actions for ${plain(f.title)}`} className="more" items={more}><Icon name="more" size={16} /></Menu>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="more" aria-label={`More actions for ${plain(f.title)}`}>
+                <Icon name="more" size={16} />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              {f.subject && (
+                <DropdownMenuItem key="open" onSelect={() => onOpen(f.subject!)}>
+                  <Icon name="logs" size={13} />
+                  <span>{`Open ${f.subject}`}</span>
+                  <span className="ml-auto text-xs opacity-60">When you want to see that container's page.</span>
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem key="not-issue" onSelect={() => setMuted(f.key, true)}>
+                <Icon name="check" size={13} />
+                <span>Not an issue</span>
+                <span className="ml-auto text-xs opacity-60">Hides this finding here and on its container.</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </span>
         {/* A listed project's own limit: its notes and both buttons go under the text, so the body keeps the row's width. */}
         {limitRow && isListed(f.fix!.reveal!, composePaths) && <LimitActions fix={{ ...f.fix!, reveal: f.fix!.reveal! }} ctx={ctx ?? undefined} listed={composePaths} small fallback={null} />}
@@ -275,7 +291,20 @@ export default function Doctor({ ctx, setup, doc, onProfiles, onBring, onGo, onO
         </p>
         <span className="finding-actions">
           <button className="small" disabled={checking} onClick={recheck}>{checking ? "Checking…" : "Run checks again"}</button>
-          <Menu label="More Doctor actions" className="more" items={[{ label: "Test a connection…", icon: <Icon name="network" size={13} />, disabled: !ctx, onSelect: () => setTesting(true) }]}><Icon name="more" size={16} /></Menu>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="more" aria-label="More Doctor actions">
+                <Icon name="more" size={16} />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem key="test-connection" disabled={!ctx} onSelect={() => setTesting(true)}>
+                <Icon name="network" size={13} />
+                <span>Test a connection…</span>
+                <span className="ml-auto text-xs opacity-60">Checks whether one container can reach another.</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </span>
       </div>
       <Banner error={setup.error ?? doc.error} />

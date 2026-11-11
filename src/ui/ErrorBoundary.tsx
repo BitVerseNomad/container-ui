@@ -4,7 +4,7 @@ import { Button } from "@/ui/Button";
 import { Card, CardContent } from "@/ui/Card";
 import { cn } from "@/lib/cn";
 
-interface ErrorBoundaryProps {
+export interface ErrorBoundaryProps {
   children: ReactNode;
   fallback?: ReactNode;
   onError?: (error: Error, errorInfo: ErrorInfo) => void;

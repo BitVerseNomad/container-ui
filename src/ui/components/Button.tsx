@@ -1,71 +1,96 @@
-import { ReactNode, ButtonHTMLAttributes, forwardRef } from "react";
-import { Icon, IconName } from "../icons";
+import * as React from "react";
+import { Slot } from "@radix-ui/react-slot";
+import { cva, type VariantProps } from "class-variance-authority";
+import { cn } from "../utils";
 
-export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger" | "text";
-export type ButtonSize = "sm" | "md" | "lg";
-
-interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: ButtonVariant;
-  size?: ButtonSize;
-  icon?: IconName;
-  iconOnly?: boolean;
-  loading?: boolean;
-  fullWidth?: boolean;
-}
-
-const variantClasses: Record<ButtonVariant, string> = {
-  primary: "bg-[var(--color-brand-primary)] text-[var(--color-on-primary)] border-[var(--color-brand-primary)] hover:bg-[var(--color-brand-primary-hover)] active:bg-[var(--color-brand-primary)]",
-  secondary: "bg-[var(--color-bg-tertiary)] text-[var(--color-fg-primary)] border-[var(--color-border-medium)] hover:bg-[var(--color-bg-hover)] active:bg-[var(--color-bg-active)]",
-  ghost: "bg-transparent text-[var(--color-brand-primary)] border-transparent hover:bg-[var(--color-brand-primary-light)] active:bg-[var(--color-brand-primary-light)]",
-  danger: "bg-[var(--color-brand-danger)] text-[var(--color-on-primary)] border-[var(--color-brand-danger)] hover:bg-[var(--color-brand-danger)]/90 active:bg-[var(--color-brand-danger)]",
-  text: "bg-transparent text-[var(--color-brand-primary)] border-transparent hover:bg-[var(--color-brand-primary-light)] active:bg-[var(--color-brand-primary-light)] px-0",
-};
-
-const sizeClasses: Record<ButtonSize, string> = {
-  sm: "px-3 py-1.5 text-xs gap-1.5 min-h-[32px]",
-  md: "px-4 py-2 text-sm gap-2 min-h-[40px]",
-  lg: "px-5 py-2.5 text-base gap-2.5 min-h-[48px]",
-};
-
-export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ children, variant = "primary", size = "md", icon, iconOnly, loading, fullWidth, disabled, className = "", style, ...props }, ref) => {
-    const isDisabled = disabled || loading;
-
-    return (
-      <button
-        ref={ref}
-        type="button"
-        disabled={isDisabled}
-        className={`
-          inline-flex items-center justify-center font-medium rounded-[var(--radius-md)]
-          border transition-colors duration-150 ease-[var(--motion-ease)]
-          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--md-sys-color-primary)]
-          focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--md-sys-color-surface)]
-          disabled:opacity-50 disabled:cursor-not-allowed
-          ${fullWidth ? "w-full" : ""}
-          ${variantClasses[variant]} ${sizeClasses[size]} ${className}
-        `}
-        style={{ ...style, ...(iconOnly ? { padding: "0", width: "var(--space-4)" } : {}) }}
-        aria-busy={loading}
-        aria-disabled={isDisabled}
-        {...props}
-      >
-        {loading ? (
-          <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" aria-hidden="true">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" fill="none" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-          </svg>
-        ) : icon && !iconOnly ? (
-          <Icon name={icon} size={size === "sm" ? 12 : size === "md" ? 14 : 16} aria-hidden="true" />
-        ) : icon && iconOnly ? (
-          <Icon name={icon} size={size === "sm" ? 14 : size === "md" ? 16 : 18} aria-hidden="true" />
-        ) : null}
-        {children && !iconOnly && <span>{children}</span>}
-      </button>
-    );
+const buttonVariants = cva(
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-sm text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)] focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 active:scale-[0.98]",
+  {
+    variants: {
+      variant: {
+        default:
+          "bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent-hover)] shadow-sm",
+        primary:
+          "bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent-hover)] shadow-sm",
+        destructive:
+          "bg-[var(--color-danger)] text-white hover:bg-[var(--color-danger)]/90 shadow-sm",
+        danger:
+          "bg-[var(--color-danger)] text-white hover:bg-[var(--color-danger)]/90 shadow-sm",
+        outline:
+          "border border-[var(--color-border)] bg-transparent hover:bg-[var(--color-accent-muted)] hover:text-[var(--color-accent)]",
+        secondary:
+          "bg-[var(--color-border)] text-[var(--color-fg)] hover:bg-[var(--color-border)]/80",
+        ghost:
+          "bg-transparent hover:bg-[var(--color-border)] hover:text-[var(--color-fg)]",
+        link: "text-[var(--color-accent)] underline-offset-4 hover:underline",
+      },
+      size: {
+        default: "h-9 px-4 py-0",
+        sm: "h-8 rounded-sm px-3 text-xs",
+        md: "h-9 px-4 text-sm",
+        lg: "h-10 rounded-md px-8",
+        xl: "h-12 rounded-md px-10 text-base",
+        icon: "h-9 w-9",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+      size: "default",
+    },
   }
 );
 
+export interface ButtonProps
+  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
+    VariantProps<typeof buttonVariants> {
+  asChild?: boolean;
+  loading?: boolean;
+  icon?: React.ReactNode;
+}
+
+const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ className, variant, size, asChild = false, loading, disabled, children, icon, ...props }, ref) => {
+    const Comp = asChild ? Slot : "button";
+    return (
+      <Comp
+        className={cn(buttonVariants({ variant, size, className }))}
+        ref={ref}
+        disabled={disabled || loading}
+        aria-busy={loading}
+        aria-disabled={disabled || undefined}
+        {...props}
+      >
+        {loading ? (
+          <svg
+            className="mr-1 h-4 w-4 animate-spin"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+          >
+            <circle
+              className="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              strokeWidth="3"
+            />
+            <path
+              className="opacity-75"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              strokeWidth="3"
+            />
+          </svg>
+        ) : icon ? (
+          <span className="mr-1">{icon}</span>
+        ) : null}
+        {children}
+      </Comp>
+    );
+  }
+);
 Button.displayName = "Button";
 
-export type { ButtonProps };
+export { Button, buttonVariants };

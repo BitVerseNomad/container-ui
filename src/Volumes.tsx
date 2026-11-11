@@ -3,7 +3,7 @@ import { score } from "./lib/fuzzy";
 import { docker, dockerJson } from "./api";
 import { usePoll } from "./hooks";
 import { Banner, Empty, useConfirm } from "./ui";
-import IconButton from "./ui/IconButton";
+import { Button } from "@ui/components/Button";
 import { isAnonymous, unusedAnonymous, volumeUsage } from "./lib/volumes";
 import { backupOf } from "./lib/bringOver";
 import { dockerLocked, useDockerLocked } from "./dockerLock";
@@ -152,6 +152,7 @@ export default function Volumes({ ctx }: { ctx: string }) {
               <tbody>
                 {shown.map((v) => {
               const by = used.get(v.Name) ?? [];
+              const removeLabel = by.length ? `Remove volume ${v.Name} (in use by ${by.join(", ")})` : `Remove volume ${v.Name}`;
               return (
                 <tr key={v.Name}>
                   <td><input type="checkbox" aria-label={`Select ${v.Name}`} checked={selected.has(v.Name)} onChange={() => toggleSelect(v.Name)} /></td>
@@ -166,15 +167,7 @@ export default function Volumes({ ctx }: { ctx: string }) {
                   </td>
                   <td className="mono">{sizes.data?.has(v.Name) ? formatBytes(sizes.data.get(v.Name)!) : "—"}</td>
                   <td className="row-actions">
-                    <IconButton
-                      label={by.length ? `Remove volume ${v.Name} (in use by ${by.join(", ")})` : `Remove volume ${v.Name}`}
-                      icon="trash"
-                      text
-                      danger
-                      disabled={by.length > 0}
-                      waiting={locked ? WAIT : undefined}
-                      onClick={async () => (await confirm(`Remove volume ${v.Name}? Its data is lost.`)) && act(["volume", "rm", v.Name])}
-                    />
+                    <Button variant="destructive" size="sm" icon={<Icon name="trash" size={13} />} aria-label={locked ? `${removeLabel}. ${WAIT}` : removeLabel} disabled={by.length > 0 || locked} loading={locked} onClick={async () => (await confirm(`Remove volume ${v.Name}? Its data is lost.`)) && act(["volume", "rm", v.Name])}>Remove</Button>
                   </td>
                 </tr>
               );

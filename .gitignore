@@ -8,3 +8,4 @@ preview/index.html
 .superpowers/
 artifacts/
 .claude/worktrees/
+.playwright-mcp/

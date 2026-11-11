@@ -78,7 +78,7 @@ describe("ComposeProjects", () => {
     const user = userEvent.setup();
     const { onCompose } = show();
     await user.click(screen.getByRole("button", { name: "More actions for service-search-service" }));
-    await user.click(screen.getByRole("menuitem", { name: "Rebuild service-search-service" }));
+    await user.click(screen.getByRole("menuitem", { name: "Rebuild and start service-search-service" }));
     await waitFor(() => expect(onCompose).toHaveBeenCalledWith({ context: "colima", file: "/Users/me/Dev/service-search-service/docker-compose.yml", action: "build" }));
   });
 
@@ -95,7 +95,7 @@ describe("ComposeProjects", () => {
     const dir = "/Users/me/Dev/service-search-service";
     const { onLogs } = show({ containers: [running("sss-web-1", dir)] });
     await user.click(screen.getByRole("button", { name: "More actions for service-search-service" }));
-    await user.click(screen.getByRole("menuitem", { name: "Logs of service-search-service" }));
+    await user.click(screen.getByRole("menuitem", { name: "Show logs service-search-service" }));
     expect(await screen.findByText(/ready/)).toBeInTheDocument();
     expect(onLogs).toHaveBeenCalledWith({ context: "colima", file: `${dir}/docker-compose.yml`, since: null });
   });
@@ -113,7 +113,7 @@ describe("ComposeProjects", () => {
     const { onLogs } = show({ containers: [running("sss-web-1", dir)] });
     onLogs.mockImplementation(async (a) => (a.since ? "sss-web-1  | 2026-10-28T15:00:05Z GET /health 200\n" : "sss-web-1  | 2026-10-28T15:00:01Z ready\n"));
     await user.click(screen.getByRole("button", { name: "More actions for service-search-service" }));
-    await user.click(screen.getByRole("menuitem", { name: "Logs of service-search-service" }));
+    await user.click(screen.getByRole("menuitem", { name: "Show logs service-search-service" }));
     const box = await screen.findByLabelText("Live logs of service-search-service");
     await waitFor(() => expect(box.textContent).toMatch(/ready[\s\S]*GET \/health 200/), { timeout: 4000 });
     expect(onLogs).toHaveBeenCalledWith({ context: "colima", file: `${dir}/docker-compose.yml`, since: "2026-10-28T15:00:01.0Z" });
