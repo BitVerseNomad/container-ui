@@ -37,6 +37,49 @@
   --color-focus-ring: 0 0 0 2px rgba(0, 102, 204, 0.3);
 }
 
+/* Legacy token aliases — single source of truth for all design tokens.
+   These map the legacy names used in styles.css, home.css, Shell.css,
+   Table.css and component files to the canonical token values above,
+   consolidating the two token systems into one. */
+@layer base {
+  :root {
+    --color-bg-primary: var(--color-bg);
+    --color-fg-primary: var(--color-fg);
+    --color-fg-tertiary: var(--color-fg-muted);
+    --color-border-light: var(--color-border);
+    --color-border-medium: var(--color-border);
+    --color-brand-primary: var(--color-accent);
+    --color-brand-primary-light: var(--color-accent-muted);
+    --color-brand-primary-foreground: #ffffff;
+    --color-brand-danger: var(--color-danger);
+    --color-brand-warning: var(--color-warning);
+    --color-brand-success: var(--color-success);
+    --color-shadow-lg: 0 12px 24px rgba(0, 0, 0, 0.12);
+    --color-shadow-xl: 0 12px 24px rgba(0, 0, 0, 0.12);
+    --color-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+    --color-shadow-base: 0 4px 8px rgba(0, 0, 0, 0.08);
+    --color-bg-hover: rgba(0, 0, 0, 0.04);
+    --z-toast: 50;
+    --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 20px;
+    --radius-sm: 4px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --radius-xl: 16px;
+    --radius-full: 9999px;
+    --text-xs: 11px;
+    --text-sm: 12px;
+    --text-base: 14px;
+    --text-2xl: 20px;
+    --leading-normal: 1.5;
+    --leading-relaxed: 1.625;
+  }
+}
+
 .dark {
   --color-bg: #0D0D0D;
   --color-bg-elevated: #161616;

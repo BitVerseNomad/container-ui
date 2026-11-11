@@ -3,6 +3,11 @@ import { Icon } from "../ui/icons";
 
 // A simple confirmation dialog, app-wide. The opener gets focus back so a
 // keyboard or VoiceOver user lands on the button that asked.
+//
+// @deprecated Use Dialog from "@/ui/components/Dialog" instead.
+// This confirm implementation is deprecated in favor of a single modal/confirm
+// implementation in src/ui/components/. New code should use Dialog; existing
+// callers will be migrated incrementally.
 type Ask = (message: string, confirmLabel?: string, opts?: { safe?: boolean }) => Promise<boolean>;
 const ConfirmCtx = createContext<Ask>(async () => false);
 export const useConfirm = () => useContext(ConfirmCtx);
