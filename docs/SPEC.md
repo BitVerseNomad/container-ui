@@ -1,8 +1,9 @@
 # Spec: what is left to do
 
-Status date: 2026-11-11 (backend facts below; the backlog items keep their original wording). Read `README.md` for what exists today and `docs/SUMMARY.md` for the snapshot. Work on branch `feat/design-system-containers` (uncommitted design-system work) plus `integration`. Effort: S under a day, M a few days, L a week or more.
+Status date: 2026-11-11 (backend facts below; the backlog items keep their original wording). Read `README.md` for what exists today and `docs/SUMMARY.md` for the snapshot. Work on branch `main` (uncommitted rename work) plus `feat/design-system-containers` and `integration`. Effort: S under a day, M a few days, L a week or more.
 
 **Health today (all green):**
+- App renamed **Container UI → Wharf** across codebase; built `Wharf_0.2.1_aarch64.dmg` (5.91 MiB); installed to `/Applications/Wharf.app`; running on the owner's Mac.
 - `npm test`: 98 passed / 10 files
 - `tsc --noEmit`: clean
 - `npm run build`: succeeds

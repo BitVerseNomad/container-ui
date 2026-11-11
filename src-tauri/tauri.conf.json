@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Container UI",
+  "productName": "Wharf",
   "version": "0.2.1",
-  "identifier": "dev.colima.ui",
+  "identifier": "dev.colima.wharf",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -10,7 +10,7 @@
     "frontendDist": "../dist"
   },
   "app": {
-    "windows": [{ "title": "Container UI", "width": 980, "height": 640, "minWidth": 720, "minHeight": 480 }],
+    "windows": [{ "title": "Wharf", "width": 980, "height": 640, "minWidth": 720, "minHeight": 480 }],
     "security": {
       "csp": "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src ipc: http://ipc.localhost; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
       "devCsp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src ipc: http://ipc.localhost ws://localhost:1420 http://localhost:1420; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"

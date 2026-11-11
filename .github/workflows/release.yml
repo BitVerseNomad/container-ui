@@ -53,7 +53,7 @@ jobs:
           tag_name: v${{ steps.get_version.outputs.version }}
           draft: true
           generate_release_notes: true
-          name: Container UI v${{ steps.get_version.outputs.version }}
+          name: Wharf v${{ steps.get_version.outputs.version }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -100,9 +100,9 @@ jobs:
           TAURI_APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
           tagName: v${{ needs.create-release.outputs.version }}
-          releaseName: Container UI v${{ needs.create-release.outputs.version }}
+          releaseName: Wharf v${{ needs.create-release.outputs.version }}
           releaseBody: |
-            ## Container UI v${{ needs.create-release.outputs.version }}
+            ## Wharf v${{ needs.create-release.outputs.version }}
 
             ### Features
             - Project management with auto-detection (devcontainer, compose, Dockerfile)
@@ -185,8 +185,8 @@ jobs:
           tag_name: v${{ needs.create-release.outputs.version }}
           draft: false
           files: |
-            artifacts/arm64/Container UI_*.dmg
-            artifacts/x64/Container UI_*.dmg
+            artifacts/arm64/Wharf_*.dmg
+            artifacts/x64/Wharf_*.dmg
             artifacts/latest.yml
             artifacts/latest-arm64.yml
         env:

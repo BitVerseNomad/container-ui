@@ -20,7 +20,7 @@ const browser = await webkit.launch();
 for (const [name, query, act] of SHOTS) {
   const p = await browser.newPage({ viewport: { width: W, height: H }, deviceScaleFactor: 2 });
   await p.goto(`file://${root}/preview/index.html?${query}`);
-  await p.waitForTimeout(2500);
+  await p.waitForTimeout(4000);
   if (act) await act(p);
   const file = path.join(out, `${name}.png`);
   await p.screenshot({ path: file, clip: { x: 0, y: 0, width: W, height: CROP } });

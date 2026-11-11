@@ -135,7 +135,7 @@ export function useProjectTerminal({
     fitAddonRef.current = fitAddon;
 
     // Write welcome message and restore scrollback
-    terminal.write("Welcome to Container UI Terminal\r\n");
+    terminal.write("Welcome to Wharf Terminal\r\n");
     terminal.write(`Connected to environment ${environmentId.slice(0, 12)}\r\n\r\n`);
 
     if (scrollback.length > 0) {

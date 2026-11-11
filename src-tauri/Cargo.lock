@@ -381,23 +381,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2459377285ad874054d797f3ccebf984978aa39129f6eafde5cdc8315b612f8"
 
 [[package]]
-name = "container-ui"
-version = "0.2.1"
-dependencies = [
- "anyhow",
- "chrono",
- "dirs 5.0.1",
- "lazy_static",
- "serde",
- "serde_json",
- "sqlx",
- "tauri",
- "tauri-build",
- "tokio",
- "uuid",
-]
-
-[[package]]
 name = "cookie"
 version = "0.18.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4693,6 +4676,23 @@ dependencies = [
  "thiserror 2.0.21",
  "windows",
  "windows-core",
+]
+
+[[package]]
+name = "wharf"
+version = "0.2.1"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "dirs 5.0.1",
+ "lazy_static",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "tauri",
+ "tauri-build",
+ "tokio",
+ "uuid",
 ]
 
 [[package]]

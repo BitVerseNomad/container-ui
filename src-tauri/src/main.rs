@@ -1949,7 +1949,7 @@ fn main() {
             projects::environment_create_cmd, projects::environment_get_cmd, projects::environment_list_cmd, projects::environment_update_state_cmd, projects::environment_update_container_id_cmd, projects::environment_update_ports_cmd, projects::environment_delete_cmd
         ])
         .run(tauri::generate_context!())
-        .expect("error while running Container UI");
+        .expect("error while running Wharf");
 }
 
 #[cfg(test)]
