@@ -16,11 +16,11 @@ Benchmark against `docs/SPEC.md` (spec) and `AGENTS.md` (UX rules).
 ## Immediate execution (this session)
 
 - [x] X1: Commit all uncommitted work on `feat/design-system-containers` (54 files, commit 4d75654)
-- [ ] X2: Create `CONTRIBUTING.md` (missing entirely)
-- [ ] X3: Update `CHANGELOG.md` with design-system / tab-migration entry
-- [ ] X4: Retake README screenshots (`npm run preview && node scripts/readme-shots.mjs`)
-- [ ] X5: Update `README.md` text for new UI (benefit first, short, visual)
-- [ ] X6: Verify `AGENTS.md` reflects the design-system reality (UX rules still valid)
+- [x] X2: Create `CONTRIBUTING.md` (missing entirely)
+- [x] X3: Update `CHANGELOG.md` with design-system / tab-migration entry
+- [x] X4: Retake README screenshots (home, doctor, images, volumes, networks, profiles, setup)
+- [x] X5: Update `README.md` text for new UI (screenshots retaken; feature text still accurate; no functional changes from design system migration)
+- [x] X6: Verify `AGENTS.md` reflects design-system reality (UX rules are principle-based, still valid, no changes needed)
 - [ ] X7: Cut GitHub releases for Mac/Windows/Linux (`.dmg` at minimum; tauri build + release.yml)
 - [ ] X8: Add in-app feedback → GitHub Discussions entry point
 - [ ] X9: Final green check across both engines (WebKit + Chromium)
