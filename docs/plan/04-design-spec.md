@@ -83,17 +83,17 @@ Top to bottom:
 
 1. `.titlebar` (36px drag region).
 2. **Engine switcher** (5.3).
-3. **Main nav**: Containers, Images, Volumes, Networks, Kubernetes. Kubernetes is shown only when the selected engine has a cluster.
+3. **Main nav**: Projects, Containers, Images, Volumes, Networks, Kubernetes. Kubernetes is shown only when the selected engine has a cluster.
 4. A flexible spacer.
 5. **Doctor**, with a count of findings that need action in `.count.bad`. No count when zero.
 6. **Foot**: three ghost icon buttons (Settings, Activity, Help), a spacer, and Fold sidebar.
 
 Rules:
 
-1. Nav item: icon, label, optional count on the right. Containers shows the total count in muted text.
+1. Nav item: icon, label, optional count on the right. Projects and Containers show their total count in muted text.
 2. Active item: `aria-current="page"`, `--tile-active` fill, ink text, weight 500. No outline, no accent colour.
 3. Folded (Cmd+B): only icons, each with a tooltip of its label and shortcut. The engine switcher becomes its state dot. The choice is remembered (`openpier:sidebar-folded`).
-4. Removed from the sidebar: the shortcuts list (it moves to Help), the Runtime select (merged into the switcher), Projects and Profiles as top-level items.
+4. Removed from the sidebar: the shortcuts list (it moves to Help), the Runtime select (merged into the switcher), Profiles as a top-level item. Projects stays, rebuilt (section 7.11).
 5. **Activity** is the list of every command the app ran, newest first, with its output and exit code (today's `Commands.tsx`). It opens as a sheet.
 6. **Help** opens a dialog with the shortcuts table (section 10), a link to the docs and "Give feedback" (opens GitHub Discussions).
 
@@ -356,6 +356,10 @@ Mockup: `setup`. Shown in place of the whole app when no engine answers and none
 5. When an engine answers, Setup closes by itself and Containers opens.
 6. The Docker Desktop leftovers and "Bring your volumes over" are not part of Setup. They are Doctor findings after it.
 
+### 7.11 Projects
+
+The list, the project detail (Services, Logs, Ports, Settings) and the Start check sheet are specified in `07-projects-spec.md`, section 7. Mockup screens: `projects`, `project-detail`, `project-start-check`, `projects-empty`. They use only components of section 6. The app opens on the page it was on when it closed; on first run it opens on Containers.
+
 ### 7.10 Run, Pull, Compose start (sheets)
 
 Mockup: `run-sheet`.
@@ -412,7 +416,7 @@ The mocked backend (`preview/mock.ts`) gets one scenario per state, so each can 
 | Keys | Does |
 |---|---|
 | Cmd+K | Command palette |
-| Cmd+1 to Cmd+5 | Containers, Images, Volumes, Networks, Kubernetes |
+| Cmd+1 to Cmd+6 | Projects, Containers, Images, Volumes, Networks, Kubernetes |
 | Cmd+D | Doctor |
 | Cmd+, | Settings |
 | Cmd+E | Engine switcher |
@@ -454,7 +458,7 @@ Today's Cmd+0-7, Cmd+Shift+A (AI) and Cmd+Shift+N (New profile) are removed.
 
 1. The shortcuts list in the sidebar.
 2. The Runtime select and the profile box, replaced by the engine switcher.
-3. Projects (dev environments), the in-app terminal, the AI chat panel and its shortcut, the onboarding tour. See `03-review-product.md` P3.
+3. Today's Projects page (replaced by the one in `07-projects-spec.md`), the in-app terminal, the AI chat panel and its shortcut, the onboarding tour. See `03-review-product.md` P3.
 4. The teaching paragraph on Networks.
 5. The "Needs attention" block on Kubernetes that repeats the list.
 6. Every native `<button>`, `<select>` and `<table>` rendered without a class.

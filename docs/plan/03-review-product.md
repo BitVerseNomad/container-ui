@@ -44,7 +44,9 @@ So the honest claim is not "nothing exists". It is: **no open-source desktop app
 
 In (the reference container manager):
 
-1. Containers, images, volumes, networks, Compose projects.
+1. Containers, images, volumes, networks.
+10. **Projects**: several Compose projects running side by side on the selected engine, with port and name collisions handled by the app. Decided by the owner on 2026-11-12. Specification: `07-projects-spec.md`.
+11. The must-have gaps of `08-feature-gaps.md`, section 3: menu bar item, notifications, the public list of problems, better logs, Copy details.
 2. Logs, shell, stats, inspect for a container.
 3. Doctor, per-row problems, guided fixes.
 4. Guided Run and Pull.
@@ -56,13 +58,13 @@ In (the reference container manager):
 
 Out of 1.0 (kept in the repo behind a flag, not in the default navigation):
 
-1. **Dev environments ("Projects" on Lima, terminal, port forwarding, credential sharing).** It is a different product (closer to Dev Containers or Gitpod), it is the source of three P0 security findings, and it only works on a Lima instance named `default`. Bring it back as "Workspaces" after 1.0 if users ask.
-2. **AI assistant.** A chat box next to a Doctor that already answers "why is this broken" with evidence dilutes the message. If it returns, it should be one button on a Doctor finding ("Explain more"), local model only by default.
+1. **Today's implementation of Projects (its own Lima machine, in-app terminal, credential sharing).** It ignores the selected engine, it is the source of three P0 security findings, and it only works on a Lima instance named `default`. The feature stays (item 10 above), rebuilt on Compose. The Lima code is parked.
+2. **AI assistant.** Dropped by the owner on 2026-11-12. A chat box next to a Doctor that already answers "why is this broken" with evidence dilutes the message. If it returns, it should be one button on a Doctor finding ("Explain more"), local model only by default.
 3. **Machine controls for runtimes other than Colima.** Stubs today. Add one runtime at a time, when someone needs it.
 4. **Windows and Linux builds.** `TODO.md` lists `.msi` and `.deb`. Nothing in the app has been run there, Setup assumes Homebrew, and the VM logic is macOS-only. Ship macOS (Apple Silicon and Intel) first.
 5. **Menu bar app, notifications, image build, registries tab.** Listed as W4-W14 in `docs/SPEC.md`. All after 1.0.
 
-This matches the scope decision already recorded in `docs/SPEC.md` on 2026-11-11 ("narrow to guidance layer + integrations"). The code moved the other way after that date; this review asks to follow the decision.
+`docs/SPEC.md` recorded a narrower scope on 2026-11-11 ("narrow to guidance layer + integrations"). The owner widened it on 2026-11-12 with Projects and the section 3 gaps; this file is now the record.
 
 ## P4. Name
 
@@ -124,7 +126,7 @@ Ordered by what they unblock.
 1. **Leaked signing key.** Decided on 2026-11-12: rotate the key only. Generate a new key, remove the old files in a normal commit, leave the history as it is. The old key stays readable in old commits and is no longer trusted, because the app ships with the new public key. The repo is kept and renamed to `openpier` (GitHub redirects the old URL).
 2. **Licence.** Decided on 2026-11-12: MIT.
 3. **Apple Developer account.** Decided on 2026-11-12: no account. The app is ad-hoc signed, so every user must allow it once in System Settings. The README shows that step with a screenshot. Known cost: some people stop at that screen, and the official Homebrew cask is not possible.
-4. **Dev environments and the AI chat: out of the 1.0 navigation (recommended), or in?** Blocks the navigation in the design spec.
+4. **Projects and the AI chat.** Decided on 2026-11-12: Projects are in the first release, rebuilt on Compose (`07-projects-spec.md`); the AI chat is out.
 5. **macOS only for 1.0 (recommended), or also Windows and Linux?** Blocks the release workflow.
 6. **Who owns the repo on GitHub: the personal account now and an `openpier` organisation when a second maintainer joins (recommended), or the organisation from day one?** Blocks every URL in the README, the updater and the install script.
 

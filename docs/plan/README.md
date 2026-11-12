@@ -10,11 +10,13 @@ Written on 2026-11-12. This folder is the brief for turning today's app into Ope
 | `02-review-ux.md` | Findings U1 to U21 on today's screens, with screenshots in `current-ui/` | Before any screen task |
 | `03-review-product.md` | Positioning, scope for 1.0, name, risks, and the owner's open decisions (P9) | Before deciding what to build |
 | `04-design-spec.md` | The design in words: tokens, shell, components, every screen, states, words, keyboard | While building anything on screen |
-| `design/mockup.html` | The design you can open. 19 screens, light and dark | Same. Open it in a browser |
+| `design/mockup.html` | The design you can open. 23 screens, light and dark | Same. Open it in a browser |
 | `design/openpier.css` | The stylesheet. Ships unchanged as `src/ui/openpier.css` | Same |
 | `design/shots/` | Screenshots of the mockup (WebKit). Remake with `node docs/plan/design/shoot.mjs` | To compare your screen with the design |
 | `05-implementation-plan.md` | The tasks, in order, one PR each | To pick up work |
 | `06-open-source-launch.md` | Licence, CI, release workflow, install, README, launch checklist | For phase 6 and task 0.6 |
+| `07-projects-spec.md` | Projects: several Compose projects side by side with no collisions. Data, start check, screens, acceptance test | For phase 7 |
+| `08-feature-gaps.md` | What is missing to be the reference: must-haves, next, never, engineering gaps, cost | To decide scope, and for phase 8 |
 
 To see a mockup screen: open `design/mockup.html#screen=containers&theme=dark`. Screen names are in the file's left menu.
 
@@ -50,9 +52,17 @@ The UI broke because classes in the components had no matching CSS, and nothing 
 
 An **engine** is any Docker context; every resource screen works on any engine. A **machine** is the VM behind an engine, and only Colima has controls for it in 1.0. This is what makes "works with the engine you already have" true without five half-built adapters. Detail in E8.
 
+### D5. Projects are in the first release, rebuilt on Compose (2026-11-12, owner)
+
+The owner wants to run several projects at once without collisions, from the first release. A project is a folder with a Compose file, run on the selected engine. The existing Lima-based code is not used: it builds a second virtual machine and ignores the selected engine. Detail in `07-projects-spec.md`. The AI chat is dropped.
+
+### D6. "1.0" means the first OpenPier release
+
+The old names shipped v0.1.0 and v0.2.0. Which number the first OpenPier release gets is the owner's call when cutting it; the docs say "1.0" or "first release" for the same thing.
+
 ## Decisions still open (the owner's)
 
-In `03-review-product.md`, P9. Decided on 2026-11-12: rotate the leaked key only (history kept), MIT licence, no Apple Developer account. Still open: dev environments and AI chat out of 1.0, macOS only, who owns the repo on GitHub.
+In `03-review-product.md`, P9. Decided on 2026-11-12: rotate the leaked key only (history kept), MIT licence, no Apple Developer account. Projects in and AI chat out (D5). Still open: macOS only, who owns the repo on GitHub.
 
 ## What has and has not been checked
 

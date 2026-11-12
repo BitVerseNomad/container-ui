@@ -34,11 +34,11 @@ Nothing visible changes in this phase. It unblocks everything else.
 
 ### 0.2 Take dev environments and the AI chat out of the default build (E2, E3, E4, E12, P3)
 
-1. Needs: owner decision P9.4. This task assumes "out of 1.0".
+1. Decided (P9.4): the AI chat is out. Projects stay as a feature and are rebuilt on Compose in phase 7; this task parks today's Lima implementation and closes its holes.
 2. Steps:
    1. Rust: add a cargo feature `workspaces` (off by default). Gate `mod lima;`, `mod projects;` and their entries in the `generate_handler!` list (`src-tauri/src/main.rs:1939-1951`) behind `#[cfg(feature = "workspaces")]`. Make `sqlx`, `uuid` and `chrono` optional dependencies enabled by that feature. Try the same for `tokio` (it is declared twice in `Cargo.toml`, lines 19 and 22; keep one). Then run `cargo build`: keep as a normal dependency any crate the default build still needs, and list which in the PR.
    2. Rust: add a cargo feature `assistant` (off by default). Gate `ollama_chat`, `ollama_list_models`, `ollama_pull` (`main.rs:830-930`).
-   3. TypeScript: remove `Projects` from the `Tab` type and `NAV` (`src/Shell.tsx:10-23`), and its branch in `src/App.tsx`. Remove the AI panel, its shortcut and `src/Onboarding.tsx` with its CSS in `src/styles.css`.
+   3. TypeScript: remove today's `Projects` page from the `Tab` type and `NAV` (`src/Shell.tsx:10-23`), and its branch in `src/App.tsx`. The nav item comes back in task 7.5 with the new page. Remove the AI panel, its shortcut and `src/Onboarding.tsx` with its CSS in `src/styles.css`.
    4. Move `src/features/projects/`, `src/hooks/useProjectTerminal.ts` and `src/ai/` to `src/_parked/` and exclude that folder in `tsconfig.json` and `vitest.config.ts`. Remove `xterm`, `@xterm/*` from `dependencies`.
    5. Inside the parked Rust code, still fix the three holes so they cannot come back by accident: delete `fs_read_text_file`, `fs_read_dir` and `get_gh_token` as commands (`lima.rs:696, 749, 760`); replace `compose_via_lima` string building (`lima.rs:262-267`) with argv; remove the token `-e` arguments (`lima.rs:409-415`).
 3. Done when:
@@ -137,7 +137,7 @@ Nothing visible changes in this phase. It unblocks everything else.
 
 ### 2.1 Routes (E9)
 
-1. Add `src/lib/router.ts`: `useRoute()` returns `{ page, id, tab }` parsed from `location.hash`; `go(path)` sets it. The routes are: `#/containers`, `#/containers/<id>/<logs|settings|stats|folders|network|history>`, `#/images`, `#/volumes`, `#/networks`, `#/kubernetes`, `#/doctor`, `#/settings/<general|machines|engines|updates|about>`, `#/setup`, and `#/dev/gallery` (preview only). Unknown routes go to `#/containers`, which is also where the app opens (U20).
+1. Add `src/lib/router.ts`: `useRoute()` returns `{ page, id, tab }` parsed from `location.hash`; `go(path)` sets it. The routes are: `#/projects`, `#/projects/<id>/<services|logs|ports|settings>`, `#/containers`, `#/containers/<id>/<logs|settings|stats|folders|network|history>`, `#/images`, `#/volumes`, `#/networks`, `#/kubernetes`, `#/doctor`, `#/settings/<general|machines|engines|updates|about>`, `#/setup`, and `#/dev/gallery` (preview only). Unknown routes go to `#/containers`. The app opens on the route it had when it closed (`openpier:last-route`), and on `#/containers` the first time (U20).
 2. Replace `useState<Tab>` in `src/App.tsx`. Cmd+[ and Cmd+] call `history.back()` and `history.forward()`.
 3. Tests: parse and build every route; unknown route falls back.
 4. Done when: reloading the preview on `#/images` opens Images, and Back returns to the previous page.
@@ -241,7 +241,17 @@ Findings that are closed by an earlier task and not by one screen: U1 by 1.1; U4
 2. `CHANGELOG.md`: one entry for 1.0 that says what changed for a user.
 3. Done when: no doc mentions a file that does not exist (`scripts/check-doc-links.mjs` greps backticked paths in `*.md` and tests each exists).
 
+## Phase 7. Projects
+
+Tasks 7.1 to 7.8 are in `07-projects-spec.md`, section 12. They need phase 4 (engines). Task 7.8, the two-project test, is the definition of done for the feature.
+
+## Phase 8. What a reference app needs
+
+Tasks 8.1 to 8.13 are in `08-feature-gaps.md`, section 8, with what each needs. They are part of the first release.
+
 ## Phase 6. Release
+
+Phase 6 runs last, after phases 7 and 8.
 
 Tasks 6.1 to 6.6 are the sections of `06-open-source-launch.md`: licence and community files, the release workflow, the install script, the README and its screenshots, signing, and the launch checklist.
 
@@ -251,7 +261,7 @@ Tasks 6.1 to 6.6 are the sections of `06-open-source-launch.md`: licence and com
 2. Phase 1 is serial (1.1, then 1.2 to 1.5 in any order).
 3. Phase 2 is serial.
 4. Phase 3 tasks are independent once 2.2 is merged; two people or agents can take different screens. 3.1 first, because the others copy its patterns.
-5. Phase 4 after phase 3. Phase 5 after phase 4. Phase 6 documents (6.1, 6.2) can start any time after 0.4.
+5. Phase 4 after phase 3. Phase 5 after phase 4. Phases 7 and 8 after phase 4, and they can run side by side. Phase 6 documents (6.1, 6.2) can start any time after 0.4; the launch (6.6) is last.
 
 ## Size
 
@@ -266,10 +276,12 @@ High-level only, for one experienced person or a supervised agent, in working da
 | 4 | 4 to 6 |
 | 5 | 2 to 3 |
 | 6 | 2 to 4 |
-| Total | 28 to 43 |
+| 7 Projects | 8 to 12 |
+| 8 Reference gaps | 14 to 20 |
+| Total | 50 to 75 |
 
 ## What this plan does not cover
 
 1. Real-machine verification of the October features (`docs/research/evaluation-kit.md`). Do it after phase 3, before the public launch.
 2. A usability session with real engineers (P8.1).
-3. Machine drivers for runtimes other than Colima, Windows and Linux builds, the menu bar app, image build. All after 1.0, in `ROADMAP.md`.
+3. Machine drivers for runtimes other than Colima, Windows and Linux builds, image build, and the rest of `08-feature-gaps.md` sections 4 and 5. All after the first release, in `ROADMAP.md`.

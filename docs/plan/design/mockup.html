@@ -72,6 +72,7 @@ function sidebar(active, o = {}) {
       ${I("updown", "chev sm")}
     </button>
     <nav class="nav" aria-label="Main">
+      ${item("projects", "folder", "Projects", '<span class="count">3</span>')}
       ${item("containers", "box", "Containers", '<span class="count">11</span>')}
       ${item("images", "image", "Images")}
       ${item("volumes", "database", "Volumes")}
@@ -395,7 +396,95 @@ const loading = app("containers", header("Containers", "", `${search("Search con
     <div class="list">${[220, 160, 260, 190].map(w => `<div class="row"><span class="lead"><span class="dot"></span></span><span class="skeleton" style="width:${w}px"></span><span class="grow"></span><span class="skeleton" style="width:70px"></span></div>`).join("")}</div>
   </div><div class="toast"><span class="dot ok"></span><span>Removed kafka-ui</span>${btn("Undo", "xs")}</div>`);
 
+/* ---------- projects ---------- */
+const prow = (p) => `
+  <div class="row" role="row" tabindex="0">
+    <span class="lead"><span class="dot ${p.dot}"></span></span>
+    <span class="name truncate">${p.name}</span>
+    <span class="meta truncate grow">${p.meta}</span>
+    <span class="col ports">${(p.ports || []).map(x => `<a class="port" href="#" aria-label="Open port ${x} in the browser">:${x}</a>`).join("")}</span>
+    <span class="col state" style="width:132px">${p.state}</span>
+    <span class="act">${btn(p.action, p.primary ? "primary" : "")}</span>
+    ${more(p.name)}
+  </div>`;
+const projectsHead = header("Projects", "3 · 2 running", `${search("Search projects")}${btn(I("plus", "sm") + "Add project", "primary")}`);
+const projectsList = `
+  <div class="list" role="table" aria-label="Projects">
+    ${prow({ dot: "bad", name: "shop", meta: "~/code/shop", ports: ["8080", "5432"], state: "5 of 7 running", action: "Stop" })}
+    ${prob("bad", "api: its health check is failing", btn("See why", "xs"))}
+    ${prow({ dot: "ok", name: "billing", meta: "~/code/billing", ports: ["8081", "5433"], state: "3 of 3 running", action: "Stop" })}
+    ${prow({ dot: "", name: "search", meta: "~/work/search-service", state: "Not started", action: "Start" })}
+    <div class="group-cap">Found on this engine</div>
+    ${prow({ dot: "ok", name: "kafka-local", meta: "~/scratch/kafka", ports: ["8082"], state: "2 of 2 running", action: "Add" })}
+  </div>`;
+const projects = app("projects", projectsHead + `<div class="content">${projectsList}</div>`);
+
+const portRow = (svc, inside, mac, note, link = true) => `
+  <div class="row" role="row">
+    <span class="lead"></span>
+    <span class="name truncate" style="width:140px;flex:none">${svc}</span>
+    <span class="col mono" style="width:120px">${inside}</span>
+    <span class="col" style="width:120px">${link ? `<a class="port" href="#">:${mac}</a>` : `<span class="mono">${mac}</span>`}</span>
+    <span class="meta truncate grow">${note}</span>
+    <span class="act">${btn("Change…")}</span>
+  </div>`;
+const projectDetail = app("projects", `
+  <header class="header">
+    <button class="btn ghost icon-only" aria-label="Back to Projects">${I("back")}</button>
+    <h1>billing</h1><span class="dot ok"></span><span class="sub">3 of 3 running</span>
+    <span class="grow"></span>
+    ${btn("Restart")}${btn("Stop")}${more("billing")}
+  </header>
+  <div class="content" style="display:flex;flex-direction:column;gap:10px">
+    <div class="facts"><span>~/code/billing</span><span>Colima · default</span><span>compose.yaml</span><span>Started 12 min ago</span></div>
+    <div class="banner info">${I("info", "sev info")}
+      <div><div class="title">Two ports were moved so this project can run next to shop</div><div class="body">Your Compose file was not changed.</div></div>
+      <div class="actions">${btn("Show what changed")}</div>
+    </div>
+    <div class="tabs" role="tablist">
+      <button class="chip" role="tab">Services</button><button class="chip" role="tab">Logs</button><button class="chip" role="tab" aria-selected="true">Ports</button><button class="chip" role="tab">Settings</button>
+    </div>
+    <div class="list" role="table" aria-label="Ports of billing">
+      <div class="row" style="min-height:24px" role="row"><span class="lead"></span><span class="meta" style="width:140px;flex:none">Service</span><span class="meta" style="width:120px">In the container</span><span class="meta" style="width:120px">On this Mac</span><span class="meta grow"></span></div>
+      ${portRow("web", "80", "8081", "Wanted 8080, used by shop · web")}
+      ${portRow("db", "5432", "5433", "Wanted 5432, used by shop · db")}
+      ${portRow("mail", "8025", "8025", "")}
+    </div>
+  </div>`);
+
+const startFinding = (sev, text, control) => `
+  <div class="banner ${sev === "info" ? "" : sev}" style="align-items:center">${I(sev === "bad" ? "error" : sev === "warn" ? "alert" : "check", "sev " + (sev === "info" ? "ok" : sev) + " sm")}
+    <div class="body" style="color:var(--fg)">${text}</div><div class="actions">${control}</div></div>`;
+const startCheck = `
+  <div class="overlay"></div>
+  <aside class="sheet" role="dialog" aria-label="Start billing">
+    <div class="sheet-head"><h2>Start billing</h2><span class="grow"></span><button class="btn ghost icon-only" aria-label="Close">${I("close")}</button></div>
+    <div class="sheet-body" style="display:flex;flex-direction:column;gap:8px">
+      <p class="muted" style="margin:0 0 4px">shop is running and uses some of the same things. This project will start next to it. Your Compose file is not changed.</p>
+      ${startFinding("info", `Port 8080 is used by <span class="mono">shop · web</span>. This project will use <b>8081</b>.`, btn("Use another…", "xs"))}
+      ${startFinding("info", `Port 5432 is used by <span class="mono">shop · db</span>. This project will use <b>5433</b>.`, btn("Use another…", "xs"))}
+      ${startFinding("info", `The name <span class="mono">db</span> is taken. This project's container will be <span class="mono">billing-db-1</span>.`, "")}
+      ${startFinding("warn", `Both projects use the volume <span class="mono">pgdata</span>. They would share the same database files.`, btn("Share it", "xs") + btn("Keep separate", "xs primary"))}
+      <div class="form-row" style="margin-top:6px"><button class="chip">${I("chev-right", "sm")}Show command</button></div>
+    </div>
+    <div class="sheet-foot">${btn("Cancel", "md ghost")}${btn("Start", "md primary", "disabled")}</div>
+  </aside>`;
+const projectStart = app("projects", projectsHead + `<div class="content">${projectsList}</div>`, startCheck);
+
+const projectsEmpty = app("projects", header("Projects", "", btn(I("plus", "sm") + "Add project", "primary")) + `
+  <div class="content">
+    <div class="empty">${I("folder")}<div class="title">No projects yet</div>
+      <div class="body">A project is a folder with a Compose file. Add one and it runs next to your others, without the ports colliding.</div>
+      ${btn(I("plus", "sm") + "Add project", "primary md")}</div>
+    <div class="group-cap">Found on this Mac</div>
+    <div class="list">
+      ${prow({ dot: "", name: "shop", meta: "~/code/shop/compose.yaml", state: "", action: "Add" })}
+      ${prow({ dot: "", name: "billing", meta: "~/code/billing/docker-compose.yml", state: "", action: "Add" })}
+    </div>
+  </div>`);
+
 const screens = {
+  projects, "project-detail": projectDetail, "project-start-check": projectStart, "projects-empty": projectsEmpty,
   containers: containers(),
   "containers-row-menu": containers(rowMenu),
   "containers-new-menu": containers(newMenu),
