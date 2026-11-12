@@ -128,6 +128,6 @@ Ordered by what they unblock.
 3. **Apple Developer account.** Decided on 2026-11-12: no account. The app is ad-hoc signed, so every user must allow it once in System Settings. The README shows that step with a screenshot. Known cost: some people stop at that screen, and the official Homebrew cask is not possible.
 4. **Projects and the AI chat.** Decided on 2026-11-12: Projects are in the first release, rebuilt on Compose (`07-projects-spec.md`); the AI chat is out.
 5. **Platforms.** Decided on 2026-11-12: macOS only for the first release (Apple Silicon and Intel). Windows and Linux are Later.
-6. **Who owns the repo on GitHub: the personal account now and an `openpier` organisation when a second maintainer joins (recommended), or the organisation from day one?** Blocks every URL in the README, the updater and the install script.
+6. **Repo owner.** Decided on 2026-11-12: the current personal account (`BitVerseNomad`), with the repo renamed to `openpier`. Move to an `openpier` organisation when a second maintainer joins.
 
 Already decided on 2026-11-12: the name (OpenPier) and the stack (stay on Tauri; see `README.md` in this folder).

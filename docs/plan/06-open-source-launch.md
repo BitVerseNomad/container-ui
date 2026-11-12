@@ -4,7 +4,7 @@ How to make the repo one that people trust in two minutes, and how to publish a 
 
 The workflow files below are written from the Tauri 2 and `tauri-action` documentation. **None of them has been run.** The first run of each is part of its task, and the task is not done until that run is green.
 
-`<OWNER>` below is the GitHub account or organisation that will own the repo. It is an owner decision (`03-review-product.md`, P9.6).
+`<OWNER>` below is `BitVerseNomad`, the account that owns the repo today (decided, `03-review-product.md` P9.6). It is kept as a marker so that a later move to an organisation is one search and replace.
 
 ## 1. What must be true before anything is public
 
