@@ -15,7 +15,7 @@ The workflow files below are written from the Tauri 2 and `tauri-action` documen
 
 ## 2. Task 6.1: licence and community files
 
-Owner decision P9.2 picks the licence. This section assumes MIT.
+The licence is MIT (decided, P9.2).
 
 | File | Content |
 |---|---|
@@ -187,7 +187,7 @@ Why a draft: the owner reads the notes, downloads the `.dmg`, opens it, and only
 
 Both architectures build on `macos-latest` (Apple Silicon); the Intel build is cross-compiled. The Intel `.dmg` is therefore not opened by CI. Open it on an Intel Mac, or under Rosetta, for the first release.
 
-Without the Apple secrets, remove those six `env` lines; do not leave them empty.
+There is no Apple account (P9.3), so leave those six `env` lines out of the file; do not leave them empty.
 
 ### 4.3 How to cut a release
 
@@ -217,7 +217,7 @@ Done when (task 6.2): one tag has gone through all five checks.
 
 ## 6. Task 6.5: signing and notarisation
 
-Owner decision P9.3.
+Decided (P9.3): no Apple Developer account. Item 1 below is what to build. Item 2 is kept for the day that changes.
 
 1. **Without an Apple Developer account**: the app is ad-hoc signed. macOS shows "cannot be opened" on first launch and the user must allow it in System Settings, Privacy and Security. The README must say so, with a screenshot, above the fold. The install script must not remove the quarantine flag silently; it prints the one step the user has to do.
 2. **With the account** (99 USD a year): create a "Developer ID Application" certificate, export it as `.p12`, base64 it into `APPLE_CERTIFICATE`; create an app-specific password for `APPLE_PASSWORD`. `tauri-action` then signs and notarises. Check with `spctl -a -vv /Applications/OpenPier.app` (expect "accepted, source=Notarized Developer ID").

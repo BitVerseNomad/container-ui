@@ -52,7 +52,7 @@ An **engine** is any Docker context; every resource screen works on any engine. 
 
 ## Decisions still open (the owner's)
 
-In `03-review-product.md`, P9, in the order they unblock work: what to do about the leaked key, the licence, the Apple Developer account, dev environments and AI chat out of 1.0, macOS only.
+In `03-review-product.md`, P9. Decided on 2026-11-12: rotate the leaked key only (history kept), MIT licence, no Apple Developer account. Still open: dev environments and AI chat out of 1.0, macOS only, who owns the repo on GitHub.
 
 ## What has and has not been checked
 

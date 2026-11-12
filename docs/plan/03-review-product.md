@@ -122,8 +122,8 @@ There is no telemetry today and none should be added without an explicit opt-in.
 Ordered by what they unblock.
 
 1. **Leaked signing key.** Decided on 2026-11-12: rotate the key only. Generate a new key, remove the old files in a normal commit, leave the history as it is. The old key stays readable in old commits and is no longer trusted, because the app ships with the new public key. The repo is kept and renamed to `openpier` (GitHub redirects the old URL).
-2. **Licence: MIT or Apache-2.0?** Blocks calling it open source. Recommendation: MIT.
-3. **Apple Developer account (99 USD a year) for signing and notarisation, yes or no?** Without it every user must click "Open Anyway" in System Settings, and many will stop there. Blocks "installs in a few clicks". Recommendation: yes before the public launch, no for the first private testers.
+2. **Licence.** Decided on 2026-11-12: MIT.
+3. **Apple Developer account.** Decided on 2026-11-12: no account. The app is ad-hoc signed, so every user must allow it once in System Settings. The README shows that step with a screenshot. Known cost: some people stop at that screen, and the official Homebrew cask is not possible.
 4. **Dev environments and the AI chat: out of the 1.0 navigation (recommended), or in?** Blocks the navigation in the design spec.
 5. **macOS only for 1.0 (recommended), or also Windows and Linux?** Blocks the release workflow.
 6. **Who owns the repo on GitHub: the personal account now and an `openpier` organisation when a second maintainer joins (recommended), or the organisation from day one?** Blocks every URL in the README, the updater and the install script.
