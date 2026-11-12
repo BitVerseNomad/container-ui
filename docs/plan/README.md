@@ -10,8 +10,9 @@ Written on 2026-11-12. This folder is the brief for turning today's app into Ope
 | `02-review-ux.md` | Findings U1 to U21 on today's screens, with screenshots in `current-ui/` | Before any screen task |
 | `03-review-product.md` | Positioning, scope for 1.0, name, risks, and the owner's open decisions (P9) | Before deciding what to build |
 | `04-design-spec.md` | The design in words: tokens, shell, components, every screen, states, words, keyboard | While building anything on screen |
-| `design/mockup.html` | The design you can open. 23 screens, light and dark | Same. Open it in a browser |
+| `design/mockup.html` | The design you can open. 25 screens, light and dark | Same. Open it in a browser |
 | `design/openpier.css` | The stylesheet. Ships unchanged as `src/ui/openpier.css` | Same |
+| `design/prototype.html` | A working prototype of three visual directions. A (Manifest) was picked. Click problems, fix them, start projects | To feel how the app should behave |
 | `design/shots/` | Screenshots of the mockup (WebKit). Remake with `node docs/plan/design/shoot.mjs` | To compare your screen with the design |
 | `05-implementation-plan.md` | The tasks, in order, one PR each | To pick up work |
 | `06-open-source-launch.md` | Licence, CI, release workflow, install, README, launch checklist | For phase 6 and task 0.6 |
@@ -51,6 +52,10 @@ The UI broke because classes in the components had no matching CSS, and nothing 
 ### D4. Engine and Machine are two things (2026-11-12)
 
 An **engine** is any Docker context; every resource screen works on any engine. A **machine** is the VM behind an engine, and only Colima has controls for it in 1.0. This is what makes "works with the engine you already have" true without five half-built adapters. Detail in E8.
+
+### D7. Visual direction: Manifest (2026-11-12, owner)
+
+The first mockup copied OpenChamber's warm palette and the owner found it had no identity. Three directions were built as a working prototype; the owner picked A, Manifest: cool grey, one cobalt accent, dense tables, a block per service, machine meters in the header, and an inspector that explains each problem. Detail in `04-design-spec.md` section 1. D3 (one stylesheet) is unchanged.
 
 ### D5. Projects are in the first release, rebuilt on Compose (2026-11-12, owner)
 

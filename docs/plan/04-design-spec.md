@@ -22,11 +22,14 @@ Rules for the implementer:
 
 ## 1. Principles
 
-Taken from OpenChamber's own design notes, kept where they fit a container manager, with one deliberate exception (1.6).
+The direction is **Manifest**, picked by the owner on 2026-11-12 from three working prototypes (`design/prototype.html`). It is cool, native and dense. Several rules below started in OpenChamber's design notes and were kept.
 
-1. **Controls stand up, layout lies flat.** Anything you can press has a hairline edge and a short shadow. Everything else has no border and no box. Regions differ by a small step in tone.
+0. **Every service is a block.** A project's health is read from its row of small squares (`.blocks`): green runs, amber needs a look, red is broken, an outline is not running. This is the one thing that makes the app look like itself. Do not add a second signature.
+1. **Lists are tables.** Rows have a hairline rule under them, a header row, and columns that line up down the page. Controls have a hairline edge and a short shadow.
 2. **Quiet at rest.** A row shows its name, its state and one action. The rest is in the ⋯ menu. Row buttons are a hairline outline until the row is hovered or focused.
-3. **Colour means state.** Green is healthy, amber needs a look, red is broken, blue is busy. The accent (burnt orange) marks the one thing to do next. Nothing else is coloured.
+3. **Colour means state.** Green is healthy, amber needs a look, red is broken. The accent (cobalt blue) marks where you are in the sidebar and the one thing to do next, as a solid fill. Nothing else is coloured.
+8. **A problem explains itself.** A problem is a tinted line under its row. Clicking it opens the inspector (6.16): the sentence, what the container said, what the app found, and the button that fixes it.
+9. **The machine is always in view.** CPU, memory and disk of the machine sit in the header of every page (6.14).
 4. **One line per thing.** A row is one line. Facts are joined with " · ". Long values truncate and show in full in a tooltip.
 5. **Nothing moves when you touch it.** Hover and selection never change a size. Columns have fixed widths. A slot that may hold a status is reserved even when empty.
 6. **Keyboard focus is always visible.** OpenChamber removes focus rings; this app does not. Every focusable thing shows a 2px accent ring on `:focus-visible` (keyboard only). This is rule 8 of `AGENTS.md`.
@@ -34,9 +37,10 @@ Taken from OpenChamber's own design notes, kept where they fit a container manag
 
 ## 2. Reference
 
-1. Reference app: OpenChamber, `github.com/openchamber/openchamber`, MIT. Its design notes are in `.agents/skills/openchamber-ui-guidance/` of that repo.
-2. What is copied: the warm palette, the flat layout with raised controls, the type sizes, the density, the tinted (not solid) primary button, the bare-word captions.
-3. What is not copied: its code (React 19, Base UI, Tailwind), its three-pane chat layout, its theme marketplace, its no-focus-ring rule.
+1. The source of truth is `design/openpier.css` and `design/mockup.html`. `design/prototype.html` shows the behaviour (open a problem, fix it, start a project next to others) and the two directions that were not picked, B and C. Do not build from B or C.
+2. Kept from OpenChamber (`github.com/openchamber/openchamber`, MIT): the type sizes, the density, one action per row, bare-word captions, quiet row buttons.
+3. Dropped on 2026-11-12: its warm cream palette and burnt-orange accent (the owner found the result had no identity), the tinted primary button, the borderless rows.
+4. The palette is cool grey with one cobalt accent. Contrast was computed for both themes when the tokens were set: body text 12:1 or more, muted text 5.2:1 or more, state colours 4.3:1 or more, text on the accent 6.6:1 or more. Task 1.2 turns that into a check.
 
 ## 3. Tokens
 
@@ -48,12 +52,13 @@ All in `design/openpier.css` section 1. This table is the meaning of each group,
 | Ink | `--fg`, `--fg-muted`, `--fg-faint` | text, secondary text, placeholders and disabled only |
 | Lines | `--line`, `--edge`, `--edge-strong` | dividers, control hairline, focused field |
 | Tone steps | `--tile`, `--tile-hover`, `--tile-active` | flat tiles, hover, selected |
-| Accent | `--accent`, `--accent-ink`, `--accent-fill`, `--accent-fill-hover`, `--accent-edge`, `--focus` | the next action, links, focus ring |
+| Accent | `--accent`, `--on-accent`, `--accent-ink`, `--accent-fill`, `--accent-fill-hover`, `--accent-edge`, `--focus` | solid fill of the primary button and the current nav item, text on that fill, links, focus ring |
+| Blocks | `--off` | outline of a block that is not running |
 | State | `--ok`, `--warn`, `--bad`, `--info` and their `-fill` | dots, severity icons, banners |
 | Depth | `--shadow-control`, `--shadow-raised`, `--shadow-floating` | buttons, raised cards, popovers and sheets |
 | Type | `--font-ui`, `--font-mono`, `--text-micro` 12, `--text-meta` 12.5, `--text-body` 13.5, `--text-title` 14, `--text-page` 17 | system fonts; no web font is loaded |
 | Shape | `--r-xs` 4, `--r-sm` 5, `--r-md` 7, `--r-lg` 9, `--r-xl` 12 | |
-| Size | `--h-xs` 24, `--h-sm` 28, `--h-md` 32, `--row` 36, `--subrow` 28, `--sidebar` 224, `--header` 48, `--sheet` 480, `--dialog` 440, `--palette` 560 | |
+| Size | `--h-xs` 24, `--h-sm` 28, `--h-md` 32, `--row` 34, `--subrow` 28, `--sidebar` 208, `--header` 48, `--sheet` 480, `--dialog` 440, `--palette` 560 | |
 | Motion | `--fast` 120ms, `--normal` 200ms, `--ease` | opacity and transform only |
 
 Theme rules:
@@ -75,7 +80,7 @@ Mockup: `containers`, `engine-switcher`.
 
 ### 5.1 Layout
 
-Two columns: `.sidebar` (224px, or 52px folded) and `.main`. `.main` is a column: `.header` (48px) then `.content` (scrolls). There is no border between sidebar and main; the tone step separates them.
+Two columns: `.sidebar` (208px, or 52px folded) and `.main`. `.main` is a column: `.header` (48px, with a hairline under it) then `.content` (scrolls). A hairline separates sidebar and main.
 
 ### 5.2 Sidebar
 
@@ -91,7 +96,7 @@ Top to bottom:
 Rules:
 
 1. Nav item: icon, label, optional count on the right. Projects and Containers show their total count in muted text.
-2. Active item: `aria-current="page"`, `--tile-active` fill, ink text, weight 500. No outline, no accent colour.
+2. Active item: `aria-current="page"`, solid `--accent` fill, `--on-accent` text, weight 500.
 3. Folded (Cmd+B): only icons, each with a tooltip of its label and shortcut. The engine switcher becomes its state dot. The choice is remembered (`openpier:sidebar-folded`).
 4. Removed from the sidebar: the shortcuts list (it moves to Help), the Runtime select (merged into the switcher), Profiles as a top-level item. Projects stays, rebuilt (section 7.11).
 5. **Activity** is the list of every command the app ran, newest first, with its output and exit code (today's `Commands.tsx`). It opens as a sheet.
@@ -178,11 +183,11 @@ Which variant where:
 
 The row is the app. Mockup: `containers`.
 
-1. `<Row>` renders `.row` (36px): `.lead` (16px slot: chevron for a group, else the dot), name, muted meta that grows and truncates, then fixed columns, the `.act` slot (68px, one button or empty), then the ⋯ button.
+1. `<Row>` renders `.row` (34px, with a hairline under it): `.lead` (16px slot: chevron for a group, else the dot), name, muted meta that grows and truncates, then fixed columns, the `.act` slot (68px, one button or empty), then the ⋯ button.
 2. Columns have fixed widths set by the screen (section 7), right aligned, so every row lines up and nothing shifts when a value is missing.
 3. `.row.child` indents a row inside a group by 26px.
-4. `<Problem>` renders `.subrow` (28px) directly under its row: severity icon, one sentence in ink, and on the right one small button. `primary xs` when the app can fix it ("Fix kafka and kafka-ui…"), `default xs` when it explains ("See why").
-5. No coloured bands. The icon carries the colour.
+4. `<Problem>` renders `.subrow` (32px) directly under its row, the whole line tinted red or amber by its severity, and clicking it opens the inspector (6.16): severity icon, one sentence in ink, and on the right one small button. `primary xs` when the app can fix it ("Fix kafka and kafka-ui…"), `default xs` when it explains ("See why").
+5. A list starts with a header row (`.row.th`) that names the columns and stays at the top while scrolling. The only tinted lines in a list are problem lines.
 6. Click on a row opens its detail. The main action and ⋯ are separate click targets and stop the event.
 7. Selection: hovering a row or focusing it shows a checkbox (`.check`) in the lead slot in place of the dot. With one or more rows checked, the header's right side is replaced by "{n} selected", `Start`, `Stop`, `Remove…`, and a ghost `Cancel`. Esc clears.
 8. Keyboard: Up and Down move between rows; Enter opens; Space checks; the context menu key or Shift+F10 opens ⋯; Left and Right fold and unfold a group.
@@ -239,6 +244,22 @@ Mockup: `empty-state`, `machine-stopped`, `loading-error-toast`.
 
 1. `.canvas` is the surface for logs, inspect output and command output: mono 12px, selectable, scrolls both ways. Log lines get `.t` on the timestamp, `.w` and `.e` on lines the app classifies as warning or error.
 2. `.cmd` is one command on one line with a copy button. It scrolls sideways; it never wraps.
+
+### 6.13 Blocks
+
+`<Blocks services>` renders `.blocks` with one `<u>` per service, in the order of the Compose file: no class (running and healthy), `.warn`, `.bad`, `.off`. Each has the service name and state as its accessible name and tooltip. Fixed width column (132px, nine blocks); with more than nine services the last block is "+n". Used on project rows and Compose group rows only; a single container keeps its dot.
+
+### 6.14 Machine meters
+
+`<Meters>` in every page header, left of the page's own controls: CPU, Memory, Disk, each a label, a 56px bar and the number ("5.1 of 8 GB"). A bar turns amber (`.hot`) above 60 percent for memory and 85 percent for disk. Hidden when the engine has no machine the app can measure. Clicking opens Settings, Machines.
+
+### 6.15 Sparkline
+
+`<Spark points>`: CPU for the last 10 minutes, 86x18, one 1.2px line in muted ink, no axes, no fill. Empty slot of the same size when the thing is not running. Its accessible name is the current value ("CPU 4 percent").
+
+### 6.16 Inspector
+
+The answer to "why". A sheet (6.7) that holds `.ins`: where it is (`.crumb`), the problem as one sentence (`h2`), one paragraph in plain words, "What it said" (the evidence, in a `pre`, the failing line in red), "What OpenPier found" (numbered findings), the actions (the fix as the primary button, then Open logs, Open a shell), and the command the fix will run (`.cmd`). Opens from a problem line, from `See why`, and from a Doctor finding. Esc closes it and returns focus to the line. When the app has no fix, the primary button is `Open logs` and the text says what to check. Mockup `problem-inspector`.
 
 ### 6.12 Command palette
 
@@ -355,6 +376,20 @@ Mockup: `setup`. Shown in place of the whole app when no engine answers and none
 4. If Homebrew is missing, the first step's button is "Open Terminal to install Homebrew" (it needs a password, so the app cannot do it).
 5. When an engine answers, Setup closes by itself and Containers opens.
 6. The Docker Desktop leftovers and "Bring your volumes over" are not part of Setup. They are Doctor findings after it.
+
+### 7.12 Image detail
+
+Route `#/images/<id>/<overview|layers|files|settings>`. Mockup `image-detail`. Specified in `08-feature-gaps.md`, G17.
+
+1. Header: back, name and tag, size and what uses it, `Look inside` (opens a shell in a throwaway container from this image, in Terminal), `Check for a newer one`, primary `Run`, more menu.
+2. Facts: id, platform, built when, number of layers, where it came from.
+3. **Layers**: one row per build step, in plain order, with what it added. The step that added the most says so. Selecting a step lists the folders it added, largest first.
+4. **Settings it starts with**: the ports, folders, variables and start command the image declares, in words ("Listens on 5432", "Keeps data in /var/lib/postgresql/data").
+5. **Files** (after the first release): browse the image's files, read only.
+
+### 7.13 Registries
+
+Settings, Registries. Specified in `08-feature-gaps.md`, G10. One row per registry the Mac knows (Docker Hub, GitHub, an AWS registry and so on): name, address, "Signed in as" or "Not signed in", and `Sign in` or `Sign out`. The Pull sheet searches Docker Hub by default and lists the signed-in registries as sources.
 
 ### 7.11 Projects
 

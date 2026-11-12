@@ -29,7 +29,8 @@ Ranked by how often a developer does them. The reference bar is: each one in two
 | J10 | Look at or copy files in a container or volume | Mounts are listed; files are not | Gap (G6) |
 | J11 | Change a setting of a running container | Read-only Inspect | Gap (G7) |
 | J12 | Build an image | Only through Compose (`up --build`). A plain `docker build` of a folder is refused by the allowlist | Gap (G9) |
-| J13 | Log in to a registry, push | No. `docker login` is refused | Gap (G10) |
+| J13 | Use a private registry (a company one, AWS and so on) | Pulling works when the Mac is already signed in from Terminal. The app cannot sign in, list or push; `docker login` is refused | **Gap, first release (G10)** |
+| J15 | Look inside an image | No. The list has Run and Remove only | **Gap, first release (G17)** |
 | J14 | Move data between machines or back it up | Bring over from Docker Desktop only | Gap (G8) |
 
 ## 3. Must be in the first release
@@ -76,6 +77,30 @@ This is the product's claim, so it should be on a page anyone can read and link 
 
 One button in Settings, About: app version, macOS version, engine kind and version, Compose version, the last 20 commands with exit codes. No container names, no paths, no environment values. The bug template asks for it. Without it, every issue starts with five questions.
 
+### G10. Private registries
+
+The owner asked for this on 2026-11-12: company registries, AWS and others, next to Docker Hub.
+
+1. **Fact**: Docker keeps who is signed in where in `~/.docker/config.json`, and pulls use it. So a private image already pulls today if the user signed in from Terminal. The app only lacks the screen.
+2. Settings, Registries: list the registries in that file (read only), each with "Signed in" or not. Design spec 7.13.
+3. `Sign in`: the app opens Terminal with the right command and the user types the password there. **The app never sees or stores a password or token.** For an AWS registry the command is the AWS one (`aws ecr get-login-password … | docker login …`), and the row says when the sign-in will expire (AWS tokens last 12 hours).
+4. Pull sheet: Docker Hub search stays the default (it exists today). A signed-in registry is a source: type the image name; for AWS, list repositories when the `aws` command is installed and signed in.
+5. A pull that fails with "denied" or "unauthorized" becomes a plain sentence with a `Sign in` button ("You are not signed in to 1234.dkr.ecr.eu-west-1.amazonaws.com").
+6. Push: after the first release.
+7. Needs a threat review: the allowlist refuses `login` today on purpose. Keep it refused; sign-in happens in Terminal.
+8. Done when: with a registry signed in from Terminal, the app lists it, pulls a private image, and explains an expired sign-in with a working `Sign in`.
+
+### G17. Look inside an image
+
+The owner asked for this on 2026-11-12.
+
+1. Image detail page (design spec 7.12, mockup `image-detail`): overview, layers, the settings it starts with.
+2. `Look inside`: a shell in a throwaway container from the image, in Terminal. Reuses the existing shell code, including the fallback for images with no shell (`src/lib/shell.ts`).
+3. `Check for a newer one`: compares the local image with the registry and offers `Pull`.
+4. Backend: `image inspect` is already allowed. `history` must be added to the allowlist (read only).
+5. Files inside the image: after the first release (needs an export; design it with G6).
+6. Done when: for `postgres:16` the page shows its layers with sizes, says it listens on 5432 and where it keeps data, and `Look inside` opens a shell.
+
 ### G15. Start at login, and come back where you were
 
 A setting to start OpenPier at login (in the menu bar only), and one to start the selected machine with it. The window reopens at its last size, position and page. Small, and every desktop tool has it.
@@ -94,11 +119,38 @@ Ordered by value for the effort.
 | G7 | Change and recreate | Edit ports, environment, restart rule, memory limit of a container; the app shows the new command, recreates it, keeps the volumes | Fits rule 7 of `AGENTS.md`: asks first, says what it runs |
 | G8 | Volume backup | Save a volume to a `.tar.gz`, restore it, copy it to another engine | The bring-over code already copies volumes; reuse it |
 | G9 | Build | "Build this folder" with live output and plain-word errors | Needs an allowlist entry and a threat review: a build runs code |
-| G10 | Registries | Log in through Docker's own credential helper (the app never sees the password), then push | Never store credentials in the app |
+| G10b | Push to a registry | After sign-in exists (G10) | |
 | G11 | Local names for projects | `web.billing.localhost` in place of `localhost:8081` | Makes Projects feel finished. Needs a small reverse proxy; design before building |
 | G12 | Machine over time | CPU, memory and disk of the machine for the last hour, and which containers used them | Answers "why is my Mac hot" |
 | G13 | Wrong-architecture warning | A Doctor check when an image runs under emulation on Apple Silicon, with what it costs | Common and invisible |
 | G14 | Company networks | Proxy, custom certificates and registry mirrors, set once and applied to the machine | Blocks adoption at work. Colima only at first |
+
+## 4b. What Docker can do that the app cannot
+
+The backend only runs the Docker commands on its allowlist (`src-tauri/src/main.rs:71-88`). Everything else is refused. This is the full list of what is missing, so nothing is forgotten. "Allow" means adding it to the allowlist with its own argument check and tests.
+
+| Docker can | In the app today | Plan |
+|---|---|---|
+| `exec` (run a command inside) | Only as a shell in Terminal | Keep. An in-app terminal is Later |
+| `history`, image `inspect` | `inspect` allowed, not shown; `history` refused | First release (G17) |
+| `search` (Docker Hub) | Yes, in Pull | Keep |
+| `pull` | Yes | Keep; add registries (G10) |
+| `login`, `logout` | Refused | Stays refused; sign-in in Terminal (G10) |
+| `push`, `tag` | Refused | Next (G10b) |
+| `build`, `buildx` | Only through Compose | Next (G9) |
+| `cp` (copy files in or out) | Refused | Next, with Files (G6) |
+| `diff` (what a container changed) | Refused | Next: a "Changed files" tab, read only |
+| `top` (processes inside) | Refused | Next: a "Processes" tab, read only. Cheap |
+| `commit` (save a container as an image) | Refused | Later |
+| `save`, `load`, `export`, `import` | Refused | Next, with backup (G8) |
+| `kill`, `wait`, `attach`, `port` | Refused | Not needed: Stop, logs and the Ports page cover them |
+| `volume create`, `inspect`, `prune` | `ls` and `rm` only | Next (G8) |
+| `network prune` | Refused | Later |
+| `system prune` | Refused; the app prunes by kind, with a confirm | Keep refused |
+| `compose` up, stop, logs, config, build | Yes | Extend for Projects (`07`) |
+| `compose` `run`, `exec`, `pull`, `down -v` | `pull` and `down` come with Projects | First release (`07`) |
+| `context` (list, use) | The app reads contexts | First release (E8) |
+| `scout`, scans | No | Later, optional tool |
 
 ## 5. Later, and never
 
@@ -141,10 +193,12 @@ Estimates in working days for one experienced person, from reading the code, not
 | G3 Problems page | 1 to 2 |
 | G4 Logs | 2 to 3 |
 | G5 Copy details, X7, X8, G15 | 3 |
+| G10 Registries | 3 to 4 |
+| G17 Image detail | 3 to 4 |
 | X1, X2, X4, X5, X6 | 4 to 6 |
-| Total added | 22 to 32 |
+| Total added | 28 to 40 |
 
-With the 28 to 43 days of `05-implementation-plan.md`, the first release is 50 to 75 working days. That is the price of "reference from the first release".
+With the 28 to 43 days of `05-implementation-plan.md`, the first release is 56 to 83 working days. That is the price of "reference from the first release".
 
 If it has to be shorter, cut in this order, last first:
 
@@ -174,3 +228,5 @@ Added to `05-implementation-plan.md` as phase 8. Each task follows the rules at 
 | 8.11 | X6 Versioned settings file | 0.4 |
 | 8.12 | G15 Start at login, window state | 8.1 |
 | 8.13 | G16 Keyboard and VoiceOver pass (gate before launch) | Phase 3, 7 |
+| 8.14 | G17 Image detail, `history` on the allowlist | 3.4 |
+| 8.15 | G10 Registries list, sign-in through Terminal, registry sources in Pull | 3.3, 3.9 |

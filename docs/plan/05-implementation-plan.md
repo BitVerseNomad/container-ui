@@ -137,7 +137,7 @@ Nothing visible changes in this phase. It unblocks everything else.
 
 ### 2.1 Routes (E9)
 
-1. Add `src/lib/router.ts`: `useRoute()` returns `{ page, id, tab }` parsed from `location.hash`; `go(path)` sets it. The routes are: `#/projects`, `#/projects/<id>/<services|logs|ports|settings>`, `#/containers`, `#/containers/<id>/<logs|settings|stats|folders|network|history>`, `#/images`, `#/volumes`, `#/networks`, `#/kubernetes`, `#/doctor`, `#/settings/<general|machines|engines|updates|about>`, `#/setup`, and `#/dev/gallery` (preview only). Unknown routes go to `#/containers`. The app opens on the route it had when it closed (`openpier:last-route`), and on `#/containers` the first time (U20).
+1. Add `src/lib/router.ts`: `useRoute()` returns `{ page, id, tab }` parsed from `location.hash`; `go(path)` sets it. The routes are: `#/projects`, `#/projects/<id>/<services|logs|ports|settings>`, `#/containers`, `#/containers/<id>/<logs|settings|stats|folders|network|history>`, `#/images`, `#/images/<id>/<overview|layers|files|settings>`, `#/volumes`, `#/networks`, `#/kubernetes`, `#/doctor`, `#/settings/<general|machines|engines|registries|updates|about>`, `#/setup`, and `#/dev/gallery` (preview only). Unknown routes go to `#/containers`. The app opens on the route it had when it closed (`openpier:last-route`), and on `#/containers` the first time (U20).
 2. Replace `useState<Tab>` in `src/App.tsx`. Cmd+[ and Cmd+] call `history.back()` and `history.forward()`.
 3. Tests: parse and build every route; unknown route falls back.
 4. Done when: reloading the preview on `#/images` opens Images, and Back returns to the previous page.
@@ -247,7 +247,7 @@ Tasks 7.1 to 7.8 are in `07-projects-spec.md`, section 12. They need phase 4 (en
 
 ## Phase 8. What a reference app needs
 
-Tasks 8.1 to 8.13 are in `08-feature-gaps.md`, section 8, with what each needs. They are part of the first release.
+Tasks 8.1 to 8.15 are in `08-feature-gaps.md`, section 8, with what each needs. They are part of the first release.
 
 ## Phase 6. Release
 
@@ -277,8 +277,8 @@ High-level only, for one experienced person or a supervised agent, in working da
 | 5 | 2 to 3 |
 | 6 | 2 to 4 |
 | 7 Projects | 8 to 12 |
-| 8 Reference gaps | 14 to 20 |
-| Total | 50 to 75 |
+| 8 Reference gaps | 20 to 28 |
+| Total | 56 to 83 |
 
 ## What this plan does not cover
 

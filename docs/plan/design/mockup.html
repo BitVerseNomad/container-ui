@@ -93,7 +93,11 @@ function sidebar(active, o = {}) {
   </aside>`;
 }
 const app = (active, main, overlay = "", o) => `<div class="app">${sidebar(active, o)}<main class="main">${main}${overlay}</main></div>`;
-const header = (title, sub, right = "") => `<header class="header"><h1>${title}</h1>${sub ? `<span class="sub">${sub}</span>` : ""}<span class="grow"></span>${right}</header>`;
+const meters = `<div class="meters"><div class="meter" style="--v:12%">CPU <i></i> 12%</div><div class="meter hot" style="--v:64%">Memory <i></i> 5.1 of 8 GB</div><div class="meter" style="--v:68%">Disk <i></i> 41 of 60 GB</div></div>`;
+const header = (title, sub, right = "") => `<header class="header"><h1>${title}</h1>${sub ? `<span class="sub">${sub}</span>` : ""}<span class="grow"></span>${meters}${right}</header>`;
+const blocks = (str) => `<span class="blocks">${str.split("").map(c => `<u class="${{ o: "", w: "warn", b: "bad", x: "off" }[c]}"></u>`).join("")}</span>`;
+const spark = (seed, flat) => { const pts = Array.from({ length: 12 }, (_, i) => flat ? 2 : 2 + ((seed * (i + 3) * 7) % 9)); return `<svg class="spark" viewBox="0 0 86 18"><polyline points="${pts.map((y, i) => `${i * (86 / 11)},${18 - y}`).join(" ")}"/></svg>`; };
+const noSpark = `<span class="spark"></span>`;
 const search = (ph, w = 220) => `<label class="field" style="width:${w}px">${I("search", "sm")}<input placeholder="${ph}" aria-label="${ph}"></label>`;
 
 /* ---------- rows ---------- */
@@ -103,12 +107,15 @@ const crow = (c) => `
     ${c.group ? `<span class="dot ${c.dot}"></span>` : ""}
     <span class="name truncate">${c.name}</span>
     <span class="meta truncate grow">${c.meta || ""}</span>
+    ${c.blocks ? blocks(c.blocks) : ""}
     <span class="col ports">${(c.ports || []).map(p => `<a class="port" href="#" aria-label="Open port ${p} in the browser">:${p}</a>`).join("")}</span>
+    ${c.stats || c.group ? spark(c.name.length, !c.group && c.dot === "ok") : noSpark}
     <span class="col stats mono">${c.stats || ""}</span>
     <span class="col state">${c.state}</span>
     <span class="act">${c.action ? btn(c.action) : ""}</span>
     ${more(c.name)}
   </div>`;
+const cth = `<div class="row th" role="row"><span class="lead"></span><span class="name">Name</span><span class="meta grow">Image or folder</span><span class="col ports">Ports</span><span class="col" style="width:86px;text-align:left">CPU, 10 min</span><span class="col stats">Now</span><span class="col state">State</span><span class="act"></span><span style="width:28px"></span></div>`;
 const prob = (sev, text, action, o = {}) => `
   <div class="subrow ${o.child ? "child" : ""}">
     ${I(sev === "bad" ? "error" : "alert", "sm sev " + sev)}
@@ -118,11 +125,12 @@ const prob = (sev, text, action, o = {}) => `
 
 const containersList = `
   <div class="list" role="table" aria-label="Containers">
+    ${cth}
     ${crow({ dot: "warn", name: "kafka", meta: "apache/kafka:3.8", stats: "2% · 512 MB", state: "Running", action: "Stop" })}
     ${prob("warn", "Only reachable from your Mac. Fixed together with kafka-ui.", "")}
     ${crow({ dot: "bad", name: "kafka-ui", meta: "provectuslabs/kafka-ui", ports: ["8082"], stats: "0% · 310 MB", state: "Running", action: "Stop" })}
     ${prob("bad", "Can't reach Kafka", btn("Fix kafka and kafka-ui…", "primary xs"))}
-    ${crow({ group: true, dot: "bad", name: "shop", meta: "~/code/shop", ports: ["8080"], stats: "", state: "5 of 7 running", action: "Stop" })}
+    ${crow({ group: true, dot: "bad", name: "shop", meta: "~/code/shop", blocks: "booowbx", ports: ["8080"], stats: "", state: "5 of 7 running", action: "Stop" })}
     ${crow({ child: true, dot: "bad", name: "api", meta: "acme/billing-api:3.1", ports: ["8080"], stats: "1% · 120 MB", state: "Unhealthy", action: "Stop" })}
     ${prob("bad", "Its health check is failing", btn("See why", "xs"), { child: true })}
     ${crow({ child: true, dot: "ok", name: "web", meta: "nginx:1.27", stats: "0% · 14 MB", state: "Running", action: "Stop" })}
@@ -402,6 +410,8 @@ const prow = (p) => `
     <span class="lead"><span class="dot ${p.dot}"></span></span>
     <span class="name truncate">${p.name}</span>
     <span class="meta truncate grow">${p.meta}</span>
+    ${p.blocks ? blocks(p.blocks) : ""}
+    ${p.blocks && !p.blocks.startsWith("x") ? spark(p.name.length + 2) : noSpark}
     <span class="col ports">${(p.ports || []).map(x => `<a class="port" href="#" aria-label="Open port ${x} in the browser">:${x}</a>`).join("")}</span>
     <span class="col state" style="width:132px">${p.state}</span>
     <span class="act">${btn(p.action, p.primary ? "primary" : "")}</span>
@@ -410,12 +420,13 @@ const prow = (p) => `
 const projectsHead = header("Projects", "3 · 2 running", `${search("Search projects")}${btn(I("plus", "sm") + "Add project", "primary")}`);
 const projectsList = `
   <div class="list" role="table" aria-label="Projects">
-    ${prow({ dot: "bad", name: "shop", meta: "~/code/shop", ports: ["8080", "5432"], state: "5 of 7 running", action: "Stop" })}
+    <div class="row th" role="row"><span class="lead"></span><span class="name">Project</span><span class="meta grow">Folder</span><span class="blocks">Services</span><span class="col" style="width:86px;text-align:left">CPU, 10 min</span><span class="col ports">Ports</span><span class="col state" style="width:132px">State</span><span class="act"></span><span style="width:28px"></span></div>
+    ${prow({ dot: "bad", name: "shop", meta: "~/code/shop", blocks: "booowbx", ports: ["8080", "5432"], state: "5 of 7 running", action: "Stop" })}
     ${prob("bad", "api: its health check is failing", btn("See why", "xs"))}
-    ${prow({ dot: "ok", name: "billing", meta: "~/code/billing", ports: ["8081", "5433"], state: "3 of 3 running", action: "Stop" })}
-    ${prow({ dot: "", name: "search", meta: "~/work/search-service", state: "Not started", action: "Start" })}
+    ${prow({ dot: "ok", name: "billing", meta: "~/code/billing", blocks: "ooo", ports: ["8081", "5433"], state: "3 of 3 running", action: "Stop" })}
+    ${prow({ dot: "", name: "search", meta: "~/work/search-service", blocks: "xxxx", state: "Not started", action: "Start" })}
     <div class="group-cap">Found on this engine</div>
-    ${prow({ dot: "ok", name: "kafka-local", meta: "~/scratch/kafka", ports: ["8082"], state: "2 of 2 running", action: "Add" })}
+    ${prow({ dot: "ok", name: "kafka-local", meta: "~/scratch/kafka", blocks: "oo", ports: ["8082"], state: "2 of 2 running", action: "Add" })}
   </div>`;
 const projects = app("projects", projectsHead + `<div class="content">${projectsList}</div>`);
 
@@ -483,7 +494,58 @@ const projectsEmpty = app("projects", header("Projects", "", btn(I("plus", "sm")
     </div>
   </div>`);
 
+/* ---------- inspector and image detail (Manifest) ---------- */
+const inspector = `
+  <aside class="sheet" role="dialog" aria-label="Why api is unhealthy" style="box-shadow:var(--shadow-floating)">
+    <div class="sheet-head"><span class="grow"></span><button class="btn ghost icon-only" aria-label="Close">${I("close")}</button></div>
+    <div class="sheet-body"><div class="ins">
+      <div class="crumb">shop / api</div>
+      <h2>Its health check is failing</h2>
+      <p>The container is running, but 5 checks in a row could not connect to port 8080 inside it. The app listens on another port.</p>
+      <div><div class="lbl" style="margin-bottom:6px">What it said</div><pre>14:02:11 curl -f http://localhost:8080/health
+<b>curl: (7) Failed to connect to localhost port 8080: Connection refused</b>
+14:02:11 exit 7</pre></div>
+      <div><div class="lbl" style="margin-bottom:6px">What OpenPier found</div><div class="steps">
+        <div><i>1</i><span>The logs say <b>Listening on :3000</b>. The app and the check disagree on the port.</span></div>
+        <div><i>2</i><span>The Compose file sets the check to 8080 and <b>PORT</b> is not set.</span></div></div></div>
+      <div class="acts">${btn("Set PORT to 8080 and restart", "md primary")}${btn("Open logs", "md")}${btn("Open a shell", "md")}</div>
+      <div class="cmd"><code>docker --context colima compose -p shop up -d api</code><button class="btn ghost icon-only xs" aria-label="Copy command">${I("copy", "sm")}</button></div>
+    </div></div>
+  </aside>`;
+const lrow = (n, cmd, size, note = "") => `<div class="row" role="row"><span class="lead mono muted">${n}</span><span class="name truncate mono" style="font-weight:400;max-width:520px">${cmd}</span><span class="meta grow truncate">${note}</span><span class="col size mono">${size}</span></div>`;
+const frow = (icon, name, size, when) => `<div class="row" role="row" tabindex="0"><span class="lead">${I(icon, "sm")}</span><span class="name truncate" style="font-weight:400">${name}</span><span class="grow"></span><span class="col size mono">${size}</span><span class="col age">${when}</span></div>`;
+const imageDetail = app("images", `
+  <header class="header">
+    <button class="btn ghost icon-only" aria-label="Back to Images">${I("back")}</button>
+    <h1>postgres:16</h1><span class="sub">435 MB · used by db, scratch-postgres</span>
+    <span class="grow"></span>
+    ${btn("Look inside")}${btn("Check for a newer one")}${btn("Run", "primary")}${more("postgres:16")}
+  </header>
+  <div class="content" style="display:flex;flex-direction:column;gap:10px;padding-top:10px">
+    <div class="facts"><span>efec2006ec41</span><span>linux/arm64</span><span>Built 6 weeks ago</span><span>14 layers</span><span>From Docker Hub</span></div>
+    <div class="tabs" role="tablist">
+      <button class="chip" role="tab">Overview</button><button class="chip" role="tab" aria-selected="true">Layers</button><button class="chip" role="tab">Files</button><button class="chip" role="tab">Settings it starts with</button>
+    </div>
+    <div class="list" role="table" aria-label="Layers of postgres:16">
+      <div class="row th" role="row"><span class="lead"></span><span class="name">What this step did</span><span class="meta grow"></span><span class="col size">Added</span></div>
+      ${lrow(1, "debian:bookworm-slim", "97 MB", "The base system")}
+      ${lrow(2, "apt-get install gnupg less", "9 MB")}
+      ${lrow(3, "apt-get install postgresql-16", "311 MB", "Most of the size is here")}
+      ${lrow(4, "mkdir /docker-entrypoint-initdb.d", "0 B")}
+      ${lrow(5, "COPY docker-entrypoint.sh /usr/local/bin/", "14 KB")}
+      ${lrow(6, "VOLUME /var/lib/postgresql/data", "0 B", "Data lives here. Keep it in a volume")}
+      ${lrow(7, "EXPOSE 5432", "0 B")}
+    </div>
+    <div class="group-cap">Files added by step 3</div>
+    <div class="list">
+      ${frow("folder", "/usr/lib/postgresql/16/bin", "38 MB", "")}
+      ${frow("folder", "/usr/share/postgresql/16", "24 MB", "")}
+      ${frow("folder", "/usr/lib/aarch64-linux-gnu", "212 MB", "")}
+    </div>
+  </div>`);
+
 const screens = {
+  "problem-inspector": containers(inspector), "image-detail": imageDetail,
   projects, "project-detail": projectDetail, "project-start-check": projectStart, "projects-empty": projectsEmpty,
   containers: containers(),
   "containers-row-menu": containers(rowMenu),
