@@ -8,7 +8,7 @@ The workflow files below are written from the Tauri 2 and `tauri-action` documen
 
 ## 1. What must be true before anything is public
 
-1. The old signing key is gone from the repo and its history, and a new one is in use (task 0.1).
+1. The old signing key files are removed, a new key is in use, and `SECURITY.md` says the old one is not trusted (task 0.1). The old key stays in the history; that was the owner's choice (P9.1).
 2. `LICENSE` exists (section 2).
 3. The three P0 security findings are closed (task 0.2).
 4. The name is OpenPier everywhere (task 0.4).
@@ -254,8 +254,8 @@ In order. Stop at the first one that fails.
 6. `docs/research/evaluation-kit.md` scenarios were run on a real Mac after phase 3 (P8.2).
 7. Three to five engineers used it while someone watched; the top problems are fixed or in `ROADMAP.md` (P8.1).
 8. Name check done: trademarks and the domain (P4.2).
-9. Old repo archived with a pointer to the new one, if the owner chose a new repo (P9.1).
-10. Old installs: versions 0.1 and 0.2 look for updates at the old repo with the old key, so they will never see 1.0. If the old repo stays, publish one last release there whose notes say "reinstall from <new URL>". If not, say in the 1.0 notes that older installs must be replaced by hand.
+9. The repo is renamed from `container-ui` to `openpier` in GitHub settings, and every URL in the app, the updater endpoint and the install script uses the new name.
+10. Old installs: versions 0.1 and 0.2 look for updates at the old repo with the old key, so they will never see 1.0. Say in the 1.0 notes that older installs must be replaced by hand.
 11. Then, and only then: the first public post. Lead with the one thing nobody else does (it tells you what is wrong and fixes it), one GIF of that, and the comparison table with its caveat.
 
 ## 9. After launch

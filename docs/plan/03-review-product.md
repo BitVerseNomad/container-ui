@@ -121,7 +121,7 @@ There is no telemetry today and none should be added without an explicit opt-in.
 
 Ordered by what they unblock.
 
-1. **Leaked signing key: new repo with clean history, or rewrite history in place?** Blocks every release. Recommendation: new repo `openpier` with a squashed first commit; archive `container-ui` with a pointer.
+1. **Leaked signing key.** Decided on 2026-11-12: rotate the key only. Generate a new key, remove the old files in a normal commit, leave the history as it is. The old key stays readable in old commits and is no longer trusted, because the app ships with the new public key. The repo is kept and renamed to `openpier` (GitHub redirects the old URL).
 2. **Licence: MIT or Apache-2.0?** Blocks calling it open source. Recommendation: MIT.
 3. **Apple Developer account (99 USD a year) for signing and notarisation, yes or no?** Without it every user must click "Open Anyway" in System Settings, and many will stop there. Blocks "installs in a few clicks". Recommendation: yes before the public launch, no for the first private testers.
 4. **Dev environments and the AI chat: out of the 1.0 navigation (recommended), or in?** Blocks the navigation in the design spec.

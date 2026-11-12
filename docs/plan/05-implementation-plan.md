@@ -22,14 +22,15 @@ Nothing visible changes in this phase. It unblocks everything else.
 
 ### 0.1 Rotate the signing key and remove it from the repo (E1)
 
-1. Needs: owner decision P9.1 (new repo or history rewrite). The owner does the key generation; the key never passes through an AI session.
+1. Decided (P9.1): rotate the key only; the history is not rewritten. The owner does the key generation; the key never passes through an AI session.
 2. Steps:
    1. Owner runs `npm run tauri signer generate -- -w ~/.tauri/openpier.key`, with a password, outside the repo.
    2. Owner adds repo secrets `TAURI_SIGNING_PRIVATE_KEY` (file content) and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`.
    3. Put the new public key in `src-tauri/tauri.conf.json` `plugins.updater.pubkey`.
    4. `git rm private.key private.key.pub`. Add `*.key`, `*.key.pub`, `.env*` to `.gitignore`.
-   5. Apply the owner's choice for history.
-3. Done when: `git ls-files | grep -iE '\.key(\.pub)?$'` prints nothing; `git log --all --oneline -- private.key` prints nothing in the repo that will be public.
+   5. Add one line to `SECURITY.md` (task 6.1 creates the file; until then put it in the PR text): "A signing key committed before 1.0 is public and is not trusted. Releases from 1.0 on are signed with a new key."
+   6. Check that no published release can be updated with the old key: versions 0.1 and 0.2 have no working updater (E5), so there is nothing to revoke. Say so in the PR.
+3. Done when: `git ls-files | grep -iE '\.key(\.pub)?$'` prints nothing; the public key in `tauri.conf.json` differs from the one in commit `61fa3df`; the old key is still in the history on purpose.
 
 ### 0.2 Take dev environments and the AI chat out of the default build (E2, E3, E4, E12, P3)
 
