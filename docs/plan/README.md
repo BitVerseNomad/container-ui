@@ -67,7 +67,7 @@ The old names shipped v0.1.0 and v0.2.0. Which number the first OpenPier release
 
 ## Decisions still open (the owner's)
 
-In `03-review-product.md`, P9. Decided on 2026-11-12: rotate the leaked key only (history kept), MIT licence, no Apple Developer account. Projects in and AI chat out (D5). Still open: macOS only, who owns the repo on GitHub.
+In `03-review-product.md`, P9. Decided on 2026-11-12: rotate the leaked key only (history kept), MIT licence, no Apple Developer account. Projects in and AI chat out (D5), macOS only. Still open: who owns the repo on GitHub.
 
 ## What has and has not been checked
 
