@@ -583,8 +583,11 @@ const DESIGN = {
     { id: "scr0000000000000000000000000000000000000000000000000000000000000000", name: "scratch-postgres", image: "postgres:16", state: "running", ports: [[5433, 5433]], mounts: [], env: [], born: 1700000010000, cpu: 0.0, mem: 88e6, networks: ["devnet"], exposed: [] },
   ] as Ctr[],
 };
-if (scenario === "design") {
+if (scenario === "design" || scenario === "two") {
   Object.assign(db, DESIGN);
+  if (scenario === "two") {
+    db.profiles.push({ name: "dev", status: "Stopped", arch: "aarch64", cpus: 2, memory: 2 * GB, disk: 60 * GB, runtime: "docker", address: "" });
+  }
   // Set an active runtime so profiles load and the Kubernetes tab can appear in checks.
   runtimeRegistry.setActive(new ColimaAdapter());
 }

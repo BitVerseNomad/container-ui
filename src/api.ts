@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
-import { Ended, noteDocker, pinStopped, projectKey, runOf } from "./lib/appStopped";
+import type { Ended } from "./lib/appStopped.ts";
+import { noteDocker, pinStopped, projectKey, runOf } from "./lib/appStopped.ts";
 
 export type Profile = {
   name: string;

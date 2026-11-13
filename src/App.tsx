@@ -7,7 +7,8 @@ import { usePoll } from "./hooks";
 import { Banner, Empty } from "./ui";
 import { Icon } from "./ui/icons";
 import Shell, { Tab } from "./Shell";
-import LegacyProfileSwitch from "./LegacyProfileSwitch";
+import EngineSwitcher from "./EngineSwitcher";
+import { engineOfProfile, chooseEngine, busyOf, buttonLabel } from "./lib/engineModel";
 import { MachineUsageProvider, Header } from "./Header";
 import { useRoute, go } from "./lib/router";
 import { tabOfRoute, pathOfTab } from "./lib/tabRoutes";
@@ -80,6 +81,8 @@ export default function App() {
     return () => window.removeEventListener("app-error", on);
   }, []);
   const [active, setActive] = useState<string | null>(null);
+  const [stored] = useState(() => { try { return localStorage.getItem("openpier:engine"); } catch { return null; } });
+  const [engineOpen, setEngineOpen] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [pullOnOpen, setPullOnOpen] = useState(false);
   const [newProfileOnOpen, setNewProfileOnOpen] = useState(false);
@@ -118,11 +121,15 @@ export default function App() {
   // Profiles switched Kubernetes on this session; the tab shows up even if kubectl still has to be installed.
   const [kubeAsked, setKubeAsked] = useState<string[]>([]);
 
+  const current = profiles.find((p) => p.name === active) ?? null;
+  const kubeOn = !!current && (kubernetesOn(ctxFor(current.name), kube.data) === true || kubeAsked.includes(current.name));
+  const engines = useMemo(() => profiles.map((p) => engineOfProfile(p, { busy: busyOf({ op: vm.op, name: opName(vm) }, p.name), kubernetes: p.name === active && kubeOn })), [profiles, vm, active, kubeOn]);
+
   useEffect(() => {
     if (!profiles.some((p) => p.name === active)) {
-      setActive((profiles.find((p) => p.status === "Running") ?? profiles[0])?.name ?? null);
+      setActive(chooseEngine(engines, stored)?.id ?? null);
     }
-  }, [profiles]);
+  }, [profiles, engines, stored, active]);
 
   useEffect(() => setDetailId(null), [active]);
 
@@ -134,7 +141,6 @@ export default function App() {
     prevStatus.current = now;
   }, [profiles, active]);
 
-  const current = profiles.find((p) => p.name === active) ?? null;
   const ctx = current?.status === "Running" ? ctxFor(current.name) : null;
   const { live, history, usage } = useLiveStats(ctx, current?.status === "Running");
   setMachineProfile(current ? { cpus: current.cpus, memory: current.memory, disk: current.disk } : null);
@@ -142,7 +148,6 @@ export default function App() {
   useEffect(() => {
     if (!ctx) setDetailId(null);
   }, [ctx]);
-  const kubeOn = !!current && (kubernetesOn(ctxFor(current.name), kube.data) === true || kubeAsked.includes(current.name));
   // The Kubernetes page goes away with its nav item once the active profile has no cluster.
   useEffect(() => {
     if (tab === "Kubernetes" && !kubeOn && (kube.data !== null || !current)) setTab("Containers");
@@ -242,6 +247,7 @@ export default function App() {
   const switchTo = (name: string) => {
     if (name !== active && vm.op === null) setVm({ op: null, failure: null });
     setActive(name);
+    try { localStorage.setItem("openpier:engine", name); } catch { /* not remembered */ }
   };
 
   const page =
@@ -369,7 +375,7 @@ export default function App() {
             onNav={(t) => setTab(t)}
             badges={{ Doctor: doctorTodo }}
             hidden={kubeOn ? [] : ["Kubernetes"]}
-            engine={<div data-slot="engine"><LegacyProfileSwitch profiles={profiles} active={active} shown={(p) => p.status} onSelect={switchTo} onVm={vmFromAnywhere} onRestart={(name) => vmFromAnywhere(name, "starting", true)} vmBusy={vmLocked} onNewProfile={() => { setNewProfileOnOpen(true); setTab("Profiles"); }} /></div>}
+            engine={<div data-slot="engine"><EngineSwitcher engines={engines} selectedId={active} open={engineOpen} onOpenChange={setEngineOpen} onSelect={switchTo} onStart={(id) => { switchTo(id); setTab("Containers"); void vmFromAnywhere(id, "starting"); }} onStop={(id) => void vmFromAnywhere(id, "stopping")} onMachines={() => go("#/settings/machines")} /></div>}
             onSettings={() => go("#/settings/general")}
             settingsActive={tab === "Profiles"}
             onActivity={() => setLogOpen(true)}
