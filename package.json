@@ -8,10 +8,9 @@
     "build": "tsc && vite build",
     "tauri": "tauri",
     "test": "node --experimental-strip-types --no-warnings --test \"src/**/*.test.ts\" && vitest run",
-    "preview": "node scripts/build-preview.mjs",
-    "check": "node scripts/build-preview.mjs && sh scripts/check-all.sh",
+    "preview": "vite --config vite.preview.config.ts",
+    "check": "sh scripts/check-all.sh",
     "test:ui": "vitest run",
-    "test:visual": "node scripts/visual-regression.mjs",
     "lint": "eslint src --ext .ts,.tsx"
   },
   "dependencies": {
@@ -35,7 +34,6 @@
   "devDependencies": {
     "@fontsource/inter": "^5.3.0",
     "@fontsource/jetbrains-mono": "^5.3.0",
-    "@playwright/test": "^1.64.1",
     "@tailwindcss/vite": "^4.3.5",
     "@tauri-apps/cli": "^2",
     "@testing-library/dom": "^10.4.2",
