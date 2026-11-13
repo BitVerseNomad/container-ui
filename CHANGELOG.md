@@ -2,6 +2,11 @@
 
 Newest first. Older entries record what was true when they were written; later entries supersede them (the Overview, for example, was replaced by the Containers home screen).
 
+## Unreleased
+
+1. The app is now called OpenPier. Your saved settings are kept.
+2. macOS sees OpenPier as a new app (its identifier changed to `dev.openpier.desktop`). Remove the old app from Applications by hand.
+
 ## Design system rollout: all tabs migrated to @ui/components
 
 All seven tabs (Containers, Images, Volumes, Networks, Doctor, Profiles, Kubernetes) now use the `@ui/components` design system instead of legacy `IconButton`/`Menu`/`Spinner` components.
