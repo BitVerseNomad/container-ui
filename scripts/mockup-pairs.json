@@ -1,1 +1,3 @@
-[]
+[
+  { "mockup": "containers", "path": "/?scenario=design#/containers", "themes": ["light", "dark"], "threshold": 0.02, "mask": [".content", ".header .meters", ".header .sub", ".sidebar .count", ".sidebar .engine"], "why": "The list is compared in WO-3.1c. Here only the sidebar and the header are compared, so the list, the live meters, the counts and the engine switcher are masked." }
+]

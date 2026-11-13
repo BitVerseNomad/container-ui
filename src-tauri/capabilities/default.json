@@ -3,5 +3,5 @@
   "identifier": "main-capability",
   "description": "Only what the main window needs: listening to command progress events.",
   "windows": ["main"],
-  "permissions": ["core:event:default"]
+  "permissions": ["core:event:default", "core:window:default", "core:window:allow-start-dragging"]
 }

@@ -27,7 +27,6 @@
   "src/RunPanel.tsx",
   "src/RunPicker.tsx",
   "src/Setup.tsx",
-  "src/Shell.tsx",
   "src/Sparkline.tsx",
   "src/StatsTab.tsx",
   "src/VmStrip.tsx",

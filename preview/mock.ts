@@ -1,4 +1,6 @@
 // Simulated backend for the browser preview. Same commands as the Rust side, fake data.
+import { runtimeRegistry } from "../src/runtime";
+import { ColimaAdapter } from "../src/runtime/colima-adapter";
 type Ev = { payload: unknown };
 const listeners: Record<string, Set<(e: Ev) => void>> = {};
 const emit = (name: string, payload: unknown) => listeners[name]?.forEach((cb) => cb({ payload }));
@@ -583,4 +585,6 @@ const DESIGN = {
 };
 if (scenario === "design") {
   Object.assign(db, DESIGN);
+  // Set an active runtime so profiles load and the Kubernetes tab can appear in checks.
+  runtimeRegistry.setActive(new ColimaAdapter());
 }
