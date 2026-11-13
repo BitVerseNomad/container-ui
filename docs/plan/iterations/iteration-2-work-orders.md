@@ -8,7 +8,9 @@
 
 ## Order
 
-WO-2.1, WO-2.2, WO-2.3, WO-2.4, WO-3.1a, WO-3.1b, WO-3.1c, WO-3.2, WO-3.3a, WO-3.3b, WO-3.3c.
+WO-2.1, WO-2.2, WO-2.3, WO-2.4, WO-2.5, WO-3.1a, WO-3.1b, WO-3.1c, WO-3.2, WO-3.3a, WO-3.3b, WO-3.3c.
+
+**All twelve belong to this iteration.** A work order number is the step of the plan (`05-implementation-plan.md`), not the iteration: WO-3.1a to WO-3.3c are iteration 2 work. This iteration ends only after WO-3.3c is merged and `sh docs/plan/iterations/verify-iteration-2.sh` prints `0 FAIL`. Stopping after WO-2.5 is stopping halfway.
 
 Splits (each must fit in one pull request): WO-3.1 is split into 3.1a (row model, pure code), 3.1b (the screen), 3.1c (states, scenarios, checks). WO-3.1 is the pattern WO-3.2 and WO-3.3 copy. WO-3.3 is split into 3.3a (Run), 3.3b (Pull), 3.3c (Compose start and logs).
 
@@ -1012,6 +1014,69 @@ export function Palette(props: PaletteProps): JSX.Element;
 7. The gate in `../HANDOFF.md` section 5.
 
 **Pull request text:** the file `docs/plan/iterations/pr/wo-<id>.md` (no GitHub pull request exists). Its first line is this title: `wo-2.4: One list of shortcuts for the keys, Help and the palette`
+
+---
+
+## WO-2.5 Fixes from the review of WO-2.1 to WO-2.4
+
+**Needs:** WO-2.4 merged.
+
+**Why:** the review of 2026-11-13 found five things in WO-2.2 and WO-2.4 that do not match their work order, and one step no work order had (the Containers count). Each fix below is small. Do them in this order, on branch `wo-2.5`.
+
+**Read first:** `src/ui/op/Palette.tsx`, `src/ui/op/Palette.test.tsx`, `src/Shell.tsx`, `src/Shell.test.tsx`, `src/App.tsx` (find `<Shell`), WO-2.2 step 11 (the `check-restyle.mjs` list), `git show 212977d:scripts/checks-pending/check-restyle.mjs`.
+
+**Starting state:**
+1. `git status --short` prints nothing. `git log -1 --format=%s main` prints `Merge branch 'wo-report-2'` or a later merge.
+2. `grep -n 'sections.map((section, si) => (' src/ui/op/Palette.tsx` prints one line (the bug: every caption is drawn before every entry).
+3. `grep -c "settingsActive" src/Shell.tsx` prints `2` (declared and destructured, never used).
+4. `grep -c "check(" scripts/check-restyle.mjs` prints `2`.
+5. `grep -n "counts=" src/App.tsx` prints nothing.
+
+**Do not touch:** anything not named in a step.
+
+**Steps:**
+
+1. Write the tests of step 6 first and see them fail.
+2. Palette: each caption sits above its own entries, and a section with no entries draws nothing. In `src/ui/op/Palette.tsx`, add `Fragment` to the React import, and replace the two blocks `{sections.map((section, si) => ( <div key={si} className="menu-cap">{section.group}</div> ))}` and `{flatEntries.map(({ entry }, idx) => { ... })}` with one block. The button inside is the same button as today, unchanged; only where it is drawn changes:
+   ```tsx
+   {sections.map((section, si) => section.items.length === 0 ? null : (
+     <Fragment key={section.group}>
+       <div className="menu-cap">{section.group}</div>
+       {section.items.map((entry, ei) => {
+         const idx = flatEntries.findIndex((f) => f.sectionIndex === si && f.entryIndex === ei);
+         const isHighlighted = idx === highlighted;
+         return ( /* the same <button ... role="option" ...> as today, unchanged */ );
+       })}
+     </Fragment>
+   ))}
+   ```
+   `flatEntries`, the arrow keys and Enter stay as they are: the highlight index still counts entries top to bottom across sections.
+3. Settings button: in `src/Shell.tsx`, the Settings foot button gets `aria-current={settingsActive ? "page" : undefined}`. Nothing else changes in that line.
+4. Containers count (WO-2.2 said the sidebar shows it, no step passed it). In `src/App.tsx`:
+   1. Import `{ owner, toApp, Inspect }` from `"./lib/apps"` (add the names to an existing import from that file if there is one).
+   2. Next to `const doctorTodo`, add `const containerCount = doc.containers?.filter((c) => owner(toApp(c as Inspect)) !== "kubernetes").length;` (Kubernetes pod containers are not counted, as in the Containers header of WO-3.1b).
+   3. On `<Shell`, add `counts={{ containers: containerCount }}`. `Shell` already hides a count of 0 or undefined.
+5. `check-restyle.mjs`: WO-2.2 step 11 says items 1, 4, 5 and 6 of the old file are **Kept**. Only item 1 is there. Open `git show 212977d:scripts/checks-pending/check-restyle.mjs` and bring back, on `scripts/lib/check.mjs`, with today's selectors:
+   1. Images rows use `IconButton`, and Volumes rows use `IconButton` (two checks; the pages are still the old code, so the old selectors work; print which selector matched).
+   2. The Settings page at `#/settings/machines` explains what a machine profile is (the old sentence, as it reads today), and Stop streams into `.out-log` (two checks).
+   3. The pull panel shows its progress in `.out-log` inside the legacy `.drawer` (one check).
+   That is five old lines back (old lines 36, 39, 41, 44 and 61), so the file has at least 7 `check(` lines. Do not bring back old line 48 (`=== 0 || true`: it can never fail). Run it in Chromium and WebKit.
+6. Tests (Given/When/Then):
+   1. `src/ui/op/Palette.test.tsx`: `Given two sections A (one entry) and B (two entries), When rendered, Then the order of captions and options in the list is A, a1, B, b1, b2`.
+   2. `src/ui/op/Palette.test.tsx`: `Given a section with no entries, When rendered, Then its caption does not show`.
+   3. `src/Shell.test.tsx`: `Given settingsActive, When rendered, Then the Settings button has aria-current="page"; Given it is false, Then it has none`.
+   4. `src/Shell.test.tsx`: `Given counts containers 10, When rendered, Then the Containers item shows the count 10`.
+7. Pull request files: add a `## Contract differences` section (write "None." when there are none) to `pr/wo-2.1.md`, `pr/wo-2.2.md`, `pr/wo-2.3.md`, `pr/wo-2.4.md`, and paste the gate output into `pr/wo-2.4.md`. Replace every em dash in `pr/wo-2.*.md` and `iteration-2-report.md` with a colon or a comma.
+8. Merge `wo-2.5` with `--no-ff`.
+
+**Done when:**
+1. `npx vitest run src/ui/op/Palette.test.tsx src/Shell.test.tsx` shows `0 failed` and the four new tests pass.
+2. `grep -c "check(" scripts/check-restyle.mjs` prints 7 or more; `node scripts/check-restyle.mjs` and `PW_ENGINE=webkit node scripts/check-restyle.mjs` print no `FAIL`.
+3. By eye: Cmd+K, type "kaf" at `?scenario=design#/containers`: "Containers" with kafka and kafka-ui under it, then "Actions" with the actions under it. The sidebar shows a muted `10` next to Containers.
+4. `grep -c "Contract differences" docs/plan/iterations/pr/wo-2.*.md` prints 1 for each of the four files.
+5. The gate in `../HANDOFF.md` section 5.
+
+**Pull request text:** `docs/plan/iterations/pr/wo-2.5.md`. First line: `wo-2.5: Fixes from the review of the shell and the palette`
 
 ---
 
