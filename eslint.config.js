@@ -68,7 +68,8 @@ export default [
     ignores: ["src/ui/op/**", "src/**/*.test.tsx", ...notMigrated],
     rules: {
       "no-restricted-imports": ["error", { patterns: [
-        { group: ["**/ui", "**/ui/index", "**/ui/ui", "**/ui/components", "**/ui/components/*", "**/ui/icons", "**/ui/Button", "**/ui/Card", "**/ui/Dialog", "**/ui/Menu", "**/ui/Input", "**/ui/Select", "**/ui/Drawer", "**/ui/Badge", "**/ui/Skeleton", "**/ui/Spinner", "**/ui/PageHeader", "**/ui/Status"], message: "Use the components in src/ui/op." },
+        // A regex, not a `group`: a group "**/ui" also matches "../ui/op" (it works like .gitignore, a folder covers what is inside it).
+        { regex: "(^|/)ui(/(index|ui|icons|components(/.*)?|Button|Card|Dialog|Menu|Input|Select|Drawer|Badge|Skeleton|Spinner|PageHeader|Status))?$", message: "Use the components in src/ui/op." },
         { group: ["lucide-react"], message: "Use <Icon> from src/ui/op." },
       ] }],
       "no-restricted-syntax": ["error",
