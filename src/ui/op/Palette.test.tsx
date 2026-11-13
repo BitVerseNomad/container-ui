@@ -55,6 +55,29 @@ test("Palette: Given the first entry has enter ↵ Open, Then that text shows wh
   expect(screen.getByText("↵ Open")).toBeInTheDocument();
 });
 
+test("Palette: Given two sections A (one entry) and B (two entries), When rendered, Then the order of captions and options in the list is A, a1, B, b1, b2", () => {
+  const sections = [
+    { group: "A", items: [{ id: "a1", label: "a1" }] },
+    { group: "B", items: [{ id: "b1", label: "b1" }, { id: "b2", label: "b2" }] },
+  ];
+  render(<Palette open={true} onClose={() => {}} query="" onQuery={() => {}} sections={sections} onRun={() => {}} />);
+  const roles = screen.getAllByRole("option");
+  const captions = screen.getAllByText(/^[AB]$/);
+  // Order in DOM: caption A, option a1, caption B, option b1, option b2
+  const allTexts = Array.from(document.querySelectorAll(".menu-cap, .menu-item")).map((el) => el.textContent?.trim()).filter(Boolean);
+  expect(allTexts).toEqual(["A", "a1", "B", "b1", "b2"]);
+});
+
+test("Palette: Given a section with no entries, When rendered, Then its caption does not show", () => {
+  const sections = [
+    { group: "Empty", items: [] },
+    { group: "Has items", items: [{ id: "x1", label: "x1" }] },
+  ];
+  render(<Palette open={true} onClose={() => {}} query="" onQuery={() => {}} sections={sections} onRun={() => {}} />);
+  expect(screen.getByText("Has items")).toBeInTheDocument();
+  expect(screen.queryByText("Empty")).not.toBeInTheDocument();
+});
+
 test("Palette: Given Escape, Then onClose is called", () => {
   let closed = false;
   render(<Palette open={true} onClose={() => { closed = true; }} query="" onQuery={() => {}} sections={[]} onRun={() => {}} />);

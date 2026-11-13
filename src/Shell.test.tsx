@@ -63,6 +63,22 @@ describe("Shell", () => {
     expect(screen.queryByRole("link", { name: /Projects/ })).not.toBeInTheDocument();
   });
 
+  it("Given settingsActive true, when rendered, then the Settings button has aria-current 'page'", () => {
+    render(<Harness shellProps={{ settingsActive: true }} />);
+    expect(screen.getByRole("button", { name: /Settings/ })).toHaveAttribute("aria-current", "page");
+  });
+
+  it("Given settingsActive false, when rendered, then the Settings button has no aria-current", () => {
+    render(<Harness shellProps={{ settingsActive: false }} />);
+    expect(screen.getByRole("button", { name: /Settings/ })).not.toHaveAttribute("aria-current");
+  });
+
+  it("Given counts containers 10, when rendered, then the Containers item shows the count 10", () => {
+    render(<Harness shellProps={{ counts: { containers: 10 } }} />);
+    const containers = screen.getByRole("link", { name: /Containers/ });
+    expect(containers.querySelector(".count")).toHaveAttribute("aria-label", "10 need action");
+  });
+
   it("Given the shell renders with an engine slot, then the foot has buttons named Settings, Activity: commands the app ran, Help and shortcuts and Fold sidebar", () => {
     render(<Harness />);
     expect(screen.getByRole("button", { name: /Settings/ })).toBeInTheDocument();

@@ -56,3 +56,7 @@ Nothing.
 ## Found on the way
 
 Nothing new; `docs/plan/FOUND.md` keeps its three earlier entries.
+
+## Contract differences
+
+None.

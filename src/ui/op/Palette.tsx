@@ -1,5 +1,5 @@
 import * as Dialog from "@radix-ui/react-dialog";
-import React, { useState, useCallback, useEffect, useMemo } from "react";
+import React, { Fragment, useState, useCallback, useEffect, useMemo } from "react";
 import { Dot, DotState } from "./Dot";
 import { Icon } from "./Icon";
 import { usePortalContainer } from "./Portal";
@@ -53,33 +53,36 @@ export function Palette(props: PaletteProps) {
             {flatEntries.length === 0 && query.trim() !== "" && (
               <div className="empty"><div className="text">Nothing matches "{query}".</div></div>
             )}
-            {sections.map((section, si) => (
-              <div key={si} className="menu-cap">{section.group}</div>
+            {sections.map((section, si) => section.items.length === 0 ? null : (
+              <Fragment key={section.group}>
+                <div className="menu-cap">{section.group}</div>
+                {section.items.map((entry, ei) => {
+                  const idx = flatEntries.findIndex((f) => f.sectionIndex === si && f.entryIndex === ei);
+                  const isHighlighted = idx === highlighted;
+                  return (
+                    <button
+                      key={entry.id}
+                      type="button"
+                      role="option"
+                      id={`palette-${entry.id}`}
+                      className="menu-item"
+                      aria-selected={isHighlighted}
+                      data-highlighted={isHighlighted || undefined}
+                      onClick={() => onRun(entry.id)}
+                      onMouseEnter={() => setHighlighted(idx)}
+                    >
+                      <span className="top">
+                        {entry.dot && <Dot state={entry.dot} />}
+                        <span>{entry.label}</span>
+                        {entry.hint && <span className="muted">{entry.hint}</span>}
+                        {entry.kbd && <span className="kbd">{entry.kbd}</span>}
+                        {isHighlighted && entry.enter && <span className="kbd">{entry.enter}</span>}
+                      </span>
+                    </button>
+                  );
+                })}
+              </Fragment>
             ))}
-            {flatEntries.map(({ entry }, idx) => {
-              const isHighlighted = idx === highlighted;
-              return (
-                <button
-                  key={entry.id}
-                  type="button"
-                  role="option"
-                  id={`palette-${entry.id}`}
-                  className="menu-item"
-                  aria-selected={isHighlighted}
-                  data-highlighted={isHighlighted || undefined}
-                  onClick={() => onRun(entry.id)}
-                  onMouseEnter={() => setHighlighted(idx)}
-                >
-                  <span className="top">
-                    {entry.dot && <Dot state={entry.dot} />}
-                    <span>{entry.label}</span>
-                    {entry.hint && <span className="muted">{entry.hint}</span>}
-                    {entry.kbd && <span className="kbd">{entry.kbd}</span>}
-                    {isHighlighted && entry.enter && <span className="kbd">{entry.enter}</span>}
-                  </span>
-                </button>
-              );
-            })}
           </div>
         </Dialog.Content>
       </Dialog.Portal>
