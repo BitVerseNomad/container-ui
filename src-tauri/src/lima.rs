@@ -29,9 +29,7 @@ fn lima_home() -> String {
 
 // Check if a Lima instance is running
 fn is_vm_running(instance: &str) -> bool {
-    let output = Command::new(lima_cli())
-        .args(["list", "-q"])
-        .output();
+    let output = Command::new(lima_cli()).args(["list", "-q"]).output();
     match output {
         Ok(out) => {
             let instances: Vec<String> = String::from_utf8_lossy(&out.stdout)
@@ -55,7 +53,11 @@ fn get_docker_host(instance: &str) -> Result<String, String> {
     let host = String::from_utf8_lossy(&output.stdout).trim().to_string();
     if host.is_empty() {
         let home = dirs::home_dir().ok_or("No home directory")?;
-        Ok(format!("unix://{}/.lima/{}/docker.sock", home.display(), instance))
+        Ok(format!(
+            "unix://{}/.lima/{}/docker.sock",
+            home.display(),
+            instance
+        ))
     } else {
         Ok(host)
     }
@@ -66,10 +68,18 @@ fn lima_shell(instance: &str, args: &[&str]) -> Result<String, String> {
     let mut cmd = Command::new(lima_cli());
     cmd.args(["shell", instance]);
     cmd.args(args);
-    cmd.env("PATH", format!("/opt/homebrew/bin:/usr/local/bin:{}", std::env::var("PATH").unwrap_or_default()));
-    
-    let output = cmd.output().map_err(|e| format!("Failed to run lima shell: {e}"))?;
-    
+    cmd.env(
+        "PATH",
+        format!(
+            "/opt/homebrew/bin:/usr/local/bin:{}",
+            std::env::var("PATH").unwrap_or_default()
+        ),
+    );
+
+    let output = cmd
+        .output()
+        .map_err(|e| format!("Failed to run lima shell: {e}"))?;
+
     if output.status.success() {
         Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
     } else {
@@ -122,6 +132,8 @@ pub struct MountSpec {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+// Removed in WO-0.2.
+#[allow(dead_code)]
 pub struct EnvVar {
     pub key: String,
     pub value: String,
@@ -130,6 +142,8 @@ pub struct EnvVar {
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(tag = "type")]
+// Removed in WO-0.2.
+#[allow(clippy::large_enum_variant)]
 pub enum ProjectEnvConfig {
     DevContainer { devcontainer: DevContainerSpec },
     Compose { compose: ComposeSpec },
@@ -200,7 +214,7 @@ lazy_static::lazy_static! {
 pub async fn lima_status() -> Result<LimaStatus, String> {
     // Check if lima CLI exists
     let version_output = Command::new(lima_cli()).arg("version").output();
-    
+
     let (available, version) = match version_output {
         Ok(out) if out.status.success() => {
             let v = String::from_utf8_lossy(&out.stdout).trim().to_string();
@@ -221,7 +235,11 @@ pub async fn lima_status() -> Result<LimaStatus, String> {
         version,
         vm_running,
         docker_socket,
-        error: if available { None } else { Some("Lima not installed".to_string()) },
+        error: if available {
+            None
+        } else {
+            Some("Lima not installed".to_string())
+        },
     })
 }
 
@@ -241,10 +259,20 @@ pub async fn lima_ensure_vm(app: tauri::AppHandle) -> Result<LimaStatus, String>
 
     if !instances.contains(&"default".to_string()) {
         // Create default instance
-        stream(&app, "lima-progress", &lima_cli(), &["start".into(), "--name=default".into(), "default".into()])?;
+        stream(
+            &app,
+            "lima-progress",
+            &lima_cli(),
+            &["start".into(), "--name=default".into(), "default".into()],
+        )?;
     } else if !is_vm_running("default") {
         // Start existing instance
-        stream(&app, "lima-progress", &lima_cli(), &["start".into(), "default".into()])?;
+        stream(
+            &app,
+            "lima-progress",
+            &lima_cli(),
+            &["start".into(), "default".into()],
+        )?;
     }
 
     // Return updated status
@@ -268,7 +296,10 @@ fn compose_via_lima(instance: &str, project_path: &str, args: &[&str]) -> Result
 
 // Create project environment
 #[tauri::command]
-pub async fn project_env_create(app: tauri::AppHandle, input: CreateProjectEnvInput) -> Result<ProjectEnvironment, String> {
+pub async fn project_env_create(
+    app: tauri::AppHandle,
+    input: CreateProjectEnvInput,
+) -> Result<ProjectEnvironment, String> {
     // Ensure Lima VM is running
     lima_ensure_vm(app.clone()).await?;
 
@@ -291,7 +322,7 @@ pub async fn project_env_create(app: tauri::AppHandle, input: CreateProjectEnvIn
     };
 
     let config_json = serde_json::to_string(&input.config).map_err(|e| e.to_string())?;
-    
+
     let env = ProjectEnvironment {
         id: env_id.clone(),
         project_id: input.project_id,
@@ -300,7 +331,8 @@ pub async fn project_env_create(app: tauri::AppHandle, input: CreateProjectEnvIn
             ProjectEnvConfig::DevContainer { .. } => "devcontainer",
             ProjectEnvConfig::Compose { .. } => "compose",
             ProjectEnvConfig::Auto => "auto",
-        }.to_string(),
+        }
+        .to_string(),
         config_json,
         runtime: "lima-docker".to_string(),
         state: "running".to_string(),
@@ -314,7 +346,10 @@ pub async fn project_env_create(app: tauri::AppHandle, input: CreateProjectEnvIn
     };
 
     // Store in memory
-    PROJECT_ENVS.lock().unwrap().insert(env_id.clone(), env.clone());
+    PROJECT_ENVS
+        .lock()
+        .unwrap()
+        .insert(env_id.clone(), env.clone());
 
     Ok(env)
 }
@@ -326,25 +361,40 @@ async fn create_devcontainer_env(
     env_id: &str,
 ) -> Result<String, String> {
     let image = spec.image.as_deref().unwrap_or("ubuntu:22.04");
-    
+
     // Build image if dockerfile specified
     if let Some(build) = &spec.build {
-        let build_args = build.args.as_ref().map(|a| {
-            a.iter().flat_map(|(k, v)| vec!["--build-arg".to_string(), format!("{}={}", k, v)]).collect::<Vec<_>>()
-        }).unwrap_or_default();
-        
+        let build_args = build
+            .args
+            .as_ref()
+            .map(|a| {
+                a.iter()
+                    .flat_map(|(k, v)| vec!["--build-arg".to_string(), format!("{}={}", k, v)])
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+
         let build_tag = format!("container-ui-{}-build", env_id);
-        let mut args: Vec<String> = vec!["build".into(), "-t".into(), build_tag, "-f".into(), build.dockerfile.clone()];
+        let mut args: Vec<String> = vec![
+            "build".into(),
+            "-t".into(),
+            build_tag,
+            "-f".into(),
+            build.dockerfile.clone(),
+        ];
         args.extend(build_args);
         args.push(build.context.clone());
-        
-        docker_via_lima(instance, &args.iter().map(|s| s.as_str()).collect::<Vec<_>>())?;
+
+        docker_via_lima(
+            instance,
+            &args.iter().map(|s| s.as_str()).collect::<Vec<_>>(),
+        )?;
     }
 
     // Prepare docker run arguments
     let name = format!("container-ui-{}", env_id);
     let mut run_args: Vec<String> = vec!["run".into(), "-d".into(), "--name".into(), name];
-    
+
     // Add environment variables
     if let Some(env) = &spec.container_env {
         for (k, v) in env {
@@ -352,7 +402,7 @@ async fn create_devcontainer_env(
             run_args.push(format!("{}={}", k, v));
         }
     }
-    
+
     // Add mounts
     if let Some(mounts) = &spec.mounts {
         for mount in mounts {
@@ -365,11 +415,11 @@ async fn create_devcontainer_env(
             run_args.push(mount_str);
         }
     }
-    
+
     // Always mount project path
     run_args.push("-v".into());
     run_args.push(format!("{}:/workspace", project_path));
-    
+
     // Add port forwards
     if let Some(ports) = &spec.forward_ports {
         for port in ports {
@@ -377,19 +427,19 @@ async fn create_devcontainer_env(
             run_args.push(format!("127.0.0.1:{}:{}", port, port));
         }
     }
-    
+
     // Add custom run args
     if let Some(args) = &spec.run_args {
         run_args.extend(args.iter().cloned());
     }
-    
+
     // Auto-inject credentials (SSH, Git, GH)
     // SSH_AUTH_SOCK
     if let Ok(sock) = get_ssh_auth_sock() {
         run_args.push("-e".into());
         run_args.push(format!("SSH_AUTH_SOCK={}", sock));
     }
-    
+
     // Git user.name
     if let Ok(name) = git_config_get("user.name".to_string()) {
         run_args.push("-e".into());
@@ -397,7 +447,7 @@ async fn create_devcontainer_env(
         run_args.push("-e".into());
         run_args.push(format!("GIT_COMMITTER_NAME={}", name));
     }
-    
+
     // Git user.email
     if let Ok(email) = git_config_get("user.email".to_string()) {
         run_args.push("-e".into());
@@ -405,7 +455,7 @@ async fn create_devcontainer_env(
         run_args.push("-e".into());
         run_args.push(format!("GIT_COMMITTER_EMAIL={}", email));
     }
-    
+
     // GH_TOKEN
     if let Ok(token) = get_gh_token() {
         run_args.push("-e".into());
@@ -413,21 +463,27 @@ async fn create_devcontainer_env(
         run_args.push("-e".into());
         run_args.push(format!("GITHUB_TOKEN={}", token));
     }
-    
+
     // Set working directory
     run_args.push("-w".into());
     run_args.push("/workspace".into());
-    
+
     // Run post-start command if specified
-    let cmd = spec.post_start_command.as_deref().unwrap_or("sleep infinity");
+    let cmd = spec
+        .post_start_command
+        .as_deref()
+        .unwrap_or("sleep infinity");
     run_args.push(image.into());
     run_args.push("sh".into());
     run_args.push("-c".into());
     run_args.push(cmd.into());
-    
-    let output = docker_via_lima(instance, &run_args.iter().map(|s| s.as_str()).collect::<Vec<_>>())?;
+
+    let output = docker_via_lima(
+        instance,
+        &run_args.iter().map(|s| s.as_str()).collect::<Vec<_>>(),
+    )?;
     let container_id = output.trim().to_string();
-    
+
     Ok(container_id)
 }
 
@@ -435,35 +491,48 @@ async fn create_compose_env(
     instance: &str,
     project_path: &str,
     spec: &ComposeSpec,
-    env_id: &str,
+    _env_id: &str,
 ) -> Result<String, String> {
     let compose_file = &spec.file;
     let service = &spec.service;
-    
+
     // Run docker compose up -d for the service
     let args = vec!["-f", compose_file, "up", "-d", "--no-deps", service];
     compose_via_lima(instance, project_path, &args)?;
-    
+
     // Get the container ID
     let ps_args = vec!["-f", compose_file, "ps", "-q", service];
     let output = compose_via_lima(instance, project_path, &ps_args)?;
     let container_id = output.trim().to_string();
-    
+
     Ok(container_id)
 }
 
-async fn create_auto_env(instance: &str, project_path: &str, env_id: &str) -> Result<String, String> {
+async fn create_auto_env(
+    instance: &str,
+    project_path: &str,
+    env_id: &str,
+) -> Result<String, String> {
     // Default: run a basic container with project mounted
     let name = format!("container-ui-{}", env_id);
     let run_args: Vec<String> = vec![
-        "run".into(), "-d".into(), "--name".into(), name,
-        "-v".into(), format!("{}:/workspace", project_path),
-        "-w".into(), "/workspace".into(),
+        "run".into(),
+        "-d".into(),
+        "--name".into(),
+        name,
+        "-v".into(),
+        format!("{}:/workspace", project_path),
+        "-w".into(),
+        "/workspace".into(),
         "ubuntu:22.04".into(),
-        "sleep".into(), "infinity".into(),
+        "sleep".into(),
+        "infinity".into(),
     ];
-    
-    let output = docker_via_lima(instance, &run_args.iter().map(|s| s.as_str()).collect::<Vec<_>>())?;
+
+    let output = docker_via_lima(
+        instance,
+        &run_args.iter().map(|s| s.as_str()).collect::<Vec<_>>(),
+    )?;
     Ok(output.trim().to_string())
 }
 
@@ -473,28 +542,28 @@ pub async fn project_env_start(_app: tauri::AppHandle, env_id: String) -> Result
     let container_id = {
         let mut envs = PROJECT_ENVS.lock().unwrap();
         let env = envs.get_mut(&env_id).ok_or("Environment not found")?;
-        
+
         if env.state == "running" {
             return Ok(());
         }
-        
+
         env.state = "starting".to_string();
         env.updated_at = chrono::Utc::now().to_rfc3339();
         env.container_id.clone()
     };
-    
+
     let instance = "default";
     if let Some(container_id) = container_id {
         docker_via_lima(instance, &["start", &container_id])?;
     }
-    
+
     let mut envs = PROJECT_ENVS.lock().unwrap();
     if let Some(env) = envs.get_mut(&env_id) {
         env.state = "running".to_string();
         env.updated_at = chrono::Utc::now().to_rfc3339();
         env.error = None;
     }
-    
+
     Ok(())
 }
 
@@ -504,27 +573,27 @@ pub async fn project_env_stop(_app: tauri::AppHandle, env_id: String) -> Result<
     let container_id = {
         let mut envs = PROJECT_ENVS.lock().unwrap();
         let env = envs.get_mut(&env_id).ok_or("Environment not found")?;
-        
+
         if env.state == "stopped" {
             return Ok(());
         }
-        
+
         env.state = "stopping".to_string();
         env.updated_at = chrono::Utc::now().to_rfc3339();
         env.container_id.clone()
     };
-    
+
     let instance = "default";
     if let Some(container_id) = container_id {
         docker_via_lima(instance, &["stop", &container_id])?;
     }
-    
+
     let mut envs = PROJECT_ENVS.lock().unwrap();
     if let Some(env) = envs.get_mut(&env_id) {
         env.state = "stopped".to_string();
         env.updated_at = chrono::Utc::now().to_rfc3339();
     }
-    
+
     Ok(())
 }
 
@@ -533,17 +602,17 @@ pub async fn project_env_stop(_app: tauri::AppHandle, env_id: String) -> Result<
 pub async fn project_env_delete(_app: tauri::AppHandle, env_id: String) -> Result<(), String> {
     let mut envs = PROJECT_ENVS.lock().unwrap();
     let env = envs.get(&env_id).ok_or("Environment not found")?;
-    
+
     let instance = "default";
     if let Some(container_id) = &env.container_id {
         // Stop and remove container
         let _ = docker_via_lima(instance, &["stop", container_id]);
         let _ = docker_via_lima(instance, &["rm", "-f", container_id]);
     }
-    
+
     envs.remove(&env_id);
     ENV_LOGS.lock().unwrap().remove(&env_id);
-    
+
     Ok(())
 }
 
@@ -563,16 +632,20 @@ pub async fn project_env_get(env_id: String) -> Result<Option<ProjectEnvironment
 
 // Stream logs from project environment
 #[tauri::command]
-pub async fn project_env_logs(app: tauri::AppHandle, env_id: String, follow: bool) -> Result<(), String> {
+pub async fn project_env_logs(
+    app: tauri::AppHandle,
+    env_id: String,
+    follow: bool,
+) -> Result<(), String> {
     let container_id = {
         let envs = PROJECT_ENVS.lock().unwrap();
         let env = envs.get(&env_id).ok_or("Environment not found")?;
         env.container_id.clone().ok_or("No container ID")?
     };
-    
+
     let instance = "default";
     let event_name = format!("project-env-logs-{}", env_id);
-    
+
     tauri::async_runtime::spawn_blocking(move || {
         let mut args = vec!["logs".to_string()];
         if follow {
@@ -580,33 +653,37 @@ pub async fn project_env_logs(app: tauri::AppHandle, env_id: String, follow: boo
         }
         args.push("--timestamps".to_string());
         args.push(container_id);
-        
+
         let lima_bin = lima_cli();
         let mut shell_args: Vec<String> = vec!["shell".into(), instance.into(), "docker".into()];
         shell_args.extend(args);
-        
+
         let _ = stream(&app, &event_name, &lima_bin, &shell_args);
     })
     .await
     .map_err(|e| e.to_string())?;
-    
+
     Ok(())
 }
 
 // Execute command in project environment
 #[tauri::command]
-pub async fn project_env_exec(_app: tauri::AppHandle, env_id: String, cmd: Vec<String>) -> Result<ExecResult, String> {
+pub async fn project_env_exec(
+    _app: tauri::AppHandle,
+    env_id: String,
+    cmd: Vec<String>,
+) -> Result<ExecResult, String> {
     let envs = PROJECT_ENVS.lock().unwrap();
     let env = envs.get(&env_id).ok_or("Environment not found")?;
     let container_id = env.container_id.clone().ok_or("No container ID")?;
     drop(envs);
-    
+
     let instance = "default";
     let mut args = vec!["exec", "-i", &container_id];
     args.extend(cmd.iter().map(|s| s.as_str()));
-    
+
     let output = docker_via_lima(instance, &args)?;
-    
+
     // For simplicity, return the output as stdout (in real implementation, capture exit code)
     Ok(ExecResult {
         exit_code: 0,
@@ -617,14 +694,20 @@ pub async fn project_env_exec(_app: tauri::AppHandle, env_id: String, cmd: Vec<S
 
 // Forward port from project environment
 #[tauri::command]
-pub async fn project_env_forward_port(_app: tauri::AppHandle, env_id: String, container_port: u16) -> Result<PortMapping, String> {
+pub async fn project_env_forward_port(
+    _app: tauri::AppHandle,
+    env_id: String,
+    container_port: u16,
+) -> Result<PortMapping, String> {
     let mut envs = PROJECT_ENVS.lock().unwrap();
     let env = envs.get_mut(&env_id).ok_or("Environment not found")?;
-    
+
     // Check if already forwarded
     let mut ports: Vec<PortMapping> = serde_json::from_str(&env.ports_json).unwrap_or_default();
-    let existing_index = ports.iter().position(|p| p.container_port == container_port);
-    
+    let existing_index = ports
+        .iter()
+        .position(|p| p.container_port == container_port);
+
     if let Some(idx) = existing_index {
         ports[idx].is_forwarded = true;
         ports[idx].host_port = Some(container_port);
@@ -632,7 +715,7 @@ pub async fn project_env_forward_port(_app: tauri::AppHandle, env_id: String, co
         env.updated_at = chrono::Utc::now().to_rfc3339();
         return Ok(ports[idx].clone());
     }
-    
+
     // Add new port mapping
     let mapping = PortMapping {
         container_port,
@@ -640,31 +723,38 @@ pub async fn project_env_forward_port(_app: tauri::AppHandle, env_id: String, co
         protocol: "tcp".to_string(),
         is_forwarded: true,
     };
-    
+
     ports.push(mapping.clone());
     env.ports_json = serde_json::to_string(&ports).unwrap();
     env.updated_at = chrono::Utc::now().to_rfc3339();
-    
+
     Ok(mapping)
 }
 
 // Unforward port from project environment
 #[tauri::command]
-pub async fn project_env_unforward_port(app: tauri::AppHandle, env_id: String, container_port: u16) -> Result<(), String> {
+pub async fn project_env_unforward_port(
+    _app: tauri::AppHandle,
+    env_id: String,
+    container_port: u16,
+) -> Result<(), String> {
     let mut envs = PROJECT_ENVS.lock().unwrap();
     let env = envs.get_mut(&env_id).ok_or("Environment not found")?;
-    
+
     let mut ports: Vec<PortMapping> = serde_json::from_str(&env.ports_json).unwrap_or_default();
     ports.retain(|p| p.container_port != container_port);
     env.ports_json = serde_json::to_string(&ports).unwrap();
     env.updated_at = chrono::Utc::now().to_rfc3339();
-    
+
     Ok(())
 }
 
 // Set project environment (called from frontend when environment is created)
 #[tauri::command]
-pub async fn project_set_environment(_project_id: String, _environment_id: String) -> Result<(), String> {
+pub async fn project_set_environment(
+    _project_id: String,
+    _environment_id: String,
+) -> Result<(), String> {
     // In a real implementation, this would update the SQLite database
     // For now, just acknowledge
     Ok(())
@@ -683,7 +773,7 @@ pub fn git_config_get(key: String) -> Result<String, String> {
         .args(["config", "--global", "--get", &key])
         .output()
         .map_err(|e| e.to_string())?;
-    
+
     if output.status.success() {
         Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
     } else {
@@ -698,7 +788,7 @@ pub fn get_gh_token() -> Result<String, String> {
         .args(["auth", "token"])
         .output()
         .map_err(|e| e.to_string())?;
-    
+
     if output.status.success() {
         Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
     } else {
@@ -720,21 +810,21 @@ pub async fn dialog_open(options: DialogOpenOptions) -> Result<String, String> {
     if !cfg!(target_os = "macos") {
         return Err("Folder picker only supported on macOS".into());
     }
-    
+
     let script = if options.directory.unwrap_or(true) {
         r#"POSIX path of (choose folder with prompt "Select Project Directory")"#
     } else {
         r#"POSIX path of (choose file with prompt "Select File")"#
     };
-    
+
     let output = Command::new("/usr/bin/osascript")
         .args(["-e", script])
         .output()
         .map_err(|e| format!("Could not open folder chooser: {e}"))?;
-    
+
     let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
     let stderr = String::from_utf8_lossy(&output.stderr);
-    
+
     if output.status.success() && !stdout.is_empty() {
         Ok(stdout.trim_end_matches('/').to_string())
     } else if stderr.contains("User canceled") || stderr.contains("(-128)") {
@@ -758,11 +848,12 @@ pub fn fs_read_dir(path: String) -> Result<Vec<String>, String> {
 // Read text file
 #[tauri::command]
 pub fn fs_read_text_file(path: String) -> Result<String, String> {
-    std::fs::read_to_string(&path)
-        .map_err(|e| format!("Failed to read file: {e}"))
+    std::fs::read_to_string(&path).map_err(|e| format!("Failed to read file: {e}"))
 }
 
 #[derive(Deserialize)]
+// Removed in WO-0.2.
+#[allow(dead_code)]
 pub struct DialogOpenOptions {
     title: Option<String>,
     directory: Option<bool>,
@@ -809,20 +900,29 @@ pub async fn project_env_list_ports(env_id: String) -> Result<Vec<PortMapping>, 
 
 // Detect project configuration
 #[tauri::command]
-pub async fn project_detect_config(project_id: String, project_path: String) -> Result<DetectResult, String> {
+pub async fn project_detect_config(
+    _project_id: String,
+    project_path: String,
+) -> Result<DetectResult, String> {
     // Read directory entries
     let entries = fs_read_dir(project_path.clone())?;
-    
+
     // 1. Check .devcontainer/devcontainer.json
     if entries.iter().any(|e| e == ".devcontainer") {
         let devcontainer_entries = fs_read_dir(format!("{}/.devcontainer", project_path))?;
-        if devcontainer_entries.iter().any(|e| e == "devcontainer.json") {
-            let content = fs_read_text_file(format!("{}/.devcontainer/devcontainer.json", project_path))?;
+        if devcontainer_entries
+            .iter()
+            .any(|e| e == "devcontainer.json")
+        {
+            let content =
+                fs_read_text_file(format!("{}/.devcontainer/devcontainer.json", project_path))?;
             let spec = parse_devcontainer_json(&content, &project_path).await?;
-            
+
             // Check for referenced docker-compose
-            let has_compose = devcontainer_entries.iter().any(|e| e.ends_with(".yml") || e.ends_with(".yaml"));
-            
+            let _has_compose = devcontainer_entries
+                .iter()
+                .any(|e| e.ends_with(".yml") || e.ends_with(".yaml"));
+
             return Ok(DetectResult {
                 config_type: "devcontainer".to_string(),
                 devcontainer: Some(spec),
@@ -832,9 +932,14 @@ pub async fn project_detect_config(project_id: String, project_path: String) -> 
             });
         }
     }
-    
+
     // 2. Check for compose files
-    for file in ["docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml"] {
+    for file in [
+        "docker-compose.yml",
+        "docker-compose.yaml",
+        "compose.yml",
+        "compose.yaml",
+    ] {
         if entries.iter().any(|e| e == file) {
             let services = parse_compose_services(&format!("{}/{}", project_path, file)).await?;
             return Ok(DetectResult {
@@ -842,15 +947,21 @@ pub async fn project_detect_config(project_id: String, project_path: String) -> 
                 devcontainer: None,
                 compose: Some(ComposeSpec {
                     file: file.to_string(),
-                    service: services.first().cloned().unwrap_or_else(|| "app".to_string()),
-                    env_file: entries.iter().find(|e| *e == ".env").map(|_| ".env".to_string()),
+                    service: services
+                        .first()
+                        .cloned()
+                        .unwrap_or_else(|| "app".to_string()),
+                    env_file: entries
+                        .iter()
+                        .find(|e| *e == ".env")
+                        .map(|_| ".env".to_string()),
                 }),
                 dockerfile: None,
                 language: None,
             });
         }
     }
-    
+
     // 3. Check for Dockerfile
     for file in ["Dockerfile", "Dockerfile.dev", "Dockerfile.development"] {
         if entries.iter().any(|e| e == file) {
@@ -880,7 +991,7 @@ pub async fn project_detect_config(project_id: String, project_path: String) -> 
             });
         }
     }
-    
+
     // 4. Language defaults
     let language = detect_language(&entries);
     let defaults = get_language_defaults(&language);
@@ -898,25 +1009,21 @@ pub async fn project_detect_config(project_id: String, project_path: String) -> 
 pub async fn project_open_in_ide(project_path: String) -> Result<(), String> {
     // Try VS Code first, then Cursor, then default
     let editors = ["code", "cursor"];
-    
+
     for editor in editors {
-        let output = Command::new("which")
-            .arg(editor)
-            .output();
-        
+        let output = Command::new("which").arg(editor).output();
+
         if let Ok(out) = output {
             if out.status.success() {
                 let path = String::from_utf8_lossy(&out.stdout).trim().to_string();
                 if !path.is_empty() {
-                    let _ = Command::new(&path)
-                        .arg(&project_path)
-                        .spawn();
+                    let _ = Command::new(&path).arg(&project_path).spawn();
                     return Ok(());
                 }
             }
         }
     }
-    
+
     // Fallback to macOS open command
     if cfg!(target_os = "macos") {
         Command::new("open")
@@ -925,31 +1032,40 @@ pub async fn project_open_in_ide(project_path: String) -> Result<(), String> {
             .map_err(|e| format!("Failed to open in IDE: {e}"))?;
         return Ok(());
     }
-    
+
     Err("No suitable IDE found. Please install VS Code or Cursor.".to_string())
 }
 
 // Refresh git info for project
 #[tauri::command]
-pub async fn project_refresh_git_info(app: tauri::AppHandle, project_id: String) -> Result<GitInfo, String> {
+pub async fn project_refresh_git_info(
+    app: tauri::AppHandle,
+    project_id: String,
+) -> Result<GitInfo, String> {
     // Get the project path from the database via projects.rs
-    let pool = crate::projects::init_db(&app).await.map_err(|e| e.to_string())?;
-    let project = crate::projects::project_get(&pool, &project_id).await?.ok_or("Project not found")?;
+    let pool = crate::projects::init_db(&app)
+        .await
+        .map_err(|e| e.to_string())?;
+    let project = crate::projects::project_get(&pool, &project_id)
+        .await?
+        .ok_or("Project not found")?;
     let project_path = project.path;
-    
+
     // Run git commands in the project directory
     let remote_url = get_git_remote_url(&project_path).await.ok();
     let current_branch = get_git_current_branch(&project_path).await.ok();
     let commit_hash = get_git_commit_hash(&project_path).await.ok();
-    let has_uncommitted_changes = get_git_has_uncommitted_changes(&project_path).await.unwrap_or(false);
-    
+    let has_uncommitted_changes = get_git_has_uncommitted_changes(&project_path)
+        .await
+        .unwrap_or(false);
+
     let git_info = GitInfo {
         remote_url,
         current_branch,
         commit_hash,
         has_uncommitted_changes,
     };
-    
+
     // Update the project in the database
     let now = chrono::Utc::now().to_rfc3339();
     sqlx::query(
@@ -968,7 +1084,7 @@ pub async fn project_refresh_git_info(app: tauri::AppHandle, project_id: String)
     .execute(&pool)
     .await
     .map_err(|e| e.to_string())?;
-    
+
     Ok(git_info)
 }
 
@@ -978,7 +1094,7 @@ async fn get_git_remote_url(path: &str) -> Result<String, String> {
         .current_dir(path)
         .output()
         .map_err(|e| e.to_string())?;
-    
+
     if output.status.success() {
         Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
     } else {
@@ -992,7 +1108,7 @@ async fn get_git_current_branch(path: &str) -> Result<String, String> {
         .current_dir(path)
         .output()
         .map_err(|e| e.to_string())?;
-    
+
     if output.status.success() {
         Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
     } else {
@@ -1006,7 +1122,7 @@ async fn get_git_commit_hash(path: &str) -> Result<String, String> {
         .current_dir(path)
         .output()
         .map_err(|e| e.to_string())?;
-    
+
     if output.status.success() {
         Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
     } else {
@@ -1020,75 +1136,128 @@ async fn get_git_has_uncommitted_changes(path: &str) -> Result<bool, String> {
         .current_dir(path)
         .output()
         .map_err(|e| e.to_string())?;
-    
+
     Ok(!String::from_utf8_lossy(&output.stdout).trim().is_empty())
 }
 
-async fn parse_devcontainer_json(content: &str, project_path: &str) -> Result<DevContainerSpec, String> {
+async fn parse_devcontainer_json(
+    content: &str,
+    _project_path: &str,
+) -> Result<DevContainerSpec, String> {
     // Strip JSON comments (devcontainer.json supports // and /* */)
     let stripped = strip_json_comments(content);
-    let parsed: serde_json::Value = serde_json::from_str(&stripped).map_err(|e| format!("Failed to parse devcontainer.json: {e}"))?;
-    
+    let parsed: serde_json::Value = serde_json::from_str(&stripped)
+        .map_err(|e| format!("Failed to parse devcontainer.json: {e}"))?;
+
     let home_dir = get_home_dir();
-    
+
     // Parse mounts
     let mounts = parsed.get("mounts").and_then(|v| v.as_array()).map(|arr| {
-        arr.iter().filter_map(|m| {
-            let source = m.get("source")?.as_str()?.replace("~", &home_dir);
-            let target = m.get("target")?.as_str()?;
-            let mount_type = m.get("type").and_then(|v| v.as_str()).unwrap_or("bind");
-            let readonly = m.get("readonly").and_then(|v| v.as_bool()).unwrap_or(false);
-            Some(MountSpec {
-                source,
-                target: target.to_string(),
-                writable: !readonly,
+        arr.iter()
+            .filter_map(|m| {
+                let source = m.get("source")?.as_str()?.replace("~", &home_dir);
+                let target = m.get("target")?.as_str()?;
+                let _mount_type = m.get("type").and_then(|v| v.as_str()).unwrap_or("bind");
+                let readonly = m.get("readonly").and_then(|v| v.as_bool()).unwrap_or(false);
+                Some(MountSpec {
+                    source,
+                    target: target.to_string(),
+                    writable: !readonly,
+                })
             })
-        }).collect()
+            .collect()
     });
-    
+
     // Parse ports
-    let forward_ports = parsed.get("forwardPorts").and_then(|v| v.as_array()).map(|arr| {
-        arr.iter().filter_map(|v| v.as_u64().map(|n| n as u16)).collect()
-    }).or_else(|| {
-        parsed.get("ports").and_then(|v| v.as_array()).map(|arr| {
-            arr.iter().filter_map(|v| v.as_u64().map(|n| n as u16)).collect()
+    let forward_ports = parsed
+        .get("forwardPorts")
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_u64().map(|n| n as u16))
+                .collect()
         })
-    });
-    
+        .or_else(|| {
+            parsed.get("ports").and_then(|v| v.as_array()).map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_u64().map(|n| n as u16))
+                    .collect()
+            })
+        });
+
     // Parse build
-    let build = parsed.get("build").and_then(|v| v.as_object()).map(|obj| {
-        BuildSpec {
-            context: obj.get("context").and_then(|v| v.as_str()).unwrap_or(".").to_string(),
-            dockerfile: obj.get("dockerfile").and_then(|v| v.as_str()).unwrap_or("Dockerfile").to_string(),
+    let build = parsed
+        .get("build")
+        .and_then(|v| v.as_object())
+        .map(|obj| BuildSpec {
+            context: obj
+                .get("context")
+                .and_then(|v| v.as_str())
+                .unwrap_or(".")
+                .to_string(),
+            dockerfile: obj
+                .get("dockerfile")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Dockerfile")
+                .to_string(),
             args: obj.get("args").and_then(|v| v.as_object()).map(|args_obj| {
-                args_obj.iter().filter_map(|(k, v)| v.as_str().map(|s| (k.clone(), s.to_string()))).collect()
+                args_obj
+                    .iter()
+                    .filter_map(|(k, v)| v.as_str().map(|s| (k.clone(), s.to_string())))
+                    .collect()
             }),
-        }
-    });
-    
+        });
+
     Ok(DevContainerSpec {
-        image: parsed.get("image").and_then(|v| v.as_str()).map(|s| s.to_string()),
-        dockerfile: parsed.get("dockerfile").and_then(|v| v.as_str()).map(|s| s.to_string()),
+        image: parsed
+            .get("image")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string()),
+        dockerfile: parsed
+            .get("dockerfile")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string()),
         build,
         run_args: parsed.get("runArgs").and_then(|v| v.as_array()).map(|arr| {
-            arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect()
+            arr.iter()
+                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                .collect()
         }),
-        container_env: parsed.get("containerEnv").and_then(|v| v.as_object()).map(|obj| {
-            obj.iter().filter_map(|(k, v)| v.as_str().map(|s| (k.clone(), s.to_string()))).collect()
-        }),
-        remote_env: parsed.get("remoteEnv").and_then(|v| v.as_object()).map(|obj| {
-            obj.iter().filter_map(|(k, v)| v.as_str().map(|s| (k.clone(), s.to_string()))).collect()
-        }),
+        container_env: parsed
+            .get("containerEnv")
+            .and_then(|v| v.as_object())
+            .map(|obj| {
+                obj.iter()
+                    .filter_map(|(k, v)| v.as_str().map(|s| (k.clone(), s.to_string())))
+                    .collect()
+            }),
+        remote_env: parsed
+            .get("remoteEnv")
+            .and_then(|v| v.as_object())
+            .map(|obj| {
+                obj.iter()
+                    .filter_map(|(k, v)| v.as_str().map(|s| (k.clone(), s.to_string())))
+                    .collect()
+            }),
         mounts,
         ports: parsed.get("ports").and_then(|v| v.as_array()).map(|arr| {
-            arr.iter().filter_map(|v| v.as_u64().map(|n| n as u16)).collect()
+            arr.iter()
+                .filter_map(|v| v.as_u64().map(|n| n as u16))
+                .collect()
         }),
         forward_ports,
-        post_create_command: parsed.get("postCreateCommand").and_then(|v| v.as_str()).map(|s| s.to_string()),
-        post_start_command: parsed.get("postStartCommand").and_then(|v| v.as_str()).map(|s| s.to_string()),
-        customizations: parsed.get("customizations").and_then(|v| v.as_object()).map(|obj| {
-            obj.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
-        }),
+        post_create_command: parsed
+            .get("postCreateCommand")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string()),
+        post_start_command: parsed
+            .get("postStartCommand")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string()),
+        customizations: parsed
+            .get("customizations")
+            .and_then(|v| v.as_object())
+            .map(|obj| obj.iter().map(|(k, v)| (k.clone(), v.clone())).collect()),
     })
 }
 
@@ -1097,7 +1266,7 @@ async fn parse_compose_services(file_path: &str) -> Result<Vec<String>, String> 
     // Simple YAML parsing for services - look for "services:" key
     let mut services = Vec::new();
     let mut in_services = false;
-    
+
     for line in content.lines() {
         let trimmed = line.trim();
         if trimmed == "services:" {
@@ -1120,16 +1289,32 @@ async fn parse_compose_services(file_path: &str) -> Result<Vec<String>, String> 
             }
         }
     }
-    
+
     Ok(services)
 }
 
 fn detect_language(entries: &[String]) -> String {
-    if entries.iter().any(|e| e == "package.json") { return "node".to_string(); }
-    if entries.iter().any(|e| e == "pyproject.toml" || e == "requirements.txt") { return "python".to_string(); }
-    if entries.iter().any(|e| e == "Cargo.toml") { return "rust".to_string(); }
-    if entries.iter().any(|e| e == "go.mod") { return "go".to_string(); }
-    if entries.iter().any(|e| e == "pom.xml" || e == "build.gradle") { return "java".to_string(); }
+    if entries.iter().any(|e| e == "package.json") {
+        return "node".to_string();
+    }
+    if entries
+        .iter()
+        .any(|e| e == "pyproject.toml" || e == "requirements.txt")
+    {
+        return "python".to_string();
+    }
+    if entries.iter().any(|e| e == "Cargo.toml") {
+        return "rust".to_string();
+    }
+    if entries.iter().any(|e| e == "go.mod") {
+        return "go".to_string();
+    }
+    if entries
+        .iter()
+        .any(|e| e == "pom.xml" || e == "build.gradle")
+    {
+        return "java".to_string();
+    }
     "generic".to_string()
 }
 
@@ -1214,10 +1399,10 @@ fn strip_json_comments(json: &str) -> String {
     let mut in_string = false;
     let mut in_line_comment = false;
     let mut in_block_comment = false;
-    
+
     while let Some(&c) = chars.peek() {
         chars.next();
-        
+
         if in_line_comment {
             if c == '\n' {
                 in_line_comment = false;
@@ -1225,7 +1410,7 @@ fn strip_json_comments(json: &str) -> String {
             }
             continue;
         }
-        
+
         if in_block_comment {
             if c == '*' && chars.peek() == Some(&'/') {
                 in_block_comment = false;
@@ -1233,7 +1418,7 @@ fn strip_json_comments(json: &str) -> String {
             }
             continue;
         }
-        
+
         if in_string {
             result.push(c);
             if c == '"' {
@@ -1250,7 +1435,7 @@ fn strip_json_comments(json: &str) -> String {
             }
             continue;
         }
-        
+
         if c == '/' {
             if let Some(&next) = chars.peek() {
                 if next == '/' {
@@ -1264,14 +1449,14 @@ fn strip_json_comments(json: &str) -> String {
                 }
             }
         }
-        
+
         if c == '"' {
             in_string = true;
         }
-        
+
         result.push(c);
     }
-    
+
     result
 }
 

@@ -1,12 +1,12 @@
 // Projects data layer with SQLite persistence
 
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
-use sqlx::{SqlitePool, sqlite::SqliteConnectOptions, migrate::MigrateDatabase, Row};
+use sqlx::{migrate::MigrateDatabase, Row, SqlitePool};
 use std::path::PathBuf;
 use std::process::Command;
 use tauri::{AppHandle, Manager};
 use uuid::Uuid;
-use chrono::{DateTime, Utc};
 
 const DB_NAME: &str = "colima_ui.db";
 
@@ -80,6 +80,8 @@ pub async fn init_db(app: &AppHandle) -> Result<SqlitePool, anyhow::Error> {
 }
 
 // Get database path
+// Removed in WO-0.2.
+#[allow(dead_code)]
 pub fn get_db_path(app: &AppHandle) -> Result<PathBuf, anyhow::Error> {
     let config_dir = app
         .path()
@@ -90,7 +92,10 @@ pub fn get_db_path(app: &AppHandle) -> Result<PathBuf, anyhow::Error> {
 }
 
 // Project CRUD operations
-pub async fn project_create(pool: &SqlitePool, input: CreateProjectInput) -> Result<Project, String> {
+pub async fn project_create(
+    pool: &SqlitePool,
+    input: CreateProjectInput,
+) -> Result<Project, String> {
     // Validate path exists and is a directory
     let path = std::path::Path::new(&input.path);
     if !path.exists() {
@@ -106,7 +111,7 @@ pub async fn project_create(pool: &SqlitePool, input: CreateProjectInput) -> Res
         .fetch_optional(pool)
         .await
         .map_err(|e| e.to_string())?;
-    
+
     if existing.is_some() {
         return Err(format!("Project already exists at path: {}", input.path));
     }
@@ -136,7 +141,9 @@ pub async fn project_create(pool: &SqlitePool, input: CreateProjectInput) -> Res
     .map_err(|e| e.to_string())?;
 
     // Return the created project
-    project_get(pool, &id).await?.ok_or_else(|| "Failed to retrieve created project".to_string())
+    project_get(pool, &id)
+        .await?
+        .ok_or_else(|| "Failed to retrieve created project".to_string())
 }
 
 pub async fn project_get(pool: &SqlitePool, id: &str) -> Result<Option<Project>, String> {
@@ -167,22 +174,27 @@ pub async fn project_delete(pool: &SqlitePool, id: &str) -> Result<(), String> {
     Ok(())
 }
 
-pub async fn project_set_environment(pool: &SqlitePool, project_id: &str, environment_id: Option<String>) -> Result<(), String> {
+pub async fn project_set_environment(
+    pool: &SqlitePool,
+    project_id: &str,
+    environment_id: Option<String>,
+) -> Result<(), String> {
     let now = Utc::now().to_rfc3339();
-    sqlx::query(
-        "UPDATE projects SET dev_environment_id = ?, updated_at = ? WHERE id = ?"
-    )
-    .bind(environment_id)
-    .bind(&now)
-    .bind(project_id)
-    .execute(pool)
-    .await
-    .map_err(|e| e.to_string())?;
+    sqlx::query("UPDATE projects SET dev_environment_id = ?, updated_at = ? WHERE id = ?")
+        .bind(environment_id)
+        .bind(&now)
+        .bind(project_id)
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
     Ok(())
 }
 
 // Environment CRUD operations
-pub async fn environment_create(pool: &SqlitePool, input: CreateEnvironmentInput) -> Result<ProjectEnvironment, String> {
+pub async fn environment_create(
+    pool: &SqlitePool,
+    input: CreateEnvironmentInput,
+) -> Result<ProjectEnvironment, String> {
     let id = Uuid::new_v4().to_string();
     let now = Utc::now().to_rfc3339();
     let runtime = input.runtime.unwrap_or_else(|| "lima-docker".to_string());
@@ -204,10 +216,15 @@ pub async fn environment_create(pool: &SqlitePool, input: CreateEnvironmentInput
     .await
     .map_err(|e| e.to_string())?;
 
-    environment_get(pool, &id).await?.ok_or_else(|| "Failed to retrieve created environment".to_string())
+    environment_get(pool, &id)
+        .await?
+        .ok_or_else(|| "Failed to retrieve created environment".to_string())
 }
 
-pub async fn environment_get(pool: &SqlitePool, id: &str) -> Result<Option<ProjectEnvironment>, String> {
+pub async fn environment_get(
+    pool: &SqlitePool,
+    id: &str,
+) -> Result<Option<ProjectEnvironment>, String> {
     let row = sqlx::query("SELECT * FROM project_environments WHERE id = ?")
         .bind(id)
         .fetch_optional(pool)
@@ -217,28 +234,38 @@ pub async fn environment_get(pool: &SqlitePool, id: &str) -> Result<Option<Proje
     Ok(row.map(|r| row_to_environment(&r)))
 }
 
-pub async fn environment_list(pool: &SqlitePool, project_id: Option<&str>) -> Result<Vec<ProjectEnvironment>, String> {
-    let rows = match project_id {
-        Some(pid) => {
-            sqlx::query("SELECT * FROM project_environments WHERE project_id = ? ORDER BY created_at DESC")
-                .bind(pid)
-                .fetch_all(pool)
-                .await
+pub async fn environment_list(
+    pool: &SqlitePool,
+    project_id: Option<&str>,
+) -> Result<Vec<ProjectEnvironment>, String> {
+    let rows =
+        match project_id {
+            Some(pid) => sqlx::query(
+                "SELECT * FROM project_environments WHERE project_id = ? ORDER BY created_at DESC",
+            )
+            .bind(pid)
+            .fetch_all(pool)
+            .await,
+            None => {
+                sqlx::query("SELECT * FROM project_environments ORDER BY created_at DESC")
+                    .fetch_all(pool)
+                    .await
+            }
         }
-        None => {
-            sqlx::query("SELECT * FROM project_environments ORDER BY created_at DESC")
-                .fetch_all(pool)
-                .await
-        }
-    }.map_err(|e| e.to_string())?;
+        .map_err(|e| e.to_string())?;
 
     Ok(rows.into_iter().map(|r| row_to_environment(&r)).collect())
 }
 
-pub async fn environment_update_state(pool: &SqlitePool, id: &str, state: &str, error: Option<String>) -> Result<(), String> {
+pub async fn environment_update_state(
+    pool: &SqlitePool,
+    id: &str,
+    state: &str,
+    error: Option<String>,
+) -> Result<(), String> {
     let now = Utc::now().to_rfc3339();
     sqlx::query(
-        "UPDATE project_environments SET state = ?, error = ?, updated_at = ? WHERE id = ?"
+        "UPDATE project_environments SET state = ?, error = ?, updated_at = ? WHERE id = ?",
     )
     .bind(state)
     .bind(error)
@@ -250,31 +277,35 @@ pub async fn environment_update_state(pool: &SqlitePool, id: &str, state: &str, 
     Ok(())
 }
 
-pub async fn environment_update_container_id(pool: &SqlitePool, id: &str, container_id: &str) -> Result<(), String> {
+pub async fn environment_update_container_id(
+    pool: &SqlitePool,
+    id: &str,
+    container_id: &str,
+) -> Result<(), String> {
     let now = Utc::now().to_rfc3339();
-    sqlx::query(
-        "UPDATE project_environments SET container_id = ?, updated_at = ? WHERE id = ?"
-    )
-    .bind(container_id)
-    .bind(&now)
-    .bind(id)
-    .execute(pool)
-    .await
-    .map_err(|e| e.to_string())?;
+    sqlx::query("UPDATE project_environments SET container_id = ?, updated_at = ? WHERE id = ?")
+        .bind(container_id)
+        .bind(&now)
+        .bind(id)
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
     Ok(())
 }
 
-pub async fn environment_update_ports(pool: &SqlitePool, id: &str, ports_json: &str) -> Result<(), String> {
+pub async fn environment_update_ports(
+    pool: &SqlitePool,
+    id: &str,
+    ports_json: &str,
+) -> Result<(), String> {
     let now = Utc::now().to_rfc3339();
-    sqlx::query(
-        "UPDATE project_environments SET ports_json = ?, updated_at = ? WHERE id = ?"
-    )
-    .bind(ports_json)
-    .bind(&now)
-    .bind(id)
-    .execute(pool)
-    .await
-    .map_err(|e| e.to_string())?;
+    sqlx::query("UPDATE project_environments SET ports_json = ?, updated_at = ? WHERE id = ?")
+        .bind(ports_json)
+        .bind(&now)
+        .bind(id)
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -323,7 +354,10 @@ fn row_to_environment(row: &sqlx::sqlite::SqliteRow) -> ProjectEnvironment {
 
 // Tauri command wrappers
 #[tauri::command]
-pub async fn project_create_cmd(app: tauri::AppHandle, input: CreateProjectInput) -> Result<Project, String> {
+pub async fn project_create_cmd(
+    app: tauri::AppHandle,
+    input: CreateProjectInput,
+) -> Result<Project, String> {
     let pool = init_db(&app).await.map_err(|e| e.to_string())?;
     project_create(&pool, input).await
 }
@@ -347,32 +381,43 @@ pub async fn project_delete_cmd(app: tauri::AppHandle, id: String) -> Result<(),
 }
 
 #[tauri::command]
-pub async fn project_set_environment_cmd(app: tauri::AppHandle, project_id: String, environment_id: Option<String>) -> Result<(), String> {
+pub async fn project_set_environment_cmd(
+    app: tauri::AppHandle,
+    project_id: String,
+    environment_id: Option<String>,
+) -> Result<(), String> {
     let pool = init_db(&app).await.map_err(|e| e.to_string())?;
     project_set_environment(&pool, &project_id, environment_id).await
 }
 
 #[tauri::command]
-pub async fn project_refresh_git_info_cmd(app: tauri::AppHandle, project_id: String) -> Result<GitInfo, String> {
+pub async fn project_refresh_git_info_cmd(
+    app: tauri::AppHandle,
+    project_id: String,
+) -> Result<GitInfo, String> {
     let pool = init_db(&app).await.map_err(|e| e.to_string())?;
-    
+
     // Get the project to find its path
-    let project = project_get(&pool, &project_id).await?.ok_or("Project not found")?;
+    let project = project_get(&pool, &project_id)
+        .await?
+        .ok_or("Project not found")?;
     let project_path = project.path;
-    
+
     // Run git commands in the project directory
     let remote_url = get_git_remote_url(&project_path).await.ok();
     let current_branch = get_git_current_branch(&project_path).await.ok();
     let commit_hash = get_git_commit_hash(&project_path).await.ok();
-    let has_uncommitted_changes = get_git_has_uncommitted_changes(&project_path).await.unwrap_or(false);
-    
+    let has_uncommitted_changes = get_git_has_uncommitted_changes(&project_path)
+        .await
+        .unwrap_or(false);
+
     let git_info = GitInfo {
         remote_url,
         current_branch,
         commit_hash,
         has_uncommitted_changes,
     };
-    
+
     // Update the project in the database
     let now = Utc::now().to_rfc3339();
     sqlx::query(
@@ -391,42 +436,64 @@ pub async fn project_refresh_git_info_cmd(app: tauri::AppHandle, project_id: Str
     .execute(&pool)
     .await
     .map_err(|e| e.to_string())?;
-    
+
     Ok(git_info)
 }
 
 #[tauri::command]
-pub async fn environment_create_cmd(app: tauri::AppHandle, input: CreateEnvironmentInput) -> Result<ProjectEnvironment, String> {
+pub async fn environment_create_cmd(
+    app: tauri::AppHandle,
+    input: CreateEnvironmentInput,
+) -> Result<ProjectEnvironment, String> {
     let pool = init_db(&app).await.map_err(|e| e.to_string())?;
     environment_create(&pool, input).await
 }
 
 #[tauri::command]
-pub async fn environment_get_cmd(app: tauri::AppHandle, id: String) -> Result<Option<ProjectEnvironment>, String> {
+pub async fn environment_get_cmd(
+    app: tauri::AppHandle,
+    id: String,
+) -> Result<Option<ProjectEnvironment>, String> {
     let pool = init_db(&app).await.map_err(|e| e.to_string())?;
     environment_get(&pool, &id).await
 }
 
 #[tauri::command]
-pub async fn environment_list_cmd(app: tauri::AppHandle, project_id: Option<String>) -> Result<Vec<ProjectEnvironment>, String> {
+pub async fn environment_list_cmd(
+    app: tauri::AppHandle,
+    project_id: Option<String>,
+) -> Result<Vec<ProjectEnvironment>, String> {
     let pool = init_db(&app).await.map_err(|e| e.to_string())?;
     environment_list(&pool, project_id.as_deref()).await
 }
 
 #[tauri::command]
-pub async fn environment_update_state_cmd(app: tauri::AppHandle, id: String, state: String, error: Option<String>) -> Result<(), String> {
+pub async fn environment_update_state_cmd(
+    app: tauri::AppHandle,
+    id: String,
+    state: String,
+    error: Option<String>,
+) -> Result<(), String> {
     let pool = init_db(&app).await.map_err(|e| e.to_string())?;
     environment_update_state(&pool, &id, &state, error).await
 }
 
 #[tauri::command]
-pub async fn environment_update_container_id_cmd(app: tauri::AppHandle, id: String, container_id: String) -> Result<(), String> {
+pub async fn environment_update_container_id_cmd(
+    app: tauri::AppHandle,
+    id: String,
+    container_id: String,
+) -> Result<(), String> {
     let pool = init_db(&app).await.map_err(|e| e.to_string())?;
     environment_update_container_id(&pool, &id, &container_id).await
 }
 
 #[tauri::command]
-pub async fn environment_update_ports_cmd(app: tauri::AppHandle, id: String, ports_json: String) -> Result<(), String> {
+pub async fn environment_update_ports_cmd(
+    app: tauri::AppHandle,
+    id: String,
+    ports_json: String,
+) -> Result<(), String> {
     let pool = init_db(&app).await.map_err(|e| e.to_string())?;
     environment_update_ports(&pool, &id, &ports_json).await
 }
@@ -451,7 +518,7 @@ async fn get_git_remote_url(path: &str) -> Result<String, String> {
         .current_dir(path)
         .output()
         .map_err(|e| e.to_string())?;
-    
+
     if output.status.success() {
         Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
     } else {
@@ -465,7 +532,7 @@ async fn get_git_current_branch(path: &str) -> Result<String, String> {
         .current_dir(path)
         .output()
         .map_err(|e| e.to_string())?;
-    
+
     if output.status.success() {
         Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
     } else {
@@ -479,7 +546,7 @@ async fn get_git_commit_hash(path: &str) -> Result<String, String> {
         .current_dir(path)
         .output()
         .map_err(|e| e.to_string())?;
-    
+
     if output.status.success() {
         Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
     } else {
@@ -493,7 +560,7 @@ async fn get_git_has_uncommitted_changes(path: &str) -> Result<bool, String> {
         .current_dir(path)
         .output()
         .map_err(|e| e.to_string())?;
-    
+
     Ok(!String::from_utf8_lossy(&output.stdout).trim().is_empty())
 }
 
@@ -511,15 +578,23 @@ mod tests {
     #[tokio::test]
     async fn test_project_crud() {
         let pool = test_pool().await;
-        
+
         // Use a path that exists (current working directory)
-        let test_path = std::env::current_dir().unwrap().to_string_lossy().to_string();
-        
+        let test_path = std::env::current_dir()
+            .unwrap()
+            .to_string_lossy()
+            .to_string();
+
         // Create
-        let project = project_create(&pool, CreateProjectInput {
-            path: test_path,
-            name: Some("Test Project".to_string()),
-        }).await.unwrap();
+        let project = project_create(
+            &pool,
+            CreateProjectInput {
+                path: test_path,
+                name: Some("Test Project".to_string()),
+            },
+        )
+        .await
+        .unwrap();
         assert_eq!(project.name, "Test Project");
 
         // Get
