@@ -16,12 +16,13 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
 ) {
   const dev = (import.meta as ImportMeta & { env?: { DEV?: boolean } }).env?.DEV;
   if (dev && iconOnly && !rest["aria-label"]) console.error("Button: iconOnly needs aria-label");
+  const variantClass = variant === "default" ? undefined : variant;
   return (
     <button
       {...rest}
       ref={ref}
       type="button"
-      className={clsx("btn", variant !== "default" && variant, size !== "sm" && size, iconOnly && "icon-only", className)}
+      className={clsx("btn", variantClass, size !== "sm" && size, iconOnly && "icon-only", className)}
       aria-busy={busy ? "true" : undefined}
       onClick={(event) => {
         if (busy) return;
