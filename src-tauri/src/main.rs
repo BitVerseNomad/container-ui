@@ -10,8 +10,6 @@ use std::time::{Duration, Instant};
 use tauri::Emitter;
 
 mod desktop;
-mod lima;
-mod projects;
 mod setup;
 
 #[derive(Serialize, Deserialize)]
@@ -1041,151 +1039,6 @@ async fn docker_pull(app: tauri::AppHandle, context: String, image: String) -> R
             "pull-progress",
             "docker",
             &["--context".into(), context, "pull".into(), image],
-        )
-    })
-    .await
-    .map_err(|e| e.to_string())?
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-struct ChatMessage {
-    role: String,
-    content: String,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct OllamaModel {
-    name: String,
-    size: String,
-    modified: String,
-}
-
-/// Streams chat response from Ollama via Tauri events.
-/// Emits "ollama-chat-token" events for each token, then "ollama-chat-done" with the full response.
-#[tauri::command]
-async fn ollama_chat(
-    app: tauri::AppHandle,
-    model: String,
-    messages: Vec<ChatMessage>,
-) -> Result<String, String> {
-    use std::io::BufRead;
-
-    // Build the JSON request body
-    let request_body = serde_json::json!({
-        "model": model,
-        "messages": messages,
-        "stream": true
-    });
-
-    let mut cmd = Command::new("ollama");
-    cmd.arg("run")
-        .arg("--format")
-        .arg("json")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .env("PATH", path_env());
-
-    let mut child = cmd
-        .spawn()
-        .map_err(|e| format!("Could not run ollama: {e}. Is it installed?"))?;
-
-    // Write request to stdin
-    if let Some(mut stdin) = child.stdin.take() {
-        use std::io::Write;
-        stdin
-            .write_all(request_body.to_string().as_bytes())
-            .map_err(|e| e.to_string())?;
-    }
-
-    let mut full_response = String::new();
-    let stdout = child.stdout.take().expect("piped stdout");
-    let stderr = child.stderr.take().expect("piped stderr");
-    let reader = BufReader::new(stdout);
-    let err_reader = BufReader::new(stderr);
-
-    // Read stdout line by line (streaming JSON)
-    for line in reader.lines().map_while(Result::ok) {
-        if line.trim().is_empty() {
-            continue;
-        }
-        // Try to parse as JSON response
-        if let Ok(json) = serde_json::from_str::<serde_json::Value>(&line) {
-            if let Some(token) = json.get("response").and_then(|v| v.as_str()) {
-                if !token.is_empty() {
-                    full_response.push_str(token);
-                    // Emit token event for streaming UI
-                    let _ = app.emit("ollama-chat-token", token);
-                }
-            }
-            if json.get("done").and_then(|v| v.as_bool()) == Some(true) {
-                break;
-            }
-        }
-    }
-
-    // Drain stderr
-    let err_output: String = err_reader
-        .lines()
-        .map_while(Result::ok)
-        .collect::<Vec<_>>()
-        .join("\n");
-
-    let status = child.wait().map_err(|e| e.to_string())?;
-
-    if !status.success() && !err_output.is_empty() {
-        return Err(err_output);
-    }
-
-    // Emit done event with full response
-    let _ = app.emit("ollama-chat-done", full_response.clone());
-
-    Ok(full_response)
-}
-
-/// Lists available Ollama models with name, size, and modified time.
-#[tauri::command]
-async fn ollama_list_models() -> Result<Vec<OllamaModel>, String> {
-    let output = exec("ollama", vec!["list".into()], false).await?;
-
-    let mut models = Vec::new();
-    for line in output.lines().skip(1) {
-        // Skip header line
-        let parts: Vec<&str> = line.split_whitespace().collect();
-        if parts.len() >= 3 {
-            // Format: NAME ID SIZE MODIFIED
-            // We want name, size, modified
-            let name = parts[0].to_string();
-            let size = if parts.len() >= 3 {
-                parts[2].to_string()
-            } else {
-                "unknown".to_string()
-            };
-            // Modified time is the rest
-            let modified = parts[3..].join(" ");
-            models.push(OllamaModel {
-                name,
-                size,
-                modified,
-            });
-        }
-    }
-
-    Ok(models)
-}
-
-/// Pulls an Ollama model with progress streaming.
-/// Emits "ollama-pull-progress" events with progress updates.
-#[tauri::command]
-async fn ollama_pull(app: tauri::AppHandle, model: String) -> Result<(), String> {
-    safe(&model)?;
-
-    tauri::async_runtime::spawn_blocking(move || {
-        stream(
-            &app,
-            "ollama-pull-progress",
-            "ollama",
-            &["pull".into(), model],
         )
     })
     .await
@@ -2747,9 +2600,6 @@ fn main() {
             rdctl_version,
             podman_version,
             docker_desktop_version,
-            ollama_chat,
-            ollama_list_models,
-            ollama_pull,
             desktop::desktop_state,
             desktop::desktop_docker,
             desktop::desktop_copy,
@@ -2757,44 +2607,6 @@ fn main() {
             desktop::desktop_start,
             desktop::desktop_replace,
             desktop::open_docker_desktop,
-            lima::lima_status,
-            lima::lima_ensure_vm,
-            lima::project_env_create,
-            lima::project_env_start,
-            lima::project_env_stop,
-            lima::project_env_delete,
-            lima::project_env_list,
-            lima::project_env_get,
-            lima::project_env_logs,
-            lima::project_env_exec,
-            lima::project_env_forward_port,
-            lima::project_env_unforward_port,
-            lima::project_set_environment,
-            lima::get_ssh_auth_sock,
-            lima::git_config_get,
-            lima::get_gh_token,
-            lima::get_home_dir,
-            lima::dialog_open,
-            lima::fs_read_dir,
-            lima::fs_read_text_file,
-            lima::project_env_restart,
-            lima::project_env_list_ports,
-            lima::project_detect_config,
-            lima::project_open_in_ide,
-            lima::project_refresh_git_info,
-            projects::project_create_cmd,
-            projects::project_get_cmd,
-            projects::project_list_cmd,
-            projects::project_delete_cmd,
-            projects::project_set_environment_cmd,
-            projects::project_refresh_git_info_cmd,
-            projects::environment_create_cmd,
-            projects::environment_get_cmd,
-            projects::environment_list_cmd,
-            projects::environment_update_state_cmd,
-            projects::environment_update_container_id_cmd,
-            projects::environment_update_ports_cmd,
-            projects::environment_delete_cmd
         ])
         .run(tauri::generate_context!())
         .expect("error while running Wharf");
