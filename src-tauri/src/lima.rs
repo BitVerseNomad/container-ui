@@ -132,6 +132,8 @@ pub struct MountSpec {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+// Removed in WO-0.2.
+#[allow(dead_code)]
 pub struct EnvVar {
     pub key: String,
     pub value: String,
@@ -140,6 +142,8 @@ pub struct EnvVar {
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(tag = "type")]
+// Removed in WO-0.2.
+#[allow(clippy::large_enum_variant)]
 pub enum ProjectEnvConfig {
     DevContainer { devcontainer: DevContainerSpec },
     Compose { compose: ComposeSpec },
@@ -487,7 +491,7 @@ async fn create_compose_env(
     instance: &str,
     project_path: &str,
     spec: &ComposeSpec,
-    env_id: &str,
+    _env_id: &str,
 ) -> Result<String, String> {
     let compose_file = &spec.file;
     let service = &spec.service;
@@ -730,7 +734,7 @@ pub async fn project_env_forward_port(
 // Unforward port from project environment
 #[tauri::command]
 pub async fn project_env_unforward_port(
-    app: tauri::AppHandle,
+    _app: tauri::AppHandle,
     env_id: String,
     container_port: u16,
 ) -> Result<(), String> {
@@ -848,6 +852,8 @@ pub fn fs_read_text_file(path: String) -> Result<String, String> {
 }
 
 #[derive(Deserialize)]
+// Removed in WO-0.2.
+#[allow(dead_code)]
 pub struct DialogOpenOptions {
     title: Option<String>,
     directory: Option<bool>,
@@ -895,7 +901,7 @@ pub async fn project_env_list_ports(env_id: String) -> Result<Vec<PortMapping>, 
 // Detect project configuration
 #[tauri::command]
 pub async fn project_detect_config(
-    project_id: String,
+    _project_id: String,
     project_path: String,
 ) -> Result<DetectResult, String> {
     // Read directory entries
@@ -913,7 +919,7 @@ pub async fn project_detect_config(
             let spec = parse_devcontainer_json(&content, &project_path).await?;
 
             // Check for referenced docker-compose
-            let has_compose = devcontainer_entries
+            let _has_compose = devcontainer_entries
                 .iter()
                 .any(|e| e.ends_with(".yml") || e.ends_with(".yaml"));
 
@@ -1136,7 +1142,7 @@ async fn get_git_has_uncommitted_changes(path: &str) -> Result<bool, String> {
 
 async fn parse_devcontainer_json(
     content: &str,
-    project_path: &str,
+    _project_path: &str,
 ) -> Result<DevContainerSpec, String> {
     // Strip JSON comments (devcontainer.json supports // and /* */)
     let stripped = strip_json_comments(content);
@@ -1151,7 +1157,7 @@ async fn parse_devcontainer_json(
             .filter_map(|m| {
                 let source = m.get("source")?.as_str()?.replace("~", &home_dir);
                 let target = m.get("target")?.as_str()?;
-                let mount_type = m.get("type").and_then(|v| v.as_str()).unwrap_or("bind");
+                let _mount_type = m.get("type").and_then(|v| v.as_str()).unwrap_or("bind");
                 let readonly = m.get("readonly").and_then(|v| v.as_bool()).unwrap_or(false);
                 Some(MountSpec {
                     source,

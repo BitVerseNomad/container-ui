@@ -1,8 +1,8 @@
 // Projects data layer with SQLite persistence
 
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
-use sqlx::{migrate::MigrateDatabase, sqlite::SqliteConnectOptions, Row, SqlitePool};
+use sqlx::{migrate::MigrateDatabase, Row, SqlitePool};
 use std::path::PathBuf;
 use std::process::Command;
 use tauri::{AppHandle, Manager};
@@ -80,6 +80,8 @@ pub async fn init_db(app: &AppHandle) -> Result<SqlitePool, anyhow::Error> {
 }
 
 // Get database path
+// Removed in WO-0.2.
+#[allow(dead_code)]
 pub fn get_db_path(app: &AppHandle) -> Result<PathBuf, anyhow::Error> {
     let config_dir = app
         .path()

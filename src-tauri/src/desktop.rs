@@ -62,7 +62,7 @@ pub async fn desktop_state() -> Result<DesktopState, String> {
             ]),
             Duration::from_secs(8),
         )
-        .map_or(false, |(ok, _, _)| ok);
+        .is_ok_and(|(ok, _, _)| ok);
         DesktopState {
             installed: Path::new(DESKTOP_APP).exists(),
             running,
@@ -112,9 +112,7 @@ pub async fn desktop_docker(args: Vec<String>) -> Result<String, String> {
 
 // repo[:tag] or repo@sha256:..., as `docker images` prints them. Never a flag, never a space.
 fn image_ref_ok(r: &str) -> bool {
-    r.chars()
-        .next()
-        .map_or(false, |c| c.is_ascii_alphanumeric())
+    r.chars().next().is_some_and(|c| c.is_ascii_alphanumeric())
         && r.len() <= 255
         && !r.contains("<none>")
         && r.chars()
@@ -317,7 +315,7 @@ fn pipe(
         // The receiving side stopped (its error is in its stderr): stop reading, so the sender ends too.
         if writer
             .as_mut()
-            .map_or(true, |w| w.write_all(&buf[..n]).is_err())
+            .is_none_or(|w| w.write_all(&buf[..n]).is_err())
         {
             kill_group(pids[0]);
             break;
@@ -1646,7 +1644,7 @@ mod tests {
         const MIB: u64 = 1024 * 1024;
         assert!(size_guard("shop_db", Some(12 * MIB), Some(12 * MIB)).is_ok());
         assert!(
-            size_guard("shop_db", Some(60 * MIB), Some(1 * MIB)).is_ok(),
+            size_guard("shop_db", Some(60 * MIB), Some(MIB)).is_ok(),
             "under 64 MiB is still a fresh copy"
         );
         assert!(

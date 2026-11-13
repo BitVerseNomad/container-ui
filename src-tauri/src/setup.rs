@@ -66,7 +66,7 @@ fn plugins_in(dir: &Path) -> Vec<Plugin> {
     };
     let mut out: Vec<Plugin> = entries
         .flatten()
-        .filter_map(|e| {
+        .map(|e| {
             let name = e.file_name().to_string_lossy().into_owned();
             let link = std::fs::read_link(e.path()).ok();
             let target = link
@@ -74,11 +74,11 @@ fn plugins_in(dir: &Path) -> Vec<Plugin> {
                 .map(|t| t.to_string_lossy().into_owned())
                 .unwrap_or_default();
             // `exists` follows the link, so a dangling one reports false.
-            Some(Plugin {
+            Plugin {
                 broken: link.is_some() && !e.path().exists(),
                 name,
                 target,
-            })
+            }
         })
         .collect();
     out.sort_by(|a, b| a.name.cmp(&b.name));
@@ -216,8 +216,7 @@ fn property(props: &str, key: &str) -> Option<String> {
     entries(props)
         .into_iter()
         .flatten()
-        .filter(|e| e.key == key)
-        .last()
+        .rfind(|e| e.key == key)
         .map(|e| e.value)
 }
 
@@ -264,8 +263,7 @@ fn zdotdir() -> PathBuf {
 pub fn last_dir(out: &str) -> Option<PathBuf> {
     out.lines()
         .map(str::trim)
-        .filter(|l| !l.is_empty())
-        .last()
+        .rfind(|l| !l.is_empty())
         .map(PathBuf::from)
         .filter(|p| p.is_absolute() && p.is_dir())
 }
@@ -359,9 +357,9 @@ pub fn point_testcontainers(props: &str, socket: &str) -> String {
 pub fn report() -> SetupReport {
     let config = read_json(&docker_config_path());
     let creds_store = config["credsStore"].as_str().map(String::from);
-    let creds_helper_found = creds_store.as_ref().map_or(true, |s| {
-        crate::locate(&format!("docker-credential-{s}")).is_some()
-    });
+    let creds_helper_found = creds_store
+        .as_ref()
+        .is_none_or(|s| crate::locate(&format!("docker-credential-{s}")).is_some());
     let brew_plugin_dir = BREW_PLUGIN_DIRS
         .iter()
         .find(|d| Path::new(d).is_dir())
@@ -394,8 +392,8 @@ pub fn report() -> SetupReport {
             1,
         ),
         testcontainers_override: std::env::var(TC_OVERRIDE)
-            .map_or(false, |v| v == "/var/run/docker.sock")
-            || std::fs::read_to_string(shell_profile().0).map_or(false, |t| has_override(&t)),
+            .is_ok_and(|v| v == "/var/run/docker.sock")
+            || std::fs::read_to_string(shell_profile().0).is_ok_and(|t| has_override(&t)),
         docker_desktop_installed: Path::new(DESKTOP_APP).exists(),
         docker_desktop_data: home().join(crate::desktop::DESKTOP_DISK).exists(),
     }
@@ -432,7 +430,7 @@ pub fn add_extra_dir(config: &mut Value, dir: &str) -> bool {
 pub fn drop_missing_creds_store(config: &mut Value) -> bool {
     config
         .as_object_mut()
-        .map_or(false, |o| o.remove("credsStore").is_some())
+        .is_some_and(|o| o.remove("credsStore").is_some())
 }
 
 // A missing file is an empty config. A file that exists but is not a JSON object is never overwritten:

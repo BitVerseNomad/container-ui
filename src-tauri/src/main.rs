@@ -205,10 +205,10 @@ fn run_args_ok(args: &[String], home: &str) -> Result<(), String> {
             "--restart" => restart_policy_ok(val),
             "-p" => run_port_ok(val),
             "-v" => run_mount_ok(val, home),
-            "-e" => val.split_once('=').map_or(false, |(k, _)| {
+            "-e" => val.split_once('=').is_some_and(|(k, _)| {
                 k.chars()
                     .next()
-                    .map_or(false, |c| c.is_ascii_alphabetic() || c == '_')
+                    .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
                     && k.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
             }),
             _ => false,
@@ -223,15 +223,13 @@ fn run_args_ok(args: &[String], home: &str) -> Result<(), String> {
 // SRC:DST or SRC:DST:ro. No other option suffix (:rw, :z, :Z, :delegated...) is accepted.
 fn run_mount_ok(val: &str, home: &str) -> bool {
     let spec = val.strip_suffix(":ro").unwrap_or(val);
-    spec.split_once(':').map_or(false, |(src, dst)| {
+    spec.split_once(':').is_some_and(|(src, dst)| {
         run_source_ok(src, home) && dst.starts_with('/') && !dst.contains(':')
     })
 }
 
 fn run_name_ok(s: &str) -> bool {
-    s.chars()
-        .next()
-        .map_or(false, |c| c.is_ascii_alphanumeric())
+    s.chars().next().is_some_and(|c| c.is_ascii_alphanumeric())
         && s.chars()
             .all(|c| c.is_ascii_alphanumeric() || "_.-".contains(c))
 }
@@ -240,7 +238,7 @@ fn run_name_ok(s: &str) -> bool {
 fn run_port_ok(s: &str) -> bool {
     let port = |p: &str| {
         p.parse::<u32>()
-            .map_or(false, |n| (1..=65535).contains(&n) && !p.starts_with('0'))
+            .is_ok_and(|n| (1..=65535).contains(&n) && !p.starts_with('0'))
     };
     match s.strip_prefix("127.0.0.1:") {
         Some(rest) => match rest.split_once(':') {
@@ -268,7 +266,7 @@ fn run_source_ok(src: &str, home: &str) -> bool {
     let in_library = rest
         .split('/')
         .next()
-        .map_or(false, |first| first.eq_ignore_ascii_case("library"));
+        .is_some_and(|first| first.eq_ignore_ascii_case("library"));
     !home.is_empty()
         && !rest.is_empty()
         && !in_library
@@ -290,7 +288,7 @@ fn restart_policy_ok(val: &str) -> bool {
     matches!(val, "no" | "always" | "unless-stopped" | "on-failure")
         || val
             .strip_prefix("on-failure:")
-            .map_or(false, |n| n.parse::<u16>().is_ok())
+            .is_some_and(|n| n.parse::<u16>().is_ok())
 }
 
 fn container_name_ok(n: &str) -> bool {
@@ -365,7 +363,7 @@ fn events_args_ok(args: &[String]) -> bool {
 
 // ---- Kubernetes: read-only kubectl, JSON only, Colima contexts only ----
 fn k8s_name_ok(n: &str) -> bool {
-    let edge = |c: Option<char>| c.map_or(false, |c| c.is_ascii_lowercase() || c.is_ascii_digit());
+    let edge = |c: Option<char>| c.is_some_and(|c| c.is_ascii_lowercase() || c.is_ascii_digit());
     !n.is_empty()
         && n.len() <= 253
         && edge(n.chars().next())
@@ -398,7 +396,7 @@ fn kubectl_args_allowed(args: &[String]) -> Result<(), String> {
                         i += 2;
                     }
                     "-A" if !matches!(*res, "nodes" | "namespaces") => i += 1,
-                    "-n" if rest.get(i + 1).map_or(false, |v| k8s_name_ok(v)) => i += 2,
+                    "-n" if rest.get(i + 1).is_some_and(|v| k8s_name_ok(v)) => i += 2,
                     _ => return bad(),
                 }
             }
@@ -412,16 +410,16 @@ fn kubectl_args_allowed(args: &[String]) -> Result<(), String> {
             let (mut i, mut ns) = (0, false);
             while i < rest.len() {
                 match rest[i] {
-                    "-n" if rest.get(i + 1).map_or(false, |v| k8s_name_ok(v)) => {
+                    "-n" if rest.get(i + 1).is_some_and(|v| k8s_name_ok(v)) => {
                         ns = true;
                         i += 2;
                     }
-                    "-c" if rest.get(i + 1).map_or(false, |v| k8s_name_ok(v)) => i += 2,
+                    "-c" if rest.get(i + 1).is_some_and(|v| k8s_name_ok(v)) => i += 2,
                     "--tail"
                         if rest
                             .get(i + 1)
                             .and_then(|v| v.parse::<u32>().ok())
-                            .map_or(false, |n| (1..=2000).contains(&n)) =>
+                            .is_some_and(|n| (1..=2000).contains(&n)) =>
                     {
                         i += 2
                     }
@@ -523,7 +521,7 @@ fn terminal_command(kind: &str, context: &str, target: Option<&str>) -> Result<S
 // Colima registers "colima" (default profile) and "colima-<profile>" contexts; nothing else is used.
 // The suffix follows the profile-name rule, so a context can never smuggle a space or a flag into k9s.
 fn context_ok(c: &str) -> bool {
-    c == "colima" || c.strip_prefix("colima-").map_or(false, profile_name_ok)
+    c == "colima" || c.strip_prefix("colima-").is_some_and(profile_name_ok)
 }
 
 // GUI apps on macOS don't inherit the shell PATH, so look in the usual Homebrew spots.
@@ -587,7 +585,7 @@ pub(crate) fn output_with_deadline(
     if status.is_none() {
         e.extend_from_slice(format!("\nStopped after {}s with no answer. Docker or Colima may be stuck; try restarting the VM.", deadline.as_secs()).as_bytes());
     }
-    Ok((status.map_or(false, |s| s.success()), o, e))
+    Ok((status.is_some_and(|s| s.success()), o, e))
 }
 
 // The same run, saying plainly whether it ended (Some, with its exit status) or was killed at the deadline (None),
@@ -984,7 +982,7 @@ pub fn stream_in(
         ));
         return Err(tail.join("\n"));
     }
-    if status?.map_or(false, |s| s.success()) {
+    if status?.is_some_and(|s| s.success()) {
         Ok(())
     } else {
         Err(tail.join("\n"))
@@ -1212,7 +1210,7 @@ struct EnvReport {
 fn parse_version(out: &str) -> Option<String> {
     out.split(|c: char| c.is_whitespace() || c == ',')
         .map(|t| t.trim_start_matches('v'))
-        .find(|t| t.chars().next().map_or(false, |c| c.is_ascii_digit()) && t.contains('.'))
+        .find(|t| t.chars().next().is_some_and(|c| c.is_ascii_digit()) && t.contains('.'))
         .map(|t| t.to_string())
 }
 
@@ -1599,7 +1597,7 @@ fn env_steps(name: &str, env: &[(String, String)], stop: bool) -> Result<Vec<Vec
         let key_ok = k
             .chars()
             .next()
-            .map_or(false, |c| c.is_ascii_alphabetic() || c == '_')
+            .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
             && k.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
         let risky = k.starts_with("LD_")
             || k.starts_with("DYLD_")
@@ -2045,7 +2043,7 @@ fn editor_args(real: &str, pick: Option<&str>) -> Vec<String> {
 fn opens_in(args: &[String]) -> &'static str {
     if args
         .get(1)
-        .map_or(false, |id| id.eq_ignore_ascii_case(TEXTEDIT))
+        .is_some_and(|id| id.eq_ignore_ascii_case(TEXTEDIT))
     {
         "textedit"
     } else {
@@ -2107,14 +2105,14 @@ mod launch_services {
             }
             let name = if CFArrayGetCount(urls) > 0 {
                 let last = CFURLCopyLastPathComponent(CFArrayGetValueAtIndex(urls, 0));
-                let n = if last.is_null() {
+
+                if last.is_null() {
                     None
                 } else {
                     let n = read(last);
                     CFRelease(last);
                     n
-                };
-                n
+                }
             } else {
                 None
             };
