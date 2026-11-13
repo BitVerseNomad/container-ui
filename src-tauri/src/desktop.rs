@@ -590,8 +590,8 @@ fn copy_volume(
     quick(&volume_create(context, name, &labels))?;
     let n = HELPER_N.fetch_add(1, Ordering::SeqCst);
     let (out, into) = (
-        format!("colima-ui-copy-out-{}-{n}", std::process::id()),
-        format!("colima-ui-copy-in-{}-{n}", std::process::id()),
+        format!("openpier-copy-out-{}-{n}", std::process::id()),
+        format!("openpier-copy-in-{}-{n}", std::process::id()),
     );
     let copied = stream_in(context, name, [&out, &into], bytes, on_bytes, || {});
     // Half a database is worse than none, and a leftover would block the next try.
@@ -998,7 +998,7 @@ struct RealReplace<'a, F: FnMut(u64), S: FnMut(&str)> {
 
 impl<F: FnMut(u64), S: FnMut(&str)> RealReplace<'_, F, S> {
     fn helper(&self, what: &str) -> String {
-        format!("colima-ui-{what}-{}-{}", std::process::id(), self.n)
+        format!("openpier-{what}-{}-{}", std::process::id(), self.n)
     }
     // Both volumes must count the same, files and bytes; a count that can't be read is not a pass here.
     fn same(&self, a: &str, b: &str, what: &str) -> Result<(), String> {
@@ -1341,7 +1341,7 @@ mod tests {
 
     #[test]
     fn given_two_processes_when_piped_then_every_byte_arrives_and_is_counted() {
-        let dir = std::env::temp_dir().join(format!("colima-ui-pipe-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("openpier-pipe-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let file = dir.join("out");
         let mut seen = 0;

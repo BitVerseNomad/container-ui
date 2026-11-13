@@ -9,7 +9,7 @@ vi.mock("@tauri-apps/api/core", () => ({
 
 import { useComposeScan } from "./useComposeScan";
 
-const KEY = "colima-ui:compose-folders";
+const KEY = "openpier:compose-folders";
 const saved = () => JSON.parse(localStorage.getItem(KEY) ?? "[]");
 
 describe("useComposeScan", () => {

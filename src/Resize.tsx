@@ -69,7 +69,7 @@ const REFRESH_MS = 8000;
 // guarded): the profile still has the list that failed saved. The stopped card offers the way back next to a plain
 // Start VM, and only while the saved list still equals the failed one (wayBackApplies).
 type WayBack = { profile: string; change: VmChange };
-const WAY_KEY = "colima-ui.wayBack";
+const WAY_KEY = "openpier:wayBack";
 const store = (): Storage | null => { try { return typeof localStorage === "undefined" ? null : localStorage; } catch { return null; } };
 const loadWay = (): WayBack | null => {
   try { const raw = store()?.getItem(WAY_KEY); const w = raw ? (JSON.parse(raw) as WayBack) : null; return w && typeof w.profile === "string" && (w.change?.kind === "mounts" || w.change?.kind === "proxy") ? w : null; } catch { return null; }

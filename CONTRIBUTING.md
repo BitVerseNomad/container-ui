@@ -1,13 +1,13 @@
-# Contributing to Container UI
+# Contributing to OpenPier
 
-Thanks for wanting to help. Container UI is a Tauri 2 (Rust + React/TypeScript) desktop app for managing Colima/Docker containers. This doc covers how to run, test, and submit changes.
+Thanks for wanting to help. OpenPier is a Tauri 2 (Rust + React/TypeScript) desktop app for managing Colima/Docker containers. This doc covers how to run, test, and submit changes.
 
 ## 1. Getting started
 
 ```bash
 # Clone and install
 git clone https://github.com/OWNER/REPO.git
-cd colima-ui
+cd openpier
 npm install
 
 # Prereqs: Node 22.6+, Rust (rustup), Colima and Docker CLI
