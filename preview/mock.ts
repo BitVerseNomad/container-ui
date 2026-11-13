@@ -554,3 +554,33 @@ export async function invoke<T>(cmd: string, a: Record<string, any> = {}): Promi
   }
   throw `mock: unsupported command ${cmd}`;
 }
+
+// DESIGN data for scenario="design": the mockup's Containers screen, fixed values only.
+const DESIGN = {
+  profiles: [{ name: "default", status: "Running", arch: "aarch64", cpus: 4, memory: 8 * GB, disk: 60 * GB, runtime: "docker", address: "192.168.5.2" }],
+  images: [
+    { Repository: "acme/orders-api", Tag: "1.4", Size: "200MB", ID: "o0000000000000000000000000000000000000000000000000000000000000000", CreatedSince: "1 week ago" },
+    { Repository: "mysql", Tag: "8", Size: "559MB", ID: "m0000000000000000000000000000000000000000000000000000000000000000", CreatedSince: "3 weeks ago" },
+    { Repository: "nginx", Tag: "latest", Size: "183MB", ID: "n0000000000000000000000000000000000000000000000000000000000000000", CreatedSince: "2 weeks ago" },
+    { Repository: "redis", Tag: "7", Size: "112MB", ID: "r0000000000000000000000000000000000000000000000000000000000000000", CreatedSince: "5 weeks ago" },
+    { Repository: "postgres", Tag: "16", Size: "435MB", ID: "p0000000000000000000000000000000000000000000000000000000000000000", CreatedSince: "6 weeks ago" },
+  ],
+  cacheMB: 3400,
+  volumes: ["mysql-data", "redis-data", "pgdata-old", "c".repeat(64), "a".repeat(64)],
+  networks: ["bridge", "host", "none", "devnet"],
+  ctrs: [
+    { id: "k0000000000000000000000000000000000000000000000000000000000000000", name: "kafka", image: "apache/kafka:3.8", state: "running", ports: [], mounts: [], env: [], born: 1700000001000, cpu: 2.0, mem: 512e6, networks: ["devnet"], exposed: [] },
+    { id: "kui0000000000000000000000000000000000000000000000000000000000000000", name: "kafka-ui", image: "provectuslabs/kafka-ui", state: "running", ports: [[8082, 8080]], mounts: [], env: ["KAFKA_CLUSTERS_0_NAME=local"], born: 1700000002000, cpu: 0.0, mem: 310e6, networks: ["bridge"], exposed: [] },
+    { id: "api0000000000000000000000000000000000000000000000000000000000000000", name: "api", image: "acme/billing-api:3.1", state: "running", health: "unhealthy", healthOut: "curl: (7) Failed to connect to localhost port 8080 after 0 ms: Connection refused", ports: [[8080, 8080]], mounts: [], env: [], born: 1700000003000, cpu: 1.0, mem: 120e6, networks: ["devnet"], exposed: [], labels: "com.docker.compose.project=shop,com.docker.compose.project.working_dir=/Users/you/code/shop,com.docker.compose.service=api" },
+    { id: "web0000000000000000000000000000000000000000000000000000000000000000", name: "web", image: "nginx:1.27", state: "running", ports: [[8080, 80]], mounts: [], env: ["NGINX_VERSION=1.27.2"], born: 1700000004000, cpu: 0.0, mem: 14e6, networks: ["devnet"], exposed: [], labels: "com.docker.compose.project=shop,com.docker.compose.project.working_dir=/Users/you/code/shop,com.docker.compose.service=web" },
+    { id: "db0000000000000000000000000000000000000000000000000000000000000000", name: "db", image: "postgres:16", state: "running", ports: [[3306, 3306]], mounts: [{ Type: "volume", Name: "mysql-data", Source: "/var/lib/docker/volumes/mysql-data/_data", Destination: "/var/lib/mysql", RW: true }], env: ["MYSQL_ROOT_PASSWORD=dev"], born: 1700000005000, cpu: 0.0, mem: 96e6, networks: ["devnet"], exposed: [], labels: "com.docker.compose.project=shop,com.docker.compose.project.working_dir=/Users/you/code/shop,com.docker.compose.service=db" },
+    { id: "que0000000000000000000000000000000000000000000000000000000000000000", name: "queue", image: "redis:7", state: "running", ports: [], mounts: [], env: [], born: 1700000006000, cpu: 0.0, mem: 9e6, networks: ["devnet"], exposed: [], labels: "com.docker.compose.project=shop,com.docker.compose.project.working_dir=/Users/you/code/shop,com.docker.compose.service=queue" },
+    { id: "wor0000000000000000000000000000000000000000000000000000000000000000", name: "worker", image: "acme/worker:3.1", state: "running", restarts: 6, ports: [], mounts: [], env: [], born: 1700000007000, cpu: 0.0, mem: 0, networks: ["devnet"], exposed: [], labels: "com.docker.compose.project=shop,com.docker.compose.project.working_dir=/Users/you/code/shop,com.docker.compose.service=worker" },
+    { id: "rep0000000000000000000000000000000000000000000000000000000000000000", name: "report-job", image: "acme/report:3.1", state: "exited", exitCode: 137, oom: true, memLimit: 256e6, ports: [], mounts: [], env: [], born: 1700000008000, cpu: 0.0, mem: 0, networks: ["devnet"], exposed: [], labels: "com.docker.compose.project=shop,com.docker.compose.project.working_dir=/Users/you/code/shop,com.docker.compose.service=report-job" },
+    { id: "cac000000000000000000000000000000000000000000000000000000000000000", name: "cache", image: "memcached:1.6", state: "exited", exitCode: 0, ports: [], mounts: [], env: [], born: 1700000009000, cpu: 0.0, mem: 0, networks: ["devnet"], exposed: [], labels: "com.docker.compose.project=shop,com.docker.compose.project.working_dir=/Users/you/code/shop,com.docker.compose.service=cache" },
+    { id: "scr0000000000000000000000000000000000000000000000000000000000000000", name: "scratch-postgres", image: "postgres:16", state: "running", ports: [[5433, 5433]], mounts: [], env: [], born: 1700000010000, cpu: 0.0, mem: 88e6, networks: ["devnet"], exposed: [] },
+  ] as Ctr[],
+};
+if (scenario === "design") {
+  Object.assign(db, DESIGN);
+}
