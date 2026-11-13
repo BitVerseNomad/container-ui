@@ -284,7 +284,7 @@ export default function App() {
     ) : !ctx ? (
       toolsMissing ? (
         <Empty title="No container runtime yet" action={<button className="primary" onClick={() => setTab("Containers")}>Install one</button>}>
-          Wharf installs Colima, OrbStack, Rancher Desktop, Podman Desktop, or Docker Desktop with one click.
+          OpenPier installs Colima, OrbStack, Rancher Desktop, Podman Desktop, or Docker Desktop with one click.
         </Empty>
       ) : current ? (
         <Empty title={`${current.name} is stopped`} action={<button className="primary" disabled={vm.op !== null} onClick={startFromAnywhere}>{`Start ${current.name}`}</button>}>
@@ -292,7 +292,7 @@ export default function App() {
         </Empty>
       ) : (
         <Empty title="No VM yet" action={<button className="primary" onClick={() => setTab("Containers")}>Create your first VM</button>}>
-          Wharf creates a small Linux VM for you.
+          OpenPier creates a small Linux VM for you.
         </Empty>
       )
     ) : tab === "Images" ? (

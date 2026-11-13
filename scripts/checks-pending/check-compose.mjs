@@ -157,7 +157,7 @@ await p.evaluate(() => (window.__pickFolder = "/Users/me/work/billing"));
 await drawer.getByRole("button", { name: /Add a folder/ }).click();
 await drawer.locator(".compose-item", { hasText: "~/work/billing" }).waitFor({ timeout: 2000 }).catch(() => {});
 check(await drawer.locator(".compose-item", { hasText: "~/work/billing" }).count() === 1 && /Added ~\/work\/billing/.test(await drawer.innerText()), "running: an added folder shows as a project at once");
-check(JSON.parse(await p.evaluate(() => localStorage.getItem("colima-ui:compose-folders"))).includes("/Users/me/work/billing"), "running: the added folder is remembered");
+check(JSON.parse(await p.evaluate(() => localStorage.getItem("openpier:compose-folders"))).includes("/Users/me/work/billing"), "running: the added folder is remembered");
 await p.keyboard.press("Escape");
 
 // A minimal image has no shell: open a toolbox shell next to it, and say so, instead of a Terminal that closes at once.
@@ -229,7 +229,7 @@ check(/Its last error/.test(crash) && /4182\.png: no such file/.test(crash), "ru
 check(/Nothing is mounted at \/data\/in/.test(crash), "running: and says the folder isn't mounted, with where to mount it");
 
 // The added folder is remembered across pages of this browser; this scenario starts with none.
-await p.evaluate(() => localStorage.removeItem("colima-ui:compose-folders"));
+await p.evaluate(() => localStorage.removeItem("openpier:compose-folders"));
 p = await open("nocompose");
 await p.getByRole("button", { name: "New" }).click();
 await p.getByRole("menuitem", { name: /^Start a Compose project/ }).click();

@@ -5,6 +5,7 @@ import Menu from "./ui/Menu";
 import { runtimeRegistry } from "./runtime";
 import type { RuntimeInfo } from "./runtime";
 import { useKeyboardShortcuts, KeyboardShortcut } from "./hooks/useKeyboardShortcuts";
+import { REPO_URL } from "./lib/links";
 import "./Shell.css";
 
 export type Tab = "Containers" | "Images" | "Volumes" | "Networks" | "Kubernetes" | "Profiles" | "Doctor";
@@ -43,7 +44,7 @@ type Props = {
   onCommands?: () => void;
 };
 
-const FOLD_KEY = "wharf:sidebar-folded";
+const FOLD_KEY = "openpier:sidebar-folded";
 // Storage can be blocked; the sidebar then simply starts open.
 const readFolded = () => { try { return localStorage.getItem(FOLD_KEY) === "1"; } catch { return false; } };
 const saveFolded = (v: boolean) => { try { localStorage.setItem(FOLD_KEY, v ? "1" : "0"); } catch { /* not remembered */ } };
@@ -98,7 +99,7 @@ export default function Shell({ nav, onNav, profiles, active, onSelect, onNewPro
               ...(current?.status === "Running" && onRestart ? [{ label: "Restart VM", ariaLabel: `Restart the VM ${current.name}`, icon: <Icon name="restart" size={13} />, divider: true, hint: "Restarts the VM without losing containers", disabled: vmBusy, onSelect: () => onRestart(current.name) }] : []),
               { label: "New profile", icon: <Icon name="plus" size={13} />, divider: profiles.length > 0, hint: "Creates a new container VM profile", onSelect: onNewProfile },
               { label: "Manage profiles", icon: <Icon name="sliders" size={13} />, hint: "Opens the Profiles screen", onSelect: () => onNav("Profiles") },
-              { label: "Give feedback", icon: <Icon name="external-link" size={13} />, hint: "Opens GitHub Discussions in your browser", onSelect: () => void openUrl("https://github.com/BitVerseNomad/container-ui/discussions") },
+              { label: "Give feedback", icon: <Icon name="external-link" size={13} />, hint: "Opens GitHub Discussions in your browser", onSelect: () => void openUrl(`${REPO_URL}/discussions`) },
             ]}
           >
             <span className="logo">

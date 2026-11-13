@@ -8,7 +8,7 @@ export type Entry = { id: number; kind: string; cmd: string; ok: boolean | null;
 export type Activity = { entries: Entry[]; tips: boolean };
 type Storage = { getItem: (k: string) => string | null; setItem: (k: string, v: string) => void };
 
-const KEY = "colima-ui:learn";
+const KEY = "openpier:learn";
 
 // The command as you would type it. The context is always named, so a paste acts on the profile on screen and not
 // on whichever one Terminal has selected. Quotes only words that need them.

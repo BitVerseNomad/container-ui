@@ -173,9 +173,9 @@ check(await p.evaluate(() => document.activeElement?.textContent) === "Start wit
 await shot(p.locator(".content"), "mounts-stopped-way-back");
 // The plain Start VM starts with what is saved: no folder change is run, and the way back is gone once the start works.
 await startBtn.click();
-await p.waitForFunction(() => { try { return localStorage.getItem("colima-ui.wayBack") === null; } catch { return true; } }, null, { timeout: 30000 }).catch(() => {});
+await p.waitForFunction(() => { try { return localStorage.getItem("openpier:wayBack") === null; } catch { return true; } }, null, { timeout: 30000 }).catch(() => {});
 check(await p.evaluate(() => window.__vmChange === undefined), "way back: the plain Start VM ran a plain start (no folder change)");
-check(await p.evaluate(() => { try { return localStorage.getItem("colima-ui.wayBack"); } catch { return null; } }) === null, "way back: a start that works clears the saved way back");
+check(await p.evaluate(() => { try { return localStorage.getItem("openpier:wayBack"); } catch { return null; } }) === null, "way back: a start that works clears the saved way back");
 await p.close();
 
 // 4c. The same card, but the way back button runs the folders the profile had, by force.
