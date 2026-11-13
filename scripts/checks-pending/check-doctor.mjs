@@ -14,7 +14,7 @@ const browser = await chromium.launch();
 let p = await browser.newPage({ viewport: { width: 980, height: 720 } });
 p.errors = [];
 p.on("pageerror", (e) => p.errors.push(e.message));
-await p.goto(`file://${root}/preview/index.html?scenario=doctor`);
+await p.goto(`http://localhost:4173/?scenario=doctor`);
 await p.waitForSelector(".content", { timeout: 4000 }).catch(() => {});
 await p.waitForSelector("ul.apps > li.app", { timeout: 4000 }).catch(() => {});
 await p.waitForTimeout(900);
@@ -100,7 +100,7 @@ await p.close();
 p = await browser.newPage({ viewport: { width: 980, height: 720 } });
 p.errors = [];
 p.on("pageerror", (e) => p.errors.push(e.message));
-await p.goto(`file://${root}/preview/index.html?scenario=doctor`);
+await p.goto(`http://localhost:4173/?scenario=doctor`);
 // The Containers home: no panel on top; each app with a problem has one line under its row with one button
 const home = "ul.apps > li.app";
 await p.waitForSelector(`${home} .problem button`, { timeout: 4000 }).catch(() => {});

@@ -24,7 +24,7 @@ async function open(scenario) {
   const page = await ctx.newPage();
   page.errors = [];
   page.on("pageerror", (e) => page.errors.push(e.message));
-  await page.goto(`file://${root}/preview/index.html?scenario=${scenario}`);
+  await page.goto(`http://localhost:4173/?scenario=${scenario}`);
   await page.waitForSelector("ul.apps > li.app", { timeout: 4000 }).catch(() => {});
   return page;
 }

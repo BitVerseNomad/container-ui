@@ -20,7 +20,7 @@ async function open(query) {
   const page = await browser.newPage({ viewport: { width: 980, height: 640 } });
   page.errors = [];
   page.on("pageerror", (e) => page.errors.push(e.message));
-  await page.goto(`file://${root}/preview/index.html?${query}`);
+  await page.goto(`http://localhost:4173/?${query}`);
   await page.locator(".apps li").first().waitFor({ timeout: 4000 }).catch(() => {});
   // The Doctor's inspect decides what is finished and what is down; it answers a moment after the list.
   await page.waitForTimeout(1200);

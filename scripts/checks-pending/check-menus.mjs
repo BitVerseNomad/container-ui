@@ -7,7 +7,7 @@ const playwright = require("playwright");
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 let failed = 0;
 const check = (c, m) => { console.log(c ? "ok" : "FAIL", m); if (!c) failed++; };
-const url = `file://${root}/preview/index.html?scenario=desktop`;
+const url = `http://localhost:4173/?scenario=desktop`;
 
 const NEW_ITEMS = [
   ["Run an image…", "Choose an image to run"],

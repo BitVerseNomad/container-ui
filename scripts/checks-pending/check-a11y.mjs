@@ -10,7 +10,7 @@ const check = (c, m) => { console.log(c ? "ok" : "FAIL", m); if (!c) failed++; }
 
 const browser = await chromium.launch();
 const p = await browser.newPage({ viewport: { width: 1100, height: 680 } });
-await p.goto(`file://${root}/preview/index.html`);
+await p.goto(`http://localhost:4173/`);
 await p.waitForSelector("ul.apps > li.app");
 const nav = (n) => p.locator(".sidebar").getByRole("button", { name: n, exact: true }).click();
 
@@ -32,7 +32,7 @@ for (const page of PAGES) {
 // Without Kubernetes the nav drops that item and every other page keeps its landmarks and names
 {
   const off = await browser.newPage({ viewport: { width: 1100, height: 680 } });
-  await off.goto(`file://${root}/preview/index.html?k8s=off`);
+  await off.goto(`http://localhost:4173/?k8s=off`);
   await off.waitForSelector("ul.apps > li.app");
   await off.waitForTimeout(800);
   check(await off.locator(".sidebar").getByRole("button", { name: "Kubernetes", exact: true }).count() === 0, "k8s off: no Kubernetes nav item");
@@ -89,7 +89,7 @@ check(await p.evaluate(() => document.activeElement?.tagName === "BUTTON" && doc
 // Contrast sweep over visible text, in light and dark (skips surfaces the sweep cannot resolve)
 for (const scheme of ["light", "dark"]) {
   const page = await browser.newPage({ viewport: { width: 1100, height: 680 }, colorScheme: scheme });
-  await page.goto(`file://${root}/preview/index.html`);
+  await page.goto(`http://localhost:4173/`);
   await page.waitForSelector("ul.apps > li.app");
   await page.locator(".sidebar").getByRole("button", { name: "Kubernetes", exact: true }).waitFor({ timeout: 6000 }).catch(() => {});
   for (const name of PAGES) {

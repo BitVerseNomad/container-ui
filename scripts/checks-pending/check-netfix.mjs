@@ -21,7 +21,7 @@ async function open(query) {
   const page = await browser.newPage({ viewport: { width: 980, height: 760 } });
   page.errors = [];
   page.on("pageerror", (e) => page.errors.push(e.message));
-  await page.goto(`file://${root}/preview/index.html?${query}`);
+  await page.goto(`http://localhost:4173/?${query}`);
   await page.locator(".apps li").first().waitFor({ timeout: 4000 }).catch(() => {});
   await page.waitForTimeout(1200);
   return page;

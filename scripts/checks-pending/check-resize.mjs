@@ -19,7 +19,7 @@ async function open(query, doctor = true, viewport = { width: 980, height: 640 }
   const page = await browser.newPage({ viewport });
   page.errors = [];
   page.on("pageerror", (e) => page.errors.push(e.message));
-  await page.goto(`file://${root}/preview/index.html?scenario=desktop${query}`);
+  await page.goto(`http://localhost:4173/?scenario=desktop${query}`);
   await page.waitForSelector(".content", { timeout: 4000 }).catch(() => {});
   // The home list first, as on opening the app, so its rows have been seen.
   await page.waitForSelector("ul.apps > li.app", { timeout: 4000 }).catch(() => {});

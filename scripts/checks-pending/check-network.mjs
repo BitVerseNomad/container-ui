@@ -13,7 +13,7 @@ async function open(tab) {
   const p = await browser.newPage({ viewport: { width: 1100, height: 1000 } });
   p.errors = [];
   p.on("pageerror", (e) => p.errors.push(e.message));
-  await p.goto(`file://${root}/preview/index.html`);
+  await p.goto(`http://localhost:4173/`);
   await p.waitForSelector("ul.apps > li.app");
   await p.locator(".sidebar").getByRole("button", { name: tab, exact: true }).click();
   return p;

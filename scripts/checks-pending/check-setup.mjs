@@ -14,7 +14,7 @@ async function open(scenario) {
   const page = await browser.newPage({ viewport: { width: 980, height: 640 } });
   page.errors = [];
   page.on("pageerror", (e) => page.errors.push(e.message));
-  await page.goto(`file://${root}/preview/index.html?scenario=${scenario}`);
+  await page.goto(`http://localhost:4173/?scenario=${scenario}`);
   await page.waitForSelector(".content", { timeout: 4000 }).catch(() => {});
   return page;
 }

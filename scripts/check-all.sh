@@ -1,8 +1,22 @@
 #!/bin/sh
-# Runs every UI check against the built preview, in Chromium and in WebKit (the engine the app ships with).
-# A script that crashes counts as failed, not as "0 FAIL lines". Needs playwright resolvable (NODE_PATH).
-# Build first: npm run preview. One engine only: PW_ENGINES=webkit sh scripts/check-all.sh
+# Runs every check (scripts/check-*.mjs) in Chromium and in WebKit (the engine the app ships with).
+# Starts the preview (npm run preview, http://localhost:4173) if it is not already running, and stops it at the end.
+# A script that crashes counts as failed, not as "0 FAIL lines".
+# One engine only: PW_ENGINES=webkit sh scripts/check-all.sh
 cd "$(dirname "$0")/.." || exit 1
+url="${PREVIEW_URL:-http://localhost:4173/}"
+started=""
+if ! curl -s -o /dev/null "$url"; then
+  npx vite --config vite.preview.config.ts >/tmp/openpier-preview.log 2>&1 &
+  started=$!
+  i=0
+  until curl -s -o /dev/null "$url"; do
+    i=$((i + 1))
+    if [ "$i" -gt 60 ]; then echo "FAIL the preview did not start; see /tmp/openpier-preview.log"; kill "$started" 2>/dev/null; exit 1; fi
+    sleep 1
+  done
+fi
+trap '[ -n "$started" ] && kill "$started" 2>/dev/null' EXIT
 bad=0
 for engine in ${PW_ENGINES:-chromium webkit}; do
   echo "== $engine"

@@ -18,7 +18,7 @@ async function open(dd) {
   const page = await browser.newPage({ viewport: { width: 980, height: 640 } });
   page.errors = [];
   page.on("pageerror", (e) => page.errors.push(e.message));
-  await page.goto(`file://${root}/preview/index.html?scenario=desktop&dd=${dd}`);
+  await page.goto(`http://localhost:4173/?scenario=desktop&dd=${dd}`);
   await page.waitForSelector(".content", { timeout: 4000 }).catch(() => {});
   await page.getByRole("button", { name: /^Doctor/ }).click();
   await page.locator('.setup [data-setup="desktop_data"]').waitFor({ timeout: 4000 }).catch(() => {});

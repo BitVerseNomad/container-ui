@@ -18,7 +18,7 @@ async function open(query) {
   const page = await browser.newPage({ viewport: { width: 980, height: 640 } });
   page.errors = [];
   page.on("pageerror", (e) => page.errors.push(e.message));
-  await page.goto(`file://${root}/preview/index.html?${query}`);
+  await page.goto(`http://localhost:4173/?${query}`);
   await page.waitForSelector(".content", { timeout: 4000 }).catch(() => {});
   await page.locator(".blank, .apps li").first().waitFor({ timeout: 4000 }).catch(() => {});
   // The setup checks and the one read of Docker Desktop answer a moment after the container list.
@@ -262,7 +262,7 @@ await p.close();
 {
   const page = await browser.newPage({ viewport: { width: 980, height: 640 } });
   await page.clock.install();
-  await page.goto(`file://${root}/preview/index.html?scenario=desktop&dd=morning&later=1`);
+  await page.goto(`http://localhost:4173/?scenario=desktop&dd=morning&later=1`);
   await page.locator(".apps li").first().waitFor({ timeout: 4000 }).catch(() => {});
   await page.waitForTimeout(700);
   check(await page.locator(".apps .problem", { hasText: "nearly empty" }).count() === 0, "later: with Docker Desktop closed there is no line");

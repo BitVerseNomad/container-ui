@@ -10,7 +10,7 @@ const check = (c, m) => { console.log(c ? "ok" : "FAIL", m); if (!c) failed++; }
 
 const browser = await chromium.launch();
 const p = await browser.newPage({ viewport: { width: 1100, height: 680 } });
-await p.goto(`file://${root}/preview/index.html`);
+await p.goto(`http://localhost:4173/`);
 await p.waitForSelector(".content");
 await p.locator(".sidebar").getByRole("button", { name: "Volumes", exact: true }).click();
 await p.waitForSelector("tbody tr:not(.group-row)");

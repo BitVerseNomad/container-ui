@@ -15,7 +15,7 @@ const nav = (page, name) => page.locator(".sidebar").getByRole("button", { name,
 const browser = await chromium.launch();
 for (const [w, h] of [[1100, 680], [800, 600]]) {
   const page = await browser.newPage({ viewport: { width: w, height: h } });
-  await page.goto(`file://${root}/preview/index.html`);
+  await page.goto(`http://localhost:4173/`);
   await page.waitForSelector(".content");
   // The Kubernetes item appears once the app has seen the profile's kubectl context.
   await nav(page, "Kubernetes").waitFor({ timeout: 6000 }).catch(() => {});
@@ -51,7 +51,7 @@ for (const [w, h] of [[1100, 680], [800, 600]]) {
 }
 // the pull panel uses OutputLog (fresh page, VM running)
 const p = await browser.newPage({ viewport: { width: 1100, height: 680 } });
-await p.goto(`file://${root}/preview/index.html`);
+await p.goto(`http://localhost:4173/`);
 await p.waitForSelector(".content");
 await nav(p, "Images").click();
 await p.getByRole("button", { name: "Pull image" }).click();

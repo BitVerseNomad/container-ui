@@ -7,7 +7,7 @@ const require = createRequire(import.meta.url);
 // PW_ENGINE=webkit runs the same check in the engine the app ships with.
 const chromium = require("playwright")[process.env.PW_ENGINE || "chromium"];
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
-const url = (q = "") => `file://${root}/preview/index.html${q}`;
+const url = (q = "") => `http://localhost:4173/${q}`;
 let failed = 0;
 const ok = (m) => console.log("ok", m);
 const bad = (m) => { failed++; console.log("FAIL", m); };
