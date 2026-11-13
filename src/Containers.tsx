@@ -3,27 +3,18 @@
 import { openShell } from "./lib/shell";
 import { activity, dockerLine, ranVm } from "./lib/activity";
 import { score } from "./lib/fuzzy";
-import { ReactNode, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { ReactNode, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Profile, docker, dockerJson } from "./api";
 import { usePoll } from "./hooks";
-import { Banner, useConfirm } from "./ui";
-import Drawer from "./ui/Drawer";
-import { CopyPort, WebPort } from "./ui/PortLinks";
-import { Icon } from "./ui/icons";
+import { Banner } from "./ui";
+import { openUrl } from "./api";
 import VmStrip from "./VmStrip";
 import { portLinksFromPs } from "./containerInfo";
 import { isWebPort } from "./lib/webPort";
 import { kubeName } from "./lib/compose";
 import { appStoppedVersion, subscribeAppStopped } from "./lib/appStopped";
 import { App, appState, appsFrom, downLine, finished, lastRunOver, listed, runInfo, startWhat, stateWord, withAppStop } from "./lib/homeRows";
-
-// Design system
-import { Button } from "@ui/components/Button";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@ui/components/Card";
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@ui/components/Table";
-import { Badge } from "@ui/components/Badge";
-import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@ui/components/DropdownMenu";
 import { useHostSize } from "./useHostSize";
 import RunPicker from "./RunPicker";
 import RunPanel from "./RunPanel";
@@ -44,14 +35,16 @@ import type { Finding, Report } from "./lib/doctor";
 import { setMuted } from "./lib/muted";
 import { fixAction, useFixRuns } from "./FixIt";
 import { biggerFix } from "./lib/sharedFix";
-import Ticks, { plain } from "./ui/Ticks";
 import { useDesktopOffer } from "./desktopOffer";
 import { gapLine } from "./lib/bringOver";
 import { describe } from "./lib/fixRun";
 import { busy as fixBusy, dismiss, runFor } from "./lib/fixStore";
-import type { Run } from "./lib/fixStore";
-
-// "restarting": the VM size fix (src/Resize.tsx), a stop and a start with new settings.
+import { Button, Col, Dot, Field, Header, List, Menu, MenuItem, MoreButton, Problem, Row, RowHead, SelectionBar as OpSelectionBar, Tabs, TabPanel, useConfirm as opConfirm } from "./ui/op";
+import { ContainerRows, EntryRow, ChildRow, TableHeadRow } from "./containers/ContainerRows";
+import { NewMenu } from "./containers/NewMenu";
+import { SelectionBar } from "./containers/SelectionBar";
+import { ProblemInspector } from "./containers/ProblemInspector";
+import { inspectorContent } from "./lib/inspectorContent";
 type VmOp = { op: "starting" | "stopping" | "restarting"; cmd: string; args: Record<string, unknown> };
 // `last` lives here, not in this screen, so Retry still repeats the right command after the screen remounts.
 export type VmState = { op: VmOp["op"] | null; failure: string | null; last?: VmOp };
