@@ -56,7 +56,7 @@ export default [
   },
   {
     // Legacy files with hardcoded values. Each is deleted by a later work order; do not add to this list.
-    files: ["src/ui/Skeleton.tsx", "src/hooks/useProjectTerminal.ts"],
+    files: ["src/ui/Skeleton.tsx"],
     rules: { "no-restricted-syntax": "off" },
   },
 ];
