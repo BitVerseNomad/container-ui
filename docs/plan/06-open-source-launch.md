@@ -55,7 +55,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: 20, cache: npm }
+        with: { node-version: 22, cache: npm }
       - run: npm ci
       - run: npm run lint
       - run: npx tsc --noEmit
@@ -74,7 +74,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with: { workspaces: src-tauri }
       - uses: actions/setup-node@v4
-        with: { node-version: 20, cache: npm }
+        with: { node-version: 22, cache: npm }
       - run: npm ci && npm run build
       - run: cargo fmt --check
         working-directory: src-tauri
@@ -87,6 +87,7 @@ jobs:
 Notes:
 
 1. `npm run check` only exists in a working state after task 0.3. Until then, leave that line out and add it in 0.3.
+4. Node 22, not 20: `npm test` runs the logic tests with `node --experimental-strip-types`, which needs Node 22.6 or newer.
 2. The Rust job builds the frontend first because `tauri::generate_context!` needs `../dist` to exist at compile time.
 3. The Rust job runs on macOS because the code calls macOS paths. If `cargo clippy -D warnings` fails on day one, fix the warnings in the same PR or list them in `FOUND.md` and drop `-D warnings` until they are fixed. Do not add `#[allow]` to pass.
 
@@ -148,7 +149,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: 20, cache: npm }
+        with: { node-version: 22, cache: npm }
       - uses: dtolnay/rust-toolchain@stable
         with: { targets: "${{ matrix.target }}" }
       - uses: Swatinem/rust-cache@v2

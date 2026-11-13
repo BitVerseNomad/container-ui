@@ -159,6 +159,7 @@ a:hover { text-decoration: underline; }
 .sidebar .titlebar { height: 36px; flex: none; }            /* room for the macOS window buttons; drag region */
 .nav { display: flex; flex-direction: column; gap: 1px; margin-top: 8px; }
 .nav-item { display: flex; align-items: center; gap: 9px; height: var(--h-sm); padding: 0 8px; border: 0; background: none; border-radius: var(--r-md); color: var(--fg-muted); text-align: left; width: 100%; }
+.nav-item, .nav-item:hover { text-decoration: none; }
 .nav-item:hover { background: var(--tile-hover); color: var(--fg); }
 .nav-item[aria-current="page"] { background: var(--accent); color: var(--on-accent); font-weight: 500; }
 .nav-item[aria-current="page"] .count { color: inherit; opacity: 0.85; }
@@ -276,7 +277,10 @@ button.chip:hover, a.chip:hover { background: var(--tile-hover); color: var(--fg
 .subrow .act { margin-left: auto; }
 .port { font: 500 var(--text-micro)/1 var(--font-mono); color: var(--accent-ink); padding: 4px 6px; border-radius: var(--r-xs); }
 .port:hover { background: var(--accent-fill); text-decoration: none; }
-.check { width: 14px; height: 14px; border-radius: 4px; box-shadow: inset 0 0 0 1px var(--edge-strong); background: var(--bg-raised); flex: none; }
+.check { appearance: none; -webkit-appearance: none; margin: 0; width: 14px; height: 14px; border-radius: 4px; box-shadow: inset 0 0 0 1px var(--edge-strong); background: var(--bg-raised) center / 12px 12px no-repeat; flex: none; }
+.check:checked { background-color: var(--accent); box-shadow: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E"); }
+:root[data-theme="dark"] .check:checked { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230f1524' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E"); }
+.check[disabled] { opacity: 0.5; }
 
 .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
 .tile { background: var(--tile); border-radius: var(--r-lg); padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
@@ -342,9 +346,98 @@ button.chip:hover, a.chip:hover { background: var(--tile-hover); color: var(--fg
 .spinner { width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid var(--edge-strong); border-top-color: var(--fg); animation: spin 0.7s linear infinite; flex: none; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* ---------- 11. Pieces the screens need ---------- */
+/* Added when the work orders were written. Every screen is built from these classes; a component never sets a width,
+   a gap or a colour itself. If a screen needs something that is not here, the design is missing it: stop and report. */
+
+/* 11.1 Page layout */
+.app.bare { grid-template-columns: 1fr; }                       /* Setup: no sidebar */
+.content.stack, .sheet-body.stack { display: flex; flex-direction: column; }
+.content.stack { gap: 10px; }
+.content.stack.top { padding-top: 10px; }
+.sheet-body.stack { gap: 8px; }
+.stack > .form-row { margin: 6px 0 0; }
+.fill { flex: 1 1 0; min-height: 0; }                           /* the one child of a .stack that takes the rest, e.g. the log */
+.banner + .list { margin-top: 8px; }
+.sheet-body .group-cap, .settings .group-cap { padding-left: 0; }
+.sheet-body .lede { color: var(--fg-muted); margin: 0 0 4px; }
+.settings .nav { margin-top: 0; }
+.sidebar-foot .btn[aria-current="page"] { background: var(--tile-active); color: var(--fg); }
+.app.folded .nav-item > span, .app.folded .engine .grow, .app.folded .engine .chev, .app.folded .caption { display: none; }
+.app.folded .nav-item, .app.folded .engine { justify-content: center; padding: 0; }
+.app.folded .sidebar-foot { flex-direction: column; }
+
+/* 11.2 Row variants and column widths. A column is right aligned unless it says otherwise. */
+.row.tall { height: auto; padding-top: 8px; padding-bottom: 8px; align-items: flex-start; }   /* two lines: Doctor, Setup */
+.row.tall .lead { padding-top: 2px; }
+.row .side { flex: none; display: flex; gap: 6px; }             /* the action of a tall row */
+.row .name .dim { color: var(--fg-muted); font-weight: 400; }   /* the :tag after an image name, "no name" */
+.row .name.plain { font-weight: 400; }
+.row .name.long { max-width: 520px; }
+.row .name.fixed { width: 140px; flex: none; }
+.row .lead.num { width: 16px; font: 400 var(--text-micro) var(--font-mono); color: var(--fg-muted); }
+.row .members { display: flex; gap: 4px; overflow: hidden; }
+.row .col.id { width: 104px; }
+.row .col.subnet { width: 110px; }
+.row .col.ready { width: 44px; }
+.row .col.restarts { width: 70px; }
+.row .col.inside, .row .col.mac { width: 120px; }
+.row .col.cpu { width: 86px; text-align: left; }                /* head cell over the sparkline */
+.row .col.state.wide { width: 132px; }                          /* "5 of 7 running" */
+.row .col.state.words { width: 150px; }                         /* a sentence: "Can't download its image" */
+.row .col.age.short { width: 50px; }                            /* "1 h" */
+.row .more-gap { width: 28px; flex: none; }                     /* head cell over the ⋯ button */
+.pop .row { border-bottom: 0; border-radius: var(--r-sm); height: var(--h-sm); }
+
+/* 11.3 Fields */
+button.field { border: 0; text-align: left; justify-content: space-between; }
+.field.search { width: 220px; }
+.field.filter { width: 180px; }
+.field.pick { width: 170px; }
+.field.port { width: 110px; }
+.field.num { width: 90px; }
+@media (max-width: 1040px) { .header .field.search { width: 140px; } }
+.fields { display: flex; gap: 8px; align-items: center; }       /* fields side by side, with words between */
+.fields > .field { flex: 1 1 0; }
+.fields > .field.port, .fields > .field.num, .fields > .btn { flex: none; }
+.form-row .banner { margin-top: 8px; }
+.checkline { display: flex; align-items: center; gap: 8px; min-height: var(--h-xs); }
+.progress { appearance: none; -webkit-appearance: none; display: block; width: 100%; height: 4px; border: 0; border-radius: 2px; background: var(--line); overflow: hidden; }
+.progress::-webkit-progress-bar { background: var(--line); }
+.progress::-webkit-progress-value { background: var(--accent); }
+.progress::-moz-progress-bar { background: var(--accent); }
+.progress:indeterminate { animation: pulse 1.2s ease-in-out infinite; }
+
+/* 11.4 State pieces */
+.banner.line { align-items: center; }                           /* a banner with no title: one sentence and its action */
+.banner.line .body { color: var(--fg); }
+.empty .text { max-width: 64ch; }
+.empty .actions { display: flex; gap: 8px; margin-top: 6px; }
+.skeleton { width: 200px; }
+.skeleton.a { width: 220px; } .skeleton.b { width: 160px; } .skeleton.c { width: 260px; } .skeleton.d { width: 190px; }
+.skeleton.short { width: 70px; }
+button.meters { border: 0; background: none; padding: 0; font-family: inherit; }
+
+/* 11.5 Floating things */
+.pop.wide { width: 280px; }                                     /* a menu whose items carry a hint */
+.pop.engines { width: 300px; }
+.dialog .cmd { margin-top: 12px; }
+.dialog .checkline { margin-top: 10px; }
+.toast .cmd { margin-top: 0; }
+.ins .lbl { margin-bottom: 6px; }
+.center .actions { display: flex; gap: 8px; margin-top: 20px; }
+.center .hint { margin-top: 14px; }
+
+/* 11.6 Logs */
+.canvas.wrap { white-space: pre-wrap; overflow-wrap: anywhere; }
+.canvas .ln { display: block; }
+.canvas .svc { color: var(--fg-muted); margin-right: 12px; }   /* which service printed the line. Never a colour per service */
+.canvas .hit { background: var(--warn-fill); border-radius: 2px; }
+.canvas .hit.now { background: var(--accent-fill-hover); }
+
 /* ---------- 12. Manifest pieces ---------- */
 /* Blocks: one per service. Green runs, amber needs a look, red is broken, outline is not running. */
-.blocks { display: flex; gap: 3px; flex: none; width: 132px; }
+.blocks { display: flex; gap: 3px; flex: none; width: 150px; }   /* nine blocks fit: 9 x 14 + 8 x 3 */
 .blocks u { width: 14px; height: 14px; border-radius: 3px; background: var(--ok); text-decoration: none; }
 .blocks u.warn { background: var(--warn); }
 .blocks u.bad { background: var(--bad); }

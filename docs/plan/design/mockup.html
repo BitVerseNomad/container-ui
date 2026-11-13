@@ -73,7 +73,7 @@ function sidebar(active, o = {}) {
     </button>
     <nav class="nav" aria-label="Main">
       ${item("projects", "folder", "Projects", '<span class="count">3</span>')}
-      ${item("containers", "box", "Containers", '<span class="count">11</span>')}
+      ${item("containers", "box", "Containers", '<span class="count">10</span>')}
       ${item("images", "image", "Images")}
       ${item("volumes", "database", "Volumes")}
       ${item("networks", "network", "Networks")}
@@ -84,7 +84,7 @@ function sidebar(active, o = {}) {
       ${item("doctor", "doctor", "Doctor", '<span class="count bad" aria-label="2 need action">2</span>')}
     </nav>
     <div class="sidebar-foot">
-      <button class="btn ghost icon-only" aria-label="Settings" ${active === "settings" ? 'style="background:var(--tile-active);color:var(--fg)"' : ""}>${I("settings")}</button>
+      <button class="btn ghost icon-only" aria-label="Settings" ${active === "settings" ? 'aria-current="page"' : ""}>${I("settings")}</button>
       <button class="btn ghost icon-only" aria-label="Activity: commands the app ran">${I("activity")}</button>
       <button class="btn ghost icon-only" aria-label="Help and shortcuts">${I("help")}</button>
       <span class="grow"></span>
@@ -98,7 +98,7 @@ const header = (title, sub, right = "") => `<header class="header"><h1>${title}<
 const blocks = (str) => `<span class="blocks">${str.split("").map(c => `<u class="${{ o: "", w: "warn", b: "bad", x: "off" }[c]}"></u>`).join("")}</span>`;
 const spark = (seed, flat) => { const pts = Array.from({ length: 12 }, (_, i) => flat ? 2 : 2 + ((seed * (i + 3) * 7) % 9)); return `<svg class="spark" viewBox="0 0 86 18"><polyline points="${pts.map((y, i) => `${i * (86 / 11)},${18 - y}`).join(" ")}"/></svg>`; };
 const noSpark = `<span class="spark"></span>`;
-const search = (ph, w = 220) => `<label class="field" style="width:${w}px">${I("search", "sm")}<input placeholder="${ph}" aria-label="${ph}"></label>`;
+const search = (ph, cls = "search") => `<label class="field ${cls}">${I("search", "sm")}<input placeholder="${ph}" aria-label="${ph}"></label>`;
 
 /* ---------- rows ---------- */
 const crow = (c) => `
@@ -115,7 +115,7 @@ const crow = (c) => `
     <span class="act">${c.action ? btn(c.action) : ""}</span>
     ${more(c.name)}
   </div>`;
-const cth = `<div class="row th" role="row"><span class="lead"></span><span class="name">Name</span><span class="meta grow">Image or folder</span><span class="col ports">Ports</span><span class="col" style="width:86px;text-align:left">CPU, 10 min</span><span class="col stats">Now</span><span class="col state">State</span><span class="act"></span><span style="width:28px"></span></div>`;
+const cth = `<div class="row th" role="row"><span class="lead"></span><span class="name">Name</span><span class="meta grow">Image or folder</span><span class="col ports">Ports</span><span class="col cpu">CPU, 10 min</span><span class="col stats">Now</span><span class="col state">State</span><span class="act"></span><span class="more-gap"></span></div>`;
 const prob = (sev, text, action, o = {}) => `
   <div class="subrow ${o.child ? "child" : ""}">
     ${I(sev === "bad" ? "error" : "alert", "sm sev " + sev)}
@@ -143,10 +143,10 @@ const containersList = `
     ${crow({ child: true, dot: "", name: "cache", meta: "memcached:1.6", stats: "", state: "Stopped", action: "Start" })}
     ${crow({ dot: "ok", name: "scratch-postgres", meta: "postgres:16", ports: ["5433"], stats: "0% · 88 MB", state: "Running", action: "Stop" })}
   </div>`;
-const containersHead = header("Containers", "11 · 3 need attention", `${search("Search containers")}${btn(I("plus", "sm") + "New", "primary")}`);
+const containersHead = header("Containers", "10 · 5 need attention", `${search("Search containers")}${btn(I("plus", "sm") + "New", "primary")}`);
 const containers = (overlay = "") => app("containers", containersHead + `<div class="content">${containersList}</div>`, overlay);
 
-const menu = (items, style) => `<div class="pop anchor" role="menu" style="${style}">${items}</div>`;
+const menu = (items, style, cls = "") => `<div class="pop anchor ${cls}" role="menu" style="${style}">${items}</div>`;
 const mi = (label, why, o = {}) => `<button class="menu-item ${o.danger ? "danger" : ""}" role="menuitem"><span class="top"><span>${label}</span>${o.kbd ? `<span class="kbd">${o.kbd}</span>` : ""}</span>${why ? `<span class="why">${why}</span>` : ""}</button>`;
 const sep = `<div class="menu-sep"></div>`;
 
@@ -154,16 +154,16 @@ const rowMenu = menu(
   mi("Logs", "To see what it printed") + mi("Open a shell", "To run commands inside it") + mi("Restart", "After you change a setting or it got stuck") + sep +
   mi("Copy name", "") + mi("Run it yourself", "Shows the command, if you'd rather use Terminal") + sep +
   mi("Remove…", "Deletes the container. Volumes are kept", { danger: true }),
-  "right: 20px; top: 122px; width: 268px;");
+  "right: 20px; top: 122px;", "wide");
 
 const newMenu = menu(
   mi("Run an image", "Start one container from an image you have", { kbd: "⌘N" }) +
   mi("Pull an image", "Download an image without starting it", { kbd: "⌘P" }) +
   mi("Start a Compose project", "Pick a folder with a compose.yaml"),
-  "right: 20px; top: 44px; width: 280px;");
+  "right: 20px; top: 44px;", "wide");
 
 const engineMenu = `
-  <div class="pop anchor" role="menu" style="left: 8px; top: 92px; width: 300px;">
+  <div class="pop anchor engines" role="menu" style="left: 8px; top: 92px;">
     <div class="menu-cap">Colima</div>
     <div class="row" role="menuitemradio" aria-checked="true"><span class="dot ok"></span><span class="name">default</span><span class="meta grow truncate">4 CPU · 8 GB · Kubernetes</span>${I("check", "sm")}</div>
     <div class="row" role="menuitemradio"><span class="dot"></span><span class="name">work</span><span class="meta grow truncate">Stopped</span>${btn("Start", "xs")}</div>
@@ -189,7 +189,7 @@ const detail = app("containers", `
     <span class="grow"></span>
     ${btn("Open a shell")}${btn("Restart")}${btn("Stop")}${more("api")}
   </header>
-  <div class="content" style="display:flex;flex-direction:column;gap:10px">
+  <div class="content stack">
     <div class="facts"><span>acme/billing-api:3.1</span><span>shop</span><span>Started 3 h ago</span><span>0 restarts</span><a class="port" href="#">:8080</a></div>
     <div class="banner bad">${I("error", "sev bad")}
       <div><div class="title">Its health check is failing</div><div class="body selectable">5 checks in a row failed. The last one said: "curl: (7) Failed to connect to localhost port 8080 after 0 ms: Connection refused"</div></div>
@@ -198,9 +198,9 @@ const detail = app("containers", `
     <div class="tabs" role="tablist">
       <button class="chip" role="tab" aria-selected="true">Logs</button><button class="chip" role="tab">Stats</button><button class="chip" role="tab">Settings</button><button class="chip" role="tab">Folders</button><button class="chip" role="tab">Network</button><button class="chip" role="tab">History</button>
       <span class="grow"></span>
-      ${search("Filter lines", 180)}<button class="chip" aria-pressed="true">Follow</button><button class="btn ghost icon-only" aria-label="Copy logs">${I("copy")}</button>
+      ${search("Filter lines", "filter")}<button class="chip" aria-pressed="true">Follow</button><button class="btn ghost icon-only" aria-label="Copy logs">${I("copy")}</button>
     </div>
-    <div class="canvas" style="flex:1;min-height:0">${logs}</div>
+    <div class="canvas fill">${logs}</div>
   </div>`);
 
 /* ---------- sheets and dialogs ---------- */
@@ -211,15 +211,15 @@ const runSheet = `
     <div class="sheet-body">
       <div class="form-row"><label class="label">Name</label><div class="field md"><input value="postgres"></div></div>
       <div class="form-row"><label class="label">Ports</label>
-        <div style="display:flex;gap:8px;align-items:center"><div class="field md" style="width:110px" aria-invalid="true"><input value="5432"></div><span class="muted nowrap">on this Mac, to</span><div class="field md" style="width:110px"><input value="5432"></div><span class="muted nowrap">in the container</span></div>
-        <div class="banner warn" style="margin-top:8px">${I("alert", "sev warn sm")}<div class="body" style="color:var(--fg)">Port 5432 on this Mac is already used by <span class="mono">db</span>.</div><div class="actions">${btn("Use 5433 instead", "xs")}</div></div>
+        <div class="fields"><div class="field md port" aria-invalid="true"><input value="5432"></div><span class="muted nowrap">on this Mac, to</span><div class="field md port"><input value="5432"></div><span class="muted nowrap">in the container</span></div>
+        <div class="banner warn line">${I("alert", "sev warn sm")}<div class="body">Port 5432 on this Mac is already used by <span class="mono">db</span>.</div><div class="actions">${btn("Use 5433 instead", "xs")}</div></div>
       </div>
       <div class="form-row"><label class="label">Settings the image needs</label>
-        <div style="display:flex;gap:8px"><div class="field md" style="flex:1"><input value="POSTGRES_PASSWORD"></div><div class="field md" style="flex:1"><input placeholder="Required" type="password"></div></div>
+        <div class="fields"><div class="field md"><input value="POSTGRES_PASSWORD"></div><div class="field md"><input placeholder="Required" type="password"></div></div>
         <div class="hint">postgres stops at start without a password.</div>
       </div>
       <div class="form-row"><label class="label">Keep its data</label>
-        <div style="display:flex;gap:8px;align-items:center"><div class="field md" style="flex:1"><input value="postgres-data"></div><span class="muted">at</span><div class="field md" style="flex:1"><input class="mono" value="/var/lib/postgresql/data"></div></div>
+        <div class="fields"><div class="field md"><input value="postgres-data"></div><span class="muted">at</span><div class="field md"><input class="mono" value="/var/lib/postgresql/data"></div></div>
         <div class="hint">A named volume. Without it the data is lost when the container is removed.</div>
       </div>
       <div class="form-row"><button class="chip">${I("chev-right", "sm")}More options</button> <button class="chip">${I("chev-right", "sm")}Show command</button></div>
@@ -232,7 +232,7 @@ const confirm = `
   <div class="dialog" role="alertdialog" aria-labelledby="c-t">
     <h2 id="c-t">Remove kafka-ui?</h2>
     <p>This deletes the container. Its image and volumes are kept, so you can run it again.</p>
-    <div class="cmd" style="margin-top:12px"><code>docker --context colima rm -f kafka-ui</code><button class="btn ghost icon-only xs" aria-label="Copy command">${I("copy", "sm")}</button></div>
+    <div class="cmd"><code>docker --context colima rm -f kafka-ui</code><button class="btn ghost icon-only xs" aria-label="Copy command">${I("copy", "sm")}</button></div>
     <div class="foot">${btn("Cancel", "md")}${btn("Remove", "md danger")}</div>
   </div>`;
 
@@ -253,8 +253,8 @@ const palette = `
 
 /* ---------- other screens ---------- */
 const irow = (n, tag, id, size, age, used) => `
-  <div class="row" tabindex="0"><span class="lead">${I("image", "sm")}</span><span class="name truncate">${n}<span class="muted" style="font-weight:400">:${tag}</span></span><span class="meta grow truncate">${used}</span>
-  <span class="col mono" style="width:104px">${id}</span><span class="col size mono">${size}</span><span class="col age">${age}</span><span class="act">${btn("Run")}</span>${more(n)}</div>`;
+  <div class="row" tabindex="0"><span class="lead">${I("image", "sm")}</span><span class="name truncate">${n}<span class="dim">:${tag}</span></span><span class="meta grow truncate">${used}</span>
+  <span class="col id mono">${id}</span><span class="col size mono">${size}</span><span class="col age">${age}</span><span class="act">${btn("Run")}</span>${more(n)}</div>`;
 const images = app("images", header("Images", "5 · 1.6 GB", `${search("Search images")}${btn(I("download", "sm") + "Pull", "primary")}`) + `
   <div class="content">
     <div class="group-cap">Space inside the VM</div>
@@ -281,17 +281,17 @@ const volumes = app("volumes", header("Volumes", "5 · 1.5 GB", `${search("Searc
   <div class="content"><div class="list">
     <div class="group-cap">In use</div>
     ${vrow("mysql-data", "Used by db", "393 MB")}
-    ${vrow("ccccccccccc… <span class='muted' style='font-weight:400'>no name</span>", "Used by web", "3.9 KB")}
+    ${vrow("ccccccccccc… <span class='dim'>no name</span>", "Used by web", "3.9 KB")}
     <div class="group-cap">Not used</div>
     ${vrow("pgdata-old", "Last used by a container that was removed", "1.1 GB")}
     ${vrow("redis-data", "", "17 MB")}
-    ${vrow("aaaaaaaaaaa… <span class='muted' style='font-weight:400'>no name</span>", "", "36 B")}
+    ${vrow("aaaaaaaaaaa… <span class='dim'>no name</span>", "", "36 B")}
   </div></div>`);
 
 const nrow = (n, sub, members, builtin) => `
   <div class="row" tabindex="0"><span class="lead">${I("network", "sm")}</span><span class="name">${n}</span>${builtin ? '<span class="chip">Built in</span>' : ""}
-  <span class="grow" style="display:flex;gap:4px;overflow:hidden">${members.map(m => `<span class="chip">${m}</span>`).join("")}${members.length ? "" : '<span class="meta">No containers</span>'}</span>
-  <span class="col mono" style="width:110px">${sub}</span><span class="act"></span>${more(n)}</div>`;
+  <span class="members grow">${members.map(m => `<span class="chip">${m}</span>`).join("")}${members.length ? "" : '<span class="meta">No containers</span>'}</span>
+  <span class="col subnet mono">${sub}</span><span class="act"></span>${more(n)}</div>`;
 const networksMain = header("Networks", "4", `${search("Search networks")}${btn("Test a connection")}${btn(I("plus", "sm") + "New", "primary")}`) + `
   <div class="content"><div class="list">
     <div class="group-cap">Yours</div>
@@ -308,20 +308,20 @@ const networkSheet = app("networks", networksMain, `
   <aside class="sheet" role="dialog" aria-label="devnet">
     <div class="sheet-head"><h2>devnet</h2><span class="sub muted mono">172.18.0.0/16</span><span class="grow"></span><button class="btn ghost icon-only" aria-label="Close">${I("close")}</button></div>
     <div class="sheet-body">
-      <div class="group-cap" style="padding-left:0">Containers on this network</div>
+      <div class="group-cap">Containers on this network</div>
       <div class="list">
         ${["api 172.18.0.2", "worker 172.18.0.3", "kafka 172.18.0.5", "queue 172.18.0.7", "web 172.18.0.8", "db 172.18.0.9"].map(s => { const [n, ip] = s.split(" "); return `<div class="row"><span class="dot ok"></span><span class="name">${n}</span><span class="meta grow mono">${ip}</span>${btn("Disconnect", "xs ghost")}</div>`; }).join("")}
       </div>
-      <div class="group-cap" style="padding-left:0">Add a container</div>
-      <div style="display:flex;gap:8px"><label class="field md" style="flex:1"><select><option>kafka-ui</option></select></label>${btn("Connect", "md")}</div>
+      <div class="group-cap">Add a container</div>
+      <div class="fields"><label class="field md"><select><option>kafka-ui</option></select></label>${btn("Connect", "md")}</div>
       <div class="hint">Connecting only adds. Nothing is restarted.</div>
     </div>
   </aside>`);
 
 const krow = (n, ns, ready, dot, state, restarts, age) => `
   <div class="row" tabindex="0"><span class="lead"><span class="dot ${dot}"></span></span><span class="name truncate">${n}</span><span class="meta grow truncate">${ns}</span>
-  <span class="col mono" style="width:44px">${ready}</span><span class="col state" style="width:150px">${state}</span><span class="col mono" style="width:70px">${restarts}</span><span class="col age" style="width:50px">${age}</span>${more(n)}</div>`;
-const kubernetes = app("kubernetes", header("Kubernetes", "1 node · v1.30.2+k3s1 · 3 of 6 pods running", `<label class="field" style="width:170px"><select><option>All namespaces</option></select></label>${btn("Open in k9s")}`) + `
+  <span class="col ready mono">${ready}</span><span class="col state words">${state}</span><span class="col restarts mono">${restarts}</span><span class="col age short">${age}</span>${more(n)}</div>`;
+const kubernetes = app("kubernetes", header("Kubernetes", "1 node · v1.30.2+k3s1 · 3 of 6 pods running", `<label class="field pick"><select><option>All namespaces</option></select></label>${btn("Open in k9s")}`) + `
   <div class="content">
     <div class="tabs" role="tablist"><button class="chip" role="tab" aria-selected="true">Pods</button><button class="chip" role="tab">Deployments</button><button class="chip" role="tab">Services</button><button class="chip" role="tab">Events</button></div>
     <div class="list">
@@ -337,10 +337,10 @@ const kubernetes = app("kubernetes", header("Kubernetes", "1 node · v1.30.2+k3s
   </div>`);
 
 const finding = (sev, title, evidence, action) => `
-  <div class="row" style="height:auto;padding-top:8px;padding-bottom:8px;align-items:flex-start" tabindex="0">
-    <span class="lead" style="padding-top:2px">${I(sev === "bad" ? "error" : sev === "ok" ? "check" : "alert", "sm sev " + sev)}</span>
+  <div class="row tall" tabindex="0">
+    <span class="lead">${I(sev === "bad" ? "error" : sev === "ok" ? "check" : "alert", "sm sev " + sev)}</span>
     <span class="grow"><div class="name">${title}</div><div class="meta selectable">${evidence}</div></span>
-    <span style="flex:none">${action}</span>${more(title)}
+    <span class="side">${action}</span>${more(title)}
   </div>`;
 const doctor = app("doctor", header("Doctor", "Checked 12 seconds ago", btn("Check again")) + `
   <div class="content"><div class="list">
@@ -357,7 +357,7 @@ const doctor = app("doctor", header("Doctor", "Checked 12 seconds ago", btn("Che
 
 const machines = app("settings", header("Settings", "") + `
   <div class="content"><div class="settings">
-    <nav class="nav" style="margin-top:0" aria-label="Settings sections">
+    <nav class="nav" aria-label="Settings sections">
       <button class="nav-item">General</button><button class="nav-item" aria-current="page">Machines</button><button class="nav-item">Engines</button><button class="nav-item">Updates</button><button class="nav-item">About</button>
     </nav>
     <div>
@@ -366,20 +366,19 @@ const machines = app("settings", header("Settings", "") + `
         <div class="row"><span class="dot ok"></span><span class="name">default</span><span class="meta grow">4 CPU · 8 GB memory · 60 GB disk · Kubernetes</span><span class="col state">Running</span><span class="act">${btn("Stop")}</span>${more("default")}</div>
         <div class="row"><span class="dot"></span><span class="name">work</span><span class="meta grow">2 CPU · 4 GB memory · 40 GB disk</span><span class="col state">Stopped</span><span class="act">${btn("Start")}</span>${more("work")}</div>
       </div>
-      <div class="group-cap" style="padding-left:0">default</div>
-      <div class="setting"><div class="text"><div class="t">CPU</div><div class="d">Your Mac has 10. Changing it restarts the VM.</div></div><label class="field md" style="width:90px"><input value="4"></label></div>
-      <div class="setting"><div class="text"><div class="t">Memory</div><div class="d">Your Mac has 32 GB. Containers used 5.1 GB at most today.</div></div><label class="field md" style="width:90px"><input value="8 GB"></label></div>
-      <div class="setting"><div class="text"><div class="t">Start when I log in</div><div class="d">Off: start it from the switcher when you need it.</div></div><button class="switch" role="switch" aria-checked="false" aria-label="Start when I log in"></button></div>
+      <div class="group-cap">default</div>
+      <div class="setting"><div class="text"><div class="t">CPU</div><div class="d">Your Mac has 10. Changing it restarts the VM.</div></div><label class="field md num"><input value="4"></label></div>
+      <div class="setting"><div class="text"><div class="t">Memory</div><div class="d">Your Mac has 32 GB. Containers used 5.1 GB at most today.</div></div><label class="field md num"><input value="8 GB"></label></div>
       <div class="setting"><div class="text"><div class="t">Kubernetes</div><div class="d">Runs a small cluster (K3s) inside the VM.</div></div><button class="switch" role="switch" aria-checked="true" aria-label="Kubernetes"></button></div>
     </div>
   </div></div>`);
 
 const step = (state, title, d, action) => `
-  <div class="row" style="height:auto;padding:10px 8px;align-items:flex-start">
-    <span class="lead" style="padding-top:2px">${state === "ok" ? I("check", "sm sev ok") : state === "busy" ? '<span class="dot busy"></span>' : '<span class="dot"></span>'}</span>
-    <span class="grow"><div class="name">${title}</div><div class="meta">${d}</div></span><span style="flex:none">${action || ""}</span>
+  <div class="row tall">
+    <span class="lead">${state === "ok" ? I("check", "sm sev ok") : state === "busy" ? '<span class="dot busy"></span>' : '<span class="dot"></span>'}</span>
+    <span class="grow"><div class="name">${title}</div><div class="meta">${d}</div></span><span class="side">${action || ""}</span>
   </div>`;
-const setup = `<div class="app" style="grid-template-columns:1fr"><main class="main"><div class="content"><div class="center">
+const setup = `<div class="app bare"><main class="main"><div class="content"><div class="center">
     <h1>Set up containers on this Mac</h1>
     <p class="lede">OpenPier needs an engine to run containers. It can install Colima for you, or use one you already have.</p>
     <div class="list">
@@ -388,20 +387,20 @@ const setup = `<div class="app" style="grid-template-columns:1fr"><main class="m
       ${step("", "Docker command line tools", "docker, Compose and Buildx.")}
       ${step("", "Start the first machine", "4 CPU · 8 GB · 60 GB. You can change it later.")}
     </div>
-    <div style="display:flex;gap:8px;margin-top:20px">${btn("Install and start", "md primary", 'aria-busy="true"')}${btn("Use Docker Desktop instead", "md ghost")}</div>
-    <p class="hint" style="margin-top:14px">Every command it runs is listed in Activity. Nothing needs your password except Homebrew's own installer.</p>
+    <div class="actions">${btn("Install and start", "md primary", 'aria-busy="true"')}${btn("Use Docker Desktop instead", "md ghost")}</div>
+    <p class="hint">Every command it runs is listed in Activity. Nothing needs your password except Homebrew's own installer.</p>
   </div></div></main></div>`;
 
 const empty = app("containers", header("Containers", "", `${search("Search containers")}${btn(I("plus", "sm") + "New", "primary")}`) + `
-  <div class="content"><div class="empty">${I("box")}<div class="title">No containers yet</div><div>Run an image, or start a Compose project from a folder.</div><div style="display:flex;gap:8px;margin-top:6px">${btn("Run an image", "primary")}${btn("Start a Compose project")}</div></div></div>`, "", { });
+  <div class="content"><div class="empty">${I("box")}<div class="title">No containers yet</div><div class="text">Run an image, or start a Compose project from a folder.</div><div class="actions">${btn("Run an image", "primary")}${btn("Start a Compose project")}</div></div></div>`, "", { });
 
 const stopped = app("containers", header("Containers", "", "") + `
-  <div class="content"><div class="empty">${I("box")}<div class="title">default is stopped</div><div>Your containers and data are kept. Start the machine to see them.</div><div style="margin-top:6px">${btn("Start default", "primary")}</div></div></div>`, "", { engineDot: "", engineState: "Stopped" });
+  <div class="content"><div class="empty">${I("box")}<div class="title">default is stopped</div><div class="text">Your containers and data are kept. Start the machine to see them.</div><div class="actions">${btn("Start default", "primary")}</div></div></div>`, "", { engineDot: "", engineState: "Stopped" });
 
 const loading = app("containers", header("Containers", "", `${search("Search containers")}${btn(I("plus", "sm") + "New", "primary")}`) + `
   <div class="content">
-    <div class="banner bad" style="margin-bottom:8px">${I("error", "sev bad")}<div><div class="title">Couldn't list containers</div><div class="body selectable">Docker did not answer in 60 seconds. The machine may be stuck.</div></div><div class="actions">${btn("Try again")}${btn("Restart default", "primary")}</div></div>
-    <div class="list">${[220, 160, 260, 190].map(w => `<div class="row"><span class="lead"><span class="dot"></span></span><span class="skeleton" style="width:${w}px"></span><span class="grow"></span><span class="skeleton" style="width:70px"></span></div>`).join("")}</div>
+    <div class="banner bad">${I("error", "sev bad")}<div><div class="title">Couldn't list containers</div><div class="body selectable">Docker did not answer in 60 seconds. The machine may be stuck.</div></div><div class="actions">${btn("Try again")}${btn("Restart default", "primary")}</div></div>
+    <div class="list">${["a", "b", "c", "d"].map(c => `<div class="row"><span class="lead"><span class="dot"></span></span><span class="skeleton ${c}"></span><span class="grow"></span><span class="skeleton short"></span></div>`).join("")}</div>
   </div><div class="toast"><span class="dot ok"></span><span>Removed kafka-ui</span>${btn("Undo", "xs")}</div>`);
 
 /* ---------- projects ---------- */
@@ -413,14 +412,14 @@ const prow = (p) => `
     ${p.blocks ? blocks(p.blocks) : ""}
     ${p.blocks && !p.blocks.startsWith("x") ? spark(p.name.length + 2) : noSpark}
     <span class="col ports">${(p.ports || []).map(x => `<a class="port" href="#" aria-label="Open port ${x} in the browser">:${x}</a>`).join("")}</span>
-    <span class="col state" style="width:132px">${p.state}</span>
+    <span class="col state wide">${p.state}</span>
     <span class="act">${btn(p.action, p.primary ? "primary" : "")}</span>
     ${more(p.name)}
   </div>`;
 const projectsHead = header("Projects", "3 · 2 running", `${search("Search projects")}${btn(I("plus", "sm") + "Add project", "primary")}`);
 const projectsList = `
   <div class="list" role="table" aria-label="Projects">
-    <div class="row th" role="row"><span class="lead"></span><span class="name">Project</span><span class="meta grow">Folder</span><span class="blocks">Services</span><span class="col" style="width:86px;text-align:left">CPU, 10 min</span><span class="col ports">Ports</span><span class="col state" style="width:132px">State</span><span class="act"></span><span style="width:28px"></span></div>
+    <div class="row th" role="row"><span class="lead"></span><span class="name">Project</span><span class="meta grow">Folder</span><span class="blocks">Services</span><span class="col cpu">CPU, 10 min</span><span class="col ports">Ports</span><span class="col state wide">State</span><span class="act"></span><span class="more-gap"></span></div>
     ${prow({ dot: "bad", name: "shop", meta: "~/code/shop", blocks: "booowbx", ports: ["8080", "5432"], state: "5 of 7 running", action: "Stop" })}
     ${prob("bad", "api: its health check is failing", btn("See why", "xs"))}
     ${prow({ dot: "ok", name: "billing", meta: "~/code/billing", blocks: "ooo", ports: ["8081", "5433"], state: "3 of 3 running", action: "Stop" })}
@@ -433,9 +432,9 @@ const projects = app("projects", projectsHead + `<div class="content">${projects
 const portRow = (svc, inside, mac, note, link = true) => `
   <div class="row" role="row">
     <span class="lead"></span>
-    <span class="name truncate" style="width:140px;flex:none">${svc}</span>
-    <span class="col mono" style="width:120px">${inside}</span>
-    <span class="col" style="width:120px">${link ? `<a class="port" href="#">:${mac}</a>` : `<span class="mono">${mac}</span>`}</span>
+    <span class="name truncate fixed">${svc}</span>
+    <span class="col inside mono">${inside}</span>
+    <span class="col mac">${link ? `<a class="port" href="#">:${mac}</a>` : `<span class="mono">${mac}</span>`}</span>
     <span class="meta truncate grow">${note}</span>
     <span class="act">${btn("Change…")}</span>
   </div>`;
@@ -446,7 +445,7 @@ const projectDetail = app("projects", `
     <span class="grow"></span>
     ${btn("Restart")}${btn("Stop")}${more("billing")}
   </header>
-  <div class="content" style="display:flex;flex-direction:column;gap:10px">
+  <div class="content stack">
     <div class="facts"><span>~/code/billing</span><span>Colima · default</span><span>compose.yaml</span><span>Started 12 min ago</span></div>
     <div class="banner info">${I("info", "sev info")}
       <div><div class="title">Two ports were moved so this project can run next to shop</div><div class="body">Your Compose file was not changed.</div></div>
@@ -456,7 +455,7 @@ const projectDetail = app("projects", `
       <button class="chip" role="tab">Services</button><button class="chip" role="tab">Logs</button><button class="chip" role="tab" aria-selected="true">Ports</button><button class="chip" role="tab">Settings</button>
     </div>
     <div class="list" role="table" aria-label="Ports of billing">
-      <div class="row" style="min-height:24px" role="row"><span class="lead"></span><span class="meta" style="width:140px;flex:none">Service</span><span class="meta" style="width:120px">In the container</span><span class="meta" style="width:120px">On this Mac</span><span class="meta grow"></span></div>
+      <div class="row th" role="row"><span class="lead"></span><span class="name fixed">Service</span><span class="col inside">In the container</span><span class="col mac">On this Mac</span><span class="meta grow"></span></div>
       ${portRow("web", "80", "8081", "Wanted 8080, used by shop · web")}
       ${portRow("db", "5432", "5433", "Wanted 5432, used by shop · db")}
       ${portRow("mail", "8025", "8025", "")}
@@ -464,19 +463,19 @@ const projectDetail = app("projects", `
   </div>`);
 
 const startFinding = (sev, text, control) => `
-  <div class="banner ${sev === "info" ? "" : sev}" style="align-items:center">${I(sev === "bad" ? "error" : sev === "warn" ? "alert" : "check", "sev " + (sev === "info" ? "ok" : sev) + " sm")}
-    <div class="body" style="color:var(--fg)">${text}</div><div class="actions">${control}</div></div>`;
+  <div class="banner ${sev === "info" ? "" : sev} line">${I(sev === "bad" ? "error" : sev === "warn" ? "alert" : "check", "sev " + (sev === "info" ? "ok" : sev) + " sm")}
+    <div class="body">${text}</div><div class="actions">${control}</div></div>`;
 const startCheck = `
   <div class="overlay"></div>
   <aside class="sheet" role="dialog" aria-label="Start billing">
     <div class="sheet-head"><h2>Start billing</h2><span class="grow"></span><button class="btn ghost icon-only" aria-label="Close">${I("close")}</button></div>
-    <div class="sheet-body" style="display:flex;flex-direction:column;gap:8px">
-      <p class="muted" style="margin:0 0 4px">shop is running and uses some of the same things. This project will start next to it. Your Compose file is not changed.</p>
+    <div class="sheet-body stack">
+      <p class="lede">shop is running and uses some of the same things. This project will start next to it. Your Compose file is not changed.</p>
       ${startFinding("info", `Port 8080 is used by <span class="mono">shop · web</span>. This project will use <b>8081</b>.`, btn("Use another…", "xs"))}
       ${startFinding("info", `Port 5432 is used by <span class="mono">shop · db</span>. This project will use <b>5433</b>.`, btn("Use another…", "xs"))}
       ${startFinding("info", `The name <span class="mono">db</span> is taken. This project's container will be <span class="mono">billing-db-1</span>.`, "")}
       ${startFinding("warn", `Both projects use the volume <span class="mono">pgdata</span>. They would share the same database files.`, btn("Share it", "xs") + btn("Keep separate", "xs primary"))}
-      <div class="form-row" style="margin-top:6px"><button class="chip">${I("chev-right", "sm")}Show command</button></div>
+      <div class="form-row"><button class="chip">${I("chev-right", "sm")}Show command</button></div>
     </div>
     <div class="sheet-foot">${btn("Cancel", "md ghost")}${btn("Start", "md primary", "disabled")}</div>
   </aside>`;
@@ -485,8 +484,8 @@ const projectStart = app("projects", projectsHead + `<div class="content">${proj
 const projectsEmpty = app("projects", header("Projects", "", btn(I("plus", "sm") + "Add project", "primary")) + `
   <div class="content">
     <div class="empty">${I("folder")}<div class="title">No projects yet</div>
-      <div class="body">A project is a folder with a Compose file. Add one and it runs next to your others, without the ports colliding.</div>
-      ${btn(I("plus", "sm") + "Add project", "primary md")}</div>
+      <div class="text">A project is a folder with a Compose file. Add one and it runs next to your others, without the ports colliding.</div>
+      <div class="actions">${btn(I("plus", "sm") + "Add project", "primary md")}</div></div>
     <div class="group-cap">Found on this Mac</div>
     <div class="list">
       ${prow({ dot: "", name: "shop", meta: "~/code/shop/compose.yaml", state: "", action: "Add" })}
@@ -496,24 +495,24 @@ const projectsEmpty = app("projects", header("Projects", "", btn(I("plus", "sm")
 
 /* ---------- inspector and image detail (Manifest) ---------- */
 const inspector = `
-  <aside class="sheet" role="dialog" aria-label="Why api is unhealthy" style="box-shadow:var(--shadow-floating)">
+  <aside class="sheet" role="dialog" aria-label="Why api is unhealthy">
     <div class="sheet-head"><span class="grow"></span><button class="btn ghost icon-only" aria-label="Close">${I("close")}</button></div>
     <div class="sheet-body"><div class="ins">
       <div class="crumb">shop / api</div>
       <h2>Its health check is failing</h2>
       <p>The container is running, but 5 checks in a row could not connect to port 8080 inside it. The app listens on another port.</p>
-      <div><div class="lbl" style="margin-bottom:6px">What it said</div><pre>14:02:11 curl -f http://localhost:8080/health
+      <div><div class="lbl">What it said</div><pre>14:02:11 curl -f http://localhost:8080/health
 <b>curl: (7) Failed to connect to localhost port 8080: Connection refused</b>
 14:02:11 exit 7</pre></div>
-      <div><div class="lbl" style="margin-bottom:6px">What OpenPier found</div><div class="steps">
+      <div><div class="lbl">What OpenPier found</div><div class="steps">
         <div><i>1</i><span>The logs say <b>Listening on :3000</b>. The app and the check disagree on the port.</span></div>
         <div><i>2</i><span>The Compose file sets the check to 8080 and <b>PORT</b> is not set.</span></div></div></div>
       <div class="acts">${btn("Set PORT to 8080 and restart", "md primary")}${btn("Open logs", "md")}${btn("Open a shell", "md")}</div>
       <div class="cmd"><code>docker --context colima compose -p shop up -d api</code><button class="btn ghost icon-only xs" aria-label="Copy command">${I("copy", "sm")}</button></div>
     </div></div>
   </aside>`;
-const lrow = (n, cmd, size, note = "") => `<div class="row" role="row"><span class="lead mono muted">${n}</span><span class="name truncate mono" style="font-weight:400;max-width:520px">${cmd}</span><span class="meta grow truncate">${note}</span><span class="col size mono">${size}</span></div>`;
-const frow = (icon, name, size, when) => `<div class="row" role="row" tabindex="0"><span class="lead">${I(icon, "sm")}</span><span class="name truncate" style="font-weight:400">${name}</span><span class="grow"></span><span class="col size mono">${size}</span><span class="col age">${when}</span></div>`;
+const lrow = (n, cmd, size, note = "") => `<div class="row" role="row"><span class="lead num">${n}</span><span class="name truncate mono plain long">${cmd}</span><span class="meta grow truncate">${note}</span><span class="col size mono">${size}</span></div>`;
+const frow = (icon, name, size, when) => `<div class="row" role="row" tabindex="0"><span class="lead">${I(icon, "sm")}</span><span class="name truncate plain">${name}</span><span class="grow"></span><span class="col size mono">${size}</span><span class="col age">${when}</span></div>`;
 const imageDetail = app("images", `
   <header class="header">
     <button class="btn ghost icon-only" aria-label="Back to Images">${I("back")}</button>
@@ -521,7 +520,7 @@ const imageDetail = app("images", `
     <span class="grow"></span>
     ${btn("Look inside")}${btn("Check for a newer one")}${btn("Run", "primary")}${more("postgres:16")}
   </header>
-  <div class="content" style="display:flex;flex-direction:column;gap:10px;padding-top:10px">
+  <div class="content stack top">
     <div class="facts"><span>efec2006ec41</span><span>linux/arm64</span><span>Built 6 weeks ago</span><span>14 layers</span><span>From Docker Hub</span></div>
     <div class="tabs" role="tablist">
       <button class="chip" role="tab">Overview</button><button class="chip" role="tab" aria-selected="true">Layers</button><button class="chip" role="tab">Files</button><button class="chip" role="tab">Settings it starts with</button>

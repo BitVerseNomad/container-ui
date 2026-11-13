@@ -15,7 +15,7 @@ If the built app and the mockup differ, the app is wrong. If you think the mocku
 Rules for the implementer:
 
 1. Never write a colour, a pixel size or a shadow in a component. Use a class from `openpier.css`. If the class you need does not exist, stop and add it to the CSS and the mockup first.
-2. No inline `style` except for a width that depends on data (a meter, a column the spec sizes per screen).
+2. No inline `style`. Every width, gap and colour is a class in `openpier.css` (section 11 holds the column widths and layout pieces). Three files may set a `style`, because their numbers come from data: `Meters` (the bar's share), `LogView` and `VirtualRows` (the position of the rows drawn).
 3. No Tailwind utilities, no CSS modules, no second stylesheet. One file.
 4. Behaviour primitives (focus trap, menus, dialogs, select, tooltip) come from Radix, unstyled, with `className` set to the classes below.
 5. Icons come from `lucide-react` only, at 16px (`.icon`) or 14px (`.icon.sm`), stroke 1.5. Delete `src/ui/icons.tsx`.
@@ -100,7 +100,7 @@ Rules:
 3. Folded (Cmd+B): only icons, each with a tooltip of its label and shortcut. The engine switcher becomes its state dot. The choice is remembered (`openpier:sidebar-folded`).
 4. Removed from the sidebar: the shortcuts list (it moves to Help), the Runtime select (merged into the switcher), Profiles as a top-level item. Projects stays, rebuilt (section 7.11).
 5. **Activity** is the list of every command the app ran, newest first, with its output and exit code (today's `Commands.tsx`). It opens as a sheet.
-6. **Help** opens a dialog with the shortcuts table (section 10), a link to the docs and "Give feedback" (opens GitHub Discussions).
+6. **Help** opens a sheet with the shortcuts table (section 10), a link to the docs and "Give feedback" (opens GitHub Discussions).
 
 ### 5.3 Engine switcher
 
@@ -229,7 +229,7 @@ Radix AlertDialog, content class `.dialog`. Mockup: `confirm-dialog`.
 Mockup: `empty-state`, `machine-stopped`, `loading-error-toast`.
 
 1. **Empty**: `.empty` centred in the content: a 22px icon, a title, one line, and the one or two buttons that fix it.
-2. **Machine stopped**: every list shows the same empty state, "{name} is stopped. Your containers and data are kept." with `Start {name}` (primary). If the app cannot start that engine: "Start it from {Docker Desktop}." with `Open Docker Desktop`.
+2. **Machine stopped**: every list shows the same empty state, title "{name} is stopped", text "Your containers and data are kept. Start the machine to see them.", with `Start {name}` (primary). If the app cannot start that engine: "Start it from {Docker Desktop}." with `Open Docker Desktop`.
 3. **Loading**: four skeleton rows on first load only. A refresh never clears the list or shows a spinner; the old rows stay until the new ones arrive.
 4. **Error**: a `.banner.bad` above the list: what failed in plain words, the evidence as selectable text, and the next step as buttons (`Try again`, and a fix if there is one). The list below keeps the last good data.
 5. **Search with no result**: "Nothing matches "{query}"." and a `Clear search` button.
@@ -251,7 +251,7 @@ Mockup: `empty-state`, `machine-stopped`, `loading-error-toast`.
 
 ### 6.14 Machine meters
 
-`<Meters>` in every page header, left of the page's own controls: CPU, Memory, Disk, each a label, a 56px bar and the number ("5.1 of 8 GB"). A bar turns amber (`.hot`) above 60 percent for memory and 85 percent for disk. Hidden when the engine has no machine the app can measure. Clicking opens Settings, Machines.
+`<Meters>` in the header of every list page (not in a detail header, which holds the thing's own actions), left of the page's own controls: CPU, Memory, Disk, each a label, a 56px bar and the number ("5.1 of 8 GB"). A bar turns amber (`.hot`) above 60 percent for memory and 85 percent for disk. Hidden when the engine has no machine the app can measure. Clicking opens Settings, Machines.
 
 ### 6.15 Sparkline
 
@@ -269,6 +269,14 @@ Mockup: `command-palette`. Cmd+K.
 2. Typing a name finds the thing and the actions on it ("Restart kafka", "Logs of kafka"). Enter runs the highlighted one; actions that delete open their confirm.
 3. Each action shows its shortcut on the right when it has one.
 4. Empty query shows: the pages, then the five most recent actions.
+
+### 6.17 Pieces added with the work orders
+
+1. `<NavItem>` (a sidebar or Settings section link), `<Checkbox>` (`.checkline` and `.check`), `<Progress>` (`.progress`), `<Fields>` (fields side by side), `<Dim>` (the muted part of a name) and `<Members>` (chips in a row) exist so that no screen writes that markup by hand. Their props are in `iterations/iteration-1-work-orders.md`, WO-1.3a and WO-1.3b.
+2. Sheets, dialogs, the palette and toasts are drawn inside `.main`: they cover the page and leave the sidebar alone. Menus, selects and tooltips sit next to their trigger.
+3. A confirm may carry one checkbox (one choice, for example "Only volumes with no name"). Two choices or a field make it a sheet.
+4. A banner with no title is one line: the sentence and its action (`.banner.line`).
+5. Folded sidebar: labels, counts and captions are hidden, icons are centred, the foot buttons stack.
 
 ## 7. Screens
 
@@ -297,7 +305,7 @@ Mockup: `container-detail`. Route `#/containers/{id}/{tab}`.
 2. Facts line (`.facts`): image, project, "Started 3 h ago", "{n} restarts", ports.
 3. If Doctor has a finding for this container: one `.banner` with the title, the evidence and the fix button. Several findings: the worst one, and "and 2 more" linking to Doctor filtered by this container.
 4. Tabs: Logs (default), Stats, Settings (environment, command, restart policy; was "Inspect"), Folders (mounts), Network, History (events; was "Activity"). The tab is part of the route.
-5. Logs: toolbar on the tabs row, right side: filter field, `Follow` chip (on by default; scrolling up turns it off), copy button. The canvas fills the rest of the height. 5,000 lines are kept; older lines drop.
+5. Logs: toolbar on the tabs row, right side: filter field, `Follow` chip (on by default; scrolling up turns it off), copy button. The canvas fills the rest of the height. 10,000 lines are kept; older lines drop. More log controls (since, wrap, jump to the first error, save) go in a ⋯ menu at the end of the same row, never in a second toolbar.
 6. Open a shell opens Terminal.app with `docker exec -it`. It is not an in-app terminal in 1.0.
 
 ### 7.3 Images
@@ -324,7 +332,7 @@ Mockup: `volumes`. Route `#/volumes`.
 
 Mockup: `networks`, `network-sheet`. Route `#/networks`.
 
-1. Header: "Networks", count. Search. `Test a connection` (default) opens its sheet. `New` (primary) opens a small dialog with one field (name).
+1. Header: "Networks", count. Search. `Test a connection` (default) opens its sheet. `New` (primary) opens a sheet with one field (name). A dialog only confirms (6.8); anything with a field is a sheet.
 2. Two groups: "Yours" and "Built in".
 3. Row: icon, name, "Built in" chip where true, member containers as chips (grows; at most four, then "+n"), subnet (110px, mono), ⋯.
 4. Click on a row opens its sheet: members with their address and a ghost `Disconnect` each, then "Add a container" with a select and `Connect`. Hint: "Connecting only adds. Nothing is restarted."
@@ -422,6 +430,8 @@ For each list screen, build and check all eight:
 The mocked backend (`preview/mock.ts`) gets one scenario per state, so each can be opened by URL and screenshotted.
 
 ## 9. Words
+
+**Words that are not in this spec.** The work orders in `iterations/` quote the exact text of every label, title, hint, empty state, confirm and toast they add. That quoted text is the design: build it letter for letter. It was reviewed against the rules below. If a work order needs a text and does not quote it, stop and report.
 
 1. Sentence case everywhere. No full stop on labels, buttons or captions. Full stops in sentences.
 2. Buttons are verbs: Start, Stop, Run, Pull, Remove…, Fix {thing}…, See why, Show how, Check again, Try again.

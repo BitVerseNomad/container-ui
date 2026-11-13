@@ -4,6 +4,20 @@ The work to turn today's repo into OpenPier 1.0, as ordered tasks. Each task is 
 
 Read `README.md` in this folder first, then the review that a task cites (E = engineering, U = UX, P = product), then `04-design-spec.md` for anything on screen.
 
+## Work orders win
+
+This file is the plan. `iterations/` holds the same work as recipes, written after measuring the repo, and an implementer follows those. Where the two differ, the work order wins. Known differences:
+
+1. **0.0 is new**: lint, `cargo fmt` and `cargo clippy` fail on today's `main`, so the first work order makes the gate pass.
+2. **0.2 deletes, it does not park.** The Lima environments, their database and the AI chat are removed (git keeps them). There are no cargo features `workspaces` or `assistant` and no `src/_parked/`.
+3. **0.3**: the preview is a Vite dev server on port 4173. Almost every old browser check fails against today's UI, so the failing ones wait in `scripts/checks-pending/` and each screen task brings its own back. That folder must be empty when phase 3 ends.
+4. **Order in phase 0**: 0.0, 0.2, 0.3, 0.5, 0.4, 0.6 (clean the repo before renaming, so there is less to rename).
+5. **0.4**: the bundle identifier is `dev.openpier.desktop` (Tauri warns about identifiers that end in `.app`).
+6. **1.1** keeps `tailwind-merge`, `class-variance-authority` and `clsx` until 5.1, because the old components import them.
+7. **1.3** is three work orders (1.3a, 1.3b, 1.3c). The new components live in `src/ui/op/` until 5.1 deletes the old ones.
+8. **1.5**: the default threshold is half a percent, not 2. Two different mockup screens differ by only 3.7 percent of their pixels, so the pixel number is a weak proof and each screen also has a by-eye list.
+9. Nothing is pushed by the implementer. Work orders are merged into the local `main`; the pull request text is a file under `iterations/pr/`.
+
 ## Rules for whoever implements this
 
 1. **One task, one branch, one PR.** Branch name `task-<id>` (for example `task-1.3`). Do not start a task whose "Needs" are not merged.
@@ -68,7 +82,7 @@ Nothing visible changes in this phase. It unblocks everything else.
 | `package.json` name | `colima-ui` | `openpier` |
 | `src-tauri/Cargo.toml` name | `wharf` | `openpier` |
 | `tauri.conf.json` productName, window title | `Wharf` | `OpenPier` |
-| `tauri.conf.json` identifier | `dev.colima.wharf` | `dev.openpier.app` |
+| `tauri.conf.json` identifier | `dev.colima.wharf` | `dev.openpier.desktop` |
 | `index.html` title, README, CONTRIBUTING, issue templates, `release.yml` | Wharf, Container UI, colima-ui | OpenPier |
 | Storage keys `colima-ui:*`, `colima-ui.*`, `wharf:*` | | `openpier:*` |
 | Temp file prefixes `colima-ui-*` (`main.rs`, `setup.rs`, `desktop.rs`) | | `openpier-*` |
@@ -219,7 +233,7 @@ Findings that are closed by an earlier task and not by one screen: U1 by 1.1; U4
 
 ### 4.3 One data layer (E9)
 
-1. Convert each `usePoll` call to `useQuery` with key `[engineId, name]` and `refetchInterval: 3000`. Convert each action to `useMutation` that invalidates its list.
+1. Convert each `usePoll` call to `useQuery` with key `[engineId, name]`. Each call keeps the interval it has today (the key table in WO-4.3 lists them). Convert each action to `useMutation` that invalidates its list.
 2. Delete `usePoll`, the `setInterval` in `src/App.tsx:107`, and the `runtime-changed` window event.
 3. Done when: `grep -rn "usePoll\|setInterval" src --include=*.ts --include=*.tsx` shows only timers that are not data loading, each with a comment.
 
@@ -227,19 +241,19 @@ Findings that are closed by an earlier task and not by one screen: U1 by 1.1; U4
 
 ### 5.1 Delete the legacy UI
 
-1. Delete every file in `src/ui/` that `src/ui/index.ts` does not export, `src/ui/components/`, `src/ui.tsx`, `src/ui/icons.tsx`.
+1. Delete the old component set (`src/ui/*` outside `src/ui/op/`, `src/ui/components/`, `src/ui.tsx`, `src/ui/icons.tsx`, and the old `Tab`), then move `src/ui/op/*` up to `src/ui/`. It needs `scripts/not-migrated.json` to hold no screen; if it does, stop and report.
 2. Done when: `npx tsc --noEmit` passes and `npx knip` (add it as a dev dependency) reports no unused files or exports in `src/`.
 
 ### 5.2 Split `main.rs` (E11)
 
-1. Move code, do not change it: `exec.rs`, `allow.rs`, `engine.rs`, `colima.rs`, `compose.rs`, `kube.rs`. Tests move with their code.
+1. Move code, do not change it: `exec.rs`, `allow.rs`, `engine.rs`, `colima.rs`, `compose.rs`, `kube.rs`, `system.rs`, `tools.rs`. Tests move with their code.
 2. Done when: `cargo test` shows the same number of tests passing as before the move, and `main.rs` is under 200 lines.
 
 ### 5.3 Docs match the app
 
 1. Rewrite `AGENTS.md`: the eight UX rules stay; add "the design is `docs/plan/design/`"; replace the README step with `node scripts/readme-shots.mjs`.
 2. `CHANGELOG.md`: one entry for 1.0 that says what changed for a user.
-3. Done when: no doc mentions a file that does not exist (`scripts/check-doc-links.mjs` greps backticked paths in `*.md` and tests each exists).
+3. Done when: no current doc mentions a file that does not exist (`scripts/check-doc-links.mjs` greps backticked paths in the docs WO-5.3 lists and tests each exists). The old notes under `docs/plan` are history and are not checked.
 
 ## Phase 7. Projects
 

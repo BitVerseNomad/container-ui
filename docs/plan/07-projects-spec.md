@@ -54,6 +54,8 @@ type Project = {
   engineId: string;      // the engine it was last started on
   ports: PortChoice[];   // remaps the user accepted
   shared: string[];      // names of networks and volumes the user chose to share (C4)
+  separate: string[];    // names of networks and volumes the user chose to keep separate (C4); not asked again
+  renamed: string[];     // services whose container_name is reset on every start (C2)
   addedAt: string;
 };
 type PortChoice = {
@@ -131,7 +133,7 @@ Findings and what Start does:
 | Shared network or volume marked `external: true` (C4) | Nothing; it is shared by design | "Shares the network `proxy` with `shop`." Information only |
 | `network_mode: host` (C6) | Warn, allow | "`metrics` uses the machine's network. OpenPier cannot move its ports." |
 | Same image name with `build:` (C7) | Warn, allow | "`shop` also builds `app:dev`. Each build replaces the other's image." |
-| Not enough memory (C5) | Warn, allow | "These projects ask for 9 GB. The machine has 8 GB." `Resize…` (Colima) / `Start anyway` |
+| Not enough memory (C5) | Warn, allow | "These projects ask for 9 GB. The machine has 8 GB." `Start anyway` on every engine; `Resize…` is shown as well on Colima. A memory finding always opens the sheet; a host-network or same-image warning alone never does |
 | Compose file invalid | Block | The Compose error, in plain words first, raw text under "Details" |
 | Image needs a build | Nothing | "2 services will be built first. This can take a few minutes." |
 
@@ -163,7 +165,7 @@ Route `#/projects/<id>/<services|logs|ports|settings>`. Mockup `project-detail`.
 
 1. Header: back, name, facts (folder · engine · "{x} of {y} running"), `Stop`/`Start`, `Restart`, more menu.
 2. **Services** (default): one row per service, same row as Containers (dot, name, image, ports, CPU and memory, state, action). Problem lines as on Containers. A row opens the container detail. A service that is not created yet shows "Not started".
-3. **Logs**: all services merged by time, each line prefixed by the service name in a stable muted colour slot; chips to show one service; search; `Follow`; `Since` (10 min, 1 h, start). Built on `compose_logs`.
+3. **Logs**: all services merged by time, each line prefixed by the service name, muted (one muted tone for all, never a colour per service); chips to show one service; search; `Follow`; `Since` (10 min, 1 h, start). Built on `compose_logs`.
 4. **Ports**: table of service, port in the container, port on this Mac (a link), and a note when remapped ("wanted 5432"). `Change…` on each row. This is the page to answer "what is on 5433?".
 5. **Settings**: name; folder; Compose files (reorder, add, remove); env file; profiles (tick boxes); `Show what OpenPier changed` (opens the override, read only); `Reset changes` (clears `ports` and `shared`).
 
@@ -196,7 +198,7 @@ All take `context` and are checked by `context_ok`. New or changed in `src-tauri
 |---|---|
 | `projects_read` / `projects_write` | Read and atomically write `projects.json` |
 | `project_override_write(id, yaml)` | Writes the override. The YAML is built in Rust from typed input (ports, resets, names), never passed as text from the page |
-| `compose_action` (changed) | Accepts `project_name`, a list of `files` (today it takes one `file`), `env_files`, `profiles`, and adds `-p` and `--project-directory`. Arguments are built as argv, never a shell string. The single global `COMPOSE_LOCK` becomes one lock per `composeName`, so two different projects can start at the same time; a second action on the same project is still refused |
+| `compose_action` (changed) | Accepts a `project_id`; the backend reads the saved project and takes from it the project name, the list of `files` (today it takes one `file`), the env file and the `profiles`, and adds `-p` and `--project-directory`. The frontend never sends paths for a saved project. Arguments are built as argv, never a shell string. The single global `COMPOSE_LOCK` becomes one lock per `composeName`, so two different projects can start at the same time; a second action on the same project is still refused |
 | `compose_ls(context)` | `docker compose ls --all --format json` |
 | `compose_down(context, …, volumes: bool)` | `down`, with `-v` only when `volumes` is true |
 | `ports_in_use(context)` | Ports published by containers (`docker ps`), plus TCP ports listening on the Mac (`lsof -nP -iTCP -sTCP:LISTEN`, with the process name). New: no such probe exists today |
@@ -207,7 +209,7 @@ Tests (Rust): argv for each action with a project name, two files, an env file a
 
 This is the definition of done for Projects. It runs in the `eval-*` sandbox (`scripts/eval-setup.sh`) on a real engine, and as a browser check on the mocked backend.
 
-Fixtures, in `scripts/fixtures/projects/`: two folders, `a/app` and `b/app` (same folder name on purpose). Each has a Compose file with a service `db` (`postgres:16`, `container_name: db`, `environment: POSTGRES_PASSWORD: test`, `ports: ["5432:5432"]`, `volumes: [pgdata:/var/lib/postgresql/data]`), a service `web` (`nginx`, `ports: ["8080:80"]`), and a top-level `volumes: { pgdata: {} }`.
+Fixtures, in `scripts/fixtures/projects/`: two folders, `a/app` and `b/app` (same folder name on purpose). Each has a Compose file with a service `db` (`postgres:16`, `container_name: db`, `environment: POSTGRES_PASSWORD: test`, `ports: ["5432:5432"]`, `volumes: [pgdata:/var/lib/postgresql/data]`), a service `web` (`nginx:alpine`, `ports: ["8080:80"]`), and a top-level `volumes: { pgdata: {} }`.
 
 1. Add `a/app`. Start. It runs on 5432 and 8080 with no dialog.
 2. Add `b/app`. The Add sheet shows the name `app-xxxx`. Start. The Start check lists three findings: `db` is renamed, 5432 becomes 5433, and 8080 becomes 8081. Press Start.
