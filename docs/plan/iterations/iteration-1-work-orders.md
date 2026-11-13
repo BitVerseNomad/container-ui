@@ -655,7 +655,7 @@ git grep -niE "wharf|container ui|container-ui|colima-ui|colima_ui" -- . ':!docs
 
    Then run `npm install --package-lock-only` and `(cd src-tauri && cargo build)` so the two lock files take the new name.
 2. Words a user reads. In `README.md`, `CONTRIBUTING.md`, `.github/ISSUE_TEMPLATE/feedback.md`, `.github/workflows/release.yml`, `scripts/install.sh`, `src/App.tsx`: replace `Wharf` with `OpenPier` and `Container UI` with `OpenPier`. In `CONTRIBUTING.md` replace `cd colima-ui` with `cd openpier`. In `scripts/install.sh` replace `colima-ui.dmg` with `openpier.dmg`. In `release.yml` replace `Container%20UI_` with `OpenPier_`.
-3. Temporary file names in Rust. In `src-tauri/src/main.rs`, `desktop.rs` and `setup.rs`, inside `format!("colima-ui-...")` strings, replace the prefix `colima-ui-` with `openpier-`. There are seven.
+3. Temporary file names in Rust. In `src-tauri/src/main.rs`, `desktop.rs` and `setup.rs`, inside `format!("colima-ui-...")` strings, replace the prefix `colima-ui-` with `openpier-`. There are eight (`main.rs` 3, `desktop.rs` 4, `setup.rs` 1). Then run `cargo fmt` (the shorter name lets rustfmt join a line).
 4. The Testcontainers marker. In `src-tauri/src/setup.rs` change `const TC_MARK: &str = "# Added by Wharf (Testcontainers)";` to `"# Added by OpenPier (Testcontainers)"`, and the same text in the test that asserts on it. The marker is only written, never searched for, so nothing else changes.
 5. One place for the repo address. Create `src/lib/links.ts`:
 
@@ -772,7 +772,7 @@ test("given storage that throws, when migrating, then it returns 0 and does not 
 ```bash
 git grep -niE "wharf|container ui|container-ui|colima-ui|colima_ui" -- . ':!docs' ':!CHANGELOG.md'
 # expect: lines only in src/lib/migrateStorage.ts (the OLD_PREFIXES line with its comment) and src/lib/migrateStorage.test.ts.
-# Two more lines are expected and stay: scripts/eval-setup.sh ("compare container UIs" describes other tools, it is not the product name).
+# One more line is expected and stays: scripts/eval-setup.sh ("compare container UIs" describes other tools, it is not the product name).
 # In scripts/install.sh rename the two variables COLIMA_UI_DMG and COLIMA_UI_REPO to OPENPIER_DMG and OPENPIER_REPO (the app was never released, so nobody has them set).
 # Any other line: replace it by the rules of steps 1 to 6 and run the grep again.
 grep -c '"identifier": "dev.openpier.desktop"' src-tauri/tauri.conf.json   # expect: 1
@@ -1426,7 +1426,8 @@ process.exit(failed ? 1 : 0);
         ignores: ["src/ui/op/**", "src/**/*.test.tsx", ...notMigrated],
         rules: {
           "no-restricted-imports": ["error", { patterns: [
-            { group: ["**/ui", "**/ui/index", "**/ui/ui", "**/ui/components", "**/ui/components/*", "**/ui/icons", "**/ui/Button", "**/ui/Card", "**/ui/Dialog", "**/ui/Menu", "**/ui/Input", "**/ui/Select", "**/ui/Drawer", "**/ui/Badge", "**/ui/Skeleton", "**/ui/Spinner", "**/ui/PageHeader", "**/ui/Status"], message: "Use the components in src/ui/op." },
+            // A regex, not a `group`: a group "**/ui" also matches "../ui/op" (it works like .gitignore, a folder covers what is inside it).
+            { regex: "(^|/)ui(/(index|ui|icons|components(/.*)?|Button|Card|Dialog|Menu|Input|Select|Drawer|Badge|Skeleton|Spinner|PageHeader|Status))?$", message: "Use the components in src/ui/op." },
             { group: ["lucide-react"], message: "Use <Icon> from src/ui/op." },
           ] }],
           "no-restricted-syntax": ["error",
@@ -1464,6 +1465,8 @@ process.exit(failed ? 1 : 0);
    }
    await done();
    ```
+
+   The check names 26 of the 32 sections on purpose (the ones with something to look at). The gallery still has one section per component file.
 
 7. Attach `test-results/gallery-light.png` and `test-results/gallery-dark.png` to the pull request. The reviewer compares each section with the same piece in the mockup pictures. Do not claim they match; say you attached them.
 
