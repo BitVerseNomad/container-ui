@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { CommandLog, CommandToast } from "./Commands";
+import { CommandToast } from "./Commands";
 import { invoke } from "@tauri-apps/api/core";
-import { Profile, ctxFor } from "./api";
+import { Profile, ctxFor, dockerJson } from "./api";
 import { usePoll } from "./hooks";
 import { Banner, Empty } from "./ui";
 import { Icon } from "./ui/icons";
 import Shell, { Tab } from "./Shell";
 import EngineSwitcher from "./EngineSwitcher";
 import { engineOfProfile, chooseEngine, busyOf, buttonLabel } from "./lib/engineModel";
+import { ShortcutId, SHORTCUTS, activeShortcuts, showKeys, isTypingTarget } from "./lib/shortcuts";
 import { MachineUsageProvider, Header } from "./Header";
 import { useRoute, go } from "./lib/router";
 import { tabOfRoute, pathOfTab } from "./lib/tabRoutes";
@@ -38,8 +39,13 @@ import { useHost } from "./useHostSize";
 import { runtimeRegistry } from "./runtime";
 
 import CommandPalette from "./CommandPalette";
-import { useKeyboardShortcuts, KeyboardShortcut, Command } from "./hooks/useKeyboardShortcuts";
+import { useKeyboardShortcuts, KeyboardShortcut } from "./hooks/useKeyboardShortcuts";
 import { ToastProvider } from "./ui/components/Toast";
+import Activity from "./Activity";
+import HelpModal from "./HelpModal";
+import { score, rank, flat, type PaletteItem, type Section } from "./lib/paletteModel";
+import { docker } from "./api";
+import { useConfirm } from "./ui";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -86,6 +92,7 @@ export default function App() {
   const [detailId, setDetailId] = useState<string | null>(null);
   const [pullOnOpen, setPullOnOpen] = useState(false);
   const [newProfileOnOpen, setNewProfileOnOpen] = useState(false);
+  const confirm = useConfirm();
   const [vm, setVmState] = useState<VmState>({ op: null, failure: null });
   // Every change goes through here, so the lock store (dockerLock) always holds the same vm.op as the screen.
   const setVm = (next: VmState) => { setVmBusy(next.op !== null); setVmState(next); };
@@ -333,38 +340,92 @@ export default function App() {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
 
-  const commands = useMemo<Command[]>(() => [
-    { id: "new-container", label: "Run Container", description: "Run a new container from an image", icon: "play", section: "Containers", action: () => { setTab("Images"); }, shortcut: "⌘N" },
-    { id: "pull-image", label: "Pull Image", description: "Pull an image from Docker Hub or registry", icon: "download", section: "Images", action: () => { setTab("Images"); }, shortcut: "⌘P" },
-    { id: "new-profile", label: "New Profile", description: "Create a new VM profile", icon: "plus", section: "Profiles", action: () => { setTab("Profiles"); }, shortcut: "⌘Shift+N" },
-    { id: "doctor", label: "Run Doctor Checks", description: "Run all diagnostic checks", icon: "check", section: "Doctor", action: () => { setTab("Doctor"); }, shortcut: "⌘D" },
-    { id: "switch-containers", label: "Containers", description: "Switch to Containers tab", icon: "box", action: () => setTab("Containers"), shortcut: "⌘1" },
-    { id: "switch-images", label: "Images", description: "Switch to Images tab", icon: "image", action: () => setTab("Images"), shortcut: "⌘2" },
-    { id: "switch-volumes", label: "Volumes", description: "Switch to Volumes tab", icon: "database", action: () => setTab("Volumes"), shortcut: "⌘3" },
-    { id: "switch-networks", label: "Networks", description: "Switch to Networks tab", icon: "network", action: () => setTab("Networks"), shortcut: "⌘4" },
-    { id: "switch-k8s", label: "Kubernetes", description: "Switch to Kubernetes tab", icon: "cluster", action: () => { if (kubeOn) setTab("Kubernetes"); }, shortcut: "⌘5" },
-    { id: "switch-doctor", label: "Doctor", description: "Switch to Doctor tab", icon: "check", action: () => setTab("Doctor"), shortcut: "⌘6" },
-    { id: "switch-profiles", label: "Profiles", description: "Switch to Profiles tab", icon: "sliders", action: () => setTab("Profiles"), shortcut: "⌘7" },
-    { id: "toggle-sidebar", label: "Toggle Sidebar", description: "Fold/unfold sidebar", icon: "sidebar", action: () => { /* handled by Shell */ }, shortcut: "⌘B" },
-    { id: "command-palette", label: "Command Palette", description: "Open command palette", icon: "search", action: () => setCommandPaletteOpen(true), shortcut: "⌘K" },
-  ], []);
+  const focusPageSearch = () => document.querySelector<HTMLInputElement>("[data-page-search]")?.focus();
 
-  const keyboardShortcuts = useMemo<KeyboardShortcut[]>(() => [
-    { key: "k", meta: true, action: () => setCommandPaletteOpen(true), description: "Open Command Palette" },
-    { key: "1", meta: true, action: () => setTab("Containers"), description: "Containers tab" },
-    { key: "2", meta: true, action: () => setTab("Images"), description: "Images tab" },
-    { key: "3", meta: true, action: () => setTab("Volumes"), description: "Volumes tab" },
-    { key: "4", meta: true, action: () => setTab("Networks"), description: "Networks tab" },
-    { key: "5", meta: true, action: () => { if (kubeOn) setTab("Kubernetes"); }, description: "Kubernetes tab" },
-    { key: "6", meta: true, action: () => setTab("Doctor"), description: "Doctor tab" },
-    { key: "7", meta: true, action: () => setTab("Profiles"), description: "Profiles tab" },
-    { key: "b", meta: true, action: () => { /* sidebar fold handled by Shell */ }, description: "Toggle sidebar" },
-    { key: "[", meta: true, action: () => window.history.back(), description: "Back" },
-    { key: "]", meta: true, action: () => window.history.forward(), description: "Forward" },
-    { key: "Escape", action: () => { setCommandPaletteOpen(false); setLogOpen(false); setPullOnOpen(false); setNewProfileOnOpen(false); setHelpOpen(false); }, description: "Close panels" },
-  ], [kubeOn, setTab, setCommandPaletteOpen, setLogOpen, setPullOnOpen, setNewProfileOnOpen, setHelpOpen]);
+  const handlers: Partial<Record<ShortcutId, () => void>> = {
+    palette: () => setCommandPaletteOpen(true),
+    "go-containers": () => setTab("Containers"),
+    "go-images": () => setTab("Images"),
+    "go-volumes": () => setTab("Volumes"),
+    "go-networks": () => setTab("Networks"),
+    "go-kubernetes": () => { if (kubeOn) setTab("Kubernetes"); },
+    "go-doctor": () => setTab("Doctor"),
+    "go-settings": () => go("#/settings/general"),
+    engine: () => setEngineOpen(true),
+    fold: () => window.dispatchEvent(new Event("openpier:fold")),
+    run: () => { setTab("Images"); },
+    pull: () => { setPullOnOpen(true); setTab("Images"); },
+    search: focusPageSearch,
+    "search-slash": focusPageSearch,
+    back: () => window.history.back(),
+    forward: () => window.history.forward(),
+    refresh: () => window.dispatchEvent(new Event("openpier:refresh")),
+    help: () => setHelpOpen(true),
+  };
+  const keyboardShortcuts = useMemo(
+    () => activeShortcuts().filter((s) => handlers[s.id]).map((s) => ({ key: s.key, meta: s.meta, shift: s.shift, description: s.label, action: handlers[s.id]! })),
+    [kubeOn, setTab, setCommandPaletteOpen, setLogOpen, setPullOnOpen, setNewProfileOnOpen, setHelpOpen],
+  );
 
   useKeyboardShortcuts(keyboardShortcuts);
+
+  useEffect(() => {
+    const onEscape = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      const hasLayer = !!document.querySelector("[role=dialog], [role=alertdialog], [role=menu]");
+      if (!hasLayer) window.dispatchEvent(new Event("openpier:escape"));
+    };
+    window.addEventListener("keydown", onEscape);
+    return () => window.removeEventListener("keydown", onEscape);
+  }, []);
+
+  const [paletteItems, setPaletteItems] = useState<PaletteItem[]>([]);
+
+  useEffect(() => {
+    if (!commandPaletteOpen) return;
+    const build = async () => {
+      if (!ctx) { setPaletteItems([]); return; }
+      const containers: PaletteItem[] = [];
+      try {
+        const list = await dockerJson<{ ID: string; Names: string; Image: string; State: string }>(ctx, ["ps", "-a"]);
+        for (const c of list) {
+          const name = (c.Names ?? "").replace(/^\//, "");
+          const dot: PaletteItem["dot"] = c.State === "running" ? "ok" : c.State === "restarting" ? "warn" : "off";
+          containers.push({ id: c.ID, group: "Containers", label: name, hint: c.Image, dot, kbd: undefined, run: () => go(`#/containers/${c.ID}/logs`) });
+          containers.push({ id: `logs-${c.ID}`, group: "Actions", label: `Logs of ${name}`, run: () => go(`#/containers/${c.ID}/logs`) });
+          if (c.State === "running") {
+            containers.push({ id: `restart-${c.ID}`, group: "Actions", label: `Restart ${name}`, run: () => { void docker(ctx, ["restart", c.ID]); void window.dispatchEvent(new Event("openpier:refresh")); } });
+            containers.push({ id: `stop-${c.ID}`, group: "Actions", label: `Stop ${name}`, run: () => { void docker(ctx, ["stop", c.ID]); void window.dispatchEvent(new Event("openpier:refresh")); } });
+          } else {
+            containers.push({ id: `start-${c.ID}`, group: "Actions", label: `Start ${name}`, run: () => { void docker(ctx, ["start", c.ID]); void window.dispatchEvent(new Event("openpier:refresh")); } });
+          }
+          containers.push({ id: `remove-${c.ID}`, group: "Actions", label: `Remove ${name}…`, run: async () => {
+            const ok = await confirm(`Remove ${name}?`, "Remove");
+            if (ok) { void docker(ctx, ["rm", "-f", c.ID]); void window.dispatchEvent(new Event("openpier:refresh")); }
+          } });
+        }
+      } catch { /* group stays empty */ }
+      const general: PaletteItem[] = [
+        { id: "run", group: "Actions", label: "Run an image", kbd: "⌘N", run: () => { setTab("Images"); } },
+        { id: "pull", group: "Actions", label: "Pull an image", kbd: "⌘P", run: () => { setPullOnOpen(true); setTab("Images"); } },
+        { id: "compose", group: "Actions", label: "Start a Compose project", run: () => { setTab("Containers"); } },
+        { id: "doctor", group: "Actions", label: "Run Doctor", kbd: "⌘D", run: () => { setTab("Doctor"); } },
+        { id: `engine-${active}`, group: "Actions", label: active ? `Stop ${active}` : `Start ${active ?? "engine"}`, run: () => { setTab("Containers"); } },
+        { id: "machines", group: "Actions", label: "Machines…", run: () => { go("#/settings/machines"); } },
+      ];
+      const goTo: PaletteItem[] = [
+        { id: "go-containers", group: "Go to", label: "Containers", kbd: showKeys({ key: "2", meta: true }), run: () => setTab("Containers") },
+        { id: "go-images", group: "Go to", label: "Images", kbd: showKeys({ key: "3", meta: true }), run: () => setTab("Images") },
+        { id: "go-volumes", group: "Go to", label: "Volumes", kbd: showKeys({ key: "4", meta: true }), run: () => setTab("Volumes") },
+        { id: "go-networks", group: "Go to", label: "Networks", kbd: showKeys({ key: "5", meta: true }), run: () => setTab("Networks") },
+      ];
+      if (kubeOn) goTo.push({ id: "go-kubernetes", group: "Go to", label: "Kubernetes", kbd: showKeys({ key: "6", meta: true }), run: () => setTab("Kubernetes") });
+      goTo.push({ id: "go-doctor", group: "Go to", label: "Doctor", kbd: showKeys({ key: "d", meta: true }), run: () => setTab("Doctor") });
+      goTo.push({ id: "go-settings", group: "Go to", label: "Settings", kbd: showKeys({ key: ",", meta: true }), run: () => go("#/settings/general") });
+      setPaletteItems([...containers, ...general, ...goTo]);
+    };
+    void build();
+  }, [commandPaletteOpen, ctx, kubeOn, active]);
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -391,7 +452,9 @@ export default function App() {
             </MachineUsageProvider>
             <CommandToast onOpenLog={() => setLogOpen(true)} />
             <ResizeAnnouncer />
-            {logOpen && <CommandLog onClose={() => setLogOpen(false)} />}
+            {logOpen && <Activity open={logOpen} onClose={() => setLogOpen(false)} />}
+            <CommandPalette open={commandPaletteOpen} onClose={() => setCommandPaletteOpen(false)} items={paletteItems} />
+            <HelpModal open={helpOpen} onClose={() => setHelpOpen(false)} />
             <div className="sr-only" data-app-announcer role="status" aria-live="polite">{bringSaid}</div>
             {bringing && (
               <BringOver

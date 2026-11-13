@@ -40,6 +40,11 @@ type ShellProps = {
 export default function Shell({ nav, onNav, badges = {}, hidden = [], counts = {}, engine, onSettings, settingsActive, onActivity, onHelp, children }: ShellProps) {
   const [folded, setFolded] = useState(readFolded);
   const fold = () => setFolded((f) => { saveFolded(!f); return !f; });
+  useEffect(() => {
+    const onFold = () => fold();
+    window.addEventListener("openpier:fold", onFold);
+    return () => window.removeEventListener("openpier:fold", onFold);
+  }, [fold]);
   const [mainEl, setMainEl] = useState<HTMLElement | null>(null);
 
   const handleNavClick = useCallback(
