@@ -89,7 +89,7 @@ Then these headings:
 1. **What changed**: three lines at most, in terms of what a user sees or what is now safe.
 2. **Steps done**: the work order's steps as a checklist, each ticked, in order.
 3. **Evidence**: the output of the gate commands (last 10 lines of each), and of each "Done when" check, pasted as text.
-4. **Screenshots**: for anything on screen, light and dark, WebKit, 1280x800, saved under `docs/plan/iterations/pr/wo-<id>/` and listed next to the mockup picture from `design/shots/` they should match. Say what differs. Never write that they match unless `scripts/check-mockup.mjs` passed for that screen.
+4. **Screenshots**: for anything on screen, light and dark, WebKit, 1280x800, saved under `docs/plan/iterations/pr/wo-<id>/` and listed next to the mockup picture from `docs/plan/design/shots/` they should match. Say what differs. Never write that they match unless `scripts/check-mockup.mjs` passed for that screen.
 5. **Not done or changed from the work order**: say "nothing", or list each item with the reason.
 6. **Found on the way**: the lines you added to `FOUND.md`.
 

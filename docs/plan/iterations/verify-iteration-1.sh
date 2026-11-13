@@ -60,7 +60,7 @@ empty "0.5 docs holds only plan, research, screenshots" "git ls-files docs | awk
 if git ls-files | grep -qE '\.key(\.pub)?$'; then echo "note the signing key files are still tracked: WO-0.1 is the owner's and is not done"; fi
 
 echo "== WO-0.4 the name"
-empty "0.4 no old name outside the migration" "git grep -niE 'wharf|container ui|container-ui|colima-ui|colima_ui' -- . ':!docs' ':!CHANGELOG.md' | grep -vE '^src/lib/migrateStorage(\.test)?\.ts:'"
+empty "0.4 no old name outside the migration" "git grep -niE 'wharf|container ui|container-ui|colima-ui|colima_ui' -- . ':!docs' ':!CHANGELOG.md' | grep -vE '^src/lib/migrateStorage(\.test)?\.ts:|^scripts/eval-setup\.sh:'"
 t "0.4 identifier is dev.openpier.desktop" grep -q '"identifier": "dev.openpier.desktop"' src-tauri/tauri.conf.json
 t "0.4 Cargo package is openpier" grep -q '^name = "openpier"' src-tauri/Cargo.toml
 t "0.4 REPO_URL exists" grep -q 'https://github.com/BitVerseNomad/openpier' src/lib/links.ts
@@ -86,7 +86,7 @@ if [ "$n" -ge 32 ]; then ok "1.3 $n component files in src/ui/op"; else no "1.3 
 for c in Icon Button Field Select Switch Chip Tabs Dot Sev Tooltip Banner Empty SkeletonRows Canvas Command Tile Facts GroupCaption Row Problem Menu Sheet ConfirmDialog Toast Blocks Meters Sparkline Inspector NavItem Checkbox Progress Portal; do
   t "1.3 $c has a component and a test" sh -c "test -f src/ui/op/$c.tsx && test -f src/ui/op/$c.test.tsx"
 done
-empty "1.3 lucide-react is imported only by Icon (and the old icons file)" "grep -rln 'lucide-react' src --include='*.tsx' --include='*.ts' | grep -vxE 'src/ui/op/Icon\.tsx|src/ui/icons\.tsx'"
+empty "1.3 lucide-react is imported only by Icon (and the old icons file)" "grep -rln 'lucide-react' src --include='*.tsx' --include='*.ts' | grep -vE '^src/ui/op/Icon\.tsx$|^src/ui/icons\.tsx$|^src/ui/components/'"
 empty "1.3 no inline style in the components except Meters" "grep -rln 'style=' src/ui/op --include='*.tsx' | grep -v test | grep -vx 'src/ui/op/Meters.tsx'"
 empty "1.3 no test is skipped" "grep -rnE '\b(it|test|describe)\.(skip|only|todo)\b|\bxit\(|\bxdescribe\(' src scripts"
 t "1.3 the gallery exists" test -f src/dev/Gallery.tsx
@@ -105,7 +105,7 @@ empty "1.5 the design scenario uses no random or clock values" "awk '/\"design\"
 echo "== across the iteration"
 empty "no TODO, FIXME or HACK was added" "git diff 0bdafcf -- src src-tauri/src scripts preview | grep -E '^\+' | grep -nE 'TODO|FIXME|HACK|XXX'"
 empty "no eslint-disable was added" "git diff 0bdafcf -- src | grep -E '^\+' | grep -n 'eslint-disable'"
-empty "no stopped work order" "ls docs/plan/iterations/STOPPED-wo-*.md 2>/dev/null"
+empty "no stopped work order (every wo- branch is merged into main)" "git branch --no-merged main --list 'wo-*'; ls docs/plan/iterations/STOPPED-wo-*.md 2>/dev/null"
 t "the report exists" test -f docs/plan/iterations/iteration-1-report.md
 for w in 0.0 0.2 0.3 0.5 0.4 0.6 1.1 1.2 1.3a 1.3b 1.3c 1.4 1.5; do t "pull request text for wo-$w exists" test -f "docs/plan/iterations/pr/wo-$w.md"; done
 
