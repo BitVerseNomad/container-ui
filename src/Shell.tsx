@@ -6,7 +6,6 @@ import { runtimeRegistry } from "./runtime";
 import type { RuntimeInfo } from "./runtime";
 import { useKeyboardShortcuts, KeyboardShortcut } from "./hooks/useKeyboardShortcuts";
 import { REPO_URL } from "./lib/links";
-import "./Shell.css";
 
 export type Tab = "Containers" | "Images" | "Volumes" | "Networks" | "Kubernetes" | "Profiles" | "Doctor";
 
