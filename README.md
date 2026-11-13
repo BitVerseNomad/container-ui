@@ -54,7 +54,7 @@ This is early, and your feedback shapes it.
 1. Download the `.dmg` from the [latest release](../../releases/latest), open it, and drag Wharf to Applications.
 2. The app isn't signed by Apple, so the first time you open it macOS says it can't check it. Open System Settings, then Privacy & Security, and click **Open Anyway**. You only do this once.
 
-**For contributors:** `docs/SUMMARY.md` (what was built and learned), `docs/SPEC.md` (what is left), `docs/VERIFY-ON-YOUR-MAC.md` (15-minute real-machine check), `docs/EVALUATION.md` (comparison with other tools), `CHANGELOG.md`.
+**For contributors:** `docs/SUMMARY.md` (what was built and learned), `docs/SPEC.md` (what is left), `docs/research/verify-on-your-mac.md` (15-minute real-machine check), `docs/research/evaluation-kit.md` (comparison with other tools), `CHANGELOG.md`.
 
 ## Release
 Push a version tag and GitHub Actions runs the tests, builds the `.dmg` on an Apple Silicon runner and attaches it to a Release (`.github/workflows/release.yml`):

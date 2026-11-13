@@ -24,7 +24,7 @@ Also try, in each tool: run a new `nginx` container with a port and an environme
 - **lazydocker** (terminal): `brew install lazydocker`, then run `lazydocker`. If it shows nothing, point docker at Colima first: `docker context use colima`.
 - **Podman Desktop**: `brew install --cask podman-desktop` (or the downloads page at podman-desktop.io/downloads). Its documentation says the Docker extension registers a running Docker engine's socket; whether it picks up Colima's socket automatically is unverified. If it shows no containers, note what it shows instead and tell me.
 - **ColimaStack**: needs macOS 14 or later and Xcode; there is no release, you build it from source. Repository: github.com/RealDyllon/ColimaStack (follow its README; I haven't verified the build steps).
-- **Ours**: the real app, not the browser preview (the preview is simulated): `git checkout integration`, `npm install`, `npx tauri icon icon.png`, `npm run tauri dev`. Expect rough edges the first time; `docs/VERIFY-ON-YOUR-MAC.md` lists what to check.
+- **Ours**: the real app, not the browser preview (the preview is simulated): `git checkout integration`, `npm install`, `npx tauri icon icon.png`, `npm run tauri dev`. Expect rough edges the first time; `docs/research/verify-on-your-mac.md` lists what to check.
 
 ## 3. Score
 Give each tool about 10 minutes per scenario group. For every task pick one of: **Easy**, **Possible, but hard**, **Can't**. Add a short note ("had to open a terminal", "took 5 minutes", "didn't explain why"). Use the scorecard page; it adds up the totals and makes a summary you can paste back to me.
