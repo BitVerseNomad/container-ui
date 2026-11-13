@@ -11,7 +11,6 @@ import { Banner, useConfirm } from "./ui";
 import Drawer from "./ui/Drawer";
 import { CopyPort, WebPort } from "./ui/PortLinks";
 import { Icon } from "./ui/icons";
-import "./home.css";
 import VmStrip from "./VmStrip";
 import { portLinksFromPs } from "./containerInfo";
 import { isWebPort } from "./lib/webPort";
