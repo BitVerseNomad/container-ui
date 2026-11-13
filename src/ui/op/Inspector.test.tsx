@@ -28,20 +28,20 @@ function renderInspector(onClose = vi.fn()) {
 
 it("given evidence with one bad line, then that line is inside b", () => {
   const { container } = renderInspector();
-  const bad = container.querySelector(".ins pre b");
+  const bad = document.querySelector(".ins pre b");
   expect(bad).toHaveTextContent("bad line");
 });
 
 it("given two findings, then steps has two children and the second starts with 2", () => {
   const { container } = renderInspector();
-  const steps = container.querySelector(".ins .steps") as HTMLElement;
+  const steps = document.querySelector(".ins .steps") as HTMLElement;
   expect(steps.children).toHaveLength(2);
   expect(steps.children[1].textContent).toMatch(/^2/);
 });
 
 it("then the buttons are inside acts", () => {
   const { container } = renderInspector();
-  const acts = container.querySelector(".ins .acts") as HTMLElement;
+  const acts = document.querySelector(".ins .acts") as HTMLElement;
   expect(acts).toContainElement(screen.getByRole("button", { name: "Fix" }));
 });
 
