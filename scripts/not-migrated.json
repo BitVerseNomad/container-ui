@@ -6,7 +6,6 @@
   "src/ComposeProjects.tsx",
   "src/ConnectionTest.tsx",
   "src/ContainerDetail.tsx",
-  "src/Containers.tsx",
   "src/DiskCard.tsx",
   "src/Doctor.tsx",
   "src/EditPanel.tsx",

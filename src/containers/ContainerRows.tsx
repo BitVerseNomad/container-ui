@@ -1,8 +1,27 @@
 import * as React from "react";
 import type { Block } from "../lib/containerRows.ts";
 import { openUrl } from "../api";
-import { Block as OpBlock, Button, Col, Dot, Menu, MoreButton, Row, RowHead, Sparkline, Blocks } from "../ui/op";
+import { isWebPort } from "../lib/webPort";
+import { Button, Col, Dot, Menu, MoreButton, Row, RowHead, Sparkline, Blocks } from "../ui/op";
 import type { DotState } from "../ui/op";
+
+// Renders one port link inside a row's Ports cell. When isWebPort says no, the port is a copy chip
+// instead of a browser link (database ports, SSH, etc.).
+function PortLink({ p, id }: { p: number; id: string }): React.JSX.Element {
+  const web = isWebPort(null, p);
+  if (web) {
+    return (
+      <a key={p} className="port" href={`http://localhost:${p}`} aria-label={`Open port ${p} in the browser`} onClick={(e) => { e.preventDefault(); e.stopPropagation(); void openUrl(`http://localhost:${p}`); }}>
+        :{p}
+      </a>
+    );
+  }
+  return (
+    <a key={p} className="port" href="#" aria-label={`Copy localhost:${p}`} onClick={(e) => { e.preventDefault(); e.stopPropagation(); void navigator.clipboard.writeText(`localhost:${p}`); }}>
+      :{p}
+    </a>
+  );
+}
 
 export type RowCommon = {
   name: string;
@@ -42,11 +61,15 @@ export type EntryProps = EntryGroupProps | EntrySingleProps;
 export function EntryRow(props: EntryProps): JSX.Element {
   const {
     id, name, meta, dot, stateWord, ports, stats, history, cpuNow,
-    action, selected, onSelect, onOpen, onAction, menu, menuOpen, onMenuOpenChange,
-    group, open, onToggle, blocks, runningText,
+    action, selected, onSelect, onOpen, onAction, menu, onMenuOpenChange,
   } = props;
+  const isGroup = props.group === true;
+  const group = isGroup ? props as EntryGroupProps : null;
+  const open = group?.open ?? false;
+  const onToggle = group?.onToggle;
+  const blocks = group?.blocks;
+  const runningText = group?.runningText;
 
-  const isGroup = group;
   const lead = isGroup ? (
     <Button
       variant="ghost"
@@ -55,7 +78,7 @@ export function EntryRow(props: EntryProps): JSX.Element {
       icon={open ? "chev-down" : "chev-right"}
       aria-label={`${open ? "Fold" : "Unfold"} ${name}`}
       aria-expanded={open}
-      onClick={(e) => { e.stopPropagation(); onToggle(); }}
+      onClick={(e) => { e.stopPropagation(); onToggle?.(); }}
     />
   ) : (
     <Dot state={dot} label={stateWord} />
@@ -71,29 +94,17 @@ export function EntryRow(props: EntryProps): JSX.Element {
       dot={rowDot}
       name={name}
       meta={meta}
-      onOpen={isGroup ? onToggle : onOpen}
+      onOpen={isGroup ? onToggle ?? onOpen : onOpen}
       expanded={isGroup ? open : undefined}
       onToggle={isGroup ? onToggle : undefined}
       selected={showCheck ? selected : undefined}
       onSelect={showCheck ? onSelect : undefined}
       menu={menu}
-      menuOpen={menuOpen}
-      onMenuOpenChange={onMenuOpenChange}
       onMenuKey={() => onMenuOpenChange(true)}
     >
-      {isGroup && <OpBlock services={blocks} />}
+      {isGroup && blocks && <Blocks services={blocks} />}
       <Col kind="ports">
-        {ports.map((p) => (
-          <a
-            key={p}
-            className="port"
-            href={`http://localhost:${p}`}
-            aria-label={`Open port ${p} in the browser`}
-            onClick={(e) => { e.preventDefault(); e.stopPropagation(); void openUrl(`http://localhost:${p}`); }}
-          >
-            :{p}
-          </a>
-        ))}
+        {ports.map((p) => <PortLink p={p} id={id} />)}
         {ports.length > 2 && (
           <a
             className="port"
@@ -105,8 +116,9 @@ export function EntryRow(props: EntryProps): JSX.Element {
         )}
       </Col>
       <Sparkline points={history.length >= 2 ? history : null} label={`CPU ${cpuNow ?? 0} percent`} />
+      {isGroup && blocks && <Blocks services={blocks} />}
       <Col kind="stats" mono>{stats}</Col>
-      <Col kind="state">{stateWord}</Col>
+      <Col kind="state">{isGroup ? runningText ?? "" : stateWord}</Col>
       {action && (
         <Button
           aria-label={`${action.label} ${name}`}
@@ -124,7 +136,7 @@ export function EntryRow(props: EntryProps): JSX.Element {
 export function ChildRow(props: RowCommon & { id: string }): JSX.Element {
   const {
     id, name, meta, dot, stateWord, ports, stats, history, cpuNow,
-    action, selected, onSelect, onOpen, onAction, menu, menuOpen, onMenuOpenChange,
+    action, selected, onSelect, onOpen, onAction, menu, onMenuOpenChange,
   } = props;
 
   return (
@@ -134,25 +146,13 @@ export function ChildRow(props: RowCommon & { id: string }): JSX.Element {
       meta={meta}
       onOpen={onOpen}
       selected={selected !== undefined ? selected : undefined}
-      onSelect={onSelect}
+      onSelect={onSelect ? (v: boolean) => onSelect(v) : undefined}
       menu={menu}
-      menuOpen={menuOpen}
-      onMenuOpenChange={onMenuOpenChange}
       onMenuKey={() => onMenuOpenChange(true)}
       child
     >
       <Col kind="ports">
-        {ports.map((p) => (
-          <a
-            key={p}
-            className="port"
-            href={`http://localhost:${p}`}
-            aria-label={`Open port ${p} in the browser`}
-            onClick={(e) => { e.preventDefault(); e.stopPropagation(); void openUrl(`http://localhost:${p}`); }}
-          >
-            :{p}
-          </a>
-        ))}
+        {ports.map((p) => <PortLink p={p} id={id} />)}
         {ports.length > 2 && (
           <a
             className="port"

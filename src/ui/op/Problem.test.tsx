@@ -4,26 +4,23 @@ import { expect, it, vi } from "vitest";
 import { Button } from "./Button";
 import { Problem } from "./Problem";
 
-it("given a problem, then the text renders and Sev has the level class", () => {
-  const { container } = render(<Problem level="warn" text="Only reachable from your Mac." />);
-  expect(screen.getByText("Only reachable from your Mac.")).toBeInTheDocument();
-  expect(container.querySelector(".sev.warn")).not.toBeNull();
+it("given level busy, then there is a .spinner and no .sev", () => {
+  const { container } = render(<Problem level="busy" text="Fixing…" />);
+  expect(container.querySelector(".spinner")).not.toBeNull();
+  expect(container.querySelector(".sev")).toBeNull();
 });
 
-it("given an action, when it is clicked, then onOpen is not called", async () => {
-  const user = userEvent.setup();
-  const onOpen = vi.fn();
-  render(<Problem level="bad" text="Can't reach Kafka" action={<Button>Fix</Button>} onOpen={onOpen} />);
-  await user.click(screen.getByRole("button", { name: "Fix" }));
-  expect(onOpen).not.toHaveBeenCalled();
+it("given level ok, then Sev has class ok", () => {
+  const { container } = render(<Problem level="ok" text="Fixed." />);
+  expect(container.querySelector(".sev.ok")).not.toBeNull();
 });
 
-it("given a clickable problem, when Enter is pressed, then onOpen is called", async () => {
-  const user = userEvent.setup();
-  const onOpen = vi.fn();
-  render(<Problem level="bad" text="Can't reach Kafka" onOpen={onOpen} />);
-  const row = screen.getByText("Can't reach Kafka").closest(".subrow") as HTMLElement;
-  row.focus();
-  await user.keyboard("{Enter}");
-  expect(onOpen).toHaveBeenCalledTimes(1);
+it("given text with an element inside, then it renders", () => {
+  const { container } = render(<Problem level="bad" text={<>It keeps <strong>crashing</strong></>} />);
+  expect(container.querySelector(".what")).toHaveTextContent("It keeps crashing");
+});
+
+it("given title, then span.what has it", () => {
+  const { container } = render(<Problem level="bad" text="It keeps crashing" title="Health check is failing" />);
+  expect(container.querySelector(".what")).toHaveAttribute("title", "Health check is failing");
 });

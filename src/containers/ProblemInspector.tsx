@@ -14,7 +14,7 @@ export type ProblemInspectorProps = {
 
 export function ProblemInspector(props: ProblemInspectorProps): JSX.Element {
   const { content, onClose, onFix, onLogs, onShell } = props;
-  if (!content) return <Inspector open={false} onClose={onClose} crumb="" title="" lede="" />;
+  if (!content) return <Inspector open={false} onClose={onClose} crumb="" title="" lede="" actions={null} />;
 
   const actions = (
     <>
