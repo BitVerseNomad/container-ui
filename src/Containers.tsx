@@ -3,27 +3,18 @@
 import { openShell } from "./lib/shell";
 import { activity, dockerLine, ranVm } from "./lib/activity";
 import { score } from "./lib/fuzzy";
-import { ReactNode, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { ReactNode, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Profile, docker, dockerJson } from "./api";
 import { usePoll } from "./hooks";
-import { Banner, useConfirm } from "./ui";
-import Drawer from "./ui/Drawer";
-import { CopyPort, WebPort } from "./ui/PortLinks";
-import { Icon } from "./ui/icons";
+import { Banner } from "./ui/op";
+import { openUrl } from "./api";
 import VmStrip from "./VmStrip";
 import { portLinksFromPs } from "./containerInfo";
 import { isWebPort } from "./lib/webPort";
 import { kubeName } from "./lib/compose";
 import { appStoppedVersion, subscribeAppStopped } from "./lib/appStopped";
 import { App, appState, appsFrom, downLine, finished, lastRunOver, listed, runInfo, startWhat, stateWord, withAppStop } from "./lib/homeRows";
-
-// Design system
-import { Button } from "@ui/components/Button";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@ui/components/Card";
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@ui/components/Table";
-import { Badge } from "@ui/components/Badge";
-import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@ui/components/DropdownMenu";
 import { useHostSize } from "./useHostSize";
 import RunPicker from "./RunPicker";
 import RunPanel from "./RunPanel";
@@ -44,14 +35,17 @@ import type { Finding, Report } from "./lib/doctor";
 import { setMuted } from "./lib/muted";
 import { fixAction, useFixRuns } from "./FixIt";
 import { biggerFix } from "./lib/sharedFix";
-import Ticks, { plain } from "./ui/Ticks";
 import { useDesktopOffer } from "./desktopOffer";
 import { gapLine } from "./lib/bringOver";
 import { describe } from "./lib/fixRun";
-import { busy as fixBusy, dismiss, runFor } from "./lib/fixStore";
-import type { Run } from "./lib/fixStore";
-
-// "restarting": the VM size fix (src/Resize.tsx), a stop and a start with new settings.
+import { busy as fixBusy, dismiss, runFor, type Run } from "./lib/fixStore";
+import { Button, Dot, Empty, Field, Icon, Menu, MenuItem, MenuSeparator, MoreButton, Problem, RowHead, Sheet, useConfirm } from "./ui/op";
+import { EntryRow, ChildRow, TableHeadRow } from "./containers/ContainerRows";
+import { NewMenu } from "./containers/NewMenu";
+import { SelectionBar } from "./containers/SelectionBar";
+import { ProblemInspector } from "./containers/ProblemInspector";
+import { inspectorContent } from "./lib/inspectorContent";
+import Ticks, { plain } from "./ui/Ticks";
 type VmOp = { op: "starting" | "stopping" | "restarting"; cmd: string; args: Record<string, unknown> };
 // `last` lives here, not in this screen, so Retry still repeats the right command after the screen remounts.
 export type VmState = { op: VmOp["op"] | null; failure: string | null; last?: VmOp };
@@ -98,7 +92,8 @@ const seenVerb = new Map<string, "Start" | "Stop">();
 
 export default function Containers({ profile, ctx, vm, onVm, reload, detailId, setDetailId, onPull, onProfiles, compose, onImages, onKubernetes, report, onReport, onBring, inspected }: Props) {
   const runs = useFixRuns();
-  const confirm = useConfirm();
+  const confirmDialog = useConfirm();
+  const confirm = (message: string, label?: string, _opts?: { safe?: boolean }) => confirmDialog({ title: message, body: message, confirm: label ?? "Remove" });
   const composeRun = useComposeRun();
   const running = !!ctx;
   const containers = usePoll<C[]>(async () => (ctx ? dockerJson<C>(ctx, ["ps", "-a"]) : []), [ctx], 3000);
@@ -342,19 +337,17 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
   if (!profile) {
     const busy = vm.op !== null;
     return (
-      <Card className="start-first">
-        <CardHeader>
-          <CardTitle>Start your first VM</CardTitle>
-          <CardDescription>Colima needs a small Linux VM to run containers. The defaults work for most people.</CardDescription>
-        </CardHeader>
-        <CardContent className="actions-inline space-sm">
-          <Button variant="default" size="lg" disabled={busy} onClick={start}>
+      <div className="start-first">
+        <h2>Start your first VM</h2>
+        <p className="hint">Colima needs a small Linux VM to run containers. The defaults work for most people.</p>
+        <div className="actions-inline space-sm">
+          <Button variant="default" size="md" disabled={busy} onClick={start}>
             {busy ? "Starting…" : size ? `Start Colima (${size.cpus} CPUs, ${size.memory} GiB)` : "Start Colima"}
           </Button>
           <Button variant="ghost" onClick={onProfiles}>Customize first</Button>
-        </CardContent>
-        {vm.failure && <Banner error={vm.failure} />}
-      </Card>
+        </div>
+        {vm.failure && <Banner tone="bad">{vm.failure}</Banner>}
+      </div>
     );
   }
 
@@ -423,7 +416,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
       // A Fix replaces containers; while the VM stops or restarts there is no Docker to replace them in.
       <Button variant="default" size="sm" aria-label={`${r ? "Try again" : one.label}: ${plain(p.short ?? p.title)}, ${c.Names}`} aria-disabled={one.locked || undefined} title={one.locked ? "Waits for what is changing Docker now" : undefined} disabled={one.locked} onClick={() => !one.locked && one.go()}>{r ? "Try again" : names.length > 1 ? `Fix ${names.join(" and ")}…` : `${one.label}…`}</Button>
     ) : fix?.go === "Images" ? (
-      <Button variant="outline" size="sm" onClick={onImages}>Open Images</Button>
+      <Button variant="ghost" size="sm" onClick={onImages}>Open Images</Button>
     ) : see;
     return <Line key={c.ID} level={p.level === "bad" ? "bad" : "warn"} text={<Ticks text={text} />} title={plain(p.detail)} action={action} />;
   };
@@ -434,14 +427,14 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
     const p = problems.get(c.Names)?.[0];
     const inProject = a.kind === "compose";
     return [
-      <DropdownMenuItem key="logs" onSelect={() => setDetailId(c.ID)}><Icon name="logs" size={13} /> Logs</DropdownMenuItem>,
-      ...(up ? [<DropdownMenuItem key="shell" disabled={lock} onSelect={() => void openShell(ctx!, c.Names).catch((e: unknown) => fail(a, e instanceof Error ? e.message : String(e)))}><Icon name="terminal" size={13} /> Open a shell</DropdownMenuItem>] : []),
-      ...(up ? [<DropdownMenuItem key="restart" disabled={lock} onSelect={() => void act(a, ["restart", c.ID], null, `${c.Names} restarted`)}><Icon name="restart" size={13} /> Restart</DropdownMenuItem>] : []),
-      ...(inProject && up ? [<DropdownMenuItem key="stop" disabled={lock} onSelect={() => void act(a, ["stop", c.ID], null, `${c.Names} stopped`)}><Icon name="stop" size={13} /> Stop</DropdownMenuItem>] : []),
-      ...(inProject && !up ? [<DropdownMenuItem key="start" disabled={lock} onSelect={() => void act(a, ["start", c.ID], null, `${c.Names} started`)}><Icon name="play" size={13} /> Start</DropdownMenuItem>] : []),
-      ...(p ? [<DropdownMenuItem key="not-issue" onSelect={() => setMuted(p.key, true)}><Icon name="check" size={13} /> Not an issue</DropdownMenuItem>] : []),
-      <DropdownMenuSeparator key="sep" />,
-      <DropdownMenuItem key="remove" disabled={lock} onSelect={async () => { if (await confirm(`Remove ${c.Names}?${up ? " It is running and will be stopped first." : ""} Its image and volumes stay.`, "Remove")) { willRemove(() => !allRef.current.some((x) => x.ID === c.ID), a.key); await act(a, ["rm", "-f", c.ID], null, `${c.Names} removed`); } }}><Icon name="trash" size={13} /> Remove…</DropdownMenuItem>,
+      <MenuItem key="logs" label="Logs" icon="logs" onSelect={() => setDetailId(c.ID)} />,
+      ...(up ? [<MenuItem key="shell" label="Open a shell" icon="terminal" disabled={lock} onSelect={() => void openShell(ctx!, c.Names).catch((e: unknown) => fail(a, e instanceof Error ? e.message : String(e)))} />] : []),
+      ...(up ? [<MenuItem key="restart" label="Restart" icon="restart" disabled={lock} onSelect={() => void act(a, ["restart", c.ID], null, `${c.Names} restarted`)} />] : []),
+      ...(inProject && up ? [<MenuItem key="stop" label="Stop" icon="stop" disabled={lock} onSelect={() => void act(a, ["stop", c.ID], null, `${c.Names} stopped`)} />] : []),
+      ...(inProject && !up ? [<MenuItem key="start" label="Start" icon="play" disabled={lock} onSelect={() => void act(a, ["start", c.ID], null, `${c.Names} started`)} />] : []),
+      ...(p ? [<MenuItem key="not-issue" label="Not an issue" icon="check" onSelect={() => setMuted(p.key, true)} />] : []),
+      <MenuSeparator key="sep" />,
+      <MenuItem key="remove" label="Remove…" icon="trash" disabled={lock} onSelect={async () => { if (await confirm(`Remove ${c.Names}?${up ? " It is running and will be stopped first." : ""} Its image and volumes stay.`, "Remove")) { willRemove(() => !allRef.current.some((x) => x.ID === c.ID), a.key); await act(a, ["rm", "-f", c.ID], null, `${c.Names} removed`); } }} />,
     ];
   };
 
@@ -453,16 +446,16 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
     const stopped = a.rows.filter((c) => c.State !== "running" && !finished(c, infoOf(c)));
     const what = startWhat(stopped.map((c) => serviceName(c, a.name)));
     return [
-      ...(stopped.length && anyUp ? [<DropdownMenuItem key="start" disabled={lock} onSelect={() => void act(a, ["start", ...stopped.map((c) => c.ID)], { target: "running", word: "Starting…", since: Date.now(), ids: stopped.map((c) => c.ID) }, `${listed(stopped.map((c) => serviceName(c, a.name)))} started`)}><Icon name="play" size={13} /> Start {what}</DropdownMenuItem>] : []),
-      ...(known ? [<DropdownMenuItem key="rebuild" disabled={lock} onSelect={() => void project(a, "build", { target: "running", word: "Rebuilding…", since: Date.now() }, `${a.name} rebuilt`)}><Icon name="hammer" size={13} /> Rebuild</DropdownMenuItem>] : []),
-      ...(known ? [<DropdownMenuItem key="logs" onSelect={() => setLogsOf(a)}><Icon name="logs" size={13} /> Logs</DropdownMenuItem>] : []),
-      ...(anyUp ? [<DropdownMenuItem key="restart" disabled={lock} onSelect={() => void project(a, "restart", null, `${a.name} restarted`)}><Icon name="restart" size={13} /> Restart</DropdownMenuItem>] : []),
-      ...(known ? [<DropdownMenuItem key="finder" onSelect={() => void invoke("reveal_compose", { path: `${a.dir}/${a.files[0]}` }).catch((e) => fail(a, String(e)))}><Icon name="finder" size={13} /> Show in Finder</DropdownMenuItem>] : []),
-      <DropdownMenuSeparator key="sep" />,
-      <DropdownMenuItem key="remove" disabled={lock} onSelect={async () => {
+      ...(stopped.length && anyUp ? [<MenuItem key="start" label={`Start ${what}`} icon="play" disabled={lock} onSelect={() => void act(a, ["start", ...stopped.map((c) => c.ID)], { target: "running", word: "Starting…", since: Date.now(), ids: stopped.map((c) => c.ID) }, `${listed(stopped.map((c) => serviceName(c, a.name)))} started`)} />] : []),
+      ...(known ? [<MenuItem key="rebuild" label="Rebuild" icon="refresh" disabled={lock} onSelect={() => void project(a, "build", { target: "running", word: "Rebuilding…", since: Date.now() }, `${a.name} rebuilt`)} />] : []),
+      ...(known ? [<MenuItem key="logs" label="Logs" icon="logs" onSelect={() => setLogsOf(a)} />] : []),
+      ...(anyUp ? [<MenuItem key="restart" label="Restart" icon="restart" disabled={lock} onSelect={() => void project(a, "restart", null, `${a.name} restarted`)} />] : []),
+      ...(known ? [<MenuItem key="finder" label="Show in Finder" icon="external" disabled={lock} onSelect={() => void invoke("reveal_compose", { path: `${a.dir}/${a.files[0]}` }).catch((e) => fail(a, String(e)))} />] : []),
+      <MenuSeparator key="sep" />,
+      <MenuItem key="remove" label="Remove…" icon="trash" disabled={lock} onSelect={async () => {
         const ask = `Remove ${a.name}'s ${n}${known ? " and its network" : ""}? Volumes, images${a.dir ? ` and ${tilde(a.dir)}` : ""} stay.${known ? " Start it again from New." : ""}`;
         if (await confirm(ask, "Remove")) { willRemove(() => !appsRef.current.some((x) => x.key === a.key), a.key); await project(a, "down", null, `${a.name} removed`); }
-      }}><Icon name="trash" size={13} /> Remove…</DropdownMenuItem>,
+      }} />,
     ];
   };
 
@@ -514,7 +507,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
     const verb = withVm ? seenVerb.get(a.key) ?? live : live;
     // One button element whose label changes, so keyboard focus stays put through Start, Starting… and Stop.
     const main = kube ? (
-      onKubernetes ? <Button variant="outline" size="sm" onClick={onKubernetes} aria-label="Open the Kubernetes tab">Open</Button> : <span />
+      onKubernetes ? <Button variant="ghost" size="sm" onClick={onKubernetes} aria-label="Open the Kubernetes tab">Open</Button> : <span />
     ) : (
       <Button
         variant={lock ? "ghost" : "default"}
@@ -537,13 +530,13 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
           <span className="app-chev">
             {isProject && (
               <button className={expanded ? "chev open" : "chev"} tabIndex={-1} aria-hidden="true" onClick={() => toggle(a.key)}>
-                <Icon name="chevron" size={12} />
+                <Icon name={expanded ? "chev-down" : "chev-right"} size="sm" />
               </button>
             )}
           </span>
-          <Badge variant={mark === "on" ? "success" : mark === "off" ? "secondary" : mark === "part" ? "warning" : mark === "bad" ? "destructive" : mark === "warn" ? "warning" : "info"}>
+          <span className={`sev ${mark === "on" ? "ok" : mark === "part" ? "warn" : mark === "bad" ? "bad" : mark === "warn" ? "warn" : "info"}`}>
             {mark === "on" ? "Running" : mark === "off" ? "Stopped" : mark === "part" ? "Partly" : mark === "bad" ? "Error" : mark === "warn" ? "Warning" : "Busy"}
-          </Badge>
+          </span>
           <button
             className="app-name"
             title={a.dir ? `${a.name} · ${tilde(a.dir)}` : single ? `${single.Names} · ${single.Image}` : a.name}
@@ -557,7 +550,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
             {a.name}
           </button>
           {kube ? (
-            <Button variant="outline" size="sm" disabled={lock || undefined} onClick={() => onKubernetes?.()} aria-label="Open the Kubernetes tab">
+            <Button variant="ghost" size="sm" disabled={lock || undefined} onClick={() => onKubernetes?.()} aria-label="Open the Kubernetes tab">
               Open
             </Button>
           ) : (
@@ -574,21 +567,18 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
             </Button>
           )}
           <span className="app-port">
-            {web && <WebPort port={web.port} label={`:${web.port}`} name={a.name} />}
+            {web && (
+              <a className="port" href={`http://localhost:${web.port}`} aria-label={`Open port ${web.port} in the browser`} onClick={(e) => { e.preventDefault(); e.stopPropagation(); void openUrl(`http://localhost:${web.port}`); }}>
+                :{web.port}
+              </a>
+            )}
             {ports.length > 1 && <span className="hint more-ports">+{ports.length - 1}</span>}
           </span>
           <span className="app-state" aria-hidden="true">{word}</span>
           {kube ? <span /> : (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="more" aria-label={`More actions for ${a.name}`}>
-                  <Icon name="more" size={16} />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                {isProject ? projectMenuItems(a) : containerMenuItems(single!, a)}
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <Menu label={`Actions for ${a.name}`} trigger={<MoreButton name={a.name} />}>
+              {isProject ? projectMenuItems(a) : containerMenuItems(single!, a)}
+            </Menu>
           )}
         </div>
         {cf && (
@@ -621,30 +611,27 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
               const cUp = c.State === "running";
               const i = issues.find((x) => x.c.ID === c.ID);
               const cWord = stateWord(c, infoOf(c));
-              const svcBadgeVariant = i?.p ? (markOf([i]) === "bad" ? "destructive" : "warning") : cUp ? "success" : "secondary";
               return (
                 <li key={c.ID}>
                   <div className="svc-row">
-                    <Badge variant={svcBadgeVariant}>
-                      {cUp ? "Running" : "Stopped"}
-                    </Badge>
+                    <span className={`sev ${cUp ? "ok" : "off"}`}>{cUp ? "Running" : "Stopped"}</span>
                     <button className="svc-name" data-open={c.ID} title={`${c.Names} · ${c.Image}`} aria-label={`${c.Names}, ${cWord}${i?.p ? ", 1 problem" : ""}`} onClick={() => setDetailId(c.ID)}>
                       {serviceName(c, a.name)} <span className="svc-image">{c.Image}</span>
                     </button>
                     <span className="svc-ports">
-                      {cUp && portLinksFromPs(c.Ports).slice(0, 3).map((l) => (isWebPort(l.containerPort, l.port) ? <WebPort key={l.label} port={l.port} label={`:${l.port}`} name={c.Names} /> : <CopyPort key={l.label} label={l.label} />))}
+                      {cUp && portLinksFromPs(c.Ports).slice(0, 3).map((l) => {
+                        const web = isWebPort(l.containerPort, l.port);
+                        return (
+                          <a key={l.label} className="port" href={web ? `http://localhost:${l.port}` : "#"} aria-label={web ? `Open port ${l.port} in the browser` : `Copy localhost:${l.port}`} onClick={(e) => { e.preventDefault(); e.stopPropagation(); web ? void openUrl(`http://localhost:${l.port}`) : void navigator.clipboard.writeText(`localhost:${l.port}`); }}>
+                            :{l.port}
+                          </a>
+                        );
+                      })}
                     </span>
                     <span className="app-state" aria-hidden="true">{cWord}</span>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="sm" className="more" aria-label={`More actions for ${c.Names}`}>
-                          <Icon name="more" size={16} />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent>
-                        {containerMenuItems(c, a)}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    <Menu label={`Actions for ${c.Names}`} trigger={<MoreButton name={c.Names} />}>
+                      {containerMenuItems(c, a)}
+                    </Menu>
                   </div>
                   {i && problemLine(i, false)}
                 </li>
@@ -685,53 +672,51 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
           button is "Start with the folders you had". */}
       {failedChange && <div className="problem result stopped"><ResizeStatus from={rs.from!} title={`The VM ${profile.name} is stopped`} after={() => setTimeout(() => document.querySelector<HTMLElement>("[data-stopped-primary]")?.focus(), 0)} /></div>}
       {!running && !vm.op && !vm.failure && !failedChange && (
-        <Blank title={<>The VM &ldquo;{profile.name}&rdquo; is stopped</>} body="Your containers, images and volumes are kept inside it." note={back ? wayBackNote(back) : undefined}>
+        <Empty icon="box" title={`The VM "${profile.name}" is stopped`}>
+          <p className="hint">Your containers, images and volumes are kept inside it.</p>
+          {back && <p className="hint"><Ticks text={wayBackNote(back)} /></p>}
           <Button variant={back ? "ghost" : "default"} data-stopped-primary={back ? undefined : ""} onClick={start}>Start VM</Button>
           {back && env && <Button variant="default" data-stopped-primary="" onClick={() => void startWayBack(env)}>{undoLabel(back)}</Button>}
-        </Blank>
+        </Empty>
       )}
 
       {running && (
         <>
           <span className="toolbar-actions page-action">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="default" size="sm" className="home-new" aria-label="New">
-                  <Icon name="plus" size={13} /> New <Icon name="chevron" size={12} />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                <DropdownMenuItem onSelect={() => setPicking(true)}><Icon name="play" size={13} /> Run an image…</DropdownMenuItem>
-                <DropdownMenuItem onSelect={onPull}><Icon name="download" size={13} /> Pull an image…</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => setComposeOpen(true)}><Icon name="folder" size={13} /> Start a Compose project…</DropdownMenuItem>
-                {onBring && (<>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onSelect={() => onBring()}><Icon name="database" size={13} /> Bring over from Docker Desktop…</DropdownMenuItem>
-                </>)}
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <Menu label="New" trigger={<Button variant="ghost" size="sm" iconOnly icon="more" aria-label="New">More actions</Button>}>
+              <MenuItem label="Run an image…" icon="play" onSelect={() => setPicking(true)} />
+              <MenuItem label="Pull an image…" icon="download" onSelect={onPull} />
+              <MenuItem label="Start a Compose project…" icon="folder" onSelect={() => setComposeOpen(true)} />
+              {onBring && (
+                <>
+                  <MenuSeparator />
+                  <MenuItem label="Bring over from Docker Desktop…" icon="database" onSelect={() => onBring()} />
+                </>
+              )}
+            </Menu>
           </span>
-          <Banner error={containers.error} />
+          <Banner tone="bad">{containers.error}</Banner>
           {searching && (
             <label className="search-field home-search">
-              <Icon name="search" size={14} />
+              <Icon name="search" size="sm" />
               <input placeholder="Search by name, image or port" aria-label="Search containers" value={q} onChange={(e) => setQ(e.target.value)} />
             </label>
           )}
           {containers.data && all.length === 0 ? (
             // Right after switching, the data comes first: a `compose up` before it makes new empty volumes.
-            <Blank title="No containers yet" body={onBring ? "Your Docker Desktop volumes are still on this Mac. Bring them over first, so your projects start with their data." : "Run an image, or start a Compose project from a folder on your Mac."}>
+            <Empty icon="box" title="No containers yet">
+              {onBring ? "Your Docker Desktop volumes are still on this Mac. Bring them over first, so your projects start with their data." : "Run an image, or start a Compose project from a folder on your Mac."}
               {onBring && <Button variant="default" onClick={() => onBring()}>Bring over from Docker Desktop</Button>}
               <Button variant={onBring ? "ghost" : "default"} onClick={() => setPicking(true)}>Run an image</Button>
-              <Button variant="outline" onClick={() => setComposeOpen(true)}>Start a Compose project</Button>
-            </Blank>
+              <Button variant="ghost" onClick={() => setComposeOpen(true)}>Start a Compose project</Button>
+            </Empty>
           ) : (
             <ul className="apps" aria-label="Containers">{shown.map(row)}</ul>
           )}
           {term && shown.length === 0 && (
             <p className="hint pad">
               Nothing matches &ldquo;{term}&rdquo;.
-              {projectHits > 0 && <> {projectHits === 1 ? "1 Compose project that isn't running matches" : `${projectHits} Compose projects that aren't running match`}. <Button variant="link" size="sm" onClick={() => setComposeOpen(true)}>Show {projectHits === 1 ? "it" : "them"}</Button></>}
+              {projectHits > 0 && <> {projectHits === 1 ? "1 Compose project that isn't running matches" : `${projectHits} Compose projects that aren't running match`}. <Button variant="ghost" size="sm" onClick={() => setComposeOpen(true)}>Show {projectHits === 1 ? "it" : "them"}</Button></>}
             </p>
           )}
         </>
@@ -739,9 +724,9 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
 
       {composeOpen && ctx && <ComposeProjects ctx={ctx} scan={compose} containers={all} attention={problems} query={term && shown.length === 0 ? term : ""} onClose={() => setComposeOpen(false)} onChanged={fixed} />}
       {logsOf && ctx && logsOf.dir && (
-        <Drawer label={`Logs of ${logsOf.name}`} title={<>Logs of {logsOf.name}</>} onClose={() => setLogsOf(null)}>
+        <Sheet open={logsOf !== null} onClose={() => setLogsOf(null)} title={`Logs of ${logsOf.name}`}>
           <ComposeLogs ctx={ctx} file={`${logsOf.dir}/${logsOf.files[0]}`} project={logsOf.name} />
-        </Drawer>
+        </Sheet>
       )}
       {picking && ctx && <RunPicker ctx={ctx} onClose={() => setPicking(false)} onPick={(ref) => { setPicking(false); setRunImage(ref); }} />}
       {runImage && ctx && <RunPanel ctx={ctx} arch={profile.arch} image={runImage} onClose={() => setRunImage(null)} onRan={(id) => { setRunImage(null); setDetailId(id); }} />}
@@ -803,27 +788,14 @@ function LimitLine({ who, text, detail, fix, ctx, project, locked, lockWhy, onAp
 }
 
 function Line({ level, text, title, action }: { level: "bad" | "warn" | "ok" | "busy" | "off"; text: ReactNode; title?: string; action?: ReactNode }) {
-  const badgeVariant = level === "ok" ? "success" : level === "bad" ? "destructive" : level === "busy" ? "info" : level === "off" ? "secondary" : "warning";
+  const badgeVariant = level === "ok" ? "ok" : level === "bad" ? "bad" : level === "busy" ? "info" : level === "off" ? "" : "warn";
   const badgeLabel = level === "ok" ? "Fixed" : level === "bad" ? "Error" : level === "busy" ? "Busy" : level === "off" ? "Stopped" : "Warning";
   return (
     <div className={`problem ${level}`} title={title}>
-      <Badge variant={badgeVariant}>{badgeLabel}</Badge>
+      {badgeVariant && <span className={`sev ${badgeVariant}`}>{badgeLabel}</span>}
       <span className="problem-text">{text}</span>
       {action}
     </div>
   );
 }
 
-function Blank({ title, body, note, children }: { title: ReactNode; body: string; note?: string; children: ReactNode }) {
-  return (
-    <Card className="blank">
-      <CardContent className="space-sm">
-        <span className="blank-icon"><Icon name="box" size={32} /></span>
-        <h2>{title}</h2>
-        <p className="hint">{body}</p>
-        {note && <p className="hint"><Ticks text={note} /></p>}
-        <div className="actions-inline space-sm">{children}</div>
-      </CardContent>
-    </Card>
-  );
-}

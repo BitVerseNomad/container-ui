@@ -3,13 +3,14 @@ import { clsx } from "clsx";
 import { Sev } from "./Sev";
 
 export function Problem(props: {
-  level: "bad" | "warn";
-  text: string;
+  level: "bad" | "warn" | "ok" | "info" | "busy";
+  text: React.ReactNode;
+  title?: string;
   action?: React.ReactNode;
   child?: boolean;
   onOpen?: () => void;
 }): React.JSX.Element {
-  const { level, text, action, child, onOpen } = props;
+  const { level, text, title, action, child, onOpen } = props;
 
   function handleClick(event: React.MouseEvent<HTMLDivElement>): void {
     if ((event.target as HTMLElement).closest(".act")) return;
@@ -24,6 +25,8 @@ export function Problem(props: {
     }
   }
 
+  const mark = level === "busy" ? <span className="spinner" aria-hidden="true" /> : <Sev level={level} />;
+
   return (
     <div
       className={clsx("subrow", child && "child")}
@@ -32,8 +35,8 @@ export function Problem(props: {
       onClick={handleClick}
       onKeyDown={handleKeyDown}
     >
-      <Sev level={level} />
-      <span className="what truncate">{text}</span>
+      {mark}
+      <span className="what truncate" title={title}>{text}</span>
       <span className="act">{action}</span>
     </div>
   );

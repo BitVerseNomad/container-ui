@@ -48,6 +48,7 @@ export type RowProps = {
   menu?: React.ReactNode;
   child?: boolean;
   onOpen?: () => void;
+  onMenuKey?: () => void;
   selected?: boolean;
   onSelect?: (selected: boolean) => void;
   expanded?: boolean;
@@ -57,7 +58,7 @@ export type RowProps = {
 export function Row(props: RowProps): React.JSX.Element {
   const {
     lead, dot, name, nameClass, title, meta, metaSelectable, tall, children, action, menu,
-    child, onOpen, selected, onSelect, expanded, onToggle,
+    child, onOpen, onMenuKey, selected, onSelect, expanded, onToggle,
   } = props;
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
@@ -84,7 +85,11 @@ export function Row(props: RowProps): React.JSX.Element {
 
   function handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>): void {
     if (event.target !== event.currentTarget) return;
-    if (event.key === "Enter") {
+    if (event.key === "ContextMenu" || (event.key === "F10" && event.shiftKey)) {
+      event.preventDefault();
+      onMenuKey?.();
+      return;
+    } else if (event.key === "Enter") {
       event.preventDefault();
       onOpen?.();
     } else if (event.key === " ") {
