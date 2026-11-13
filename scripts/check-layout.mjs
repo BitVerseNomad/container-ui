@@ -76,4 +76,86 @@ for (const { width, height } of SIZES) {
   await page.close();
 }
 
+
+// Switcher checks (WO-2.3 step 11), scenario design at 1180x760.
+const sw = await open("/?scenario=design#/containers", { width: 1180, height: 760 });
+const swErrors = [];
+sw.on("pageerror", (e) => swErrors.push(e.message));
+await sw.waitForTimeout(500);
+
+// 1. The engine button sits above the nav.
+const engineButton = sw.locator("button.engine");
+check(await engineButton.count() > 0, "[1180x760] the engine button sits above the nav");
+
+// 2. Its text says "Colima · default" and the state line says "Running".
+const engineText = await engineButton.textContent();
+check(/Colima · default/.test(engineText ?? "") && /Running ·/.test(engineText ?? ""),
+  "[1180x760] the engine button text says Colima · default and the state line says Running");
+
+// 3. Its accessible name is "Engine: Colima, default. Running".
+check(await engineButton.getAttribute("aria-label") === "Engine: Colima, default. Running",
+  "[1180x760] the engine button accessible name is Engine: Colima, default. Running");
+
+// 4. Click: the menu has one menuitemradio, it is ticked, and focus is on it.
+await engineButton.click();
+await sw.waitForTimeout(300);
+const radios = await sw.locator('[role="menuitemradio"]').all();
+check(radios.length === 1, "[1180x760] the menu has one menuitemradio");
+check(await radios[0].getAttribute("aria-checked") === "true", "[1180x760] the menuitemradio is ticked");
+const focusedRole = await sw.evaluate(() => document.activeElement?.getAttribute("role"));
+check(focusedRole === "menu", "[1180x760] focus is in the menu (role menu)");
+
+// 5. The menu offers "Machines…" and "Stop default".
+check(await sw.getByRole("menuitem", { name: /Machines…/ }).count() > 0, "[1180x760] the menu offers Machines…");
+check(await sw.getByRole("menuitem", { name: /Stop default/ }).count() > 0, "[1180x760] the menu offers Stop default");
+
+// 6. Escape closes the menu and focus is back on the engine button.
+await sw.keyboard.press("Escape");
+await sw.waitForTimeout(150);
+check((await sw.locator('[role="menuitemradio"]').count()) === 0, "[1180x760] Escape closes the menu");
+const focusedBack = await sw.evaluate(() => document.activeElement?.closest("button.engine") !== null);
+check(focusedBack, "[1180x760] focus is back on the engine button");
+
+// 12. The words "profile", "context" and "runtime" do not appear in the open menu.
+await engineButton.click();
+await sw.waitForTimeout(300);
+const menuText = await sw.locator('[role="menu"]').textContent();
+check(!/(profile|context|runtime)/i.test(menuText ?? ""),
+  "[1180x760] the open menu does not say profile, context or runtime");
+await sw.keyboard.press("Escape");
+
+// Switcher checks for scenario two (two machines), at 1180x760.
+const tw = await open("/?scenario=two#/containers", { width: 1180, height: 760 });
+await tw.waitForTimeout(500);
+
+// 7. ?scenario=two: both machines are listed; the stopped one reads "Stopped".
+await tw.locator("button.engine").click();
+await tw.waitForTimeout(300);
+const twoRadios = await tw.locator('[role="menuitemradio"]').allInnerTexts();
+check(twoRadios.some((t) => t.includes("dev") && t.includes("Stopped")),
+  "[1180x760] scenario two lists both machines and the stopped one reads Stopped");
+
+// 8. Each row has a Start button (stopped) or no button (running).
+const devStart = await tw.locator('[role="menuitemradio"]').filter({ hasText: /dev/ }).locator("button:has-text(\"Start\")");
+check(await devStart.count() === 1, "[1180x760] the stopped row has a Start button");
+const defaultNoButton = await tw.locator('[role="menuitemradio"]').filter({ hasText: /default/ }).locator("button");
+check(await defaultNoButton.count() === 0, "[1180x760] the running row has no button");
+
+// 10. "Machines…" changes the hash to #/settings/machines.
+await tw.getByRole("menuitem", { name: /Machines…/ }).click();
+await tw.waitForTimeout(300);
+check(tw.url().includes("#/settings/machines"), "[1180x760] Machines… changes the hash to #/settings/machines");
+
+await tw.close();
+
+// 13. Reload: the selected engine is still the one picked (openpier:engine).
+await sw.reload();
+await sw.waitForTimeout(500);
+check(await sw.locator("button.engine").getAttribute("aria-label") === "Engine: Colima, default. Running",
+  "[1180x760] after reload the selected engine is still the one picked");
+
+check(swErrors.length === 0, "[1180x760] no switcher page errors: ${swErrors.join(" | ")}");
+
+await sw.close();
+
 await done();

@@ -20,6 +20,9 @@ import {
   GroupCaption,
   Icon,
   Inspector,
+  EngineButton,
+  MenuRadioGroup,
+  MenuRadioItem,
   List,
   Menu,
   MenuCaption,
@@ -297,6 +300,34 @@ function GalleryBody(): React.JSX.Element {
       <Section name="Checkbox">
         <Checkbox checked={checked} onChange={setChecked}>Keep its data</Checkbox>
         <Checkbox checked={false} onChange={() => {}} disabled>Keep its data</Checkbox>
+      </Section>
+
+      <Section name="EngineButton">
+        <div className="fields">
+          <EngineButton dot="ok" name="Colima · default" state="Running · 4 CPU · 8 GB" aria-label="Engine: Colima, default. Running" />
+          <EngineButton dot="off" name="No engine" state="Not set up" aria-label="Engine: none" />
+        </div>
+      </Section>
+
+      <Section name="Menu radio group">
+        <Menu trigger={<Button>Engines</Button>} label="Engines" open>
+          <MenuRadioGroup value="default" onValueChange={() => {}}>
+            <MenuCaption>Colima</MenuCaption>
+            <MenuRadioItem value="default">
+              <Dot state="ok" />
+              <span className="name">default</span>
+              <span className="meta grow truncate">4 CPU · 8 GB · Kubernetes</span>
+              <Icon name="check" size="sm" />
+            </MenuRadioItem>
+            <MenuRadioItem value="dev">
+              <Dot state="off" />
+              <span className="name">dev</span>
+              <span className="meta grow truncate">Stopped</span>
+            </MenuRadioItem>
+          </MenuRadioGroup>
+          <MenuSeparator />
+          <MenuItem label="Machines…" onSelect={() => {}} />
+        </Menu>
       </Section>
 
       <Section name="Progress">

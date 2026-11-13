@@ -9,15 +9,18 @@ export function Menu(props: {
   label: string;
   align?: "start" | "end";
   wide?: boolean;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  contentClassName?: string;
   children: React.ReactNode;
 }): React.JSX.Element {
-  const { trigger, label, align, wide, children } = props;
+  const { trigger, label, align, wide, open, onOpenChange, contentClassName, children } = props;
   return (
-    <DropdownMenu.Root>
+    <DropdownMenu.Root open={open} onOpenChange={onOpenChange}>
       <DropdownMenu.Trigger asChild>{trigger}</DropdownMenu.Trigger>
       <DropdownMenu.Portal>
         <DropdownMenu.Content
-          className={clsx("pop", wide && "wide")}
+          className={clsx("pop", wide && "wide", contentClassName)}
           aria-label={label}
           collisionPadding={8}
           align={align}
@@ -27,6 +30,27 @@ export function Menu(props: {
       </DropdownMenu.Portal>
     </DropdownMenu.Root>
   );
+}
+
+export function MenuRadioGroup(props: {
+  value: string;
+  onValueChange: (value: string) => void;
+  children: React.ReactNode;
+}): React.JSX.Element {
+  const { value, onValueChange, children } = props;
+  return (
+    <DropdownMenu.RadioGroup value={value} onValueChange={onValueChange}>
+      {children}
+    </DropdownMenu.RadioGroup>
+  );
+}
+
+export function MenuRadioItem(props: {
+  value: string;
+  children: React.ReactNode;
+}): React.JSX.Element {
+  const { value, children } = props;
+  return <DropdownMenu.RadioItem className="row" value={value}>{children}</DropdownMenu.RadioItem>;
 }
 
 export function MenuItem(props: {
