@@ -18,6 +18,7 @@ How to work on this repo, for people and AI agents. The README is the pitch; thi
 The app runs in WebKit (WKWebView), not Chromium. A change is done when it passes both:
 
     npm test && (cd src-tauri && cargo test)
+    npm run preview         # the app in a browser with a fake backend, http://localhost:4173
     npm run check            # every browser check, in Chromium and WebKit
 
 `PW_ENGINES=webkit sh scripts/check-all.sh` runs WebKit only. Checks click with the mouse and with the keyboard; never weaken an assertion to make one engine pass.
@@ -26,7 +27,7 @@ The app runs in WebKit (WKWebView), not Chromium. A change is done when it passe
 
 The README sells the app to people who will only download it. When a change alters what a screen looks like or what it does:
 
-1. Retake the screenshots: `npm run preview && node scripts/readme-shots.mjs`
+1. Retake the screenshots: `node scripts/readme-shots.mjs`
 2. Update the README text that describes it. Short, visual, the benefit first.
 3. Add a line to `CHANGELOG.md`.
 

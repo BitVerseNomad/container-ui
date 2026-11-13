@@ -4,7 +4,9 @@ src-tauri/target/
 src-tauri/gen/
 .DS_Store
 *.log
-preview/index.html
+preview/dist/
+test-results/
+playwright-report/
 .superpowers/
 artifacts/
 .claude/worktrees/
