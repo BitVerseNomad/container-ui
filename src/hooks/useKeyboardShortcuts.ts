@@ -1,4 +1,5 @@
 import { useEffect, useCallback } from "react";
+import { isTypingTarget } from "../lib/shortcuts";
 
 export type KeyboardShortcut = {
   key: string;
@@ -28,22 +29,16 @@ export function useKeyboardShortcuts(shortcuts: KeyboardShortcut[], enabled = tr
     (e: KeyboardEvent) => {
       if (!enabled) return;
 
-      // Don't trigger shortcuts when typing in inputs
       const target = e.target as HTMLElement;
-      if (
-        target.tagName === "INPUT" ||
-        target.tagName === "TEXTAREA" ||
-        target.tagName === "SELECT" ||
-        target.isContentEditable
-      ) {
-        // Allow Escape everywhere
-        if (e.key !== "Escape") return;
-      }
 
       for (const shortcut of shortcuts) {
+        // A key typed in a text field is never a shortcut, except Cmd combinations and Escape.
+        if (isTypingTarget(target) && !shortcut.meta && e.key !== "Escape") continue;
+
         const metaMatch = shortcut.meta ? e.metaKey : !e.metaKey;
         const ctrlMatch = shortcut.ctrl ? e.ctrlKey : !e.ctrlKey;
-        const shiftMatch = shortcut.shift ? e.shiftKey : !e.shiftKey;
+        // When the shortcut key is "?", ignore shiftKey so Shift+? matches a plain "?" shortcut.
+        const shiftMatch = shortcut.key === "?" ? true : (shortcut.shift ? e.shiftKey : !e.shiftKey);
         const altMatch = shortcut.alt ? e.altKey : !e.altKey;
         const keyMatch = shortcut.key.toLowerCase() === e.key.toLowerCase();
 

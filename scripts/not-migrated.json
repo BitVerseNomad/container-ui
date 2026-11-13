@@ -1,7 +1,6 @@
 [
   "src/App.tsx",
   "src/BringOver.tsx",
-  "src/CommandPalette.tsx",
   "src/Commands.tsx",
   "src/ComposeLogs.tsx",
   "src/ComposeProjects.tsx",
@@ -13,7 +12,6 @@
   "src/EditPanel.tsx",
   "src/FixIt.tsx",
   "src/Health.tsx",
-  "src/HelpModal.tsx",
   "src/Images.tsx",
   "src/InstallCard.tsx",
   "src/InstallTool.tsx",

@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import {
   Banner,
   Blocks,
+  Palette,
   Button,
   Canvas,
   Checkbox,
@@ -105,6 +106,7 @@ function GalleryBody(): React.JSX.Element {
   const [selectedRow, setSelectedRow] = useState(true);
   const [shopOpen, setShopOpen] = useState(true);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const [inspectorOpen, setInspectorOpen] = useState(false);
 
   return (
@@ -497,6 +499,23 @@ function GalleryBody(): React.JSX.Element {
             <Field id="gallery-sheet-name" size="md" defaultValue="postgres" aria-label="Name" />
           </FormRow>
         </Sheet>
+      </Section>
+
+      <Section name="Palette">
+        <div className="fields">
+          <Button onClick={() => setPaletteOpen(true)}>Open palette</Button>
+          <Palette
+            open={paletteOpen}
+            onClose={() => setPaletteOpen(false)}
+            query=""
+            onQuery={() => {}}
+            sections={[
+              { group: "Go to", items: [{ id: "c1", label: "Containers", kbd: "⌘2" }, { id: "c2", label: "Images", kbd: "⌘3" }] },
+              { group: "Actions", items: [{ id: "a1", label: "Restart kafka", kbd: "↵ Open", dot: "ok" as const, enter: "↵ Open" }] },
+            ]}
+            onRun={() => {}}
+          />
+        </div>
       </Section>
 
       <Section name="ConfirmDialog">

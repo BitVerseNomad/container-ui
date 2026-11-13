@@ -18,6 +18,7 @@ export * from "./Facts";
 export * from "./GroupCaption";
 export * from "./NavItem";
 export * from "./Checkbox";
+export * from "./Palette";
 export * from "./Progress";
 export * from "./Portal";
 export * from "./Row";

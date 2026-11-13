@@ -29,6 +29,11 @@ export function usePoll<T>(load: () => Promise<T>, deps: unknown[], ms = 3000, e
     return false;
   }, deps);
   useEffect(() => {
+    const again = () => { void reload(); };
+    window.addEventListener("openpier:refresh", again);
+    return () => window.removeEventListener("openpier:refresh", again);
+  }, [reload]);
+  useEffect(() => {
     if (!enabled) return;
     setData(null);
     // An error from the old inputs (for example the previous profile) must not stay on screen.
