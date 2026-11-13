@@ -6,8 +6,13 @@ import { migrateStorage } from "./lib/migrateStorage";
 import "./ui/openpier.css";
 
 migrateStorage(window.localStorage);
-ReactDOM.createRoot(document.getElementById("root")!).render(
-  <ConfirmProvider>
-    <App />
-  </ConfirmProvider>,
-);
+const root = ReactDOM.createRoot(document.getElementById("root")!);
+if (import.meta.env.DEV && window.location.hash === "#/dev/gallery") {
+  void import("./dev/Gallery").then(({ default: Gallery }) => root.render(<Gallery />));
+} else {
+  root.render(
+    <ConfirmProvider>
+      <App />
+    </ConfirmProvider>,
+  );
+}
