@@ -7,9 +7,10 @@ import { usePoll } from "./hooks";
 import { Banner, Empty } from "./ui";
 import { Icon } from "./ui/icons";
 import Shell, { Tab } from "./Shell";
+import LegacyProfileSwitch from "./LegacyProfileSwitch";
+import { MachineUsageProvider, Header } from "./Header";
 import { useRoute, go } from "./lib/router";
 import { tabOfRoute, pathOfTab } from "./lib/tabRoutes";
-import PageHeader from "./ui/PageHeader";
 import Containers, { VmState } from "./Containers";
 import Images from "./Images";
 import Volumes from "./Volumes";
@@ -27,6 +28,7 @@ import { useComposeScan } from "./useComposeScan";
 import { contextNames, kubernetesOn } from "./lib/kubeNav";
 import { ranVm } from "./lib/activity";
 import { useComposeRun } from "./ComposeProjects";
+import { useLiveStats, setMachineProfile } from "./hooks/useLiveStats";
 import { ResizeAnnouncer, ResizeProvider, RunVm, useHeld, useResize } from "./Resize";
 import { bringBusy, useBringBusy } from "./bringBusy";
 import { readDesktop, readDesktopOnFocus } from "./desktopOffer";
@@ -134,6 +136,8 @@ export default function App() {
 
   const current = profiles.find((p) => p.name === active) ?? null;
   const ctx = current?.status === "Running" ? ctxFor(current.name) : null;
+  const { live, history, usage } = useLiveStats(ctx, current?.status === "Running");
+  setMachineProfile(current ? { cpus: current.cpus, memory: current.memory, disk: current.disk } : null);
   // A container page from a VM that has stopped is gone; show the list when the VM comes back.
   useEffect(() => {
     if (!ctx) setDetailId(null);
@@ -249,6 +253,8 @@ export default function App() {
           key={ctx ?? "none"}
           profile={current}
           ctx={ctx}
+          live={live}
+          history={history}
           vm={vm}
           onVm={setVm}
           reload={reloadProfiles}
@@ -319,6 +325,7 @@ export default function App() {
     );
 
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   const commands = useMemo<Command[]>(() => [
     { id: "new-container", label: "Run Container", description: "Run a new container from an image", icon: "play", section: "Containers", action: () => { setTab("Images"); }, shortcut: "⌘N" },
@@ -348,8 +355,8 @@ export default function App() {
     { key: "b", meta: true, action: () => { /* sidebar fold handled by Shell */ }, description: "Toggle sidebar" },
     { key: "[", meta: true, action: () => window.history.back(), description: "Back" },
     { key: "]", meta: true, action: () => window.history.forward(), description: "Forward" },
-    { key: "Escape", action: () => { setCommandPaletteOpen(false); setLogOpen(false); setPullOnOpen(false); setNewProfileOnOpen(false); }, description: "Close panels" },
-  ], [kubeOn, setTab, setCommandPaletteOpen, setLogOpen, setPullOnOpen, setNewProfileOnOpen]);
+    { key: "Escape", action: () => { setCommandPaletteOpen(false); setLogOpen(false); setPullOnOpen(false); setNewProfileOnOpen(false); setHelpOpen(false); }, description: "Close panels" },
+  ], [kubeOn, setTab, setCommandPaletteOpen, setLogOpen, setPullOnOpen, setNewProfileOnOpen, setHelpOpen]);
 
   useKeyboardShortcuts(keyboardShortcuts);
 
@@ -357,11 +364,25 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <ResizeProvider value={{ profile: current, host, pick, runVm, containers: doc.containers, locked: vmLocked, vmBusy: vm.op !== null, onProfiles: () => setTab("Profiles") }}>
         <ToastProvider position="top-right">
-          <Shell onCommands={() => setLogOpen(true)} badges={{ Doctor: doctorTodo }} hidden={kubeOn ? [] : ["Kubernetes"]} nav={tab} onNav={(t) => { setDetailId(null); setPullOnOpen(false); setNewProfileOnOpen(false); setTab(t); }} profiles={profiles} active={active} onSelect={switchTo} onVm={vmFromAnywhere} onRestart={(name) => vmFromAnywhere(name, "starting", true)} vmBusy={vmLocked} vmOp={vm.op && opName(vm) ? { name: opName(vm)!, op: vm.op } : null} onNewProfile={() => { setDetailId(null); setNewProfileOnOpen(true); setTab("Profiles"); }}>
-            {!(tab === "Containers" && detailId) && <PageHeader title={tab} />}
+          <Shell
+            nav={tab}
+            onNav={(t) => setTab(t)}
+            badges={{ Doctor: doctorTodo }}
+            hidden={kubeOn ? [] : ["Kubernetes"]}
+            engine={<div data-slot="engine"><LegacyProfileSwitch profiles={profiles} active={active} shown={(p) => p.status} onSelect={switchTo} onVm={vmFromAnywhere} onRestart={(name) => vmFromAnywhere(name, "starting", true)} vmBusy={vmLocked} onNewProfile={() => { setNewProfileOnOpen(true); setTab("Profiles"); }} /></div>}
+            onSettings={() => go("#/settings/general")}
+            settingsActive={tab === "Profiles"}
+            onActivity={() => setLogOpen(true)}
+            onHelp={() => setHelpOpen(true)}
+          >
             <Banner error={profilesError} />
             <Banner error={appError} onClose={() => setAppError(null)} />
-            {page}
+            <MachineUsageProvider value={usage}>
+              {tab !== "Containers" || detailId === null ? (
+                <Header title={tab === "Profiles" ? "Settings" : tab} />
+              ) : null}
+              {page}
+            </MachineUsageProvider>
             <CommandToast onOpenLog={() => setLogOpen(true)} />
             <ResizeAnnouncer />
             {logOpen && <CommandLog onClose={() => setLogOpen(false)} />}

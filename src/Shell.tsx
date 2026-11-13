@@ -1,167 +1,125 @@
-import { ReactNode, useState, useEffect, useMemo } from "react";
+import React, { ReactNode, useState, useEffect, useMemo, useCallback } from "react";
 import { Profile, openUrl } from "./api";
-import { Icon, IconName } from "./ui/icons";
-import Menu from "./ui/Menu";
-import { runtimeRegistry } from "./runtime";
-import type { RuntimeInfo } from "./runtime";
-import { useKeyboardShortcuts, KeyboardShortcut } from "./hooks/useKeyboardShortcuts";
-import { REPO_URL } from "./lib/links";
-
-export type Tab = "Containers" | "Images" | "Volumes" | "Networks" | "Kubernetes" | "Profiles" | "Doctor";
-
-// Doctor and Profiles are for when something is off, so they sit at the bottom; daily work stays at the top.
-const BOTTOM: Tab = "Doctor";
-const NAV: { tab: Tab; icon: IconName }[] = [
-  { tab: "Containers", icon: "box" },
-  { tab: "Images", icon: "image" },
-  { tab: "Volumes", icon: "database" },
-  { tab: "Networks", icon: "network" },
-  { tab: "Kubernetes", icon: "cluster" },
-  { tab: "Doctor", icon: "check" },
-  { tab: "Profiles", icon: "sliders" },
-];
-
-type Props = {
-  nav: Tab;
-  onNav: (t: Tab) => void;
-  profiles: Profile[];
-  active: string | null;
-  onSelect: (name: string) => void;
-  onNewProfile: () => void;
-  // Start or stop a profile from the switcher; the app switches to it first. Off while a VM operation runs.
-  onVm: (name: string, op: "starting" | "stopping") => void;
-  onRestart?: (name: string) => void;
-  vmBusy: boolean;
-  // the VM operation in flight, so the switcher says "Starting…" instead of the last known state
-  vmOp?: { name: string; op: "starting" | "stopping" | "restarting" } | null;
-  children: ReactNode;
-  // a count shown next to a nav item, e.g. problems that need action
-  badges?: Partial<Record<Tab, number>>;
-  // nav items left out for now, e.g. Kubernetes while the active profile has it turned off
-  hidden?: Tab[];
-  // Opens the list of commands the app ran; not a page, so it isn't one of the tabs.
-  onCommands?: () => void;
-};
+import { Icon, IconName } from "./ui/op";
+import { Menu, MenuItem, MenuSeparator, MenuCaption, MoreButton } from "./ui/op";
+import { NavItem, Button, Dot } from "./ui/op";
+import { PortalProvider, ToastProvider } from "./ui/op";
+import { ConfirmProvider as OpConfirmProvider } from "./ui/op";
 
 const FOLD_KEY = "openpier:sidebar-folded";
-// Storage can be blocked; the sidebar then simply starts open.
 const readFolded = () => { try { return localStorage.getItem(FOLD_KEY) === "1"; } catch { return false; } };
 const saveFolded = (v: boolean) => { try { localStorage.setItem(FOLD_KEY, v ? "1" : "0"); } catch { /* not remembered */ } };
 
-export default function Shell({ nav, onNav, profiles, active, onSelect, onNewProfile, onVm, onRestart, vmBusy, vmOp, children, badges = {}, hidden = [], onCommands }: Props) {
-  const current = profiles.find((p) => p.name === active);
+export type Tab = "Containers" | "Images" | "Volumes" | "Networks" | "Kubernetes" | "Profiles" | "Doctor";
+
+const BOTTOM: Tab = "Doctor";
+const PATH_OF: Record<Tab, string> = {
+  Containers: "#/containers",
+  Images: "#/images",
+  Volumes: "#/volumes",
+  Networks: "#/networks",
+  Kubernetes: "#/kubernetes/pods",
+  Doctor: "#/doctor",
+  Profiles: "#/settings/machines",
+};
+
+type ShellProps = {
+  nav: Tab;
+  onNav: (t: Tab) => void;
+  badges?: Partial<Record<Tab, number>>;
+  counts?: { containers?: number };
+  hidden?: Tab[];
+  engine: React.ReactNode;
+  onSettings: () => void;
+  settingsActive: boolean;
+  onActivity: () => void;
+  onHelp: () => void;
+  children: React.ReactNode;
+};
+
+export default function Shell({ nav, onNav, badges = {}, hidden = [], counts = {}, engine, onSettings, settingsActive, onActivity, onHelp, children }: ShellProps) {
   const [folded, setFolded] = useState(readFolded);
   const fold = () => setFolded((f) => { saveFolded(!f); return !f; });
-  const [runtimes, setRuntimes] = useState<RuntimeInfo[]>([]);
-  const [activeRuntimeId, setActiveRuntimeId] = useState<string | null>(null);
+  const [mainEl, setMainEl] = useState<HTMLElement | null>(null);
 
-  useEffect(() => {
-    const load = async () => {
-      const available = await runtimeRegistry.detectAvailable();
-      setRuntimes(available);
-      const active = runtimeRegistry.getActive();
-      if (active) setActiveRuntimeId(active.id);
-    };
-    load();
+  const handleNavClick = useCallback(
+    (event: React.MouseEvent) => {
+      const anchor = (event.target as HTMLElement).closest("a.nav-item");
+      if (!anchor) return;
+      event.preventDefault();
+      const tab = Object.entries(PATH_OF).find(([, path]) => anchor.getAttribute("href") === path)?.[0] as Tab | undefined;
+      if (tab) onNav(tab);
+    },
+    [onNav],
+  );
+
+  const navItems = useMemo(() => {
+    const main: { tab: Tab; label: string; icon: IconName }[] = [
+      { tab: "Containers", label: "Containers", icon: "box" },
+      { tab: "Images", label: "Images", icon: "image" },
+      { tab: "Volumes", label: "Volumes", icon: "database" },
+      { tab: "Networks", label: "Networks", icon: "network" },
+      { tab: "Kubernetes", label: "Kubernetes", icon: "cluster" },
+    ];
+    const health: { tab: Tab; label: string; icon: IconName }[] = [
+      { tab: "Doctor", label: "Doctor", icon: "doctor" },
+    ];
+    return { main, health };
   }, []);
 
-  // While a start or stop runs, say so instead of the last state Colima reported.
-  const shown = (p: Profile) => (vmOp?.name === p.name ? (vmOp.op === "starting" ? "Starting…" : vmOp.op === "restarting" ? "Restarting…" : "Stopping…") : p.status);
-
-  const handleRuntimeChange = (id: string) => {
-    const adapter = runtimes.find(r => r.adapter.id === id)?.adapter;
-    if (adapter) {
-      runtimeRegistry.setActive(adapter);
-      setActiveRuntimeId(id);
-      // Trigger app to reload with new runtime
-      window.dispatchEvent(new CustomEvent("runtime-changed", { detail: { runtimeId: id } }));
-    }
-  };
-
-  const activeRuntimeValue = activeRuntimeId ?? "";
-
   return (
-    <div className={folded ? "shell folded" : "shell"}>
-      <div className="sidebar">
-        <div className="brand">
-          <Menu
-            label="Switch profile"
-            title={current ? `${current.name}, ${shown(current)}. Switch profile` : "Switch profile"}
-            className="profile-switch"
-            align="left"
-            items={[
-              ...profiles.map((p) => ({ label: p.name, hint: shown(p), checked: p.name === active, icon: <span className={p.status === "Running" ? "sdot on" : "sdot"} aria-hidden="true" />, onSelect: () => onSelect(p.name),
-                side: p.status === "Running"
-                  ? { label: "Stop VM", ariaLabel: `Stop the VM ${p.name}`, disabled: vmBusy, onSelect: () => onVm(p.name, "stopping") }
-                  : { label: "Start VM", ariaLabel: `Start the VM ${p.name}`, disabled: vmBusy, onSelect: () => onVm(p.name, "starting") } })),
-              // The VM's own Restart, which used to sit in the strip on the Containers screen.
-              ...(current?.status === "Running" && onRestart ? [{ label: "Restart VM", ariaLabel: `Restart the VM ${current.name}`, icon: <Icon name="restart" size={13} />, divider: true, hint: "Restarts the VM without losing containers", disabled: vmBusy, onSelect: () => onRestart(current.name) }] : []),
-              { label: "New profile", icon: <Icon name="plus" size={13} />, divider: profiles.length > 0, hint: "Creates a new container VM profile", onSelect: onNewProfile },
-              { label: "Manage profiles", icon: <Icon name="sliders" size={13} />, hint: "Opens the Profiles screen", onSelect: () => onNav("Profiles") },
-              { label: "Give feedback", icon: <Icon name="external-link" size={13} />, hint: "Opens GitHub Discussions in your browser", onSelect: () => void openUrl(`${REPO_URL}/discussions`) },
-            ]}
-          >
-            <span className="logo">
-              <Icon name="box" size={18} />
-              {current && <span className={current.status === "Running" ? "sdot on" : "sdot"} aria-hidden="true" />}
-            </span>
-            <span className="switch-text">
-              <b>{current?.name ?? "No VM"}</b>
-              {current && <span className="hint">{shown(current)}</span>}
-            </span>
-            <span className="switch-chev"><Icon name="chevron" size={13} /></span>
-          </Menu>
-          <button className="icon-btn fold-btn" aria-label={folded ? "Show the sidebar" : "Hide the sidebar"} title={folded ? "Show the sidebar" : "Hide the sidebar"} aria-expanded={!folded} onClick={fold}>
-            <Icon name="sidebar" size={15} />
-          </button>
-        </div>
-
-        {runtimes.length > 1 && (
-          <div className="runtime-selector" aria-label="Container runtime">
-            <label className="runtime-label" htmlFor="runtime-select">Runtime</label>
-            <select
-              id="runtime-select"
-              className="runtime-select"
-              value={activeRuntimeValue}
-              onChange={(e) => handleRuntimeChange(e.target.value)}
-              aria-label="Select container runtime"
-            >
-              {runtimes.map((r) => (
-                <option key={r.adapter.id} value={r.adapter.id}>
-                  {r.adapter.name} {r.version && `(${r.version})`}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-        <nav aria-label="Main">
-          {NAV.filter(({ tab }) => !hidden.includes(tab)).map(({ tab, icon }) => (
-            <button key={tab} className={`nav-item${tab === nav ? " active" : ""}${tab === BOTTOM ? " nav-bottom" : ""}`} aria-label={badges[tab] ? `${tab}, ${badges[tab]} problem${badges[tab] === 1 ? "" : "s"}` : tab} title={tab} aria-current={tab === nav ? "page" : undefined} onClick={() => onNav(tab)}>
-              <Icon name={icon} />
-              <span className="nav-label">{tab}</span>
-              {!!badges[tab] && <span className="nav-badge" aria-hidden="true">{badges[tab]}</span>}
-            </button>
+    <div className={`app ${folded ? "folded" : ""}`}>
+      <aside className="sidebar">
+        <div className="titlebar" data-tauri-drag-region />
+        <div>{engine}</div>
+        <nav className="nav" aria-label="Main" onClick={handleNavClick}>
+          {navItems.main.map(({ tab, label, icon }) => {
+            if (tab === "Kubernetes" && hidden.includes(tab)) return null;
+            const count = (tab === "Containers" ? counts.containers : badges[tab]) || undefined;
+            return (
+              <NavItem
+                key={tab}
+                href={PATH_OF[tab]}
+                icon={icon}
+                label={label}
+                current={nav === tab}
+                count={count}
+                countBad={tab === "Doctor" && !!badges[tab]}
+                countLabel={count !== undefined ? `${count} need action` : undefined}
+              />
+            );
+          })}
+        </nav>
+        <div className="nav-spacer" />
+        <nav className="nav" aria-label="Health" onClick={handleNavClick}>
+          {navItems.health.map(({ tab, label, icon }) => (
+            <NavItem
+              key={tab}
+              href={PATH_OF[tab]}
+              icon={icon}
+              label={label}
+              current={nav === tab}
+              count={badges[tab] || undefined}
+              countBad={!!badges[tab]}
+              countLabel={`${badges[tab] ?? 0} need action`}
+            />
           ))}
-          </nav>
-
-        <div className="shortcuts-panel" aria-label="Keyboard shortcuts">
-          <h3 className="shortcuts-title">Shortcuts</h3>
-          <dl className="shortcuts-list">
-            <dt>⌘K</dt><dd>Command Palette</dd>
-            <dt>⌘1–7</dt><dd>Tabs</dd>
-            <dt>⌘B</dt><dd>Toggle Sidebar</dd>
-            <dt>Esc</dt><dd>Close Panels</dd>
-            <dt>⌘N</dt><dd>New Container</dd>
-            <dt>⌘P</dt><dd>Pull Image</dd>
-            <dt>⌘D</dt><dd>Doctor Checks</dd>
-            <dt>⌘⇧N</dt><dd>New Profile</dd>
-            <dt>↑/↓</dt><dd>Navigate Lists</dd>
-            <dt>Enter</dt><dd>Confirm</dd>
-            <dt>Esc</dt><dd>Close/Close Modals</dd>
-          </dl>
+        </nav>
+        <div className="sidebar-foot">
+          <Button variant="ghost" iconOnly icon="settings" aria-label="Settings" onClick={onSettings} />
+          <Button variant="ghost" iconOnly icon="activity" aria-label="Activity: commands the app ran" onClick={onActivity} />
+          <Button variant="ghost" iconOnly icon="help" aria-label="Help and shortcuts" onClick={onHelp} />
+          <span className="grow" />
+          <Button variant="ghost" iconOnly icon="sidebar" aria-label={folded ? "Show the sidebar" : "Fold sidebar"} onClick={fold} />
         </div>
-      </div>
-      <main className="content">{children}</main>
+      </aside>
+      <main className="main content" ref={setMainEl}>
+        <PortalProvider container={mainEl}>
+          <ToastProvider>
+            <OpConfirmProvider>{children}</OpConfirmProvider>
+          </ToastProvider>
+        </PortalProvider>
+      </main>
     </div>
   );
 }

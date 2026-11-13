@@ -10,8 +10,6 @@ Rules:
 
 | Check | Brought back by |
 |---|---|
-| `check-layout.mjs` | WO-2.2 |
-| `check-restyle.mjs` | WO-2.2 |
 | `check-home.mjs` | WO-3.1 |
 | `check-down.mjs` | WO-3.1 |
 | `check-menus.mjs` | WO-3.1 |

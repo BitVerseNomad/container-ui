@@ -81,6 +81,9 @@ type Props = {
   // The Doctor's checks, shared with the Doctor page and its badge, so a problem is found once and counted once.
   report: Report | null;
   onReport: () => void;
+  // Machine meters (live stats) are passed from WO-2.2; consumed by WO-3.1b.
+  live?: Record<string, { cpu: number; memBytes: number }>;
+  history?: Record<string, number[]>;
   // Set while Docker Desktop's data is still on the Mac and some of it isn't in Colima (the same rule as Doctor's row).
   // only: the volume to pick alone, from the problem line of the row that uses it. returnTo: where focus goes if that
   // line is gone when the panel closes (the row's name button).

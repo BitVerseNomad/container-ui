@@ -2,6 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
 import { ConfirmProvider } from "./ui";
+import { TooltipProvider } from "./ui/op";
 import { migrateStorage } from "./lib/migrateStorage";
 import "./ui/openpier.css";
 
@@ -12,7 +13,9 @@ if (import.meta.env.DEV && window.location.hash === "#/dev/gallery") {
 } else {
   root.render(
     <ConfirmProvider>
-      <App />
+      <TooltipProvider>
+        <App />
+      </TooltipProvider>
     </ConfirmProvider>,
   );
 }
