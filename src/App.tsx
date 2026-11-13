@@ -7,6 +7,8 @@ import { usePoll } from "./hooks";
 import { Banner, Empty } from "./ui";
 import { Icon } from "./ui/icons";
 import Shell, { Tab } from "./Shell";
+import { useRoute, go } from "./lib/router";
+import { tabOfRoute, pathOfTab } from "./lib/tabRoutes";
 import PageHeader from "./ui/PageHeader";
 import Containers, { VmState } from "./Containers";
 import Images from "./Images";
@@ -52,7 +54,9 @@ const opName = (vm: VmState) => { const a = vm.last?.args as { name?: string; op
 const NOUN: Record<string, string> = { Images: "images", Volumes: "volumes", Networks: "networks", Kubernetes: "cluster" };
 
 export default function App() {
-  const [tab, setTab] = useState<Tab>("Containers");
+  const { route } = useRoute();
+  const tab: Tab = tabOfRoute(route);
+  const setTab = useCallback((t: Tab) => go(pathOfTab(t)), []);
   const [appError, setAppError] = useState<string | null>(null);
   const [activeRuntimeId, setActiveRuntimeId] = useState<string | null>(null);
 
@@ -342,6 +346,8 @@ export default function App() {
     { key: "6", meta: true, action: () => setTab("Doctor"), description: "Doctor tab" },
     { key: "7", meta: true, action: () => setTab("Profiles"), description: "Profiles tab" },
     { key: "b", meta: true, action: () => { /* sidebar fold handled by Shell */ }, description: "Toggle sidebar" },
+    { key: "[", meta: true, action: () => window.history.back(), description: "Back" },
+    { key: "]", meta: true, action: () => window.history.forward(), description: "Forward" },
     { key: "Escape", action: () => { setCommandPaletteOpen(false); setLogOpen(false); setPullOnOpen(false); setNewProfileOnOpen(false); }, description: "Close panels" },
   ], [kubeOn, setTab, setCommandPaletteOpen, setLogOpen, setPullOnOpen, setNewProfileOnOpen]);
 
