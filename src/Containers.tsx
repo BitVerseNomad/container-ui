@@ -372,13 +372,13 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
   // One line under a row: what is wrong, in plain words, and the one thing to do about it.
   const problemLine = ({ c, p, run }: { c: C; p?: Finding; run?: Run }, prefix: boolean, a?: App<C>) => {
     const who = prefix ? `${c.Names} · ` : "";
-    const see = <button className="small" onClick={() => setDetailId(c.ID)} aria-label={`See why: ${c.Names}`}>See why</button>;
-    if (run?.step) return <Line key={c.ID} level="busy" text={`${who}${run.step}`} action={<button className="small" aria-disabled="true">Fixing…</button>} />;
+    const see = <Button variant="ghost" size="sm" onClick={() => setDetailId(c.ID)} aria-label={`See why: ${c.Names}`}>See why</Button>;
+    if (run?.step) return <Line key={c.ID} level="busy" text={`${who}${run.step}`} action={<Button variant="ghost" size="sm" aria-disabled="true">Fixing…</Button>} />;
     const r = run?.result;
     if (r?.ok) {
       // A broker needs a little while after a restart, and an app that looks for it shows nothing until then.
       const slow = /kafka/i.test(c.Image) ? " Kafka needs about 30 s to start." : "";
-      return <Line key={c.ID} level="ok" text={`${who}Fixed.${slow}`} title={describe(r)} action={<button className="small" onClick={() => dismiss(c.Names)}>Done</button>} />;
+      return <Line key={c.ID} level="ok" text={`${who}Fixed.${slow}`} title={describe(r)} action={<Button variant="ghost" size="sm" onClick={() => dismiss(c.Names)}>Done</Button>} />;
     }
     if (!p) return r ? <Line key={c.ID} level="bad" text={`${who}The fix didn't finish.`} title={describe(r)} action={see} /> : null;
     // When this row's own fix replaces containers, a bigger fix that also replaces this one (Kafka UI's "fix both"
@@ -529,15 +529,13 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
         <div className={`app-row${state === "stopped" && !changing && !kube ? " is-off" : ""}`}>
           <span className="app-chev">
             {isProject && (
-              <button className={expanded ? "chev open" : "chev"} tabIndex={-1} aria-hidden="true" onClick={() => toggle(a.key)}>
-                <Icon name={expanded ? "chev-down" : "chev-right"} size="sm" />
-              </button>
+              <Button variant="ghost" size="xs" iconOnly icon={expanded ? "chev-down" : "chev-right"} tabIndex={-1} aria-hidden="true" aria-label={expanded ? "Fold" : "Unfold"} onClick={() => toggle(a.key)} />
             )}
           </span>
           <span className={`sev ${mark === "on" ? "ok" : mark === "part" ? "warn" : mark === "bad" ? "bad" : mark === "warn" ? "warn" : "info"}`}>
             {mark === "on" ? "Running" : mark === "off" ? "Stopped" : mark === "part" ? "Partly" : mark === "bad" ? "Error" : mark === "warn" ? "Warning" : "Busy"}
           </span>
-          <button
+          <Button
             className="app-name"
             title={a.dir ? `${a.name} · ${tilde(a.dir)}` : single ? `${single.Names} · ${single.Image}` : a.name}
             aria-expanded={isProject ? expanded : undefined}
@@ -548,7 +546,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
             onClick={() => (isProject ? toggle(a.key) : kube ? onKubernetes?.() : setDetailId(single!.ID))}
           >
             {a.name}
-          </button>
+          </Button>
           {kube ? (
             <Button variant="ghost" size="sm" disabled={lock || undefined} onClick={() => onKubernetes?.()} aria-label="Open the Kubernetes tab">
               Open
@@ -586,14 +584,14 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
             level="bad"
             text={`${a.name} didn't ${DID[cf.action]}. ${cf.why ?? firstLine(cf.text)}`}
             title={cf.text}
-            action={cf.holder ? <button className="small primary" aria-disabled={lock || !holderApp || !canAct(holderApp) || undefined} onClick={async () => { if (lock || !holderApp || !canAct(holderApp)) return; await act(holderApp, ["stop", cf.holder!], null, `${cf.holder} stopped`); await startIt(); }}>Stop {cf.holder} and start</button> : undefined}
+            action={cf.holder ? <Button variant="ghost" size="sm" className="small primary" aria-disabled={lock || !holderApp || !canAct(holderApp) || undefined} onClick={async () => { if (lock || !holderApp || !canAct(holderApp)) return; await act(holderApp, ["stop", cf.holder!], null, `${cf.holder} stopped`); await startIt(); }}>Stop {cf.holder} and start</Button> : undefined}
           />
         )}
-        {failure && !cf && <Line level="bad" text={`${a.name}: ${firstLine(failure)}`} title={failure} action={<button className="small" onClick={() => unfail(a.key)}>Dismiss</button>} />}
+        {failure && !cf && <Line level="bad" text={`${a.name}: ${firstLine(failure)}`} title={failure} action={<Button variant="ghost" size="sm" className="small" onClick={() => unfail(a.key)}>Dismiss</Button>} />}
         {lock && !changing && <span className="sr-only" id={`why-${a.key}`}>{a.rows.some((c) => fixBusy(runs, c.Names)) ? "A fix is running on it." : vm.op ? "The VM is changing." : "Another action is running."}</span>}
         {/* First: a database that came up empty can explain the problems under it. */}
         {rowGaps.map((g) => (
-          <Line key={`gap-${g.name}`} level="warn" text={<Ticks text={gapLine(g)} />} action={<button className="small" aria-label={`Bring it over: ${g.name} from Docker Desktop`} onClick={() => onBring?.([g.name], rowSel(a.key))}>Bring it over…</button>} />
+          <Line key={`gap-${g.name}`} level="warn" text={<Ticks text={gapLine(g)} />} action={<Button variant="ghost" size="sm" className="small" aria-label={`Bring it over: ${g.name} from Docker Desktop`} onClick={() => onBring?.([g.name], rowSel(a.key))}>Bring it over…</Button>} />
         ))}
         {!expanded && !kube && issues.map((i) => problemLine(i, isProject, a))}
         {/* Last: what is simply stopped, after the lines that say what went wrong. */}
@@ -601,7 +599,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
           <Line
             level="off"
             text={downWords.text}
-            action={<button className="small" aria-label={downWords.label} aria-disabled={lock || undefined} onClick={() => { if (!lock) void act(a, ["start", ...down.map((c) => c.ID)], { target: "running", word: "Starting…", since: Date.now(), ids: down.map((c) => c.ID) }, downWords.done); }}>{downWords.button}</button>}
+            action={<Button variant="ghost" size="sm" className="small" aria-label={downWords.label} aria-disabled={lock || undefined} onClick={() => { if (!lock) void act(a, ["start", ...down.map((c) => c.ID)], { target: "running", word: "Starting…", since: Date.now(), ids: down.map((c) => c.ID) }, downWords.done); }}>{downWords.button}</Button>}
           />
         )}
         {resizedHere && !failedChange && <div className="problem result"><ResizeStatus from={rs.from!} /></div>}
@@ -615,9 +613,9 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
                 <li key={c.ID}>
                   <div className="svc-row">
                     <span className={`sev ${cUp ? "ok" : "off"}`}>{cUp ? "Running" : "Stopped"}</span>
-                    <button className="svc-name" data-open={c.ID} title={`${c.Names} · ${c.Image}`} aria-label={`${c.Names}, ${cWord}${i?.p ? ", 1 problem" : ""}`} onClick={() => setDetailId(c.ID)}>
+                    <Button variant="ghost" size="sm" className="svc-name" data-open={c.ID} title={`${c.Names} · ${c.Image}`} aria-label={`${c.Names}, ${cWord}${i?.p ? ", 1 problem" : ""}`} onClick={() => setDetailId(c.ID)}>
                       {serviceName(c, a.name)} <span className="svc-image">{c.Image}</span>
-                    </button>
+                    </Button>
                     <span className="svc-ports">
                       {cUp && portLinksFromPs(c.Ports).slice(0, 3).map((l) => {
                         const web = isWebPort(l.containerPort, l.port);
@@ -776,8 +774,8 @@ function LimitLine({ who, text, detail, fix, ctx, project, locked, lockWhy, onAp
   const button = !a || state === "open"
     ? opener.button(a?.service ?? project, "small")
     : state === "start"
-      ? <button key="start" className="small" {...lock} aria-label={`Start ${project}: ${a.service} needs ${view.waiting.join(" and ")}`} onClick={() => !locked && onStart()}>{label}</button>
-      : <button key="apply" className="small" {...lock} aria-label={`${mine ? "Starting" : "Apply and start"} ${a.service}`} title={`docker compose up -d --no-deps ${a.service}`} onClick={() => !locked && onApply(a.service)}>{mine ? "Starting…" : label}</button>;
+      ? <Button key="start" variant="ghost" size="sm" className="small" {...lock} aria-label={`Start ${project}: ${a.service} needs ${view.waiting.join(" and ")}`} onClick={() => !locked && onStart()}>{label}</Button>
+      : <Button key="apply" variant="ghost" size="sm" className="small" {...lock} aria-label={`${mine ? "Starting" : "Apply and start"} ${a.service}`} title={`docker compose up -d --no-deps ${a.service}`} onClick={() => !locked && onApply(a.service)}>{mine ? "Starting…" : label}</Button>;
   const action = <span className="limit-action" ref={box}>{button}</span>;
   if (a && state !== "open") {
     // Nothing is failing now; one step is waiting. So the line is neutral, like a stopped container's.
