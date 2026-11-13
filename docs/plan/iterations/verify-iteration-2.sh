@@ -69,10 +69,10 @@ chk "every class used is defined (check-classes)" node scripts/check-classes.mjs
 chk "no old names left in src (wharf, colima-ui storage keys)" sh -c '! grep -rniE "wharf:|colima-ui:|colima-ui\." src --include=*.ts --include=*.tsx'
 EMDASH=$(printf '\342\200\224')
 chk "no leftover Design gap marker in the iteration 2 files" sh -c '! grep -n "Design gap\|PROPOSED" docs/plan/iterations/iteration-2-work-orders.md docs/plan/iterations/iteration-2-acceptance.md'
-chk "no em dash in the iteration 2 files" sh -c '! grep -l "$1" docs/plan/iterations/iteration-2-*.md docs/plan/iterations/verify-iteration-2.sh' sh "$EMDASH"
+chk "no em dash in the iteration 2 files" sh -c '! cat docs/plan/iterations/iteration-2-*.md docs/plan/iterations/verify-iteration-2.sh docs/plan/iterations/pr/wo-2.*.md docs/plan/iterations/pr/wo-3.*.md 2>/dev/null | grep -q "$1"' sh "$EMDASH"
 chk "no TODO or FIXME added in the new files" sh -c '! grep -rnE "TODO|FIXME" src/containers src/lib/router.ts src/lib/routes.ts src/lib/containerRows.ts src/lib/engineModel.ts src/lib/liveStats.ts src/lib/shortcuts.ts src/lib/paletteModel.ts src/lib/inspectorContent.ts src/Header.tsx src/EngineSwitcher.tsx src/Activity.tsx src/ui/op/Palette.tsx src/ui/op/EngineButton.tsx 2>/dev/null'
 chk "no style= and no raw button, select or table in the new screen files" sh -c '! grep -nE "<button|<select|<table|style=" src/containers/*.tsx src/Header.tsx src/EngineSwitcher.tsx src/Activity.tsx src/Shell.tsx src/CommandPalette.tsx src/HelpModal.tsx src/Containers.tsx src/ContainerDetail.tsx src/Logs.tsx src/StatsTab.tsx src/RunPanel.tsx src/RunPicker.tsx src/PullPanel.tsx src/ComposeProjects.tsx src/ComposeLogs.tsx'
-chk "pull request texts exist for every work order (docs/plan/iterations/pr/)" sh -c 'for id in 2.1 2.2 2.3 2.4 3.1a 3.1b 3.1c 3.2 3.3a 3.3b 3.3c; do test -f docs/plan/iterations/pr/wo-$id.md || exit 1; done'
+chk "pull request texts exist for every work order (docs/plan/iterations/pr/)" sh -c 'for id in 2.1 2.2 2.3 2.4 2.5 3.1a 3.1b 3.1c 3.2 3.3a 3.3b 3.3c; do test -f docs/plan/iterations/pr/wo-$id.md || exit 1; done'
 
 echo "== WO-2.1 routes =="
 present "WO-2.1: router files and tests exist" src/lib/routes.ts src/lib/router.ts src/lib/tabRoutes.ts src/lib/routes.test.ts src/lib/router.test.tsx
@@ -81,7 +81,8 @@ has "WO-2.1: buildPath exported" src/lib/routes.ts "export function buildPath"
 has "WO-2.1: useRoute exported" src/lib/router.ts "export function useRoute"
 has "WO-2.1: go exported" src/lib/router.ts "export function go"
 has "WO-2.1: last route is remembered under openpier:last-route" src/lib/router.ts "openpier:last-route"
-lacks "WO-2.1: router has no gallery logic (the gallery lives in main.tsx)" src/lib/router.ts "gallery"
+# Comment lines may name the gallery (router.ts says where it lives); code lines may not.
+chk "WO-2.1: router has no gallery logic (the gallery lives in main.tsx)" sh -c '! grep -v "^[[:space:]]*//" src/lib/router.ts | grep -q gallery'
 lacks "WO-2.1: App no longer keeps the tab in useState" src/App.tsx "useState<Tab>"
 atleast "WO-2.1: at least 12 route tests" 12 src/lib/routes.test.ts "^test("
 atleast "WO-2.1: at least 5 router tests" 5 src/lib/router.test.tsx "^\s*\(it\|test\)("
@@ -141,6 +142,18 @@ has "WO-2.4: Cmd+R refresh event listened in usePoll" src/hooks.ts "openpier:ref
 lacks "WO-2.4: Commands.tsx has no Drawer" src/Commands.tsx "<Drawer"
 chk "WO-2.4: check-palette passes in Chromium" node scripts/check-palette.mjs
 chk "WO-2.4: check-palette passes in WebKit" env PW_ENGINE=webkit node scripts/check-palette.mjs
+
+echo "== WO-2.5 fixes from the review =="
+lacks "WO-2.5: palette no longer draws every caption first" src/ui/op/Palette.tsx "sections.map((section, si) => ("
+has "WO-2.5: palette groups entries under their caption" src/ui/op/Palette.tsx "<Fragment key={section.group}>"
+has "WO-2.5: palette order test" src/ui/op/Palette.test.tsx "Then the order of captions and options"
+has "WO-2.5: Settings button marks the page" src/Shell.tsx 'aria-current={settingsActive ? "page" : undefined}'
+has "WO-2.5: App passes the Containers count" src/App.tsx "counts={{ containers: containerCount }}"
+has "WO-2.5: the count leaves out Kubernetes pods" src/App.tsx 'owner(toApp(c as Inspect)) !== "kubernetes"'
+atleast "WO-2.5: check-restyle keeps its old lines" 7 scripts/check-restyle.mjs "check("
+chk "WO-2.5: check-restyle passes in Chromium" node scripts/check-restyle.mjs
+chk "WO-2.5: check-restyle passes in WebKit" env PW_ENGINE=webkit node scripts/check-restyle.mjs
+chk "WO-2.5: every pull request of WO-2.x has Contract differences" sh -c 'for id in 2.1 2.2 2.3 2.4 2.5; do grep -q "## Contract differences" docs/plan/iterations/pr/wo-$id.md || exit 1; done'
 
 echo "== WO-3.1a row model =="
 present "WO-3.1a: files exist" src/lib/containerRows.ts src/lib/containerRows.test.ts

@@ -35,7 +35,7 @@ Two kinds of comparison. `scripts/check-mockup.mjs` (WebKit only, always 1280x80
 Compare with `containers-light.png` and `containers-dark.png`.
 1. Sidebar 208 px: engine area at the top, then Containers (with a muted count), Images, Volumes, Networks, Kubernetes; a gap; Doctor with a red count; the foot has Settings, Activity, Help, a spacer, Fold.
 2. No "Profiles" item, no shortcut list, no Runtime select.
-3. Header: title, muted summary, three meters (memory bar amber at 64 percent in the design scenario), then the right-hand controls. Meters are in list page headers only. Meters show real numbers from the mock, not the picture's.
+3. Header: title, muted summary, three meters (the bar turns amber above 60 percent for memory; the `design` data uses about 1.2 of 8 GB, so here it is not amber, and the `memHot` unit test proves the colour), then the right-hand controls. Meters are in list page headers only. Meters show real numbers from the mock, not the picture's.
 4. The active item is solid blue with white text; folded sidebar (Cmd+B) shows icons only (the CSS does it; the shell only sets the class) and survives a reload (`openpier:sidebar-folded` is `"1"`; any other value or none means open). The Settings foot button has `aria-current="page"` on Settings.
 5. At 900x600 Doctor is fully visible and clickable (U21). At 899 px the window cannot get smaller (`minWidth`).
 6. In the real app (`npm run tauri dev` is not needed; read `tauri.conf.json`): `titleBarStyle` Overlay, `hiddenTitle` true, 1180x760 default, drag permission present.
@@ -66,6 +66,13 @@ Compare by eye with `command-palette-light.png` and `-dark.png` (no mockup row: 
 6. Design decisions to confirm: Help is built in a Sheet (spec says dialog; no information-dialog class exists); the Images group of the palette is empty until WO-3.4; the palette has no words for "nothing matches" (no design).
 7. The palette is the new `Palette` component in `src/ui/op/Palette.tsx` (its own tests); `CommandPalette.tsx` is a thin wrapper. Container entries come from the palette's own `docker ps -a`, not from the Doctor list.
 8. Cheats: a second shortcut list typed by hand in `HelpModal.tsx` or `CommandPalette.tsx`; Cmd+R reloads the whole window instead of refreshing data; `/` fires while typing in a field.
+
+## WO-2.5 Fixes from the review
+
+1. Cmd+K, type "kaf": the caption "Containers" with kafka and kafka-ui right under it, then "Actions" with its rows. No caption without rows under it.
+2. The sidebar shows a muted `10` next to Containers in `?scenario=design`.
+3. On `#/settings/general` the Settings foot button has `aria-current="page"`.
+4. Cheats: `check-restyle.mjs` under 7 `check(` lines, or old line 48 brought back; the new Palette order test checks only that captions exist; the count typed as a number in `App.tsx`.
 
 ## WO-3.1a Row model
 
