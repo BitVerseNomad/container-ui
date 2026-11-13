@@ -60,6 +60,11 @@ When two things disagree, the higher one wins, and you report the disagreement.
 11. No people's names, emails or handles in code, commits or docs, other than the repo owner's account in URLs.
 12. No em dashes in anything you write. Plain English, short sentences.
 13. **Keep the tree clean.** Notes, saved command output and other working files go outside the repo (for example `/tmp/openpier-wo-<id>/`), never in a repo folder. Paste the output you need into the pull request file. `git status --short` must print nothing when a work order ends and when the next one starts. If it shows a file you did not make, stop and report.
+14. **You make every commit yourself, on the work order's branch.** If your tool can commit, push, open pull requests or create branches on its own (auto-commit, checkpoints, auto-push), turn that off before you start. If you cannot turn it off, stop and tell the owner. A commit on `main` that is not a `--no-ff` merge of a `wo-` branch is a defect.
+15. **Port 4173 is the preview's.** Before the first check of a work order run `lsof -nP -iTCP:4173 -sTCP:LISTEN`. If something you did not start listens there, stop and report: the check script would test that server and not your code. Stop the preview you started when the work order ends.
+16. **The checks are slow.** `npm run check` takes more than 10 minutes. Run it in the background or with a long timeout. A run that was cut short is not a result.
+17. **Tests next to the code.** Write the test, run it and keep its failing output, write the code, run it again. Paste both outputs in the pull request file. Do not make a commit that holds only a failing test: it would not build.
+18. **Dependencies first.** Run `npm ci` before any `npx` command of a work order.
 
 ## 5. The checks
 
