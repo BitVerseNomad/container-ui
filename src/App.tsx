@@ -24,6 +24,7 @@ import { useSetup } from "./Setup";
 import BringOver from "./BringOver";
 import { bringOffered } from "./lib/setup";
 import Doctor, { groups, useDoctor, useMuted } from "./Doctor";
+import { owner, toApp, type Inspect } from "./lib/apps";
 import { useFixRuns } from "./FixIt";
 import { useEnv } from "./useEnv";
 import { useComposeScan } from "./useComposeScan";
@@ -165,6 +166,7 @@ export default function App() {
   const mutedKeys = useMuted();
   // Held while the VM restarts for a new size, so the badge doesn't drop and come back.
   const doctorTodo = useHeld(groups(setup.findings ?? [], doc.report, mutedKeys).todo);
+  const containerCount = doc.containers?.filter((c) => owner(toApp(c as Inspect)) !== "kubernetes").length;
   // One Bring over panel, opened from Doctor's row, home's empty state, home's problem line or the New menu, so a copy
   // started in one is seen in all. It is pinned to the VM it opened on: every follow-up (Start in Colima, Try again)
   // runs there. Switching profile closes it, unless a copy is running; then it stays, saying which VM it is for.
@@ -435,6 +437,7 @@ export default function App() {
             nav={tab}
             onNav={(t) => setTab(t)}
             badges={{ Doctor: doctorTodo }}
+            counts={{ containers: containerCount }}
             hidden={kubeOn ? [] : ["Kubernetes"]}
             engine={<div data-slot="engine"><EngineSwitcher engines={engines} selectedId={active} open={engineOpen} onOpenChange={setEngineOpen} onSelect={switchTo} onStart={(id) => { switchTo(id); setTab("Containers"); void vmFromAnywhere(id, "starting"); }} onStop={(id) => void vmFromAnywhere(id, "stopping")} onMachines={() => go("#/settings/machines")} /></div>}
             onSettings={() => go("#/settings/general")}

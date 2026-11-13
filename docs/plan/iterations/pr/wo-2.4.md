@@ -37,3 +37,7 @@ wo-2.4: One list of shortcuts for the keys, Help and the palette
 5. **Not done or changed from the work order**: nothing
 
 6. **Found on the way**: none (no lines added to FOUND.md)
+
+## Contract differences
+
+None.

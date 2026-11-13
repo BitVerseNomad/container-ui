@@ -8,12 +8,12 @@ wo-2.3: One engine switcher replaces the profile box
 
 ## Steps done
 
-- [x] Step 2.1: `src/ui/op/Menu.tsx` — `Menu` gains `open`, `onOpenChange`, `contentClassName` props passed to Radix `DropdownMenu.Root`/Content.
-- [x] Step 2.2: `src/ui/op/Menu.tsx` — added `MenuRadioGroup` (Radix `RadioGroup`) and `MenuRadioItem` (Radix `RadioItem` with `className="row"`); both exported from `src/ui/op/index.ts`.
-- [x] Step 2.3: `src/ui/op/EngineButton.tsx` created — `button.engine` trigger with `Dot`, name/state text, `updown` chevron; exported from index.
+- [x] Step 2.1: `src/ui/op/Menu.tsx`: `Menu` gains `open`, `onOpenChange`, `contentClassName` props passed to Radix `DropdownMenu.Root`/Content.
+- [x] Step 2.2: `src/ui/op/Menu.tsx`: added `MenuRadioGroup` (Radix `RadioGroup`) and `MenuRadioItem` (Radix `RadioItem` with `className="row"`); both exported from `src/ui/op/index.ts`.
+- [x] Step 2.3: `src/ui/op/EngineButton.tsx` created: `button.engine` trigger with `Dot`, name/state text, `updown` chevron; exported from index.
 - [x] Step 2.4: Tests added to `src/ui/op/Menu.test.tsx` and new `src/ui/op/EngineButton.test.tsx`; `EngineButton` section and radio group added to `src/dev/Gallery.tsx`.
 - [x] Step 3: `src/lib/engineModel.ts` created (`ColimaEngine`, `engineOfProfile`, `stateLine`, `factsLine`, `dotOf`, `buttonLabel`, `groupEngines`, `busyOf`, `chooseEngine`).
-- [x] Step 4: `src/EngineSwitcher.tsx` created — `Menu` with `contentClassName="engines"`, `EngineButton` trigger, `MenuRadioGroup` of engines, `Stop`/`Machines…` items; `src/LegacyProfileSwitch.tsx` deleted.
+- [x] Step 4: `src/EngineSwitcher.tsx` created: `Menu` with `contentClassName="engines"`, `EngineButton` trigger, `MenuRadioGroup` of engines, `Stop`/`Machines…` items; `src/LegacyProfileSwitch.tsx` deleted.
 - [x] Step 5: `src/App.tsx` builds `engines` via `useMemo`, `stored` from `localStorage.getItem("openpier:engine")`, `chooseEngine` prefers stored, `switchTo` saves to localStorage, `EngineSwitcher` replaces `LegacyProfileSwitch` in the engine slot.
 - [x] Step 6: No remaining "Switch profile" / "profile-switch" / "LegacyProfileSwitch" in `src`.
 - [x] Step 9: `src/LegacyProfileSwitch.tsx` removed from `scripts/not-migrated.json` (was not listed).
@@ -58,7 +58,7 @@ CHECK_DONE_EXIT:0
 
 ## Screenshots
 
-The popover only exists after a click, so `check-mockup.mjs` cannot capture it. By-eye check: open `http://localhost:4173/?scenario=two#/containers`, click the engine button, compare against `engine-switcher-light.png` and `engine-switcher-dark.png` — button with dot, "Colima · default", muted state line, up-down chevron; popover with bare caption "Colima", ticked row, stopped row with small Start button, separator, two items with grey hints.
+The popover only exists after a click, so `check-mockup.mjs` cannot capture it. By-eye check: open `http://localhost:4173/?scenario=two#/containers`, click the engine button, compare against `engine-switcher-light.png` and `engine-switcher-dark.png`: button with dot, "Colima · default", muted state line, up-down chevron; popover with bare caption "Colima", ticked row, stopped row with small Start button, separator, two items with grey hints.
 
 ## Not done or changed from the work order
 
@@ -68,3 +68,7 @@ The popover only exists after a click, so `check-mockup.mjs` cannot capture it. 
 ## Found on the way
 
 Fixed `src/api.ts` import of `./lib/appStopped` to add `.ts` extension and split `Ended` into `import type` so the Node.js test runner (`--experimental-strip-types`) can resolve it. Also fixed `src/lib/engineModel.ts` imports to use `.ts` extensions for the same reason.
+
+## Contract differences
+
+None.

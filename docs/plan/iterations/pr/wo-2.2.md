@@ -14,7 +14,7 @@ wo-2.2: A new shell with meters, a hidden title bar and Doctor always in view
 - [x] Step 4: `src/hooks/useLiveStats.ts` created (`setMachineProfile`, `useLiveStats` polling every 10s).
 - [x] Step 5: `src/App.tsx` calls `useLiveStats(ctx, running)`, passes `live`/`history` to Containers, `usage` to Header via `MachineUsageProvider`; renders `Header` above non-Containers pages; `engine` slot is `LegacyProfileSwitch`; new Shell props.
 - [x] Step 6: `src/Header.tsx` created with `MachineUsageContext`/`Provider`, drag region, title, dot, summary, stateText, grow, meters (off on detail pages).
-- [x] Step 7: `src/Shell.tsx` rewritten — new props, fold from `openpier:sidebar-folded`, aside.sidebar with titlebar drag region, engine slot, main nav via NavItem, health nav (Doctor), sidebar-foot buttons, `main.main` wrapping `PortalProvider > ToastProvider > OpConfirmProvider`.
+- [x] Step 7: `src/Shell.tsx` rewritten: new props, fold from `openpier:sidebar-folded`, aside.sidebar with titlebar drag region, engine slot, main nav via NavItem, health nav (Doctor), sidebar-foot buttons, `main.main` wrapping `PortalProvider > ToastProvider > OpConfirmProvider`.
 - [x] Step 8: `src/LegacyProfileSwitch.tsx` created as a temporary engine trigger button (WO-2.3 replaces it).
 - [x] Step 9: Removed old Shell shortcuts/Runtime select; `main.tsx` wraps App in `ConfirmProvider > TooltipProvider`.
 - [x] Step 10: `scripts/mockup-pairs.json` gains the containers row (masked, threshold 0.02).
@@ -96,3 +96,7 @@ No screenshots captured for WO-2.2; the mockup check (`check-mockup.mjs`) passed
 ## Found on the way
 
 Nothing new; `docs/plan/FOUND.md` keeps its earlier entries.
+
+## Contract differences
+
+None.

@@ -206,13 +206,13 @@ The WO-3.x failures are expected: iteration 3 was not started. Only WO-2.1 throu
 
 ## FOUND.md content
 
-(none — no lines were added to FOUND.md during iteration 2)
+(none: no lines were added to FOUND.md during iteration 2)
 
 ## Notes
 
 - The two "Rules that hold for the whole iteration" FAILs ("no old names left" and "pull request texts exist") are pre-existing conditions present before iteration 2 began; they are not caused by iteration-2 work.
-- WO-2.4 item 8 (mockup row): none — palette, Help and Activity appear only after a key press or click, so they are compared by eye against command-palette-light.png and command-palette-dark.png, as the work order permits.
+- WO-2.4 item 8 (mockup row): none: palette, Help and Activity appear only after a key press or click, so they are compared by eye against command-palette-light.png and command-palette-dark.png, as the work order permits.
 - Working files were kept outside the repo under /tmp/openpier-wo-<id>/ as required.
 - Nothing was pushed; no docker/colima/limactl/kubectl/brew mutating commands were run; private.key was never opened.
 
-Iteration 2 is complete. Stopping here per the plan — iteration 3 is not started.
+Iteration 2 is complete. Stopping here per the plan: iteration 3 is not started.

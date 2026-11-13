@@ -111,7 +111,7 @@ export default function Shell({ nav, onNav, badges = {}, hidden = [], counts = {
           ))}
         </nav>
         <div className="sidebar-foot">
-          <Button variant="ghost" iconOnly icon="settings" aria-label="Settings" onClick={onSettings} />
+          <Button variant="ghost" iconOnly icon="settings" aria-label="Settings" aria-current={settingsActive ? "page" : undefined} onClick={onSettings} />
           <Button variant="ghost" iconOnly icon="activity" aria-label="Activity: commands the app ran" onClick={onActivity} />
           <Button variant="ghost" iconOnly icon="help" aria-label="Help and shortcuts" onClick={onHelp} />
           <span className="grow" />
