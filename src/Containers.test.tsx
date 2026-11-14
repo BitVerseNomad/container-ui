@@ -1,13 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { fakeBackend, jsonLines } from "./test/fakeBackend";
+import type { ReactElement } from "react";
+import { fakeBackend, jsonLines, type Answer } from "./test/fakeBackend";
 
 const backend = vi.hoisted(() => ({ current: null as null | ReturnType<typeof import("./test/fakeBackend").fakeBackend> }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: (cmd: string, a: Record<string, unknown>) => backend.current!.invoke(cmd, a) }));
 
 import Containers, { VmState } from "./Containers";
-import { ConfirmProvider, ToastProvider } from "./ui/op";
+import { ConfirmProvider, ToastProvider, TooltipProvider } from "./ui/op";
 import { reset as resetFixes, startFix } from "./lib/fixStore";
 import { resetComposeRun, runCompose } from "./ComposeProjects";
 import { noteDocker, resetAppStopped } from "./lib/appStopped";
@@ -50,6 +51,20 @@ function show({ list = rows, report = null as Report | null, vm = { op: null, fa
     </ToastProvider>,
   );
   return { onImages, setDetailId, onKubernetes };
+}
+
+// Wraps a render in the providers the screen needs: Confirm, Toast, Tooltip.
+function renderScreen(answers: Record<string, Answer>, element: ReactElement) {
+  backend.current = fakeBackend(answers);
+  return render(
+    <ConfirmProvider>
+      <ToastProvider>
+        <TooltipProvider>
+          {element}
+        </TooltipProvider>
+      </ToastProvider>
+    </ConfirmProvider>
+  );
 }
 const rowOf = async (name: string) => (await screen.findByRole("button", { name: new RegExp(`^${name},`) })).closest("li") as HTMLElement;
 async function menuOf(user: ReturnType<typeof userEvent.setup>, name: string) {
@@ -288,5 +303,74 @@ describe("Containers", () => {
     show();
     await rowOf("web");
     expect(screen.queryByRole("textbox", { name: "Search containers" })).not.toBeInTheDocument();
+  });
+
+  // --- New state tests for WO-3.1c-1 ---
+
+  it("given no answer yet, when the list loads, then four skeleton rows show", async () => {
+    renderScreen({ ps: () => new Promise<string>(() => {}) }, (
+      <Containers profile={profile} ctx="colima" live={{}} history={{}} vm={{ op: null, failure: null }} onVm={() => {}} reload={() => {}} detailId={null} setDetailId={() => {}} onPull={() => {}} onProfiles={() => {}} compose={scan} onImages={() => {}} report={null} onReport={() => {}} inspected={undefined} />
+    ));
+    expect(document.querySelectorAll(".skeleton")).toHaveLength(8);
+  });
+
+  it("given an unreachable daemon, when the list loads, then the error banner shows", async () => {
+    renderScreen({
+      ps: () => { throw "Cannot connect to the Docker daemon at unix:///Users/me/.colima/default/docker.sock. Is the docker daemon running?"; },
+    }, (
+      <Containers profile={profile} ctx="colima" live={{}} history={{}} vm={{ op: null, failure: null }} onVm={() => {}} reload={() => {}} detailId={null} setDetailId={() => {}} onPull={() => {}} onProfiles={() => {}} compose={scan} onImages={() => {}} report={null} onReport={() => {}} inspected={undefined} />
+    ));
+    await waitFor(() => expect(screen.getByText("Couldn't list containers")).toBeInTheDocument(), { timeout: 5000 });
+  });
+
+  it("given a stopped machine, when the list loads, then it shows the stopped empty state", async () => {
+    renderScreen({ ps: () => "" }, (
+      <Containers profile={profile} ctx={null} live={{}} history={{}} vm={{ op: null, failure: null }} onVm={() => {}} reload={() => {}} detailId={null} setDetailId={() => {}} onPull={() => {}} onProfiles={() => {}} compose={scan} onImages={() => {}} report={null} onReport={() => {}} inspected={undefined} />
+    ));
+    expect(screen.getByText("default is stopped")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Start default" })).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "Search containers" })).not.toBeInTheDocument();
+  });
+
+  it("given no containers, when the list loads, then No containers yet with Run an image", async () => {
+    renderScreen({ ps: () => "" }, (
+      <Containers profile={profile} ctx="colima" live={{}} history={{}} vm={{ op: null, failure: null }} onVm={() => {}} reload={() => {}} detailId={null} setDetailId={() => {}} onPull={() => {}} onProfiles={() => {}} compose={scan} onImages={() => {}} report={null} onReport={() => {}} inspected={undefined} />
+    ));
+    await waitFor(() => expect(screen.getByText("No containers yet")).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "Run an image" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Start a Compose project" })).toBeInTheDocument();
+  });
+
+  it("given a search with no match, when the list loads, then Nothing matches with Clear search", async () => {
+    const user = userEvent.setup();
+    renderScreen({ ps: () => jsonLines(rows) }, (
+      <Containers profile={profile} ctx="colima" live={{}} history={{}} vm={{ op: null, failure: null }} onVm={() => {}} reload={() => {}} detailId={null} setDetailId={() => {}} onPull={() => {}} onProfiles={() => {}} compose={scan} onImages={() => {}} report={null} onReport={() => {}} inspected={undefined} />
+    ));
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Search containers" })).toBeInTheDocument());
+    const search = screen.getByRole("textbox", { name: "Search containers" });
+    await user.type(search, "zzz");
+    await waitFor(() => expect(screen.getByText("Nothing matches \"zzz\".")).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "Clear search" })).toBeInTheDocument();
+  });
+
+  it("given no containers, when the list loads, then the search field is present", async () => {
+    renderScreen({ ps: () => "" }, (
+      <Containers profile={profile} ctx="colima" live={{}} history={{}} vm={{ op: null, failure: null }} onVm={() => {}} reload={() => {}} detailId={null} setDetailId={() => {}} onPull={() => {}} onProfiles={() => {}} compose={scan} onImages={() => {}} report={null} onReport={() => {}} inspected={undefined} />
+    ));
+    expect(screen.getByRole("textbox", { name: "Search containers" })).toBeInTheDocument();
+  });
+
+  it("given a start that fails, when Start is pressed, then Dismiss shows under the row", async () => {
+    const user = userEvent.setup();
+    const stopped = [{ ID: "aaa", Names: "web", Image: "nginx:latest", State: "exited", Status: "Exited (0) 3 hours ago", Ports: "", Labels: "" }];
+    renderScreen({
+      ps: () => jsonLines(stopped),
+      start: () => { throw "Error response from daemon: driver failed programming external connectivity on endpoint web: Bind for 0.0.0.0:8080 failed: port is already allocated"; },
+    }, (
+      <Containers profile={profile} ctx="colima" live={{}} history={{}} vm={{ op: null, failure: null }} onVm={() => {}} reload={() => {}} detailId={null} setDetailId={() => {}} onPull={() => {}} onProfiles={() => {}} compose={scan} onImages={() => {}} report={null} onReport={() => {}} inspected={undefined} />
+    ));
+    const startBtn = await screen.findByRole("button", { name: "Start web" });
+    await user.click(startBtn);
+    await screen.findByRole("button", { name: "Dismiss" }, { timeout: 5000 });
   });
 });
