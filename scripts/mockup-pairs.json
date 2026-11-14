@@ -1,3 +1,5 @@
 [
-  { "mockup": "containers", "path": "/?scenario=design#/containers", "themes": ["light", "dark"], "threshold": 0.02, "mask": [".content", ".header .meters", ".header .sub", ".sidebar .count", ".sidebar .engine"], "why": "The list is compared in WO-3.1c. Here only the sidebar and the header are compared, so the list, the live meters, the counts and the engine switcher are masked." }
+  { "mockup": "containers", "path": "/?scenario=design#/containers", "themes": ["light", "dark"], "threshold": 0.01, "mask": [".header .meters", ".header .sub", ".sidebar .count", ".sidebar .engine", ".spark", ".col.stats"], "why": "Live numbers (meters, stats, sparklines, counts) differ from the picture by design; threshold is 0.01 because the text of problem lines can wrap by a few pixels in WebKit." },
+  { "mockup": "empty-state", "path": "/?scenario=running&empty=1#/containers", "themes": ["light", "dark"], "mask": [".header .meters", ".sidebar .count", ".sidebar .engine"] },
+  { "mockup": "machine-stopped", "path": "/?scenario=stopped#/containers", "themes": ["light", "dark"], "mask": [".sidebar .count"] }
 ]
