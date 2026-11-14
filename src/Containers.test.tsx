@@ -7,7 +7,7 @@ const backend = vi.hoisted(() => ({ current: null as null | ReturnType<typeof im
 vi.mock("@tauri-apps/api/core", () => ({ invoke: (cmd: string, a: Record<string, unknown>) => backend.current!.invoke(cmd, a) }));
 
 import Containers, { VmState } from "./Containers";
-import { ConfirmProvider } from "./ui/op";
+import { ConfirmProvider, ToastProvider } from "./ui/op";
 import { reset as resetFixes, startFix } from "./lib/fixStore";
 import { resetComposeRun, runCompose } from "./ComposeProjects";
 import { noteDocker, resetAppStopped } from "./lib/appStopped";
@@ -43,9 +43,11 @@ function show({ list = rows, report = null as Report | null, vm = { op: null, fa
   const setDetailId = vi.fn();
   const onKubernetes = vi.fn();
   render(
-    <ConfirmProvider>
-      <Containers profile={profile} ctx="colima" vm={vm} onVm={() => {}} reload={() => {}} detailId={null} setDetailId={setDetailId} onPull={() => {}} onProfiles={() => {}} compose={scan} onImages={onImages} onKubernetes={onKubernetes} report={report} onReport={() => {}} inspected={inspected} />
-    </ConfirmProvider>,
+    <ToastProvider>
+      <ConfirmProvider>
+        <Containers profile={profile} ctx="colima" live={{}} history={{}} vm={vm} onVm={() => {}} reload={() => {}} detailId={null} setDetailId={setDetailId} onPull={() => {}} onProfiles={() => {}} compose={scan} onImages={onImages} onKubernetes={onKubernetes} report={report} onReport={() => {}} inspected={inspected} />
+      </ConfirmProvider>
+    </ToastProvider>,
   );
   return { onImages, setDetailId, onKubernetes };
 }
@@ -195,7 +197,7 @@ describe("Containers", () => {
   it("given a project with a known Compose file, when Start is pressed, then it runs compose up in that folder", async () => {
     const user = userEvent.setup();
     backend.current = fakeBackend({ ps: () => jsonLines([known("alpha", "a1")]), inspect: () => "[]", compose_action: () => "" });
-    render(<ConfirmProvider><Containers profile={profile} ctx="colima" vm={{ op: null, failure: null }} onVm={() => {}} reload={() => {}} detailId={null} setDetailId={() => {}} onPull={() => {}} onProfiles={() => {}} compose={composeScan} onImages={() => {}} report={null} onReport={() => {}} /></ConfirmProvider>);
+    render(<ToastProvider><ConfirmProvider><Containers profile={profile} ctx="colima" live={{}} history={{}} vm={{ op: null, failure: null }} onVm={() => {}} reload={() => {}} detailId={null} setDetailId={() => {}} onPull={() => {}} onProfiles={() => {}} compose={composeScan} onImages={() => {}} report={null} onReport={() => {}} /></ConfirmProvider></ToastProvider>);
     await user.click(await screen.findByRole("button", { name: "Start alpha" }));
     await waitFor(() => expect(backend.current!.invoke).toHaveBeenCalledWith("compose_action", { context: "colima", file: "/Users/me/alpha/compose.yaml", action: "up" }));
     expect(backend.current!.dockerCalls().some((a) => a[0] === "start")).toBe(false);
@@ -205,7 +207,7 @@ describe("Containers", () => {
     const user = userEvent.setup();
     // The first run never ends, so it holds the one Compose lock for the whole test.
     backend.current = fakeBackend({ ps: () => jsonLines([known("alpha", "a1"), known("beta", "b1")]), inspect: () => "[]", compose_action: () => new Promise<string>(() => {}) });
-    render(<ConfirmProvider><Containers profile={profile} ctx="colima" vm={{ op: null, failure: null }} onVm={() => {}} reload={() => {}} detailId={null} setDetailId={() => {}} onPull={() => {}} onProfiles={() => {}} compose={composeScan} onImages={() => {}} report={null} onReport={() => {}} /></ConfirmProvider>);
+    render(<ToastProvider><ConfirmProvider><Containers profile={profile} ctx="colima" live={{}} history={{}} vm={{ op: null, failure: null }} onVm={() => {}} reload={() => {}} detailId={null} setDetailId={() => {}} onPull={() => {}} onProfiles={() => {}} compose={composeScan} onImages={() => {}} report={null} onReport={() => {}} /></ConfirmProvider></ToastProvider>);
     await user.click(await screen.findByRole("button", { name: "Start alpha" }));
     const beta = screen.getByRole("button", { name: "Start beta" });
     await user.click(beta);

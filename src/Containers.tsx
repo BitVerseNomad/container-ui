@@ -35,9 +35,9 @@ import { useDesktopOffer } from "./desktopOffer";
 import { gapLine } from "./lib/bringOver";
 import { describe } from "./lib/fixRun";
 import { busy as fixBusy, dismiss, runFor, type Run } from "./lib/fixStore";
-import { Banner, Button, Empty, Field, List, Menu, MenuItem, MenuSeparator, MoreButton, Problem, Sheet, useConfirm, useToast } from "./ui/op";
+import { Banner, Button, Empty, Field, List, MenuItem, MenuSeparator, Problem, Sheet, useConfirm, useToast } from "./ui/op";
 import type { DotState } from "./ui/op";
-import { EntryRow, ChildRow, TableHeadRow } from "./containers/ContainerRows";
+import { EntryRow, ChildRow, RowMenu, TableHeadRow } from "./containers/ContainerRows";
 import { NewMenu } from "./containers/NewMenu";
 import { SelectionBar } from "./containers/SelectionBar";
 import { ProblemInspector } from "./containers/ProblemInspector";
@@ -545,9 +545,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
   };
 
   const rowMenu = (id: string, name: string, items: ReactNode) => (
-    <Menu trigger={<MoreButton name={name} />} label={`Actions for ${name}`} align="end" wide open={menuFor === id} onOpenChange={(open) => setMenuFor(open ? id : null)}>
-      {items}
-    </Menu>
+    <RowMenu name={name} items={items} open={menuFor === id} onOpenChange={(open) => setMenuFor(open ? id : null)} />
   );
 
   // Everything one entry row needs, worked out once for the row and once for the lines under it.
@@ -727,13 +725,11 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
       out.push(<Problem key={`gap-${a.key}-${g.name}`} level="warn" text={<Ticks text={gapLine(g)} />} action={<Button variant="ghost" size="xs" aria-label={`Bring it over: ${g.name} from Docker Desktop`} onClick={() => onBring?.([g.name], a.name)}>Bring it over…</Button>} />);
     }
     if (!expanded) {
-      for (const i of v.issues) out.push(problemLine(i.c, a, v.isProject, false));
       const downWords = v.downWords;
       if (downWords) {
         downNow.add(a.key);
         out.push(<Problem key={`down-${a.key}`} level="info" text={downWords.text} action={<Button variant="ghost" size="xs" aria-label={downWords.label} aria-disabled={v.lock || undefined} onClick={() => { if (!v.lock) void act(a, ["start", ...v.down.map((c) => c.ID)], { target: "running", word: "Starting…", since: Date.now(), ids: v.down.map((c) => c.ID) }, downWords.done); }}>{downWords.button}</Button>} />);
       }
-      v.issues.forEach((i) => linesNow.set(`${i.c.ID}\u0000${i.p?.id ?? "run"}`, a.key));
     }
     if (v.resizedHere && !failedChange) out.push(<ResizeStatus key={`resize-${a.key}`} from={rs.from!} />);
     return out;
@@ -751,7 +747,12 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
     } else if (line.kind === "child") {
       nodes.push(childRow(line.entry as App<C>, line.c as C));
     } else {
-      nodes.push(problemLine(line.c as C, line.entry as App<C>, line.prefix, line.indent));
+      const c = line.c as C;
+      const a = line.entry as App<C>;
+      // A line under a folded project (or a single container) is remembered, so if it goes away while focus is on
+      // the page body, focus moves to its row. A child's line inside an open project keeps focus where it is.
+      if (!line.indent) linesNow.set(`${c.ID}\u0000${problems.get(c.Names)?.[0]?.id ?? "run"}`, a.key);
+      nodes.push(problemLine(c, a, line.prefix, line.indent));
     }
   }
   nodes.push(...extras);
