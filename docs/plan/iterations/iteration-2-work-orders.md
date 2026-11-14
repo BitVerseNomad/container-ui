@@ -8,9 +8,9 @@
 
 ## Order
 
-WO-2.1, WO-2.2, WO-2.3, WO-2.4, WO-2.5, WO-3.1a, WO-3.1b, WO-3.1b-2, WO-3.1c-1, WO-3.1c-2, WO-3.1c-3, WO-3.2, WO-3.3a, WO-3.3b, WO-3.3c.
+WO-2.1, WO-2.2, WO-2.3, WO-2.4, WO-2.5, WO-3.1a, WO-3.1b, WO-3.1b-2, WO-3.1c-1, WO-2.6, WO-3.1c-2, WO-3.1c-3, WO-3.2, WO-3.3a, WO-3.3b, WO-3.3c.
 
-**All fifteen belong to this iteration** (WO-3.1b-2 finishes WO-3.1b; WO-3.1c is done in three parts). A work order number is the step of the plan (`05-implementation-plan.md`), not the iteration: WO-3.1a to WO-3.3c are iteration 2 work. This iteration ends only after WO-3.3c is merged and `sh docs/plan/iterations/verify-iteration-2.sh` prints `0 FAIL`. Stopping after WO-2.5 is stopping halfway.
+**All sixteen belong to this iteration** (WO-3.1b-2 finishes WO-3.1b; WO-3.1c is done in three parts; WO-2.6 comes after WO-3.1c-1 because the states of WO-3.1c-1 are what its check looks at). A work order number is the step of the plan (`05-implementation-plan.md`), not the iteration: WO-3.1a to WO-3.3c are iteration 2 work. This iteration ends only after WO-3.3c is merged and `sh docs/plan/iterations/verify-iteration-2.sh` prints `0 FAIL`. Stopping after WO-2.5 is stopping halfway.
 
 Splits (each must fit in one pull request): WO-3.1 is split into 3.1a (row model, pure code), 3.1b (the screen), 3.1c (states, scenarios, checks). WO-3.1 is the pattern WO-3.2 and WO-3.3 copy. WO-3.3 is split into 3.3a (Run), 3.3b (Pull), 3.3c (Compose start and logs).
 
@@ -1077,6 +1077,84 @@ export function Palette(props: PaletteProps): JSX.Element;
 5. The gate in `../HANDOFF.md` section 5.
 
 **Pull request text:** `docs/plan/iterations/pr/wo-2.5.md`. First line: `wo-2.5: Fixes from the review of the shell and the palette`
+
+---
+
+## WO-2.6 The app picks its engine at startup
+
+**Needs:** WO-3.1c-1 merged (`git log --oneline --first-parent main` shows `Merge branch 'wo-3.1c-1'`). Do it before WO-3.1c-2.
+
+**Why:** the review of 2026-11-14 found that since WO-2.2 (commit `0428b92`) nothing in `src/` calls `runtimeRegistry.setActive`. WO-2.2 removed the engine picker from `src/Shell.tsx` (it only set an engine when the user picked one; nothing ever activated one at startup) and put one call in `preview/mock.ts`, only for `?scenario=design` and `?scenario=two`. So:
+1. In the real app, `runtimeRegistry.getActive()` is always `null`, `reloadProfiles` never loads a profile, and every page shows "Start your first VM", even on a Mac where Colima runs.
+2. In the preview, every other scenario (`running`, `loading`, `unreachable`, `stopped`, `empty=1`, `failstart=`) shows the same onboarding screen. The browser checks of WO-3.1c-3 cannot pass on top of that.
+The unit tests did not see it because each one brings its own fake backend. The fix: the app finds and activates the first engine that answers, at startup, in `src/`. The preview only answers the version command, like the real backend does; it does not choose the engine for the app.
+
+**Read first:** `src/runtime/index.ts`, `src/runtime/colima-adapter.ts` (`isAvailable`), `src/App.tsx` (the first `useEffect`, which reads `runtimeRegistry.getActive()`, and `reloadProfiles`), `preview/mock.ts` (find `runtimeRegistry.setActive` and `throw \`mock: unsupported command`), `src/test/fakeBackend.ts`, `git show 0428b92 -- src/Shell.tsx` (the picker WO-2.2 removed).
+
+**Starting state:**
+1. `git status --short` prints nothing.
+2. `git grep -n "runtimeRegistry.setActive" -- src preview` prints one line, in `preview/mock.ts`.
+3. `grep -c 'case "colima_version"' preview/mock.ts` prints `0`.
+4. With `npm run preview` running, open `http://localhost:4173/?scenario=running#/containers`: the page shows "Start your first VM" (the bug).
+
+**Do not touch:** `docs/plan/` except the pull request file; `src/ui/op/`; `src-tauri/`; every other `scripts/check-*.mjs`. If another browser check changes result after this fix, do not edit it: list it in the pull request file under "Found on the way" with its output.
+
+**Steps:**
+
+1. Write the tests of step 5 first and see them fail. Paste the failing output in the pull request file.
+2. `src/runtime/index.ts`: add one method to `RuntimeRegistry`, under `detectAvailable`:
+   ```ts
+   // Startup: make the first engine that answers the active one. Keeps one already set.
+   // Only Colima and OrbStack can list machines today; the others throw "Not yet implemented".
+   async activateFirstAvailable(): Promise<RuntimeAdapter | null> {
+     if (this.activeAdapter) return this.activeAdapter;
+     const [first] = (await this.detectAvailable()).filter((r) => r.adapter.id === "colima" || r.adapter.id === "orbstack");
+     if (first && !this.activeAdapter) this.activeAdapter = first.adapter;
+     return this.activeAdapter;
+   }
+   ```
+   `detectAvailable` keeps the order of `register`, so Colima comes first when both answer. The second `!this.activeAdapter` matters: an engine set with `setActive` while the version commands were running is kept. Nothing else in this file changes.
+3. `src/App.tsx`, in `reloadProfiles`: replace `const adapter = runtimeRegistry.getActive();` with `const adapter = runtimeRegistry.getActive() ?? (await runtimeRegistry.activateFirstAvailable());`. Leave the first `useEffect` as it is. The 3 s poll now also picks up an engine installed after startup (a new user installs Colima from the onboarding, then presses Start, without relaunching). While no engine is installed, the version commands run every 3 s; once one is active, nothing more is asked.
+4. `preview/mock.ts`:
+   1. Add `case "colima_version": if (!env.colima) throw "colima: command not found"; return "colima version 0.8.1" as T;` next to `case "host_resources"`. `env.colima` is already `null` for `missing`, `partial` and `nobrew`. (If the object holding `colima: [...].includes(scenario) ? null : ...` has another name, use that name and say so in the pull request file.)
+   2. Delete the line `runtimeRegistry.setActive(new ColimaAdapter());` and the comment above it. Delete the `runtimeRegistry` and `ColimaAdapter` imports if nothing else in the file uses them.
+   The other engines (`orb_version` and the rest) keep reaching `throw \`mock: unsupported command\``, so they read as not installed. That is what the preview wants.
+5. Tests (Given/When/Then):
+   1. `src/runtime/index.test.tsx` (new; vitest only picks up `.test.tsx`, and `npm test` runs every `.test.ts` under plain node). Do not use `fakeBackend` here: it answers `null` for unknown commands, so every engine would look installed. Start the file with exactly this (vitest moves `vi.mock` above the imports, so the answers must come from `vi.hoisted`):
+      ```ts
+      import { beforeEach, describe, expect, it, vi } from "vitest";
+      const answers = vi.hoisted(() => ({ ok: new Set<string>(), calls: [] as string[] }));
+      vi.mock("@tauri-apps/api/core", () => ({ invoke: async (cmd: string) => { answers.calls.push(cmd); if (answers.ok.has(cmd)) return "1.0"; throw "not installed"; } }));
+      import { RuntimeRegistry } from "./index";
+      import { ColimaAdapter } from "./colima-adapter";
+      import { OrbStackAdapter } from "./orbstack-adapter";
+      import { PodmanAdapter } from "./podman-adapter";
+      beforeEach(() => { answers.ok.clear(); answers.calls.length = 0; });
+      ```
+      Each test makes its own `new RuntimeRegistry()` and registers Colima, OrbStack and Podman, so one test's active engine does not carry over to the next. The four tests:
+      1. `Given only colima_version answers, When activateFirstAvailable runs, Then Colima is the active engine` (`getActiveId()` is `"colima"`).
+      2. `Given no version command answers, When activateFirstAvailable runs, Then it returns null and no engine is active`.
+      3. `Given an engine is already active, When activateFirstAvailable runs, Then it keeps that engine and asks nothing` (call `setActive` first; `answers.calls` equals `[]`).
+      4. `Given only podman_version answers, When activateFirstAvailable runs, Then it returns null` (Podman cannot list machines yet).
+   2. `scripts/check-engine-start.mjs` (new, on `scripts/lib/check.mjs`). One `open` per line below; wait up to 5 s for the text:
+      1. `/?scenario=running#/containers`: a row named `web` shows, and "Start your first VM" does not.
+      2. `/?scenario=none#/containers`: "Start your first VM" shows (Colima installed, no machine yet).
+      3. `/?scenario=stopped#/containers`: "default is stopped" and a `Start default` button show.
+      4. `/?scenario=unreachable#/containers`: "Couldn't list containers" shows within 5 s.
+      5. `/?scenario=missing#/containers`: install the tools from the onboarding, then Start; the `default` machine shows within 5 s, without a reload.
+      So the file has at least 5 `check(` lines, and each one waits for real text on the page (no `check(true, ...)`). Run it in Chromium and WebKit, with the preview running.
+6. Run every `scripts/check-*.mjs` once in Chromium (`for f in scripts/check-*.mjs; do node $f; done`) and paste the summary per file in the pull request file. A check that passed on `main` and fails now goes under "Found on the way" (see "Do not touch"). If a `design` or `two` check fails, say whether it measured before the first container row showed: the engine is now chosen a few mock calls after load, not when the module loads.
+7. Merge `wo-2.6` with `--no-ff`.
+
+**Done when:**
+1. `npx vitest run src/runtime/index.test.tsx` shows 4 passed, 0 failed.
+2. `git grep -n "runtimeRegistry.setActive" -- preview` prints nothing; `grep -c "activateFirstAvailable" src/App.tsx` prints `1`.
+3. `node scripts/check-engine-start.mjs` and `PW_ENGINE=webkit node scripts/check-engine-start.mjs` print no `FAIL`. The owner runs the Chromium one himself before merging.
+4. By eye at `?scenario=running#/containers`: the container list, not the onboarding. At `?scenario=design#/containers`: the same screen as before this work order.
+5. Every `WO-2.6:` line of `sh docs/plan/iterations/verify-iteration-2.sh` prints `ok`.
+6. The gate in `../HANDOFF.md` section 5. `src/Containers.test.tsx` may still fail only on the 19 tests WO-3.1c-2 migrates.
+
+**Pull request text:** `docs/plan/iterations/pr/wo-2.6.md`. First line: `wo-2.6: The app picks its engine at startup`
 
 ---
 
