@@ -72,7 +72,7 @@ chk "no leftover Design gap marker in the iteration 2 files" sh -c '! grep -n "D
 chk "no em dash in the iteration 2 files" sh -c '! cat docs/plan/iterations/iteration-2-*.md docs/plan/iterations/verify-iteration-2.sh docs/plan/iterations/pr/wo-2.*.md docs/plan/iterations/pr/wo-3.*.md 2>/dev/null | grep -q "$1"' sh "$EMDASH"
 chk "no TODO or FIXME added in the new files" sh -c '! grep -rnE "TODO|FIXME" src/containers src/lib/router.ts src/lib/routes.ts src/lib/containerRows.ts src/lib/engineModel.ts src/lib/liveStats.ts src/lib/shortcuts.ts src/lib/paletteModel.ts src/lib/inspectorContent.ts src/Header.tsx src/EngineSwitcher.tsx src/Activity.tsx src/ui/op/Palette.tsx src/ui/op/EngineButton.tsx 2>/dev/null'
 chk "no style= and no raw button, select or table in the new screen files" sh -c '! grep -nE "<button|<select|<table|style=" src/containers/*.tsx src/Header.tsx src/EngineSwitcher.tsx src/Activity.tsx src/Shell.tsx src/CommandPalette.tsx src/HelpModal.tsx src/Containers.tsx src/ContainerDetail.tsx src/Logs.tsx src/StatsTab.tsx src/RunPanel.tsx src/RunPicker.tsx src/PullPanel.tsx src/ComposeProjects.tsx src/ComposeLogs.tsx'
-chk "pull request texts exist for every work order (docs/plan/iterations/pr/)" sh -c 'for id in 2.1 2.2 2.3 2.4 2.5 3.1a 3.1b 3.1c 3.2 3.3a 3.3b 3.3c; do test -f docs/plan/iterations/pr/wo-$id.md || exit 1; done'
+chk "pull request texts exist for every work order (docs/plan/iterations/pr/)" sh -c 'for id in 2.1 2.2 2.3 2.4 2.5 3.1a 3.1b 3.1c-1 3.1c-2 3.1c-3 3.2 3.3a 3.3b 3.3c; do test -f docs/plan/iterations/pr/wo-$id.md || exit 1; done'
 
 echo "== WO-2.1 routes =="
 present "WO-2.1: router files and tests exist" src/lib/routes.ts src/lib/router.ts src/lib/tabRoutes.ts src/lib/routes.test.ts src/lib/router.test.tsx
@@ -192,7 +192,11 @@ chk "WO-3.1c: check-containers passes in Chromium" node scripts/check-containers
 chk "WO-3.1c: check-containers passes in WebKit" env PW_ENGINE=webkit node scripts/check-containers.mjs
 chk "WO-3.1c: check-menus passes in Chromium" node scripts/check-menus.mjs
 chk "WO-3.1c: check-menus passes in WebKit" env PW_ENGINE=webkit node scripts/check-menus.mjs
-chk "WO-3.1c: Containers.test.tsx still exists and has tests" sh -c 'test "$(grep -cE "^\s*(it|test)\(" src/Containers.test.tsx)" -ge 15'
+chk "WO-3.1c: Containers.test.tsx keeps at least the 21 old tests" sh -c 'test "$(grep -cE "^[[:space:]]*(it|test)\(" src/Containers.test.tsx)" -ge 21'
+# Every old test (as of 36a499b, the last commit before WO-3.1c) is in the new file, or named in the pull request table.
+chk "WO-3.1c: every old Containers test is kept or has a row in the table" node -e 'const {execSync}=require("child_process");const fs=require("fs");const old=[...execSync("git show 36a499b:src/Containers.test.tsx").toString().matchAll(/^\s*it\("([^"]+)"/gm)].map(m=>m[1]);const now=fs.readFileSync("src/Containers.test.tsx","utf8");const pr=fs.existsSync("docs/plan/iterations/pr/wo-3.1c-2.md")?fs.readFileSync("docs/plan/iterations/pr/wo-3.1c-2.md","utf8"):"";const miss=old.filter(n=>!now.includes(n)&&!pr.includes(n.slice(0,60)));if(miss.length){console.error(miss.join("\n"));process.exit(1)}'
+atleast "WO-3.1c: the pull request table has a row per old test" 23 docs/plan/iterations/pr/wo-3.1c-2.md "^| "
+has "WO-3.1c: the Stop test still proves Stopping…" src/Containers.test.tsx "Stopping…"
 chk "WO-3.1c: mockup rows (WebKit) for containers, empty-state and machine-stopped" sh -c 'grep -q "\"empty-state\"" scripts/mockup-pairs.json && grep -q "\"machine-stopped\"" scripts/mockup-pairs.json && grep -q "\"containers\"" scripts/mockup-pairs.json'
 chk "WO-3.1c: no mockup row above 0.02 without a why" node -e 'const r=JSON.parse(require("fs").readFileSync("scripts/mockup-pairs.json","utf8"));const b=r.filter(x=>x.threshold>0.02&&!(x.why&&x.why.length>10));if(b.length){console.error(b.map(x=>x.mockup).join(","));process.exit(1)}'
 chk "WO-3.1c: no mockup row has a threshold above 0.05" node -e 'const r=JSON.parse(require("fs").readFileSync("scripts/mockup-pairs.json","utf8"));process.exit(r.some(x=>x.threshold>0.05)?1:0)'

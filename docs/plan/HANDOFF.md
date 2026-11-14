@@ -65,6 +65,8 @@ When two things disagree, the higher one wins, and you report the disagreement.
 16. **The checks are slow.** `npm run check` takes more than 10 minutes. Run it in the background or with a long timeout. A run that was cut short is not a result.
 17. **Tests next to the code.** Write the test, run it and keep its failing output, write the code, run it again. Paste both outputs in the pull request file. Do not make a commit that holds only a failing test: it would not build.
 18. **Dependencies first.** Run `npm ci` before any `npx` command of a work order.
+19. **One work order per session, and big ones in parts.** Start a new session for each work order: the repo and this plan are the memory, not the conversation. When a work order has more than 8 steps, or it brings back old tests or old checks, do it in parts. A part is a group of steps that leaves `npm run lint` and `npx tsc --noEmit` passing. At the end of each part: commit on the work order's branch as `wip(wo-<id>): steps <a> to <b>`, tick those steps in the "Steps done" list of the pull request file, and end the session. A `wip` commit may hold tests that still fail; it never goes to `main`. The next session reads this file, the work order, `git log --oneline main..HEAD` and the "Steps done" list, and carries on from the first step not ticked. A work order that names its own parts (WO-3.1c) uses those.
+20. **When your tool compresses the conversation, end the session.** If the tool says it summarised or compacted the context, or you notice you no longer have a file you read earlier, finish the step you are on, make the `wip` commit of rule 19, and stop. Do not carry on from a summary: that is how tests and checks get dropped. Never write a number in a pull request file that you did not just get from a command; paste the command and its output.
 
 ## 5. The checks
 
@@ -100,7 +102,7 @@ Then these headings:
 
 ## 7. Commits
 
-`<type>: <what the user can now do>`, types `fix`, `feat`, `docs`, `style`, `refactor`, `test`, `chore`. One logical change per commit. When a work order gives tests: commit the failing tests first, then the code that passes them.
+`<type>: <what the user can now do>`, types `fix`, `feat`, `docs`, `style`, `refactor`, `test`, `chore`. One logical change per commit. When a work order gives tests: write them first and keep their failing output for the pull request file (rule 17); they go in the same commit as the code that passes them, or in a `wip` commit of rule 19.
 
 ## 8. When you finish the iteration
 

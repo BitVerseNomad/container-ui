@@ -8,9 +8,9 @@
 
 ## Order
 
-WO-2.1, WO-2.2, WO-2.3, WO-2.4, WO-2.5, WO-3.1a, WO-3.1b, WO-3.1c, WO-3.2, WO-3.3a, WO-3.3b, WO-3.3c.
+WO-2.1, WO-2.2, WO-2.3, WO-2.4, WO-2.5, WO-3.1a, WO-3.1b, WO-3.1c-1, WO-3.1c-2, WO-3.1c-3, WO-3.2, WO-3.3a, WO-3.3b, WO-3.3c.
 
-**All twelve belong to this iteration.** A work order number is the step of the plan (`05-implementation-plan.md`), not the iteration: WO-3.1a to WO-3.3c are iteration 2 work. This iteration ends only after WO-3.3c is merged and `sh docs/plan/iterations/verify-iteration-2.sh` prints `0 FAIL`. Stopping after WO-2.5 is stopping halfway.
+**All fourteen belong to this iteration** (WO-3.1c is done in three parts). A work order number is the step of the plan (`05-implementation-plan.md`), not the iteration: WO-3.1a to WO-3.3c are iteration 2 work. This iteration ends only after WO-3.3c is merged and `sh docs/plan/iterations/verify-iteration-2.sh` prints `0 FAIL`. Stopping after WO-2.5 is stopping halfway.
 
 Splits (each must fit in one pull request): WO-3.1 is split into 3.1a (row model, pure code), 3.1b (the screen), 3.1c (states, scenarios, checks). WO-3.1 is the pattern WO-3.2 and WO-3.3 copy. WO-3.3 is split into 3.3a (Run), 3.3b (Pull), 3.3c (Compose start and logs).
 
@@ -1518,6 +1518,14 @@ type EntryProps = (RowCommon & { group: false }) | (RowCommon & { group: true; o
 **Needs:** WO-3.1b.
 
 **Why:** U7, U9, U14, E12 and the rule that every list handles all eight states (spec section 8). Brings back four old checks.
+
+**Done in three parts, one session each** (a first attempt in one session ran out of context and dropped tests and checks; it was reverted). Each part has its own branch, its own pull request file, and is merged with `--no-ff` before the next part starts. Start each part in a new session. Read this whole work order once, then only what the part names.
+
+1. **WO-3.1c-1, the states** (branch `wo-3.1c-1`, file `pr/wo-3.1c-1.md`). Read first: items 1, 2, 3 and 5 below. Do steps 1, 2, 3 and 7, plus the `renderScreen` helper of step 4.6. Tests first: new tests 1 to 7 of "Tests to write first", added to `src/Containers.test.tsx` next to the old tests (do not touch the old ones yet). Done when: the seven new tests pass; the only failing tests are the ones WO-3.1b named (the count is not higher than "Starting state" 2); in `verify-iteration-2.sh` the lines `WO-3.1c: scenario loading`, `scenario unreachable`, `failstart parameter`, `stopped state words`, `empty state words` and `error banner words` print `ok`; lint, tsc and the Rust gate pass.
+2. **WO-3.1c-2, the old tests** (branch `wo-3.1c-2`, file `pr/wo-3.1c-2.md`). Read first: item 4, the test file only, and the old file `git show 36a499b:src/Containers.test.tsx` (36a499b is the last commit before any WO-3.1c work). Do step 4: every one of the 21 old tests is kept with new selectors and words, or rewritten to the new rule, or removed with the spec rule quoted. The table in `pr/wo-3.1c-2.md` has one row per old test, 21 rows, each starting with the old test name copied exactly. Then new tests 8 to 11. Done when: "Done when" 1 (`npm test` has 0 failures) and every `WO-3.1c:` line about tests in `verify-iteration-2.sh` prints `ok`.
+3. **WO-3.1c-3, the browser checks and the mockup rows** (branch `wo-3.1c-3`, file `pr/wo-3.1c-3.md`). Read first: the four files under `scripts/checks-pending/` named in step 5, one at a time. Do step 5 one old file at a time, in this order: `check-menus.mjs`, `check-down.mjs`, `check-select.mjs`, `check-home.mjs`. After each file, run the new check in Chromium and commit on the branch (`wip(wo-3.1c-3): <file> ported`), so a new session can carry on from the last commit. Then the 16 new lines, then step 6. Done when: "Done when" 2 to 8, and every `WO-3.1c:` line of `verify-iteration-2.sh` prints `ok`.
+
+Copying lines that only check that an element exists ("h1 renders") does not port a behaviour. Each old behaviour in the lists of step 5 becomes a check of that behaviour, or a line in the pull request file saying "Moved to WO-x" or "Gone by design" as the list says.
 
 **Read first:**
 1. `docs/plan/04-design-spec.md` sections 6.9 and 8.
