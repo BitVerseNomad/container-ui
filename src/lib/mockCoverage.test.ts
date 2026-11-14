@@ -7,7 +7,7 @@ import path from "node:path";
 
 // Commands of the runtime adapters in src/runtime/, which the preview does not fake. WO-4.2 deletes those adapters
 // and this list with them. It may only shrink.
-const NOT_IN_PREVIEW = ["colima_version", "docker_desktop_version", "orb_delete_vm", "orb_list_vms", "orb_start_vm", "orb_stop_vm", "orb_version", "podman_version", "rdctl_version"];
+const NOT_IN_PREVIEW = ["docker_desktop_version", "orb_delete_vm", "orb_list_vms", "orb_start_vm", "orb_stop_vm", "orb_version", "podman_version", "rdctl_version"];
 
 const root = path.resolve(import.meta.dirname, "../..");
 const walk = (dir: string): string[] =>

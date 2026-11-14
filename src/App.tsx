@@ -105,7 +105,7 @@ export default function App() {
   const [profilesError, setProfilesError] = useState<string | null>(null);
 
   const reloadProfiles = useCallback(async () => {
-    const adapter = runtimeRegistry.getActive();
+    const adapter = runtimeRegistry.getActive() ?? (await runtimeRegistry.activateFirstAvailable());
     if (adapter) {
       try {
         const list = await adapter.listProfiles();
