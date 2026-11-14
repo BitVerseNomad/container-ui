@@ -21,8 +21,7 @@
   "src/Profiles.tsx",
   "src/PullPanel.tsx",
   "src/Resize.tsx",
-  "src/RunPanel.tsx",
-  "src/RunPicker.tsx",
+
   "src/Setup.tsx",
   "src/Sparkline.tsx",
   "src/StatsTab.tsx",

@@ -6,6 +6,7 @@ import { Profile, ctxFor, dockerJson } from "./api";
 import { usePoll } from "./hooks";
 import { Banner, Empty } from "./ui";
 import { Icon } from "./ui/icons";
+import { useToast } from "./ui/op";
 import Shell, { Tab } from "./Shell";
 import EngineSwitcher from "./EngineSwitcher";
 import { engineOfProfile, chooseEngine, busyOf, buttonLabel } from "./lib/engineModel";
@@ -16,6 +17,8 @@ import { tabOfRoute, pathOfTab } from "./lib/tabRoutes";
 import Containers, { VmState } from "./Containers";
 import ContainerDetail from "./ContainerDetail";
 import Images from "./Images";
+import RunPicker from "./RunPicker";
+import RunPanel from "./RunPanel";
 import Volumes from "./Volumes";
 import Networks from "./Networks";
 import Kubernetes from "./Kubernetes";
@@ -95,7 +98,16 @@ export default function App() {
   const setDetailId = useCallback((id: string | null) => go(id ? buildPath({ page: "containers", id, tab: "logs" }) : "#/containers"), []);
   const [pullOnOpen, setPullOnOpen] = useState(false);
   const [newProfileOnOpen, setNewProfileOnOpen] = useState(false);
+  const [runPicker, setRunPicker] = useState(false);
+  const [runImage, setRunImage] = useState<string | null>(null);
+
+  function setHighlight(id: string): void {
+    const node = [...document.querySelectorAll<HTMLElement>(".list .row .name")].find((n) => n.textContent === id);
+    node?.closest<HTMLElement>(".row")?.focus();
+  }
+
   const confirm = useConfirm();
+  const toast = useToast();
   const [vm, setVmState] = useState<VmState>({ op: null, failure: null });
   // Every change goes through here, so the lock store (dockerLock) always holds the same vm.op as the screen.
   const setVm = (next: VmState) => { setVmBusy(next.op !== null); setVmState(next); };
@@ -298,6 +310,7 @@ export default function App() {
             onReport={doc.reload}
             onBring={bringOffered(setup.findings) ? openBring : undefined}
             inspected={doc.containers}
+            onRun={() => setRunPicker(true)}
           />
         )
       )
@@ -346,7 +359,7 @@ export default function App() {
           setTab("Containers");
         }}
       />
-    ) : tab === "Volumes" ? (
+      ) : tab === "Volumes" ? (
       <Volumes key={ctx} ctx={ctx} />
     ) : tab === "Networks" ? (
       <Networks key={ctx} ctx={ctx} />
@@ -370,7 +383,7 @@ export default function App() {
     "go-settings": () => go("#/settings/general"),
     engine: () => setEngineOpen(true),
     fold: () => window.dispatchEvent(new Event("openpier:fold")),
-    run: () => { setTab("Images"); },
+    run: () => setRunPicker(true),
     pull: () => { setPullOnOpen(true); setTab("Images"); },
     search: focusPageSearch,
     "search-slash": focusPageSearch,
@@ -482,6 +495,22 @@ export default function App() {
                 onClose={closeBring}
                 onDone={(ok) => { if (ok) copied.current = true; void Promise.all([setup.reload(), doc.reload(), readDesktop(bringing.ctx)]); }}
                 onProfiles={() => { setBringing(null); setTab("Profiles"); }}
+              />
+            )}
+            {runPicker && ctx && (
+              <RunPicker
+                ctx={ctx}
+                onClose={() => setRunPicker(false)}
+                onPick={(ref) => { setRunPicker(false); setRunImage(ref); }}
+              />
+            )}
+            {runImage && ctx && (
+              <RunPanel
+                ctx={ctx}
+                image={runImage}
+                arch={current?.arch}
+                onClose={() => setRunImage(null)}
+                onRan={(id, name) => { setRunImage(null); setHighlight(id); toast({ text: `Started ${name}` }); }}
               />
             )}
           </Shell>
