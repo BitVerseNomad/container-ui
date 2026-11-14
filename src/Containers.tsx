@@ -39,7 +39,7 @@ import { useDesktopOffer } from "./desktopOffer";
 import { gapLine } from "./lib/bringOver";
 import { describe } from "./lib/fixRun";
 import { busy as fixBusy, dismiss, runFor, type Run } from "./lib/fixStore";
-import { Button, Dot, Empty, Field, Icon, Menu, MenuItem, MenuSeparator, MoreButton, Problem, RowHead, Sheet, SkeletonRows, useConfirm } from "./ui/op";
+import { Button, Dot, Empty, Field, Icon, Menu, MenuItem, MenuSeparator, MoreButton, Problem, RowHead, Sheet, useConfirm } from "./ui/op";
 import { EntryRow, ChildRow, TableHeadRow } from "./containers/ContainerRows";
 import { NewMenu } from "./containers/NewMenu";
 import { SelectionBar } from "./containers/SelectionBar";
@@ -349,24 +349,6 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
         {vm.failure && <Banner tone="bad">{vm.failure}</Banner>}
       </div>
     );
-  }
-
-  // The first poll has not answered yet: show skeletons until docker ps answers.
-  // If the first read already failed, show the error banner instead of skeletons.
-  if (containers.error && containers.data === null) {
-    return (
-      <div className="home">
-        <div className="sr-only" role="status" aria-live="polite">{plain(said.status)}</div>
-        <div className="sr-only" role="alert">{plain(said.alert)}</div>
-        <Banner tone="bad" actions={[
-          <Button key="try" variant="ghost" size="sm" onClick={() => void containers.reload()}>Try again</Button>,
-          <Button key="restart" variant="ghost" size="sm" onClick={start}>Restart</Button>,
-        ]}>{containers.error}</Banner>
-      </div>
-    );
-  }
-  if (containers.data === null) {
-    return <SkeletonRows />;
   }
 
   // Counted in containers: typing a port ("5432") to find who holds it is worth it long before there are 7 apps.
@@ -711,34 +693,29 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
               )}
             </Menu>
           </span>
-          <Banner tone="bad" actions={[
-            <Button key="try" variant="ghost" size="sm" onClick={() => void containers.reload()}>Try again</Button>,
-            <Button key="restart" variant="ghost" size="sm" onClick={start}>Restart</Button>,
-          ]}>{containers.error}</Banner>
+          <Banner tone="bad">{containers.error}</Banner>
           {searching && (
             <label className="search-field home-search">
               <Icon name="search" size="sm" />
-              <input placeholder="Search by name, image or port" aria-label="Search containers" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === "Escape") setQ(""); }} />
+              <input placeholder="Search by name, image or port" aria-label="Search containers" value={q} onChange={(e) => setQ(e.target.value)} />
             </label>
           )}
           {containers.data && all.length === 0 ? (
             // Right after switching, the data comes first: a `compose up` before it makes new empty volumes.
             <Empty icon="box" title="No containers yet">
               {onBring ? "Your Docker Desktop volumes are still on this Mac. Bring them over first, so your projects start with their data." : "Run an image, or start a Compose project from a folder on your Mac."}
+              {onBring && <Button variant="default" onClick={() => onBring()}>Bring over from Docker Desktop</Button>}
+              <Button variant={onBring ? "ghost" : "default"} onClick={() => setPicking(true)}>Run an image</Button>
+              <Button variant="ghost" onClick={() => setComposeOpen(true)}>Start a Compose project</Button>
             </Empty>
           ) : (
             <ul className="apps" aria-label="Containers">{shown.map(row)}</ul>
           )}
           {term && shown.length === 0 && (
-            <Empty icon="box" title={`Nothing matches "${term}".`}>
-              <Button variant="ghost" size="sm" onClick={() => { setQ(""); }} >Clear search</Button>
-              {projectHits > 0 && (
-                <>
-                  <p className="hint">{projectHits === 1 ? "1 Compose project that isn't running matches" : `${projectHits} Compose projects that aren't running match`}.</p>
-                  <Button variant="ghost" size="sm" onClick={() => setComposeOpen(true)}>Show {projectHits === 1 ? "it" : "them"}</Button>
-                </>
-              )}
-            </Empty>
+            <p className="hint pad">
+              Nothing matches &ldquo;{term}&rdquo;.
+              {projectHits > 0 && <> {projectHits === 1 ? "1 Compose project that isn't running matches" : `${projectHits} Compose projects that aren't running match`}. <Button variant="ghost" size="sm" onClick={() => setComposeOpen(true)}>Show {projectHits === 1 ? "it" : "them"}</Button></>}
+            </p>
           )}
         </>
       )}
