@@ -99,6 +99,16 @@ export function EntryRow(props: EntryProps): JSX.Element {
       onToggle={isGroup ? onToggle : undefined}
       selected={showCheck ? selected : undefined}
       onSelect={showCheck ? onSelect : undefined}
+      action={action ? (
+        <Button
+          aria-label={`${action.label} ${name}`}
+          busy={action.busy}
+          aria-disabled={action.locked || undefined}
+          onClick={onAction}
+        >
+          {action.label}
+        </Button>
+      ) : undefined}
       menu={menu}
       onMenuKey={() => onMenuOpenChange(true)}
     >
@@ -116,19 +126,8 @@ export function EntryRow(props: EntryProps): JSX.Element {
         )}
       </Col>
       <Sparkline points={history.length >= 2 ? history : null} label={`CPU ${cpuNow ?? 0} percent`} />
-      {isGroup && blocks && <Blocks services={blocks} />}
       <Col kind="stats" mono>{stats}</Col>
       <Col kind="state">{isGroup ? runningText ?? "" : stateWord}</Col>
-      {action && (
-        <Button
-          aria-label={`${action.label} ${name}`}
-          busy={action.busy}
-          aria-disabled={action.locked || undefined}
-          onClick={onAction}
-        >
-          {action.label}
-        </Button>
-      )}
     </Row>
   );
 }
@@ -147,6 +146,16 @@ export function ChildRow(props: RowCommon & { id: string }): JSX.Element {
       onOpen={onOpen}
       selected={selected !== undefined ? selected : undefined}
       onSelect={onSelect ? (v: boolean) => onSelect(v) : undefined}
+      action={action ? (
+        <Button
+          aria-label={`${action.label} ${name}`}
+          busy={action.busy}
+          aria-disabled={action.locked || undefined}
+          onClick={onAction}
+        >
+          {action.label}
+        </Button>
+      ) : undefined}
       menu={menu}
       onMenuKey={() => onMenuOpenChange(true)}
       child
@@ -166,16 +175,6 @@ export function ChildRow(props: RowCommon & { id: string }): JSX.Element {
       <Sparkline points={history.length >= 2 ? history : null} label={`CPU ${cpuNow ?? 0} percent`} />
       <Col kind="stats" mono>{stats}</Col>
       <Col kind="state">{stateWord}</Col>
-      {action && (
-        <Button
-          aria-label={`${action.label} ${name}`}
-          busy={action.busy}
-          aria-disabled={action.locked || undefined}
-          onClick={onAction}
-        >
-          {action.label}
-        </Button>
-      )}
     </Row>
   );
 }
@@ -192,5 +191,20 @@ export function TableHeadRow(): JSX.Element {
       <Col kind="state">State</Col>
       <span className="act" />
     </RowHead>
+  );
+}
+
+// The row's "..." button and its menu, in one place so every row opens it the same way. The items come from the
+// screen (they need its state); the trigger and the controlled open state belong to the row.
+export function RowMenu({ name, items, open, onOpenChange }: {
+  name: string;
+  items: React.ReactNode;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}): JSX.Element {
+  return (
+    <Menu trigger={<MoreButton name={name} />} label={`Actions for ${name}`} align="end" wide open={open} onOpenChange={onOpenChange}>
+      {items}
+    </Menu>
   );
 }
