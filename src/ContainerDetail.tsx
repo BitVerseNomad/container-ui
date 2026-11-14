@@ -31,7 +31,7 @@ type Tab = (typeof TABS)[number];
 // appProblems: the Doctor's findings about this container that need the other containers to work out.
 type Props = { ctx: string; id: string; tab?: string; appProblems?: Problem[]; onBack?: () => void; onReplaced?: (name: string) => void; listed?: string[]; live?: any; history?: Record<string, number[]> };
 
-export default function ContainerDetail({ ctx, id, appProblems, onBack, onReplaced, listed = [] }: Props) {
+export default function ContainerDetail({ ctx, id, tab: routeTab, appProblems, onBack, onReplaced, listed = [], live, history }: Props) {
   const confirm = useConfirm();
   const [tab, setTab] = useState<Tab>("Logs");
   const [err, setErr] = useState<string | null>(null);
