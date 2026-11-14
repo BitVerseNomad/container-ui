@@ -43,12 +43,23 @@ const WAIT = 5000;
   await page.close();
 }
 
-// 5. Missing scenario: tools missing, onboarding offers install, then machine shows.
+// 5. Missing scenario: tools missing, install them, then Start; the default machine shows within 5 s.
 {
   const page = await open("/?scenario=missing#/containers", { width: 1280, height: 800 });
   await page.waitForTimeout(300);
   const missing = await page.locator("text=isn't installed yet").count() > 0 || await page.locator("text=tools are missing").count() > 0;
   check(missing, "missing: onboarding install offer shows");
+  const installBtn = page.getByRole("button", { name: /Install with Homebrew/ });
+  if (await installBtn.count() > 0) {
+    await installBtn.click();
+    // Wait for the install to finish and the "Start Colima" button to appear.
+    await page.getByRole("button", { name: /^Start Colima/ }).waitFor({ state: "attached", timeout: 15000 }).catch(() => {});
+    await page.getByRole("button", { name: /^Start Colima/ }).click().catch(() => {});
+    // Wait up to 5 s for the default machine to show.
+    await page.locator("text=Colima · default").waitFor({ state: "attached", timeout: WAIT }).then(() => true).catch(() => false);
+  }
+  const defaultShows = await page.locator("text=Colima · default").count() > 0;
+  check(defaultShows, "missing: default machine shows after Start");
   await page.close();
 }
 
