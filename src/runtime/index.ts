@@ -41,6 +41,15 @@ export class RuntimeRegistry {
     return results.filter((r) => r.available);
   }
 
+  // Startup: make the first engine that answers the active one. Keeps one already set.
+  // Only Colima and OrbStack can list machines today; the others throw "Not yet implemented".
+  async activateFirstAvailable(): Promise<RuntimeAdapter | null> {
+    if (this.activeAdapter) return this.activeAdapter;
+    const [first] = (await this.detectAvailable()).filter((r) => r.adapter.id === "colima" || r.adapter.id === "orbstack");
+    if (first && !this.activeAdapter) this.activeAdapter = first.adapter;
+    return this.activeAdapter;
+  }
+
   setActive(adapter: RuntimeAdapter): void {
     this.activeAdapter = adapter;
   }

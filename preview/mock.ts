@@ -1,6 +1,4 @@
 // Simulated backend for the browser preview. Same commands as the Rust side, fake data.
-import { runtimeRegistry } from "../src/runtime";
-import { ColimaAdapter } from "../src/runtime/colima-adapter";
 type Ev = { payload: unknown };
 const listeners: Record<string, Set<(e: Ev) => void>> = {};
 const emit = (name: string, payload: unknown) => listeners[name]?.forEach((cb) => cb({ payload }));
@@ -400,6 +398,7 @@ export async function invoke<T>(cmd: string, a: Record<string, any> = {}): Promi
       throw `mock: unsupported kubectl command ${args.join(" ")}`;
     }
     case "host_resources": return { cpus: 12, memory: 32 * GB } as T;
+    case "colima_version": if (!env.colima) throw "colima: command not found"; return "colima version 0.8.1" as T;
     case "vm_log_tail": return (scenario === "stuck" ? 'level=info msg="hostagent starting"\nlevel=fatal msg="instance \\"colima\\" is already running (hostagent pid 812)"' : scenario === "failed" ? 'level=info msg="booting"\nlevel=error msg="vz: the virtual machine stopped unexpectedly"\nlevel=info msg="cleanup"' : "") as T;
     case "setup_report": return structuredClone(setup) as T;
     case "setup_fix": {
@@ -600,6 +599,5 @@ if (scenario === "design" || scenario === "two") {
   if (scenario === "two") {
     db.profiles.push({ name: "dev", status: "Stopped", arch: "aarch64", cpus: 2, memory: 2 * GB, disk: 60 * GB, runtime: "docker", address: "" });
   }
-  // Set an active runtime so profiles load and the Kubernetes tab can appear in checks.
-  runtimeRegistry.setActive(new ColimaAdapter());
+
 }
