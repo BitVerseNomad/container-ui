@@ -2,8 +2,7 @@ import { useState } from "react";
 import { formatBytes, parseBytes } from "./containerInfo";
 import { dockerJson } from "./api";
 import { usePoll } from "./hooks";
-import { Sheet, Field, List, Row, Button } from "./ui/op";
-import { Icon } from "./ui/icons";
+import { Sheet, Field, List, Row, Button, Icon } from "./ui/op";
 
 type I = { ID: string; Repository: string; Tag: string; Size: string };
 
@@ -22,7 +21,7 @@ export default function RunPicker({ ctx, onPick, onClose }: { ctx: string; onPic
       {data && rows.length === 0 && <p className="hint">{data.length === 0 ? "No images yet. Pull one first." : "No image matches that search."}</p>}
       <List aria-label="Images you have">
         {rows.map((i) => (
-          <Row key={i.ID + ref(i)} lead={<Icon name="image" size={16} />} name={ref(i)} meta={parseBytes(i.Size) ? formatBytes(parseBytes(i.Size)) : i.Size} onOpen={() => fill(ref(i))} />
+          <Row key={i.ID + ref(i)} lead={<Icon name="image" size="sm" />} name={ref(i)} meta={parseBytes(i.Size) ? formatBytes(parseBytes(i.Size)) : i.Size} onOpen={() => fill(ref(i))} />
         ))}
       </List>
       <Button variant="ghost" size="md" onClick={onClose}>Cancel</Button>
