@@ -21,9 +21,9 @@ const shellQuote = (a: string) => (/[^\w@%+=:,./-]/.test(a) ? `'${a.replace(/'/g
 
 function Ext({ link, children }: { link: Link; children: ReactNode }) {
   return (
-    <button className="link ext" onClick={() => openUrl(link.url)}>
+    <Button className="link ext" onClick={() => openUrl(link.url)}>
       {children} <span className="host">({link.host})</span>
-    </button>
+    </Button>
   );
 }
 

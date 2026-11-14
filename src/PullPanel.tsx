@@ -3,9 +3,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { dockerJson } from "./api";
 import { Hit, SortKey, isOfficial, sortHits } from "./lib/hub";
 import { PRESETS, checkRef, isAuthError, loginCommand, needsLogin, presetFor } from "./lib/registry";
-import { Banner } from "./ui";
-import Drawer from "./ui/Drawer";
-import { Icon } from "./ui/icons";
+import { Banner, Button, Sheet } from "./ui/op";
+import { Icon } from "./ui/op";
 import OutputLog from "./ui/OutputLog";
 import { notePullFailure, notePullOk } from "./lib/netEvidence";
 
@@ -84,7 +83,7 @@ export default function PullPanel({ ctx, onClose, onPulled, onRun, searchFor }: 
   const shown = hits ? sortHits(hits, sort) : [];
 
   return (
-    <Drawer label="Pull image" title={<>Pull image</>} onClose={onClose} closeDisabled={pulling}>
+    <Sheet open={true} onClose={onClose} title="Pull an image">
       <div className="seg" role="group" aria-label="Where to pull from">
         <button aria-pressed={!priv} disabled={pulling} onClick={() => switchMode("hub")}>Docker Hub</button>
         <button aria-pressed={priv} disabled={pulling} onClick={() => switchMode("private")}>Other registry</button>
@@ -119,7 +118,7 @@ export default function PullPanel({ ctx, onClose, onPulled, onRun, searchFor }: 
             <div className="login-hint">
               <p className="hint">Private images need you to sign in first. Run this in Terminal:</p>
               <pre className="cmd">{login ?? "docker login <registry>"}</pre>
-              <button disabled={!login} onClick={() => login && navigator.clipboard.writeText(login)}><Icon name="copy" size={14} /> Copy command</button>
+              <button disabled={!login} onClick={() => login && navigator.clipboard.writeText(login)}><Icon name="copy" size="sm" /> Copy command</button>
             </div>
           )}
           <button className="primary" disabled={!target || pulling} onClick={pull}>
@@ -130,11 +129,11 @@ export default function PullPanel({ ctx, onClose, onPulled, onRun, searchFor }: 
 
       {authHint && (
         <div className="problem-line bad start-why" role="alert">
-          <b><Icon name="alert" size={14} /> Sign in to {host.trim()} first</b>
+          <b><Icon name="alert" size="sm" /> Sign in to {host.trim()} first</b>
           <span className="hint">The registry refused the pull. Run this in Terminal, then try again:</span>
           <pre className="cmd">{login ?? `docker login ${host.trim()}`}</pre>
           <span className="actions-inline">
-            <button disabled={!login} onClick={() => login && navigator.clipboard.writeText(login)}><Icon name="copy" size={14} /> Copy command</button>
+            <button disabled={!login} onClick={() => login && navigator.clipboard.writeText(login)}><Icon name="copy" size="sm" /> Copy command</button>
           </span>
         </div>
       )}
@@ -206,7 +205,7 @@ export default function PullPanel({ ctx, onClose, onPulled, onRun, searchFor }: 
 
       </>)}
 
-      <Banner error={error} />
+      {error && <Banner tone="bad" title="Error">{error}</Banner>}
       {done && (
         <>
           <p className="ok">Pulled {done}. It's in your image list now.</p>
@@ -214,6 +213,6 @@ export default function PullPanel({ ctx, onClose, onPulled, onRun, searchFor }: 
         </>
       )}
       <OutputLog event="pull-progress" active={pulling} failure={authHint ? null : failure} collapsed={authHint} />
-    </Drawer>
+    </Sheet>
   );
 }
