@@ -28,6 +28,7 @@ export type RowCommon = {
   meta: string;
   dot: DotState;
   stateWord: string;
+  ariaLabel?: string;
   ports: number[];
   stats: string;
   history: number[];
@@ -60,7 +61,7 @@ export type EntryProps = EntryGroupProps | EntrySingleProps;
 
 export function EntryRow(props: EntryProps): JSX.Element {
   const {
-    id, name, meta, dot, stateWord, ports, stats, history, cpuNow,
+    id, name, meta, dot, stateWord, ariaLabel, ports, stats, history, cpuNow,
     action, selected, onSelect, onOpen, onAction, menu, onMenuOpenChange,
   } = props;
   const isGroup = props.group === true;
@@ -94,6 +95,7 @@ export function EntryRow(props: EntryProps): JSX.Element {
       dot={rowDot}
       name={name}
       meta={meta}
+      ariaLabel={ariaLabel}
       onOpen={isGroup ? onToggle ?? onOpen : onOpen}
       expanded={isGroup ? open : undefined}
       onToggle={isGroup ? onToggle : undefined}
@@ -134,7 +136,7 @@ export function EntryRow(props: EntryProps): JSX.Element {
 
 export function ChildRow(props: RowCommon & { id: string }): JSX.Element {
   const {
-    id, name, meta, dot, stateWord, ports, stats, history, cpuNow,
+    id, name, meta, dot, stateWord, ariaLabel, ports, stats, history, cpuNow,
     action, selected, onSelect, onOpen, onAction, menu, onMenuOpenChange,
   } = props;
 
@@ -143,6 +145,7 @@ export function ChildRow(props: RowCommon & { id: string }): JSX.Element {
       lead={<Dot state={dot} label={stateWord} />}
       name={name}
       meta={meta}
+      ariaLabel={ariaLabel}
       onOpen={onOpen}
       selected={selected !== undefined ? selected : undefined}
       onSelect={onSelect ? (v: boolean) => onSelect(v) : undefined}

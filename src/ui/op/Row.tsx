@@ -40,6 +40,7 @@ export type RowProps = {
   name: React.ReactNode;
   nameClass?: string;
   title?: string;
+  ariaLabel?: string;
   meta?: React.ReactNode;
   metaSelectable?: boolean;
   tall?: boolean;
@@ -57,7 +58,7 @@ export type RowProps = {
 
 export function Row(props: RowProps): React.JSX.Element {
   const {
-    lead, dot, name, nameClass, title, meta, metaSelectable, tall, children, action, menu,
+    lead, dot, name, nameClass, title, ariaLabel, meta, metaSelectable, tall, children, action, menu,
     child, onOpen, onMenuKey, selected, onSelect, expanded, onToggle,
   } = props;
   const [hovered, setHovered] = useState(false);
@@ -113,7 +114,9 @@ export function Row(props: RowProps): React.JSX.Element {
       role="row"
       tabIndex={0}
       aria-selected={selected}
+      aria-expanded={expanded === true ? "true" : expanded === false ? "false" : undefined}
       title={title}
+      aria-label={ariaLabel}
       onClick={handleClick}
       onKeyDown={handleKeyDown}
       onMouseEnter={() => setHovered(true)}

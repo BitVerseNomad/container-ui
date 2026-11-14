@@ -600,7 +600,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
     if (v.kube) {
       return (
         <EntryRow key={a.key} id={a.key} group={false} name="Kubernetes" meta={`${a.rows.length} container${a.rows.length === 1 ? "" : "s"}`}
-          dot="ok" stateWord="" ports={[]} stats="" history={[]} cpuNow={null} action={null} selected={false} onSelect={null}
+          dot="ok" stateWord="" ariaLabel={`Kubernetes, ${a.rows.length} container${a.rows.length === 1 ? "" : "s"}`} ports={[]} stats="" history={[]} cpuNow={null} action={null} selected={false} onSelect={null}
           onOpen={() => onKubernetes?.()} onAction={() => {}} menu={null} menuOpen={false} onMenuOpenChange={() => {}} />
       );
     }
@@ -611,6 +611,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
       meta: v.isProject ? (a.dir ? tilde(a.dir) : "") : single.Image,
       dot: v.dot,
       stateWord: v.word,
+      ariaLabel: v.isProject ? `${a.name}, project, ${v.word}` : `${single.Names}, ${v.word}`,
       ports: v.ports,
       stats: v.isProject ? "" : statsFor(single),
       history: v.isProject ? [] : historyOf(single),
@@ -639,7 +640,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
     const id = `${a.key}/${c.Names}`;
     return (
       <ChildRow key={id} id={id} name={serviceName(c, a.name)} meta={c.Image} dot={v.dot} stateWord={v.word}
-        ports={hostPorts(c.Ports)} stats={statsFor(c)} history={historyOf(c)} cpuNow={cpuNowOf(c)}
+        ariaLabel={`${serviceName(c, a.name)}, ${v.word}`} ports={hostPorts(c.Ports)} stats={statsFor(c)} history={historyOf(c)} cpuNow={cpuNowOf(c)}
         action={{ label: verb, busy: false, locked: lock }} selected={checked.has(c.ID)}
         onSelect={(on) => toggleCheck(c.ID, on)} onOpen={() => setDetailId(c.ID)}
         onAction={() => { if (!lock) void act(a, [verb === "Stop" ? "stop" : "start", c.ID], null, `${c.Names} ${verb === "Stop" ? "stopped" : "started"}`); }}
