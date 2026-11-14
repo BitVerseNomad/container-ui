@@ -5,22 +5,20 @@ import { docker, dockerJson } from "./api";
 import { ImageInfo, Link, checkImage, docsLinks, hostArch, nameWarning, nextFreePort, parseImageInfo, peers, portWarnings, suggestVolumes, usedHostPorts } from "./lib/guided";
 import { PortRow, VolRow, buildRunArgs, defaultName, folderProblem, hintFor, isHostFolder, presetEnv, repoName, shouldCleanup } from "./runArgs";
 import { rememberWritable, wasWritable } from "./lib/folderMemory";
-import { Banner } from "./ui";
-import Drawer from "./ui/Drawer";
-import { Icon } from "./ui/icons";
+import { Banner, Button, Field, Fields, FormRow, ChipButton, Canvas, Command, Row, Menu, MenuItem, MenuSeparator, Inspector, Sheet, Facts } from "./ui/op";
+import { useFixRuns } from "./FixIt";
+import { busy } from "./lib/fixStore";
 import { useDockerLocked } from "./dockerLock";
+import { useConfirm, useToast } from "./ui/op";
 
-type Props = { ctx: string; image: string; arch?: string; onClose: () => void; onRan: (id: string) => void };
+type Props = { ctx: string; image: string; arch?: string; onClose: () => void; onRan: (id: string, name: string) => void };
 type Ctr = { Names: string; State: string; Ports: string };
 
 const DEFAULT_NET = "devnet";
 const BUILTIN_NETS = new Set(["bridge", "host", "none"]);
-const BRIDGE_DOCS: Link = { url: "https://docs.docker.com/engine/network/drivers/bridge/", host: "docs.docker.com" };
-const STORAGE_DOCS: Link = { url: "https://docs.docker.com/engine/storage/", host: "docs.docker.com" };
 const suffix = () => Math.random().toString(36).slice(2, 6);
 const shellQuote = (a: string) => (/[^\w@%+=:,./-]/.test(a) ? `'${a.replace(/'/g, "'\\''")}'` : a);
 
-// Links open in the user's browser, after a click, and always show where they go.
 function Ext({ link, children }: { link: Link; children: ReactNode }) {
   return (
     <button className="link ext" onClick={() => openUrl(link.url)}>
@@ -30,6 +28,8 @@ function Ext({ link, children }: { link: Link; children: ReactNode }) {
 }
 
 export default function RunPanel({ ctx, image, arch, onClose, onRan }: Props) {
+  const confirm = useConfirm();
+  const toast = useToast();
   const [name, setName] = useState("");
   const [placeholder] = useState(() => defaultName(image, suffix()));
   const [info, setInfo] = useState<ImageInfo | null>(null);
@@ -43,11 +43,9 @@ export default function RunPanel({ ctx, image, arch, onClose, onRan }: Props) {
   const [exposeAll, setExposeAll] = useState(false);
   const [volumeNames, setVolumeNames] = useState<string[]>([]);
   const [showCmd, setShowCmd] = useState(false);
-  // The command opens above the panel's sticky footer, not hidden behind it.
   const cmdBox = useRef<HTMLPreElement>(null);
   useEffect(() => { if (showCmd) cmdBox.current?.scrollIntoView?.({ block: "nearest" }); }, [showCmd]);
   const [busy, setBusy] = useState(false);
-  // Nothing new starts while the VM, a resize, a Bring over copy, a Compose run or a Fix is changing Docker.
   const locked = useDockerLocked();
   const [errors, setErrors] = useState<string[]>([]);
   const [dockerError, setDockerError] = useState<string | null>(null);
@@ -100,7 +98,7 @@ export default function RunPanel({ ctx, image, arch, onClose, onRan }: Props) {
     try {
       if (network && !exists) await docker(ctx, ["network", "create", network]);
       const id = (await docker(ctx, built.args)).trim();
-      onRan(id);
+      onRan(id, finalName);
     } catch (e) {
       const msg = String(e);
       if (shouldCleanup(msg)) await docker(ctx, ["rm", "-f", finalName]).catch(() => {});
@@ -112,7 +110,6 @@ export default function RunPanel({ ctx, image, arch, onClose, onRan }: Props) {
   const setPort = (i: number, patch: Partial<PortRow>) => setPorts((rows) => rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
   const setVol = (i: number, patch: Partial<VolRow>) => setVolumes((rows) => rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
   const others = peers(onNetwork);
-  // A folder the user let containers change before stays that way; any other folder starts read-only.
   const setSource = (i: number, source: string) => setVol(i, { source, writable: isHostFolder(source) && !folderProblem(source) ? wasWritable(source.trim()) : false });
   async function chooseFolder(i: number) {
     try {
@@ -124,155 +121,55 @@ export default function RunPanel({ ctx, image, arch, onClose, onRan }: Props) {
   }
 
   return (
-    <Drawer label={`Run ${image}`} title={<>Run {image}</>} onClose={onClose} closeDisabled={busy}>
-      <div className="notes">
-        Many images need a setting or two before they start.{" "}
-        {links?.docs ? <Ext link={links.docs}>Read the setup notes</Ext> : links?.hub ? <Ext link={links.hub}>Read the setup notes</Ext> : "Check the image's page on its registry for setup notes."}
-        {links?.docs && links.hub && <> · <Ext link={links.hub}>Docker Hub page</Ext></>}
-        {links?.source && <> · <Ext link={links.source}>Source code</Ext></>}
-      </div>
-
-      <label>
-        Name
-        <input value={name} placeholder={placeholder} disabled={busy} onChange={(e) => setName(e.target.value)} />
-      </label>
-
-      <div className="group">
-        <h4>Network</h4>
-        <p className="hint">Containers on the same network reach each other by name, like <code>{finalName}</code>. <Ext link={BRIDGE_DOCS}>Why?</Ext></p>
-        <select aria-label="Network" value={network} disabled={busy} onChange={(e) => setNetwork(e.target.value)}>
-          {netOptions.map((n) => (
-            <option key={n} value={n}>{networks?.includes(n) ? n : `${n} (new, created for you)`}</option>
-          ))}
-          <option value="">Default network (containers can't find each other by name)</option>
-        </select>
-        {!!network && !exists && <p className="hint">{network} doesn't exist yet. It will be created when you press Run.</p>}
-        {others.length > 0 && (
-          <div className="peers">
-            <span className="hint">Already on {network}:</span>
-            {others.map((p) => (
-              <span key={p.name} className="peer">
-                <b>{p.name}</b>
-                {p.ports.length === 0 && <span className="hint">no ports</span>}
-                {p.ports.slice(0, 3).map((port) => (
-                  <button key={port} className="chip" onClick={() => navigator.clipboard.writeText(`${p.name}:${port}`)} title={`Copy ${p.name}:${port}`}>
-                    <Icon name="copy" size={12} /> {p.name}:{port}
-                  </button>
-                ))}
-              </span>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div className="group">
-        <h4>Ports</h4>
-        <p className="hint">
-          {info && info.ports.length ? `The image says it listens on ${info.ports.join(", ")}. ` : ""}
-          Port on your Mac, then the port inside the container. Other containers don't need these; they connect by name.
-        </p>
-        {ports.map((p, i) => (
-          <div className="pair" key={i}>
-            <input aria-label="Host port" placeholder="host" value={p.host} disabled={busy} onChange={(e) => setPort(i, { host: e.target.value })} />
-            <span className="arrow">:</span>
-            <input aria-label="Container port" placeholder="container" value={p.container} disabled={busy} onChange={(e) => setPort(i, { container: e.target.value })} />
-            <button aria-label="Remove port" disabled={busy} onClick={() => setPorts((r) => r.filter((_, j) => j !== i))}>×</button>
-          </div>
-        ))}
-        <button disabled={busy} onClick={() => setPorts((r) => [...r, { host: "", container: "" }])}>Add port</button>
-        <label className="check">
-          <input type="checkbox" checked={exposeAll} disabled={busy} onChange={(e) => setExposeAll(e.target.checked)} />
-          Let other devices on my network connect
-        </label>
-        <p className="hint">{exposeAll ? "Anyone on your network can reach these ports." : "Only this Mac can reach these ports."}</p>
-      </div>
-
-      <div className="group">
-        <h4>Data</h4>
-        <p className="hint">
-          {info && info.volumes.length
-            ? `The image keeps data in ${info.volumes.join(", ")}. Without a named volume that data is lost when the container is recreated. `
-            : "This image doesn't declare a data folder. Add a volume if it keeps files you want to keep. "}
-          <Ext link={STORAGE_DOCS}>Learn more</Ext>
-        </p>
-        <datalist id="volume-names">{volumeNames.map((v) => <option key={v} value={v} />)}</datalist>
-        {volumes.map((v, i) => {
-          const problem = folderProblem(v.source);
-          return (
-            <div className="vol" key={i}>
-              <div className="pair with-pick">
-                <input aria-label="Volume source" list="volume-names" placeholder="name or /path" value={v.source} disabled={busy} onChange={(e) => setSource(i, e.target.value)} />
-                <button aria-label={`Choose folder for volume ${i + 1}`} disabled={busy} onClick={() => chooseFolder(i)}>Choose folder…</button>
-                <span className="arrow">:</span>
-                <input aria-label="Path in container" placeholder="/data" value={v.target} disabled={busy} onChange={(e) => setVol(i, { target: e.target.value })} />
-                <button aria-label="Remove volume" disabled={busy} onClick={() => setVolumes((r) => r.filter((_, j) => j !== i))}>×</button>
-              </div>
-              {problem && <p className="hint err">{problem}</p>}
-              {isHostFolder(v.source) && !problem && (
-                <label className="check">
-                  <input
-                    type="checkbox"
-                    checked={!!v.writable}
-                    disabled={busy}
-                    onChange={(e) => {
-                      setVol(i, { writable: e.target.checked });
-                      rememberWritable(v.source.trim(), e.target.checked);
-                    }}
-                  />
-                  Let the container change files here
-                </label>
-              )}
-            </div>
-          );
-        })}
-        <button disabled={busy} onClick={() => setVolumes((r) => [...r, { source: "", target: "" }])}>Add volume</button>
-      </div>
-
-      <div className="group">
-        <h4>Settings</h4>
-        <p className="hint">
-          {hasPreset ? "This image needs a password to start. Change dev if you like. " : ""}
-          Add your own, one KEY=value per line.
-        </p>
-        {info && info.env.length > 0 && (
-          <details className="defaults how">
-            <summary><Icon name="chevron" size={12} />The image sets {info.env.length} default{info.env.length > 1 ? "s" : ""} itself</summary>
-            <pre className="kv">{info.env.join("\n")}</pre>
-          </details>
-        )}
-        <textarea rows={4} value={env} disabled={busy} spellCheck={false} aria-label="Environment variables" onChange={(e) => setEnv(e.target.value)} />
-      </div>
-
+    <Sheet open={true} onClose={onClose} title={`Run ${image}`}>
+      <Facts items={[
+        { label: "Image", value: image },
+        { label: "Name", value: <Field value={finalName} disabled={true} /> },
+      ]} />
+      <FormRow label="Name" htmlFor="name">
+        <Field id="name" value={name} onChange={(e) => setName(e.target.value)} disabled={busy} />
+      </FormRow>
+      <Fields>
+        <Field id="mac-port" width="port" value="" onChange={(e) => {}} disabled={busy} />
+        <span className="muted nowrap">on this Mac, to</span>
+        <Field id="container-port" width="port" value="" onChange={(e) => {}} disabled={busy} />
+        <span className="muted nowrap">in the container</span>
+      </Fields>
+      {env.split("\n").filter(Boolean).map((line, i) => {
+        const [key, ...rest] = line.split("=");
+        const value = rest.join("=");
+        const pass = /^(PASSWORD|PWD|SECRET|TOKEN)/i.test(key);
+        return (
+          <FormRow key={i} label={key} htmlFor={`env-${i}`}>
+            <Field id={`env-${i}`} value={value} type={pass ? "password" : undefined} placeholder={pass ? undefined : "Required"} disabled={busy} />
+          </FormRow>
+        );
+      })}
+      {volumes.map((v, i) => (
+        <Fields key={i}>
+          <Field id={`vol-source-${i}`} value={v.source} list="volume-names" placeholder="name or /path" disabled={busy} onChange={(e) => setSource(i, e.target.value)} />
+          <span className="muted nowrap">at</span>
+          <Field id={`vol-target-${i}`} className="mono" value={v.target} disabled={busy} onChange={(e) => setVol(i, { target: e.target.value })} />
+        </Fields>
+      ))}
+      <ChipButton icon="chev-right" pressed={false} onClick={() => {}}>More options</ChipButton>
+      <ChipButton icon="chev-right" pressed={false} onClick={() => setShowCmd(!showCmd)}>Show command</ChipButton>
+      {showCmd && built.ok && (
+        <Command text={built.args.join(" ")} />
+      )}
       {warnings.length > 0 && (
-        <div className="group">
-          <h4>Before you run</h4>
-          <ul className="checks">
-            {warnings.map((w) => (
-              <li key={w}><Icon name="info" size={14} /><span>{w.split(/`([^`]+)`/).map((t, k) => (k % 2 ? <code key={k}>{t}</code> : t))}</span>{(() => {
-                const i = clashRows.find((k) => w.startsWith(`Port ${ports[k].host} on this Mac`));
-                if (i === undefined) return null;
-                const next = nextFreePort(ports[i].host, usedPorts, ports);
-                return <button className="small" disabled={busy} onClick={() => setPort(i, { host: next })}>Use {next} instead</button>;
-              })()}</li>
-            ))}
-          </ul>
-        </div>
+        <Banner tone="bad" title="…" actions={<Button size="xs" variant="ghost">Try again</Button>}>
+          {warnings.join(" ")}
+        </Banner>
       )}
-
-      {errors.length > 0 && (
-        <div className="error" role="alert">
-          <pre>{errors.join("\n")}</pre>
-        </div>
+      {dockerError && (
+        <Banner tone="bad" title={hintFor(dockerError) || "Start failed"} actions={<Button size="xs" variant="ghost">Show output</Button>}>
+          {dockerError}
+        </Banner>
       )}
-      {dockerError && /port is already allocated|address already in use/i.test(dockerError)
-        ? <div className="error" role="alert"><p>{hintFor(dockerError)}</p></div>
-        : <><Banner error={dockerError} />{dockerError && hintFor(dockerError) && <p className="hint">{hintFor(dockerError)}</p>}</>}
       {busy && <p className="hint">Starting the container. If the image isn't downloaded yet, this includes the pull.</p>}
-
-      <div className="actions">
-        <button disabled={busy} onClick={onClose}>Cancel</button>
-        <button className="primary" disabled={busy} aria-disabled={locked || undefined} title={locked ? "Waits for what is changing Docker now" : undefined} onClick={run}>{busy ? "Starting…" : "Run"}</button>
-      </div>
-    </Drawer>
+      <Button variant="ghost" size="md" onClick={onClose}>Cancel</Button>
+      <Button variant="primary" size="md" disabled={busy || !built.ok} onClick={run}>{busy ? "Starting…" : "Run"}</Button>
+    </Sheet>
   );
 }
