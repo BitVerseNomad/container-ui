@@ -29,7 +29,7 @@ import { eventWindow, parseEvents, timeline } from "./lib/events";
 const TABS = ["Logs", "Inspect", "Stats", "Mounts", "Network", "Activity"] as const;
 type Tab = (typeof TABS)[number];
 // appProblems: the Doctor's findings about this container that need the other containers to work out.
-type Props = { ctx: string; id: string; appProblems?: Problem[]; onBack: () => void; onReplaced?: (name: string) => void; listed?: string[] };
+type Props = { ctx: string; id: string; tab?: string; appProblems?: Problem[]; onBack?: () => void; onReplaced?: (name: string) => void; listed?: string[]; live?: any; history?: Record<string, number[]> };
 
 export default function ContainerDetail({ ctx, id, appProblems, onBack, onReplaced, listed = [] }: Props) {
   const confirm = useConfirm();
