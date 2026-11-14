@@ -8,9 +8,9 @@
 
 ## Order
 
-WO-2.1, WO-2.2, WO-2.3, WO-2.4, WO-2.5, WO-3.1a, WO-3.1b, WO-3.1c-1, WO-3.1c-2, WO-3.1c-3, WO-3.2, WO-3.3a, WO-3.3b, WO-3.3c.
+WO-2.1, WO-2.2, WO-2.3, WO-2.4, WO-2.5, WO-3.1a, WO-3.1b, WO-3.1b-2, WO-3.1c-1, WO-3.1c-2, WO-3.1c-3, WO-3.2, WO-3.3a, WO-3.3b, WO-3.3c.
 
-**All fourteen belong to this iteration** (WO-3.1c is done in three parts). A work order number is the step of the plan (`05-implementation-plan.md`), not the iteration: WO-3.1a to WO-3.3c are iteration 2 work. This iteration ends only after WO-3.3c is merged and `sh docs/plan/iterations/verify-iteration-2.sh` prints `0 FAIL`. Stopping after WO-2.5 is stopping halfway.
+**All fifteen belong to this iteration** (WO-3.1b-2 finishes WO-3.1b; WO-3.1c is done in three parts). A work order number is the step of the plan (`05-implementation-plan.md`), not the iteration: WO-3.1a to WO-3.3c are iteration 2 work. This iteration ends only after WO-3.3c is merged and `sh docs/plan/iterations/verify-iteration-2.sh` prints `0 FAIL`. Stopping after WO-2.5 is stopping halfway.
 
 Splits (each must fit in one pull request): WO-3.1 is split into 3.1a (row model, pure code), 3.1b (the screen), 3.1c (states, scenarios, checks). WO-3.1 is the pattern WO-3.2 and WO-3.3 copy. WO-3.3 is split into 3.3a (Run), 3.3b (Pull), 3.3c (Compose start and logs).
 
@@ -1510,6 +1510,39 @@ type EntryProps = (RowCommon & { group: false }) | (RowCommon & { group: true; o
 5. The gate in `../HANDOFF.md` section 5, except the named tests of step 19.
 
 **Pull request text:** the file `docs/plan/iterations/pr/wo-<id>.md`. Its first line is this title: `wo-3.1b: The Containers screen on the new design`
+
+---
+
+## WO-3.1b-2 Containers: finish the screen WO-3.1b left on the old markup
+
+**Needs:** WO-3.1b merged, the revert of the first WO-3.1c merged (`git log --oneline --first-parent main` shows `Merge branch 'wo-3.1c-revert'`).
+
+**Why:** the review of 2026-11-14 found that WO-3.1b built the new components but `src/Containers.tsx` never uses them: `EntryRow`, `ChildRow` and `TableHeadRow` are imported and not drawn, the screen still draws the old `app-row`, `svc-row`, `home` and `start-first` markup, and 31 lines of classes the design does not have were added to `docs/plan/design/openpier.css` and `src/ui/openpier.css` (commit `c309e84`) so the class check would pass. The design files are the source of truth (HANDOFF section 3): nobody edits them.
+
+**Read first:** WO-3.1b in full (above), `docs/plan/HANDOFF.md` rules 19 and 20, `git show c309e84 -- docs/plan/design/openpier.css`.
+
+**Starting state:**
+1. `git status --short` prints nothing.
+2. `cd docs/plan/design && shasum -a 256 -c SHA256SUMS` prints `openpier.css: FAILED` and nothing else failed.
+3. `grep -c "<EntryRow" src/Containers.tsx` prints `0`.
+
+**Do not touch:** `docs/plan/` except the pull request file; `src/ui/op/`.
+
+**Steps** (do them in parts, rule 19: part A is steps 1 and 2, part B is step 3 up to WO-3.1b step 12, part C is the rest):
+
+1. Take the added block out of both stylesheets: `git show ff74f97:docs/plan/design/openpier.css > docs/plan/design/openpier.css`, then copy the same file to `src/ui/openpier.css` (they must be equal: `node scripts/check-design-sync.mjs`). `cd docs/plan/design && shasum -a 256 -c SHA256SUMS` now prints only `OK` lines.
+2. `node scripts/check-classes.mjs` now fails on the old classes in `src/Containers.tsx`. Write down the list it prints in the pull request file: it is the list of markup step 3 replaces.
+3. Do WO-3.1b steps 10 to 18 again, to the letter, on the current `src/Containers.tsx`: the list is drawn with `TableHeadRow`, `EntryRow` and `ChildRow` from `src/containers/ContainerRows.tsx`, the problem lines with `Problem`, the header with `Header`, `NewMenu`, `SelectionBar` and `ProblemInspector` as WO-3.1b step 12 lays out. Keep every behaviour (Start and Stop with the pending words, project runs, fix runs, resize and folder fixes, the VM strip): WO-3.1b step 10 says how. Only classes from `openpier.css` (rule 1 of "Rules that hold in every work order").
+4. Tests: the WO-3.1b tests still pass. `src/Containers.test.tsx` may fail only for the reasons WO-3.1b step 19 allows; list each failing test name in the pull request file.
+
+**Done when:**
+1. `cd docs/plan/design && shasum -a 256 -c SHA256SUMS` prints only `OK` lines; `node scripts/check-design-sync.mjs` and `node scripts/check-classes.mjs` pass.
+2. Every `WO-3.1b:` line of `sh docs/plan/iterations/verify-iteration-2.sh` prints `ok`, and so does `design files unchanged`.
+3. WO-3.1b "Done when" 1 to 3 (run each command, paste its output).
+4. By eye at `http://localhost:4173/?scenario=design#/containers` against `containers-light.png` and `-dark.png`: the list looks like the picture (columns, dots, problem lines, ports), not like plain buttons in a column.
+5. Lint, tsc and the Rust gate pass.
+
+**Pull request text:** `docs/plan/iterations/pr/wo-3.1b-2.md`. First line: `wo-3.1b-2: Containers draws the new rows`
 
 ---
 

@@ -64,6 +64,8 @@ chk "gate: npm run check (browser checks, Chromium and WebKit)" npm run check
 echo "== Rules that hold for the whole iteration =="
 chk "not-migrated list only shrank (node scripts/check-not-migrated.mjs)" node scripts/check-not-migrated.mjs
 chk "design stylesheet equals the plan's (check-design-sync)" node scripts/check-design-sync.mjs
+# The design files are the source of truth: nobody edits them during the iteration (check-design-sync only compares the copy).
+chk "design files unchanged (docs/plan/design/SHA256SUMS)" sh -c 'cd docs/plan/design && shasum -a 256 -c SHA256SUMS >/dev/null 2>&1'
 chk "mockup comparison passes (check-mockup, WebKit only, needs npm run preview running or started by check-all)" env PW_ENGINE=webkit node scripts/check-mockup.mjs
 chk "every class used is defined (check-classes)" node scripts/check-classes.mjs
 chk "no old names left in src (wharf, colima-ui storage keys)" sh -c '! grep -rniE "wharf:|colima-ui:|colima-ui\." src --include=*.ts --include=*.tsx'
@@ -72,7 +74,7 @@ chk "no leftover Design gap marker in the iteration 2 files" sh -c '! grep -n "D
 chk "no em dash in the iteration 2 files" sh -c '! cat docs/plan/iterations/iteration-2-*.md docs/plan/iterations/verify-iteration-2.sh docs/plan/iterations/pr/wo-2.*.md docs/plan/iterations/pr/wo-3.*.md 2>/dev/null | grep -q "$1"' sh "$EMDASH"
 chk "no TODO or FIXME added in the new files" sh -c '! grep -rnE "TODO|FIXME" src/containers src/lib/router.ts src/lib/routes.ts src/lib/containerRows.ts src/lib/engineModel.ts src/lib/liveStats.ts src/lib/shortcuts.ts src/lib/paletteModel.ts src/lib/inspectorContent.ts src/Header.tsx src/EngineSwitcher.tsx src/Activity.tsx src/ui/op/Palette.tsx src/ui/op/EngineButton.tsx 2>/dev/null'
 chk "no style= and no raw button, select or table in the new screen files" sh -c '! grep -nE "<button|<select|<table|style=" src/containers/*.tsx src/Header.tsx src/EngineSwitcher.tsx src/Activity.tsx src/Shell.tsx src/CommandPalette.tsx src/HelpModal.tsx src/Containers.tsx src/ContainerDetail.tsx src/Logs.tsx src/StatsTab.tsx src/RunPanel.tsx src/RunPicker.tsx src/PullPanel.tsx src/ComposeProjects.tsx src/ComposeLogs.tsx'
-chk "pull request texts exist for every work order (docs/plan/iterations/pr/)" sh -c 'for id in 2.1 2.2 2.3 2.4 2.5 3.1a 3.1b 3.1c-1 3.1c-2 3.1c-3 3.2 3.3a 3.3b 3.3c; do test -f docs/plan/iterations/pr/wo-$id.md || exit 1; done'
+chk "pull request texts exist for every work order (docs/plan/iterations/pr/)" sh -c 'for id in 2.1 2.2 2.3 2.4 2.5 3.1a 3.1b 3.1b-2 3.1c-1 3.1c-2 3.1c-3 3.2 3.3a 3.3b 3.3c; do test -f docs/plan/iterations/pr/wo-$id.md || exit 1; done'
 
 echo "== WO-2.1 routes =="
 present "WO-2.1: router files and tests exist" src/lib/routes.ts src/lib/router.ts src/lib/tabRoutes.ts src/lib/routes.test.ts src/lib/router.test.tsx
@@ -174,6 +176,9 @@ has "WO-3.1b: the row menu trigger is MoreButton" src/containers/ContainerRows.t
 has "WO-3.1b: header is the new Header" src/Containers.tsx "Header"
 lacks "WO-3.1b: no old small buttons" src/Containers.tsx 'className="small"'
 lacks "WO-3.1b: no old home.css" src/Containers.tsx "home.css"
+atleast "WO-3.1b: Containers draws its rows with EntryRow" 1 src/Containers.tsx "<EntryRow"
+atleast "WO-3.1b: Containers draws project services with ChildRow" 1 src/Containers.tsx "<ChildRow"
+chk "WO-3.1b: no old row markup left in Containers" sh -c '! grep -qE "app-row|svc-row|app-chev|app-state|className=\"home\"|start-first" src/Containers.tsx'
 chk "WO-3.1b: Containers.tsx is off the not-migrated list" sh -c '! grep -q "src/Containers.tsx" scripts/not-migrated.json'
 chk "WO-3.1b: the new component tests pass" npx vitest run src/containers
 
