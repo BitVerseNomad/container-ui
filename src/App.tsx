@@ -448,7 +448,7 @@ export default function App() {
             <Banner error={profilesError} />
             <Banner error={appError} onClose={() => setAppError(null)} />
             <MachineUsageProvider value={usage}>
-              {tab !== "Containers" || detailId === null ? (
+              {tab !== "Containers" ? (
                 <Header title={tab === "Profiles" ? "Settings" : tab} />
               ) : null}
               {page}

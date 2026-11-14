@@ -3,18 +3,14 @@
 import { openShell } from "./lib/shell";
 import { activity, dockerLine, ranVm } from "./lib/activity";
 import { score } from "./lib/fuzzy";
-import { ReactNode, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, useCallback } from "react";
+import { ReactNode, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Profile, docker, dockerJson } from "./api";
 import { usePoll } from "./hooks";
-import { Banner } from "./ui/op";
-import { openUrl } from "./api";
 import VmStrip from "./VmStrip";
-import { portLinksFromPs } from "./containerInfo";
-import { isWebPort } from "./lib/webPort";
 import { kubeName } from "./lib/compose";
 import { appStoppedVersion, subscribeAppStopped } from "./lib/appStopped";
-import { App, appState, appsFrom, downLine, finished, lastRunOver, listed, runInfo, startWhat, stateWord, withAppStop } from "./lib/homeRows";
+import { App, appState, appsFrom, downLine, finished, lastRunOver, listed, runInfo, startWhat, withAppStop } from "./lib/homeRows";
 import { useHostSize } from "./useHostSize";
 import RunPicker from "./RunPicker";
 import RunPanel from "./RunPanel";
@@ -29,7 +25,7 @@ import { dockerLocked } from "./dockerLock";
 import ComposeProjects, { composeRunState, runCompose, useComposeRun } from "./ComposeProjects";
 import type { Action } from "./ComposeProjects";
 import ComposeLogs from "./ComposeLogs";
-import { ComposeScan } from "./useComposeScan";
+import type { ComposeScan } from "./useComposeScan";
 import ContainerDetail from "./ContainerDetail";
 import type { Finding, Report } from "./lib/doctor";
 import { setMuted } from "./lib/muted";
@@ -39,21 +35,27 @@ import { useDesktopOffer } from "./desktopOffer";
 import { gapLine } from "./lib/bringOver";
 import { describe } from "./lib/fixRun";
 import { busy as fixBusy, dismiss, runFor, type Run } from "./lib/fixStore";
-import { Button, Dot, Empty, Field, Icon, Menu, MenuItem, MenuSeparator, MoreButton, Problem, RowHead, Sheet, useConfirm } from "./ui/op";
+import { Banner, Button, Empty, Field, List, Menu, MenuItem, MenuSeparator, MoreButton, Problem, Sheet, useConfirm, useToast } from "./ui/op";
+import type { DotState } from "./ui/op";
 import { EntryRow, ChildRow, TableHeadRow } from "./containers/ContainerRows";
 import { NewMenu } from "./containers/NewMenu";
 import { SelectionBar } from "./containers/SelectionBar";
 import { ProblemInspector } from "./containers/ProblemInspector";
 import { inspectorContent } from "./lib/inspectorContent";
+import { Header } from "./Header";
+import { blockOf, flatten, hostPorts, isOpen, sortEntries, stateView, statsText, summary } from "./lib/containerRows";
+import type { StateView } from "./lib/containerRows";
+import type { LiveMap } from "./lib/liveStats";
 import Ticks, { plain } from "./ui/Ticks";
+
 type VmOp = { op: "starting" | "stopping" | "restarting"; cmd: string; args: Record<string, unknown> };
 // `last` lives here, not in this screen, so Retry still repeats the right command after the screen remounts.
 export type VmState = { op: VmOp["op"] | null; failure: string | null; last?: VmOp };
 type C = { ID: string; Names: string; Image: string; State: string; Status: string; Ports: string; Labels?: string };
-// From this many apps a search field earns its place; below it the list is the search.
-const SEARCH_AT = 7;
 // A Start or Stop that the poll never confirms stops saying "Starting…" after this long.
 const PENDING_MS = 30_000;
+// The projects the user folded or unfolded, kept across visits.
+const OPEN_KEY = "openpier:containers-open";
 // ids: when only some of a project's containers are started (its stopped ones), the wait ends once those run; the
 // project as a whole may stay partly running (a crashed job), which is not the target.
 type Pending = { target: "running" | "stopped"; word: string; since: number; ids?: string[] };
@@ -75,9 +77,9 @@ type Props = {
   // The Doctor's checks, shared with the Doctor page and its badge, so a problem is found once and counted once.
   report: Report | null;
   onReport: () => void;
-  // Machine meters (live stats) are passed from WO-2.2; consumed by WO-3.1b.
-  live?: Record<string, { cpu: number; memBytes: number }>;
-  history?: Record<string, number[]>;
+  // One read of `docker stats` and the CPU points kept for the sparkline.
+  live: LiveMap;
+  history: Record<string, number[]>;
   // Set while Docker Desktop's data is still on the Mac and some of it isn't in Colima (the same rule as Doctor's row).
   // only: the volume to pick alone, from the problem line of the row that uses it. returnTo: where focus goes if that
   // line is gone when the panel closes (the row's name button).
@@ -90,10 +92,23 @@ type Props = {
 // The main button's label each row last showed, kept across tabs, so a VM size change doesn't flip it while it runs.
 const seenVerb = new Map<string, "Start" | "Stop">();
 
-export default function Containers({ profile, ctx, vm, onVm, reload, detailId, setDetailId, onPull, onProfiles, compose, onImages, onKubernetes, report, onReport, onBring, inspected }: Props) {
+function readOpen(): Record<string, boolean> {
+  try {
+    const raw = localStorage.getItem(OPEN_KEY);
+    const value: unknown = raw ? JSON.parse(raw) : null;
+    return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, boolean>) : {};
+  } catch {
+    return {};
+  }
+}
+
+export default function Containers({ profile, ctx, vm, onVm, reload, detailId, setDetailId, onPull, onProfiles, compose, onImages, onKubernetes, report, onReport, onBring, inspected, live, history }: Props) {
   const runs = useFixRuns();
-  const confirmDialog = useConfirm();
-  const confirm = (message: string, label?: string, _opts?: { safe?: boolean }) => confirmDialog({ title: message, body: message, confirm: label ?? "Remove" });
+  const confirm = useConfirm();
+  // `fixAction` is still on the old three-argument confirm until WO-3.8 rebuilds FixIt.
+  const oldConfirm = ((message: string, label = "Remove", opts?: { safe?: boolean }) =>
+    confirm({ title: `${label}?`, body: message, confirm: label, danger: !opts?.safe })) as Parameters<typeof fixAction>[2];
+  const toast = useToast();
   const composeRun = useComposeRun();
   const running = !!ctx;
   const containers = usePoll<C[]>(async () => (ctx ? dockerJson<C>(ctx, ["ps", "-a"]) : []), [ctx], 3000);
@@ -102,8 +117,10 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
   const [composeOpen, setComposeOpen] = useState(false);
   const [logsOf, setLogsOf] = useState<App<C> | null>(null);
   const [runImage, setRunImage] = useState<string | null>(null);
-  const [open, setOpen] = useState<Set<string>>(new Set());
-  const toggle = (k: string) => setOpen((s) => { const n = new Set(s); n.has(k) ? n.delete(k) : n.add(k); return n; });
+  const [openKeys, setOpenKeys] = useState<Record<string, boolean>>(readOpen);
+  const [checked, setChecked] = useState<Set<string>>(new Set());
+  const [menuFor, setMenuFor] = useState<string | null>(null);
+  const [inspect, setInspect] = useState<{ c: C; f: Finding } | null>(null);
   const [pending, setPending] = useState<Map<string, Pending>>(new Map());
   const [failed, setFailed] = useState<Map<string, string>>(new Map());
   // Read aloud by VoiceOver: what just finished, or what went wrong. Both regions exist from the first render,
@@ -226,7 +243,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
     return () => { live = false; };
   }, [stoppedName, vm.op, rs.card, rs.outcome]);
   // Once the VM runs and no change result is waiting (a failed one briefly sees the old status), nothing is left to go back to.
-  useEffect(() => { if (running && !resizing(rs) && !rs.outcome) clearWayBack(); }, [running, rs]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (running && !resizing(rs) && !rs.outcome) clearWayBack(); }, [running, rs]);
   // Volumes a first `compose up` made empty here while Docker Desktop holds the data, read once (desktopOffer).
   const offer = useDesktopOffer();
   const gaps = onBring && offer.ctx === ctx ? offer.gaps : [];
@@ -239,7 +256,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
     prevGaps.current = gaps;
     if (!gone.length || (document.activeElement && document.activeElement !== document.body)) return;
     const a = appsRef.current.find((x) => x.rows.some((c) => gone[0].users.includes(c.Names)));
-    if (a) document.querySelector<HTMLElement>(rowSel(a.key))?.focus();
+    if (a) focusName(a.name);
   }, [gaps]);
   // The same for the "is stopped" line: its Start worked, the line went, and focus goes to the row's name.
   const downShown = useRef(new Set<string>());
@@ -251,14 +268,14 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
     const gone = [...linesShown.current].filter(([k]) => !linesNow.has(k));
     linesShown.current = linesNow;
     if (holding || !gone.length || (document.activeElement && document.activeElement !== document.body)) return;
-    document.querySelector<HTMLElement>(rowSel(gone[0][1]))?.focus();
+    focusEntry(gone[0][1]);
   });
   useEffect(() => {
     const gone = [...downShown.current].filter((k) => !downNow.has(k));
     downShown.current = downNow;
     // Lines hidden by a VM resize didn't go because they were started: focus stays where it is.
     if (holding || !gone.length || (document.activeElement && document.activeElement !== document.body)) return;
-    document.querySelector<HTMLElement>(rowSel(gone[0]))?.focus();
+    focusEntry(gone[0]);
   });
   const copying = useBringBusy();
   const wasCopying = useRef(false);
@@ -314,8 +331,8 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
     if (!r || !r.gone()) return;
     removing.current = null;
     requestAnimationFrame(() => {
-      const names = [...document.querySelectorAll<HTMLElement>(".app-name")];
-      (names[Math.min(r.at, names.length - 1)] ?? document.querySelector<HTMLElement>(".home-new"))?.focus();
+      const rows = [...document.querySelectorAll<HTMLElement>(".list > .row:not(.th):not(.child)")];
+      (rows[Math.min(r.at, rows.length - 1)] ?? document.querySelector<HTMLElement>(".header .btn.primary"))?.focus();
     });
   }, [all]);
   const willRemove = (gone: () => boolean, key: string) => { removing.current = { gone, at: Math.max(0, apps.findIndex((x) => x.key === key)) }; };
@@ -326,8 +343,23 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
     if (detailId) { opened.current = detailId; return; }
     const id = opened.current;
     opened.current = null;
-    if (id) requestAnimationFrame(() => document.querySelector<HTMLElement>(`[data-open="${CSS.escape(id)}"]`)?.focus());
+    if (!id) return;
+    requestAnimationFrame(() => {
+      const a = appsRef.current.find((x) => x.rows.some((c) => c.ID === id || c.ID.startsWith(id)));
+      const c = a?.rows.find((x) => x.ID === id || x.ID.startsWith(id));
+      if (a && c) focusName(serviceName(c, a.name));
+    });
   }, [detailId]);
+
+  // Esc clears the selection first; a second press clears the search.
+  useEffect(() => {
+    const onEscape = () => {
+      if (checked.size) { setChecked(new Set()); return; }
+      if (q) setQ("");
+    };
+    window.addEventListener("openpier:escape", onEscape);
+    return () => window.removeEventListener("openpier:escape", onEscape);
+  }, [checked, q]);
 
   if (detailId && ctx) {
     const named = all.find((c) => c.ID === detailId || c.ID.startsWith(detailId) || c.Names === detailId)?.Names;
@@ -337,23 +369,28 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
   if (!profile) {
     const busy = vm.op !== null;
     return (
-      <div className="start-first">
-        <h2>Start your first VM</h2>
-        <p className="hint">Colima needs a small Linux VM to run containers. The defaults work for most people.</p>
-        <div className="actions-inline space-sm">
-          <Button variant="default" size="md" disabled={busy} onClick={start}>
-            {busy ? "Starting…" : size ? `Start Colima (${size.cpus} CPUs, ${size.memory} GiB)` : "Start Colima"}
-          </Button>
-          <Button variant="ghost" onClick={onProfiles}>Customize first</Button>
-        </div>
+      <>
+        <Header title="Containers" />
+        <Empty
+          icon="box"
+          title="Start your first VM"
+          actions={
+            <>
+              <Button variant="primary" size="md" disabled={busy} onClick={start}>
+                {busy ? "Starting…" : size ? `Start Colima (${size.cpus} CPUs, ${size.memory} GiB)` : "Start Colima"}
+              </Button>
+              <Button variant="ghost" size="md" onClick={onProfiles}>Customize first</Button>
+            </>
+          }
+        >
+          Colima needs a small Linux VM to run containers. The defaults work for most people.
+        </Empty>
         {vm.failure && <Banner tone="bad">{vm.failure}</Banner>}
-      </div>
+      </>
     );
   }
 
-  // Counted in containers: typing a port ("5432") to find who holds it is worth it long before there are 7 apps.
-  const searching = all.length >= SEARCH_AT;
-  const term = searching ? q.trim() : "";
+  const term = q.trim();
   // A number finds whatever publishes that port ("8080" finds web on 0.0.0.0:8080->80).
   const hit = (c: C) => score(c.Names, term) > 0 || score(c.Image, term, false) > 0 || (/^\d{2,5}$/.test(term) && new RegExp(`(^|[ ,:])${term}->`).test(c.Ports ?? ""));
   const shown = term ? apps.filter((a) => score(a.name, term) > 0 || a.rows.some(hit)) : apps;
@@ -368,27 +405,276 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
     const run = runFor(runs, c.Names);
     return p || run ? [{ c, p, run }] : [];
   });
+  const hasProblem = (c: C) => problemsOf([c]).length > 0;
+
+  // What a row says: the shape and the word of one container (spec 6.4's table), with Finished kept for a job.
+  const viewOf = (c: C): StateView => {
+    if (finished(c, infoOf(c))) return { dot: "off", word: "Finished", action: "Start", busy: false };
+    const f = problems.get(c.Names)?.[0];
+    const exit = /^Exited \((\d+)\)/.exec(c.Status ?? "");
+    return stateView({
+      state: c.State,
+      exitCode: exit ? Number(exit[1]) : undefined,
+      oomKilled: f?.id === "oom",
+      unhealthy: f?.id === "unhealthy",
+      finding: f ? (f.level === "bad" ? "bad" : "warn") : null,
+      busy: null,
+    });
+  };
+  const statsFor = (c: C) => {
+    const lv = live[c.Names];
+    return statsText(lv?.cpu ?? 0, lv?.memBytes ?? 0, c.State === "running");
+  };
+  const historyOf = (c: C) => history[c.Names] ?? [];
+  const cpuNowOf = (c: C) => {
+    const lv = live[c.Names];
+    return lv ? Math.round(lv.cpu) : null;
+  };
+  const projectOf = (c: C) => apps.find((a) => a.kind === "compose" && a.rows.some((r) => r.ID === c.ID))?.name ?? null;
+
+  const focusEntry = (key: string) => {
+    const a = appsRef.current.find((x) => x.key === key);
+    if (a) focusName(a.name);
+  };
+
+  const openNow = (a: App<C>) => (!!term && a.kind === "compose" && a.rows.some(hit)) || isOpen(a.rows.some(hasProblem), openKeys[a.key]);
+  const setOpenAt = (key: string, open: boolean) => {
+    setOpenKeys((prev) => {
+      const next = { ...prev, [key]: open };
+      try { localStorage.setItem(OPEN_KEY, JSON.stringify(next)); } catch { /* not remembered */ }
+      return next;
+    });
+  };
+  const sorted = sortEntries(shown.map((a) => ({ ...a, hasProblem: a.rows.some(hasProblem), running: appState(a.rows, infoOf).up > 0 })));
+  const lines = flatten<C>(sorted, (e) => openNow(e as App<C>), hasProblem);
+
+  const toggleCheck = (id: string, on: boolean) => setChecked((prev) => {
+    const next = new Set(prev);
+    if (on) next.add(id); else next.delete(id);
+    return next;
+  });
+  const setGroupChecked = (a: App<C>, on: boolean) => setChecked((prev) => {
+    const next = new Set(prev);
+    for (const c of a.rows) { if (on) next.add(c.ID); else next.delete(c.ID); }
+    return next;
+  });
+  const checkedRows = all.filter((c) => checked.has(c.ID));
+  const canStart = checkedRows.some((c) => c.State !== "running");
+  const canStop = checkedRows.some((c) => c.State === "running");
+  const checkedGroups = () => apps.map((a) => ({ a, rows: a.rows.filter((c) => checked.has(c.ID)) })).filter((g) => g.rows.length > 0);
+  async function actChecked(verb: "start" | "stop") {
+    const groups = checkedGroups();
+    await Promise.all(groups.map(async ({ a, rows }) => {
+      for (const c of rows) await act(a, [verb, c.ID], null, verb === "start" ? `${c.Names} started` : `${c.Names} stopped`);
+    }));
+    setChecked(new Set());
+  }
+  async function removeChecked() {
+    for (const { a, rows } of checkedGroups()) {
+      await act(a, ["rm", "-f", ...rows.map((c) => c.ID)], null, `${rows.length === 1 ? rows[0].Names : `${rows.length} containers`} removed`);
+    }
+    setChecked(new Set());
+  }
+
+  // "Run it yourself": the exact command, in a dialog that can copy it (spec 6.8).
+  const runYourself = async (title: string, command: string) => {
+    const yes = await confirm({ title, body: "This is what OpenPier runs. You can paste it in Terminal.", command, confirm: "Copy command" });
+    if (yes) await navigator.clipboard.writeText(command);
+  };
+
+  const containerMenuItems = (c: C, a: App<C>): ReactNode[] => {
+    const up = c.State === "running";
+    const lock = !canAct(a);
+    const p = problems.get(c.Names)?.[0];
+    const verb = up ? "stop" : "start";
+    return [
+      <MenuItem key="logs" label="Logs" why="To see what it printed" onSelect={() => setDetailId(c.ID)} />,
+      ...(up ? [<MenuItem key="shell" label="Open a shell" why="To run commands inside it" disabled={lock} onSelect={() => void openShell(ctx!, c.Names).catch((e: unknown) => fail(a, e instanceof Error ? e.message : String(e)))} />] : []),
+      ...(up ? [<MenuItem key="restart" label="Restart" why="After you change a setting or it got stuck" disabled={lock} onSelect={() => void act(a, ["restart", c.ID], null, `${c.Names} restarted`)} />] : []),
+      ...(p ? [<MenuItem key="not-issue" label="Not an issue" why="Stops showing this problem" onSelect={() => setMuted(p.key, true)} />] : []),
+      <MenuSeparator key="sep-1" />,
+      <MenuItem key="copy" label="Copy name" onSelect={() => { void navigator.clipboard.writeText(c.Names); toast({ text: `Copied ${c.Names}` }); }} />,
+      <MenuItem key="yourself" label="Run it yourself" why="Shows the command, if you'd rather use Terminal" onSelect={() => void runYourself(`Run ${c.Names} yourself`, `docker --context ${ctx} ${verb} ${c.Names}`)} />,
+      <MenuSeparator key="sep-2" />,
+      <MenuItem key="remove" label="Remove…" why="Deletes the container. Volumes are kept" danger disabled={lock} onSelect={() => void (async () => {
+        const yes = await confirm({
+          title: `Remove ${c.Names}?`,
+          body: `This deletes the container. Its image and volumes are kept, so you can run it again.${up ? " It is running and will be stopped first." : ""}`,
+          command: `docker --context ${ctx} rm -f ${c.Names}`,
+          confirm: "Remove",
+          danger: true,
+        });
+        if (!yes) return;
+        willRemove(() => !allRef.current.some((x) => x.ID === c.ID), a.key);
+        await act(a, ["rm", "-f", c.ID], null, `${c.Names} removed`);
+      })()} />,
+    ];
+  };
+
+  const projectMenuItems = (a: App<C>): ReactNode[] => {
+    const lock = !canAct(a);
+    const known = !!a.dir && a.files.length > 0;
+    const anyUp = a.rows.some((c) => c.State === "running");
+    const stopped = a.rows.filter((c) => c.State !== "running" && !finished(c, infoOf(c)));
+    const what = startWhat(stopped.map((c) => serviceName(c, a.name)));
+    const verb = anyUp ? "stop" : "up -d";
+    const command = known ? `cd '${a.dir}' && docker --context ${ctx} compose ${verb}` : `docker --context ${ctx} ${anyUp ? "stop" : "start"} ${a.rows.map((c) => c.ID).join(" ")}`;
+    return [
+      ...(stopped.length && anyUp ? [<MenuItem key="start" label={`Start ${what}`} disabled={lock} onSelect={() => void act(a, ["start", ...stopped.map((c) => c.ID)], { target: "running", word: "Starting…", since: Date.now(), ids: stopped.map((c) => c.ID) }, `${listed(stopped.map((c) => serviceName(c, a.name)))} started`)} />] : []),
+      ...(known ? [<MenuItem key="rebuild" label="Rebuild and start" why="After you change a Dockerfile or the code it copies in" disabled={lock} onSelect={() => void project(a, "build", { target: "running", word: "Rebuilding…", since: Date.now() }, `${a.name} rebuilt`)} />] : []),
+      ...(known ? [<MenuItem key="pull" label="Update images and start" why="When a newer version of an image is out" disabled={lock} onSelect={() => void project(a, "pull", { target: "running", word: "Updating…", since: Date.now() }, `${a.name} updated`)} />] : []),
+      ...(anyUp ? [<MenuItem key="restart" label="Restart" why="After you change a setting in compose.yaml" disabled={lock} onSelect={() => void project(a, "restart", null, `${a.name} restarted`)} />] : []),
+      ...(known ? [<MenuItem key="logs" label="Show logs" onSelect={() => setLogsOf(a)} />] : []),
+      ...(known ? [<MenuItem key="finder" label="Show in Finder" disabled={lock} onSelect={() => void invoke("reveal_compose", { path: `${a.dir}/${a.files[0]}` }).catch((e) => fail(a, String(e)))} />] : []),
+      <MenuSeparator key="sep-1" />,
+      <MenuItem key="yourself" label="Run it yourself" why="Shows the command, if you'd rather use Terminal" onSelect={() => void runYourself(`Run ${a.name} yourself`, command)} />,
+      <MenuSeparator key="sep-2" />,
+      <MenuItem key="remove" label="Remove containers…" why="To start clean. Volumes and data are kept" danger disabled={lock} onSelect={() => void (async () => {
+        const yes = await confirm({
+          title: `Remove the containers of ${a.name}?`,
+          body: "This deletes the containers of the project. Images, volumes and data are kept.",
+          command,
+          confirm: "Remove containers",
+          danger: true,
+        });
+        if (!yes) return;
+        willRemove(() => !appsRef.current.some((x) => x.key === a.key), a.key);
+        await project(a, "down", null, `${a.name} removed`);
+      })()} />,
+    ];
+  };
+
+  const rowMenu = (id: string, name: string, items: ReactNode) => (
+    <Menu trigger={<MoreButton name={name} />} label={`Actions for ${name}`} align="end" wide open={menuFor === id} onOpenChange={(open) => setMenuFor(open ? id : null)}>
+      {items}
+    </Menu>
+  );
+
+  // Everything one entry row needs, worked out once for the row and once for the lines under it.
+  const entryView = (a: App<C>) => {
+    const kube = a.kind === "kubernetes";
+    const isProject = a.kind === "compose";
+    const single = a.kind === "container" ? a.rows[0] : null;
+    const { state, up, of } = appState(a.rows, infoOf);
+    const pend = pending.get(a.key);
+    const mine = !!composeRun.busy && inDir(a, composeRun.busy.dir) && a.files.length > 0;
+    const withVm = holding && !kube;
+    const changing = withVm ? "Restarting…" : pend?.word ?? (mine ? ING[composeRun.busy!.action] : null);
+    const issues = problemsOf(a.rows);
+    const rowGaps = kube ? [] : gaps.filter((g) => a.rows.some((c) => g.users.includes(c.Names)));
+    // Down, counted, and with no problem line of its own: they share one plain line, so the lines and the count
+    // agree (every container "N of M running" is short of is on a line). Finished jobs aren't counted, so no line.
+    // Only once the Doctor has answered: before that a crashed service would read "is stopped", then change.
+    // Not while the VM is resized: it is about to start what ran, and until the list is read again afterwards a
+    // container that is coming back would read stopped.
+    const down = !withVm && isProject && state === "partly" && report ? a.rows.filter((c) => c.State !== "running" && !finished(c, infoOf(c)) && !issues.some((i) => i.c.ID === c.ID)) : [];
+    const downWords = down.length ? downLine(down.map((c) => serviceName(c, a.name))) : null;
+    const marks = a.rows.map((c) => viewOf(c).dot);
+    const groupDot: DotState = changing ? "busy" : marks.includes("bad") ? "bad" : marks.includes("warn") ? "warn" : state === "running" ? "ok" : state === "partly" ? "warn" : "off";
+    const singleView = single ? viewOf(single) : null;
+    const word = kube ? "" : isProject ? changing ?? (state === "partly" ? `${up} of ${of} running` : state === "running" ? "Running" : "Stopped") : changing ?? singleView!.word;
+    const dot: DotState = kube ? "ok" : isProject ? groupDot : changing ? "busy" : singleView!.dot;
+    // Anything running means the main button stops it; starting the rest of a partly running project is in its menu.
+    const liveVerb = up > 0 ? "Stop" : "Start";
+    if (!withVm) seenVerb.set(a.key, liveVerb);
+    const verb = withVm ? seenVerb.get(a.key) ?? liveVerb : liveVerb;
+    const lock = !canAct(a) || withVm;
+    const ports = kube ? [] : isProject
+      ? [...new Set(a.rows.filter((c) => c.State === "running").flatMap((c) => hostPorts(c.Ports)))]
+      : hostPorts(single!.Ports);
+    // A bigger VM asked for from an out-of-memory line: once that container runs, its line is gone, and the result
+    // stays on its own row under the project until Dismiss. A failure keeps the line, and the result stays in it.
+    const resizedName = rs.from?.startsWith("home:") ? rs.from.split(":")[1] : null;
+    const resizedHere = !!resizedName && (!!rs.outcome || !!rs.progress) && a.rows.some((c) => c.Names === resizedName) && !issues.some((i) => i.c.Names === resizedName && (i.p?.fix?.resize || i.p?.fix?.vm));
+    const startIt = () => (isProject
+      ? project(a, "up", { target: "running", word: "Starting…", since: Date.now() }, `${a.name} started`)
+      : act(a, ["start", single!.ID], { target: "running", word: "Starting…", since: Date.now() }, `${a.name} started`));
+    const stopIt = () => (isProject
+      ? project(a, "stop", { target: "stopped", word: "Stopping…", since: Date.now() }, `${a.name} stopped`)
+      : act(a, ["stop", single!.ID], { target: "stopped", word: "Stopping…", since: Date.now() }, `${a.name} stopped`));
+    const cf = composeRun.failed && inDir(a, composeRun.failed.dir) && a.files.length > 0 && !mine ? composeRun.failed : null;
+    const holderApp = cf?.holder ? apps.find((x) => x.rows.some((c) => c.Names === cf.holder)) : undefined;
+    return { kube, isProject, single, state, up, of, pend, mine, withVm, changing, issues, rowGaps, down, downWords, marks, groupDot, singleView, word, dot, liveVerb, verb, lock, ports, resizedHere, startIt, stopIt, cf, holderApp };
+  };
+
+  const entryRow = (a: App<C>, expanded: boolean) => {
+    const v = entryView(a);
+    if (v.kube) {
+      return (
+        <EntryRow key={a.key} id={a.key} group={false} name="Kubernetes" meta={`${a.rows.length} container${a.rows.length === 1 ? "" : "s"}`}
+          dot="ok" stateWord="" ports={[]} stats="" history={[]} cpuNow={null} action={null} selected={false} onSelect={null}
+          onOpen={() => onKubernetes?.()} onAction={() => {}} menu={null} menuOpen={false} onMenuOpenChange={() => {}} />
+      );
+    }
+    const single = v.single!;
+    const common = {
+      id: a.key,
+      name: a.name,
+      meta: v.isProject ? (a.dir ? tilde(a.dir) : "") : single.Image,
+      dot: v.dot,
+      stateWord: v.word,
+      ports: v.ports,
+      stats: v.isProject ? "" : statsFor(single),
+      history: v.isProject ? [] : historyOf(single),
+      cpuNow: v.isProject ? null : cpuNowOf(single),
+      action: { label: v.verb, busy: !!v.changing, locked: v.lock },
+      selected: v.isProject ? a.rows.every((c) => checked.has(c.ID)) : checked.has(single.ID),
+      onSelect: (on: boolean) => { if (v.isProject) setGroupChecked(a, on); else toggleCheck(single.ID, on); },
+      onOpen: () => { if (v.isProject) setOpenAt(a.key, !expanded); else setDetailId(single.ID); },
+      onAction: () => { if (!v.lock) void (v.verb === "Stop" ? v.stopIt() : v.startIt()); },
+      menu: v.isProject ? rowMenu(a.key, a.name, projectMenuItems(a)) : rowMenu(a.key, single.Names, containerMenuItems(single, a)),
+      menuOpen: menuFor === a.key,
+      onMenuOpenChange: (open: boolean) => setMenuFor(open ? a.key : null),
+    };
+    if (!v.isProject) return <EntryRow key={a.key} {...common} group={false} />;
+    return (
+      <EntryRow key={a.key} {...common} group={true} open={expanded} onToggle={() => setOpenAt(a.key, !expanded)}
+        blocks={a.rows.map((c) => { const cv = viewOf(c); return blockOf(serviceName(c, a.name), cv.dot, cv.word); })}
+        runningText={v.word} />
+    );
+  };
+
+  const childRow = (a: App<C>, c: C) => {
+    const v = viewOf(c);
+    const lock = !canAct(a) || holding;
+    const verb = c.State === "running" ? "Stop" : "Start";
+    const id = `${a.key}/${c.Names}`;
+    return (
+      <ChildRow key={id} id={id} name={serviceName(c, a.name)} meta={c.Image} dot={v.dot} stateWord={v.word}
+        ports={hostPorts(c.Ports)} stats={statsFor(c)} history={historyOf(c)} cpuNow={cpuNowOf(c)}
+        action={{ label: verb, busy: false, locked: lock }} selected={checked.has(c.ID)}
+        onSelect={(on) => toggleCheck(c.ID, on)} onOpen={() => setDetailId(c.ID)}
+        onAction={() => { if (!lock) void act(a, [verb === "Stop" ? "stop" : "start", c.ID], null, `${c.Names} ${verb === "Stop" ? "stopped" : "started"}`); }}
+        menu={rowMenu(id, c.Names, containerMenuItems(c, a))} menuOpen={menuFor === id}
+        onMenuOpenChange={(open) => setMenuFor(open ? id : null)} />
+    );
+  };
 
   // One line under a row: what is wrong, in plain words, and the one thing to do about it.
-  const problemLine = ({ c, p, run }: { c: C; p?: Finding; run?: Run }, prefix: boolean, a?: App<C>) => {
+  const problemLine = (c: C, a: App<C>, prefix: boolean, indent: boolean) => {
+    const p = problems.get(c.Names)?.[0];
+    const run = runFor(runs, c.Names);
     const who = prefix ? `${c.Names} · ` : "";
-    const see = <Button variant="ghost" size="sm" onClick={() => setDetailId(c.ID)} aria-label={`See why: ${c.Names}`}>See why</Button>;
-    if (run?.step) return <Line key={c.ID} level="busy" text={`${who}${run.step}`} action={<Button variant="ghost" size="sm" aria-disabled="true">Fixing…</Button>} />;
+    const openThis = p ? () => setInspect({ c, f: p }) : undefined;
+    const see = p
+      ? <Button size="xs" aria-label={`See why: ${c.Names}`} onClick={() => setInspect({ c, f: p })}>See why</Button>
+      : <Button variant="ghost" size="xs" aria-label={`See why: ${c.Names}`} onClick={() => setDetailId(c.ID)}>See why</Button>;
+    if (run?.step) return <Problem key={c.ID} level="busy" text={`${who}${run.step}`} action={<Button variant="ghost" size="xs" aria-disabled="true">Fixing…</Button>} child={indent} />;
     const r = run?.result;
     if (r?.ok) {
       // A broker needs a little while after a restart, and an app that looks for it shows nothing until then.
       const slow = /kafka/i.test(c.Image) ? " Kafka needs about 30 s to start." : "";
-      return <Line key={c.ID} level="ok" text={`${who}Fixed.${slow}`} title={describe(r)} action={<Button variant="ghost" size="sm" onClick={() => dismiss(c.Names)}>Done</Button>} />;
+      return <Problem key={c.ID} level="ok" text={`${who}Fixed.${slow}`} title={describe(r)} action={<Button variant="ghost" size="xs" onClick={() => dismiss(c.Names)}>Done</Button>} child={indent} />;
     }
-    if (!p) return r ? <Line key={c.ID} level="bad" text={`${who}The fix didn't finish.`} title={describe(r)} action={see} /> : null;
+    if (!p) return r ? <Problem key={c.ID} level="bad" text={`${who}The fix didn't finish.`} title={describe(r)} action={see} child={indent} /> : null;
     // When this row's own fix replaces containers, a bigger fix that also replaces this one (Kafka UI's "fix both"
     // includes its broker) wins, so both rows offer the one fix that makes them work together.
     const shared = biggerFix(p.fix, [...problems.values()].flat().map((f) => f.fix));
     const fix = shared ?? p.fix;
     // That bigger fix gets one button, on the row that owns it; this row says where it is.
     const owner = shared ? [...problems].find(([, l]) => l.some((f) => f.fix === shared))?.[0] : undefined;
-    if (shared && owner && owner !== c.Names) return <Line key={c.ID} level={p.level === "bad" ? "bad" : "warn"} text={`${who}${p.short ?? p.title}. Fixed together with ${owner}.`} title={plain(p.detail)} />;
-    const one = fix ? fixAction(fix, ctx ?? undefined, confirm, runs, fixed) : null;
+    if (shared && owner && owner !== c.Names) return <Problem key={c.ID} level={p.level === "bad" ? "bad" : "warn"} text={`${who}${p.short ?? p.title}. Fixed together with ${owner}.`} title={plain(p.detail)} child={indent} onOpen={openThis} />;
+    const one = fix ? fixAction(fix, ctx ?? undefined, oldConfirm, runs, fixed) : null;
     const names = fix?.steps?.map((x) => x.name) ?? [];
     const said = p.short ?? p.title;
     // The line sits under the container's name, so "Its health check is failing" is "Health check is failing",
@@ -405,7 +691,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
         onApply={(svc) => void project(a, "up", null, `${svc} started with its new limit.`, svc)}
         onStart={() => void project(a, "up", { target: "running", word: "Starting…", since: Date.now() }, `${a.name} started`)}
         onOpenFail={(alert) => setSaid({ status: "", alert })}
-        onSay={(status) => setSaid({ status, alert: "" })} />;
+        onSay={(status) => setSaid({ status, alert: "" })} child={indent} onOpen={openThis} />;
     }
     const action = fix?.reveal ? see : fix?.vm ? (
       // Share the folder (or make it writable): the VM restarts and what ran starts again; the result stays under the row.
@@ -414,238 +700,87 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
       <ResizeOr from={`home:${c.Names}:${p.id}`} title={`${p.short ?? p.title}, ${c.Names}`} need="memory" alsoStart={[c.Names]} fallback={see} noProfiles vmWords />
     ) : one ? (
       // A Fix replaces containers; while the VM stops or restarts there is no Docker to replace them in.
-      <Button variant="default" size="sm" aria-label={`${r ? "Try again" : one.label}: ${plain(p.short ?? p.title)}, ${c.Names}`} aria-disabled={one.locked || undefined} title={one.locked ? "Waits for what is changing Docker now" : undefined} disabled={one.locked} onClick={() => !one.locked && one.go()}>{r ? "Try again" : names.length > 1 ? `Fix ${names.join(" and ")}…` : `${one.label}…`}</Button>
+      <Button variant="primary" size="xs" aria-label={`${r ? "Try again" : one.label}: ${plain(p.short ?? p.title)}, ${c.Names}`} aria-disabled={one.locked || undefined} title={one.locked ? "Waits for what is changing Docker now" : undefined} disabled={one.locked} onClick={() => !one.locked && one.go()}>{r ? "Try again" : names.length > 1 ? `Fix ${names.join(" and ")}…` : `${one.label}…`}</Button>
     ) : fix?.go === "Images" ? (
-      <Button variant="ghost" size="sm" onClick={onImages}>Open Images</Button>
+      <Button variant="ghost" size="xs" onClick={onImages}>Open Images</Button>
     ) : see;
-    return <Line key={c.ID} level={p.level === "bad" ? "bad" : "warn"} text={<Ticks text={text} />} title={plain(p.detail)} action={action} />;
+    return <Problem key={c.ID} level={p.level === "bad" ? "bad" : "warn"} text={<Ticks text={text} />} title={plain(p.detail)} action={action} child={indent} onOpen={openThis} />;
   };
 
-  const containerMenuItems = (c: C, a: App<C>): ReactNode[] => {
-    const up = c.State === "running";
-    const lock = !canAct(a);
-    const p = problems.get(c.Names)?.[0];
-    const inProject = a.kind === "compose";
-    return [
-      <MenuItem key="logs" label="Logs" icon="logs" onSelect={() => setDetailId(c.ID)} />,
-      ...(up ? [<MenuItem key="shell" label="Open a shell" icon="terminal" disabled={lock} onSelect={() => void openShell(ctx!, c.Names).catch((e: unknown) => fail(a, e instanceof Error ? e.message : String(e)))} />] : []),
-      ...(up ? [<MenuItem key="restart" label="Restart" icon="restart" disabled={lock} onSelect={() => void act(a, ["restart", c.ID], null, `${c.Names} restarted`)} />] : []),
-      ...(inProject && up ? [<MenuItem key="stop" label="Stop" icon="stop" disabled={lock} onSelect={() => void act(a, ["stop", c.ID], null, `${c.Names} stopped`)} />] : []),
-      ...(inProject && !up ? [<MenuItem key="start" label="Start" icon="play" disabled={lock} onSelect={() => void act(a, ["start", c.ID], null, `${c.Names} started`)} />] : []),
-      ...(p ? [<MenuItem key="not-issue" label="Not an issue" icon="check" onSelect={() => setMuted(p.key, true)} />] : []),
-      <MenuSeparator key="sep" />,
-      <MenuItem key="remove" label="Remove…" icon="trash" disabled={lock} onSelect={async () => { if (await confirm(`Remove ${c.Names}?${up ? " It is running and will be stopped first." : ""} Its image and volumes stay.`, "Remove")) { willRemove(() => !allRef.current.some((x) => x.ID === c.ID), a.key); await act(a, ["rm", "-f", c.ID], null, `${c.Names} removed`); } }} />,
-    ];
-  };
-
-  const projectMenuItems = (a: App<C>): ReactNode[] => {
-    const lock = !canAct(a);
-    const known = !!a.dir && a.files.length > 0;
-    const anyUp = a.rows.some((c) => c.State === "running");
-    const n = a.rows.length === 1 ? "container" : `${a.rows.length} containers`;
-    const stopped = a.rows.filter((c) => c.State !== "running" && !finished(c, infoOf(c)));
-    const what = startWhat(stopped.map((c) => serviceName(c, a.name)));
-    return [
-      ...(stopped.length && anyUp ? [<MenuItem key="start" label={`Start ${what}`} icon="play" disabled={lock} onSelect={() => void act(a, ["start", ...stopped.map((c) => c.ID)], { target: "running", word: "Starting…", since: Date.now(), ids: stopped.map((c) => c.ID) }, `${listed(stopped.map((c) => serviceName(c, a.name)))} started`)} />] : []),
-      ...(known ? [<MenuItem key="rebuild" label="Rebuild" icon="refresh" disabled={lock} onSelect={() => void project(a, "build", { target: "running", word: "Rebuilding…", since: Date.now() }, `${a.name} rebuilt`)} />] : []),
-      ...(known ? [<MenuItem key="logs" label="Logs" icon="logs" onSelect={() => setLogsOf(a)} />] : []),
-      ...(anyUp ? [<MenuItem key="restart" label="Restart" icon="restart" disabled={lock} onSelect={() => void project(a, "restart", null, `${a.name} restarted`)} />] : []),
-      ...(known ? [<MenuItem key="finder" label="Show in Finder" icon="external" disabled={lock} onSelect={() => void invoke("reveal_compose", { path: `${a.dir}/${a.files[0]}` }).catch((e) => fail(a, String(e)))} />] : []),
-      <MenuSeparator key="sep" />,
-      <MenuItem key="remove" label="Remove…" icon="trash" disabled={lock} onSelect={async () => {
-        const ask = `Remove ${a.name}'s ${n}${known ? " and its network" : ""}? Volumes, images${a.dir ? ` and ${tilde(a.dir)}` : ""} stay.${known ? " Start it again from New." : ""}`;
-        if (await confirm(ask, "Remove")) { willRemove(() => !appsRef.current.some((x) => x.key === a.key), a.key); await project(a, "down", null, `${a.name} removed`); }
-      }} />,
-    ];
-  };
-
-  const row = (a: App<C>) => {
-    const kube = a.kind === "kubernetes";
-    const isProject = a.kind === "compose";
-    const single = a.kind === "container" ? a.rows[0] : null;
-    const { state, up, of } = appState(a.rows, infoOf);
-    const pend = pending.get(a.key);
-    const mine = !!composeRun.busy && inDir(a, composeRun.busy.dir) && a.files.length > 0;
-    // A VM size change restarts everything at once: the state column says so, and the button keeps the label the
-    // user last saw, locked, until the list shows the real state again.
-    const withVm = holding && !kube;
-    const changing = withVm ? "Restarting…" : pend?.word ?? (mine ? ING[composeRun.busy!.action] : null);
-    const expanded = open.has(a.key) || (!!term && isProject && a.rows.some(hit));
-    const issues = problemsOf(a.rows);
-    const rowGaps = kube ? [] : gaps.filter((g) => a.rows.some((c) => g.users.includes(c.Names)));
-    // Down, counted, and with no problem line of its own: they share one plain line, so the lines and the count
-    // agree (every container "N of M running" is short of is on a line). Finished jobs aren't counted, so no line.
-    // Only once the Doctor has answered: before that a crashed service would read "is stopped", then change.
-    // Not while the VM is resized: it is about to start what ran, and until the list is read again afterwards a
-    // container that is coming back would read stopped.
-    const down = !withVm && isProject && state === "partly" && report ? a.rows.filter((c) => c.State !== "running" && !finished(c, infoOf(c)) && !issues.some((i) => i.c.ID === c.ID)) : [];
-    const downWords = down.length ? downLine(down.map((c) => serviceName(c, a.name))) : null;
-    if (downWords && !expanded) downNow.add(a.key);
-    if (!expanded) issues.forEach((i) => linesNow.set(`${i.c.ID}\u0000${i.p?.id ?? "run"}`, a.key));
-    // Counted apart: a problem needs a fix, a stopped container only needs starting.
-    const lines = issues.length + rowGaps.length;
-    const said = `${lines ? `, ${lines} problem${lines === 1 ? "" : "s"}` : ""}${down.length ? `, ${down.length} stopped` : ""}`;
-    // A bigger VM asked for from an out-of-memory line: once that container runs, its line is gone, and the result
-    // stays on its own row under the project until Dismiss. A failure keeps the line, and the result stays in it.
-    const resizedName = rs.from?.startsWith("home:") ? rs.from.split(":")[1] : null;
-    const resizedHere = !!resizedName && (!!rs.outcome || !!rs.progress) && a.rows.some((c) => c.Names === resizedName) && !issues.some((i) => i.c.Names === resizedName && (i.p?.fix?.resize || i.p?.fix?.vm));
-    const word = kube ? `${a.rows.length} container${a.rows.length === 1 ? "" : "s"}` : changing ?? (state === "partly" ? `${up} of ${of} running` : state === "running" ? "Running" : "Stopped");
-    // The mark column alone answers "is anything broken?": a problem wins over running or stopped.
-    const mark = changing ? "busy" : !kube && issues.some((i) => i.p) ? markOf(issues) : kube || state === "running" ? "on" : state === "partly" ? "part" : "off";
-    const ports = (isProject ? a.rows : single ? [single] : []).filter((c) => c.State === "running").flatMap((c) => portLinksFromPs(c.Ports).filter((l) => isWebPort(l.containerPort, l.port)));
-    const web = ports[0];
-    const lock = !canAct(a) || withVm;
-    const startIt = () => (isProject
-      ? project(a, "up", { target: "running", word: "Starting…", since: Date.now() }, `${a.name} started`)
-      : act(a, ["start", single!.ID], { target: "running", word: "Starting…", since: Date.now() }, `${a.name} started`));
-    const stopIt = () => (isProject
-      ? project(a, "stop", { target: "stopped", word: "Stopping…", since: Date.now() }, `${a.name} stopped`)
-      : act(a, ["stop", single!.ID], { target: "stopped", word: "Stopping…", since: Date.now() }, `${a.name} stopped`));
-    // Anything running means the main button stops it; starting the rest of a partly running project is in its menu.
-    const live = up > 0 ? "Stop" : "Start";
-    if (!withVm) seenVerb.set(a.key, live);
-    const verb = withVm ? seenVerb.get(a.key) ?? live : live;
-    // One button element whose label changes, so keyboard focus stays put through Start, Starting… and Stop.
-    const main = kube ? (
-      onKubernetes ? <Button variant="ghost" size="sm" onClick={onKubernetes} aria-label="Open the Kubernetes tab">Open</Button> : <span />
-    ) : (
-      <Button
-        variant={lock ? "ghost" : "default"}
-        size="sm"
-        disabled={lock || undefined}
-        title={isProject && a.files.length ? `docker compose ${verb === "Stop" ? "stop" : "up -d"}` : undefined}
-        aria-label={changing ? `${a.name}, ${changing}` : `${verb} ${a.name}`}
-        aria-describedby={lock && !changing ? `why-${a.key}` : undefined}
-        onClick={() => { if (!lock) void (verb === "Stop" ? stopIt() : startIt()); }}
-      >
-        {withVm ? verb : changing ?? verb}
-      </Button>
-    );
+  // What sits under an entry row beyond the lines `flatten` makes: a Compose run that failed, a failed action, the
+  // volumes that came up empty, what is only stopped, and a VM size change's result.
+  const entryExtras = (a: App<C>, expanded: boolean): ReactNode[] => {
+    const v = entryView(a);
+    if (v.kube) return [];
+    const out: ReactNode[] = [];
+    if (v.cf) {
+      out.push(
+        <Problem key={`cf-${a.key}`} level="bad" text={`${a.name} didn't ${DID[v.cf.action]}. ${v.cf.why ?? firstLine(v.cf.text)}`} title={v.cf.text}
+          action={v.cf.holder ? <Button variant="primary" size="xs" aria-disabled={v.lock || !v.holderApp || !canAct(v.holderApp) || undefined} onClick={() => void (async () => { if (v.lock || !v.holderApp || !canAct(v.holderApp)) return; await act(v.holderApp, ["stop", v.cf!.holder!], null, `${v.cf!.holder} stopped`); await v.startIt(); })}>Stop {v.cf.holder} and start</Button> : undefined} />,
+      );
+    }
     const failure = failed.get(a.key);
-    const cf = composeRun.failed && inDir(a, composeRun.failed.dir) && a.files.length > 0 && !mine ? composeRun.failed : null;
-    const holderApp = cf?.holder ? apps.find((x) => x.rows.some((c) => c.Names === cf.holder)) : undefined;
-    return (
-      <li key={a.key} className="app">
-        <div className={`app-row${state === "stopped" && !changing && !kube ? " is-off" : ""}`}>
-          <span className="app-chev">
-            {isProject && (
-              <Button variant="ghost" size="xs" iconOnly icon={expanded ? "chev-down" : "chev-right"} tabIndex={-1} aria-hidden="true" aria-label={expanded ? "Fold" : "Unfold"} onClick={() => toggle(a.key)} />
-            )}
-          </span>
-          <span className={`sev ${mark === "on" ? "ok" : mark === "part" ? "warn" : mark === "bad" ? "bad" : mark === "warn" ? "warn" : "info"}`}>
-            {mark === "on" ? "Running" : mark === "off" ? "Stopped" : mark === "part" ? "Partly" : mark === "bad" ? "Error" : mark === "warn" ? "Warning" : "Busy"}
-          </span>
-          <Button
-            className="app-name"
-            title={a.dir ? `${a.name} · ${tilde(a.dir)}` : single ? `${single.Names} · ${single.Image}` : a.name}
-            aria-expanded={isProject ? expanded : undefined}
-            aria-label={`${isProject ? `${a.name}, project` : kube ? "Kubernetes" : a.name}, ${word}${said}`}
-            data-row={encodeURIComponent(a.key)}
-            aria-controls={isProject ? `svc-${a.key}` : undefined}
-            data-open={single?.ID}
-            onClick={() => (isProject ? toggle(a.key) : kube ? onKubernetes?.() : setDetailId(single!.ID))}
-          >
-            {a.name}
-          </Button>
-          {kube ? (
-            <Button variant="ghost" size="sm" disabled={lock || undefined} onClick={() => onKubernetes?.()} aria-label="Open the Kubernetes tab">
-              Open
-            </Button>
-          ) : (
-            <Button
-              variant={lock ? "ghost" : "default"}
-              size="sm"
-              disabled={lock || undefined}
-              title={isProject && a.files.length ? `docker compose ${verb === "Stop" ? "stop" : "up -d"}` : undefined}
-              aria-label={changing ? `${a.name}, ${changing}` : `${verb} ${a.name}`}
-              aria-describedby={lock && !changing ? `why-${a.key}` : undefined}
-              onClick={() => { if (!lock) void (verb === "Stop" ? stopIt() : startIt()); }}
-            >
-              {withVm ? verb : changing ?? verb}
-            </Button>
-          )}
-          <span className="app-port">
-            {web && (
-              <a className="port" href={`http://localhost:${web.port}`} aria-label={`Open port ${web.port} in the browser`} onClick={(e) => { e.preventDefault(); e.stopPropagation(); void openUrl(`http://localhost:${web.port}`); }}>
-                :{web.port}
-              </a>
-            )}
-            {ports.length > 1 && <span className="hint more-ports">+{ports.length - 1}</span>}
-          </span>
-          <span className="app-state" aria-hidden="true">{word}</span>
-          {kube ? <span /> : (
-            <Menu label={`Actions for ${a.name}`} trigger={<MoreButton name={a.name} />}>
-              {isProject ? projectMenuItems(a) : containerMenuItems(single!, a)}
-            </Menu>
-          )}
-        </div>
-        {cf && (
-          <Line
-            level="bad"
-            text={`${a.name} didn't ${DID[cf.action]}. ${cf.why ?? firstLine(cf.text)}`}
-            title={cf.text}
-            action={cf.holder ? <Button variant="ghost" size="sm" className="small primary" aria-disabled={lock || !holderApp || !canAct(holderApp) || undefined} onClick={async () => { if (lock || !holderApp || !canAct(holderApp)) return; await act(holderApp, ["stop", cf.holder!], null, `${cf.holder} stopped`); await startIt(); }}>Stop {cf.holder} and start</Button> : undefined}
-          />
-        )}
-        {failure && !cf && <Line level="bad" text={`${a.name}: ${firstLine(failure)}`} title={failure} action={<Button variant="ghost" size="sm" className="small" onClick={() => unfail(a.key)}>Dismiss</Button>} />}
-        {lock && !changing && <span className="sr-only" id={`why-${a.key}`}>{a.rows.some((c) => fixBusy(runs, c.Names)) ? "A fix is running on it." : vm.op ? "The VM is changing." : "Another action is running."}</span>}
-        {/* First: a database that came up empty can explain the problems under it. */}
-        {rowGaps.map((g) => (
-          <Line key={`gap-${g.name}`} level="warn" text={<Ticks text={gapLine(g)} />} action={<Button variant="ghost" size="sm" className="small" aria-label={`Bring it over: ${g.name} from Docker Desktop`} onClick={() => onBring?.([g.name], rowSel(a.key))}>Bring it over…</Button>} />
-        ))}
-        {!expanded && !kube && issues.map((i) => problemLine(i, isProject, a))}
-        {/* Last: what is simply stopped, after the lines that say what went wrong. */}
-        {!expanded && downWords && (
-          <Line
-            level="off"
-            text={downWords.text}
-            action={<Button variant="ghost" size="sm" className="small" aria-label={downWords.label} aria-disabled={lock || undefined} onClick={() => { if (!lock) void act(a, ["start", ...down.map((c) => c.ID)], { target: "running", word: "Starting…", since: Date.now(), ids: down.map((c) => c.ID) }, downWords.done); }}>{downWords.button}</Button>}
-          />
-        )}
-        {resizedHere && !failedChange && <div className="problem result"><ResizeStatus from={rs.from!} /></div>}
-        {isProject && expanded && (
-          <ul className="svc" id={`svc-${a.key}`} aria-label={`Services of ${a.name}`}>
-            {a.rows.filter((c) => !term || hit(c) || score(a.name, term) > 0).map((c) => {
-              const cUp = c.State === "running";
-              const i = issues.find((x) => x.c.ID === c.ID);
-              const cWord = stateWord(c, infoOf(c));
-              return (
-                <li key={c.ID}>
-                  <div className="svc-row">
-                    <span className={`sev ${cUp ? "ok" : "off"}`}>{cUp ? "Running" : "Stopped"}</span>
-                    <Button variant="ghost" size="sm" className="svc-name" data-open={c.ID} title={`${c.Names} · ${c.Image}`} aria-label={`${c.Names}, ${cWord}${i?.p ? ", 1 problem" : ""}`} onClick={() => setDetailId(c.ID)}>
-                      {serviceName(c, a.name)} <span className="svc-image">{c.Image}</span>
-                    </Button>
-                    <span className="svc-ports">
-                      {cUp && portLinksFromPs(c.Ports).slice(0, 3).map((l) => {
-                        const web = isWebPort(l.containerPort, l.port);
-                        return (
-                          <a key={l.label} className="port" href={web ? `http://localhost:${l.port}` : "#"} aria-label={web ? `Open port ${l.port} in the browser` : `Copy localhost:${l.port}`} onClick={(e) => { e.preventDefault(); e.stopPropagation(); web ? void openUrl(`http://localhost:${l.port}`) : void navigator.clipboard.writeText(`localhost:${l.port}`); }}>
-                            :{l.port}
-                          </a>
-                        );
-                      })}
-                    </span>
-                    <span className="app-state" aria-hidden="true">{cWord}</span>
-                    <Menu label={`Actions for ${c.Names}`} trigger={<MoreButton name={c.Names} />}>
-                      {containerMenuItems(c, a)}
-                    </Menu>
-                  </div>
-                  {i && problemLine(i, false)}
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </li>
-    );
+    if (failure && !v.cf) out.push(<Problem key={`failure-${a.key}`} level="bad" text={`${a.name}: ${firstLine(failure)}`} title={failure} action={<Button variant="ghost" size="xs" onClick={() => unfail(a.key)}>Dismiss</Button>} />);
+    if (v.lock && !v.changing) out.push(<span key={`why-${a.key}`} className="sr-only" id={`why-${a.key}`}>{a.rows.some((c) => fixBusy(runs, c.Names)) ? "A fix is running on it." : vm.op ? "The VM is changing." : "Another action is running."}</span>);
+    // First: a database that came up empty can explain the problems under it.
+    for (const g of v.rowGaps) {
+      out.push(<Problem key={`gap-${a.key}-${g.name}`} level="warn" text={<Ticks text={gapLine(g)} />} action={<Button variant="ghost" size="xs" aria-label={`Bring it over: ${g.name} from Docker Desktop`} onClick={() => onBring?.([g.name], a.name)}>Bring it over…</Button>} />);
+    }
+    if (!expanded) {
+      for (const i of v.issues) out.push(problemLine(i.c, a, v.isProject, false));
+      const downWords = v.downWords;
+      if (downWords) {
+        downNow.add(a.key);
+        out.push(<Problem key={`down-${a.key}`} level="info" text={downWords.text} action={<Button variant="ghost" size="xs" aria-label={downWords.label} aria-disabled={v.lock || undefined} onClick={() => { if (!v.lock) void act(a, ["start", ...v.down.map((c) => c.ID)], { target: "running", word: "Starting…", since: Date.now(), ids: v.down.map((c) => c.ID) }, downWords.done); }}>{downWords.button}</Button>} />);
+      }
+      v.issues.forEach((i) => linesNow.set(`${i.c.ID}\u0000${i.p?.id ?? "run"}`, a.key));
+    }
+    if (v.resizedHere && !failedChange) out.push(<ResizeStatus key={`resize-${a.key}`} from={rs.from!} />);
+    return out;
   };
+
+  const nodes: ReactNode[] = [];
+  let extras: ReactNode[] = [];
+  for (const line of lines) {
+    if (line.kind === "entry") {
+      nodes.push(...extras);
+      extras = [];
+      const a = line.entry as App<C>;
+      nodes.push(entryRow(a, line.open));
+      extras = entryExtras(a, line.open);
+    } else if (line.kind === "child") {
+      nodes.push(childRow(line.entry as App<C>, line.c as C));
+    } else {
+      nodes.push(problemLine(line.c as C, line.entry as App<C>, line.prefix, line.indent));
+    }
+  }
+  nodes.push(...extras);
+
+  // A project that needs attention starts open (spec 7.1 rule 5); a saved choice wins.
+  const kubeIds = new Set(apps.filter((a) => a.kind === "kubernetes").flatMap((a) => a.rows.map((c) => c.ID)));
+  const total = all.length - kubeIds.size;
+  const needAttention = all.filter((c) => !kubeIds.has(c.ID) && hasProblem(c)).length;
+
+  // The Inspector: the whole finding in plain words, with the same fix the line offers.
+  const inspectFix = inspect?.f.fix ? fixAction(inspect.f.fix, ctx ?? undefined, oldConfirm, runs, fixed) : null;
+  const inspector = inspect ? inspectorContent(inspect.f, inspect.c.Names, projectOf(inspect.c), inspectFix?.label ?? null, inspect.f.fix?.text ?? null) : null;
 
   const showStrip = !!vm.op || !!vm.failure;
   return (
-    <div className="home">
+    <>
       <div className="sr-only" role="status" aria-live="polite">{plain(said.status)}</div>
       <div className="sr-only" role="alert">{plain(said.alert)}</div>
+      <Header title="Containers" summary={running ? summary(total, needAttention) : undefined}>
+        {checked.size > 0 ? (
+          <SelectionBar count={checked.size} canStart={canStart} canStop={canStop} onStart={() => void actChecked("start")} onStop={() => void actChecked("stop")} onRemove={() => void removeChecked()} onCancel={() => setChecked(new Set())} ctx={ctx ?? ""} />
+        ) : running ? (
+          <>
+            <Field icon="search" width="search" data-page-search aria-label="Search containers" placeholder="Search containers" value={q} onChange={(e) => setQ(e.target.value)} onClear={() => setQ("")} />
+            <NewMenu onRun={() => setPicking(true)} onPull={onPull} onCompose={() => setComposeOpen(true)} />
+          </>
+        ) : null}
+      </Header>
+
       {/* The VM only takes space here while it changes or fails; its Start, Stop and Restart live in the profile menu. */}
       {showStrip && (
         <VmStrip
@@ -668,57 +803,68 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
       {/* A change that stopped the VM and couldn't start it again (a folder, the proxy): what happened comes first. While
           it shows, the card's Start VM is hidden: it would start the same saved list that just failed. The one filled
           button is "Start with the folders you had". */}
-      {failedChange && <div className="problem result stopped"><ResizeStatus from={rs.from!} title={`The VM ${profile.name} is stopped`} after={() => setTimeout(() => document.querySelector<HTMLElement>("[data-stopped-primary]")?.focus(), 0)} /></div>}
+      {failedChange && <ResizeStatus from={rs.from!} title={`The VM ${profile.name} is stopped`} after={() => setTimeout(() => document.querySelector<HTMLElement>("[data-stopped-primary]")?.focus(), 0)} />}
       {!running && !vm.op && !vm.failure && !failedChange && (
-        <Empty icon="box" title={`The VM "${profile.name}" is stopped`}>
+        <Empty
+          icon="box"
+          title={`The VM "${profile.name}" is stopped`}
+          actions={
+            <>
+              <Button variant={back ? "ghost" : "primary"} size="md" data-stopped-primary={back ? undefined : ""} onClick={start}>Start VM</Button>
+              {back && env && <Button variant="primary" size="md" data-stopped-primary="" onClick={() => void startWayBack(env)}>{undoLabel(back)}</Button>}
+            </>
+          }
+        >
           <p className="hint">Your containers, images and volumes are kept inside it.</p>
           {back && <p className="hint"><Ticks text={wayBackNote(back)} /></p>}
-          <Button variant={back ? "ghost" : "default"} data-stopped-primary={back ? undefined : ""} onClick={start}>Start VM</Button>
-          {back && env && <Button variant="default" data-stopped-primary="" onClick={() => void startWayBack(env)}>{undoLabel(back)}</Button>}
         </Empty>
       )}
 
       {running && (
         <>
-          <span className="toolbar-actions page-action">
-            <Menu label="New" trigger={<Button variant="ghost" size="sm" iconOnly icon="more" aria-label="New">More actions</Button>}>
-              <MenuItem label="Run an image…" icon="play" onSelect={() => setPicking(true)} />
-              <MenuItem label="Pull an image…" icon="download" onSelect={onPull} />
-              <MenuItem label="Start a Compose project…" icon="folder" onSelect={() => setComposeOpen(true)} />
-              {onBring && (
-                <>
-                  <MenuSeparator />
-                  <MenuItem label="Bring over from Docker Desktop…" icon="database" onSelect={() => onBring()} />
-                </>
-              )}
-            </Menu>
-          </span>
-          <Banner tone="bad">{containers.error}</Banner>
-          {searching && (
-            <label className="search-field home-search">
-              <Icon name="search" size="sm" />
-              <input placeholder="Search by name, image or port" aria-label="Search containers" value={q} onChange={(e) => setQ(e.target.value)} />
-            </label>
-          )}
-          {containers.data && all.length === 0 ? (
+          {containers.error && <Banner tone="bad">{containers.error}</Banner>}
+          {containers.data && (all.length === 0 ? (
             // Right after switching, the data comes first: a `compose up` before it makes new empty volumes.
-            <Empty icon="box" title="No containers yet">
+            <Empty
+              icon="box"
+              title="No containers yet"
+              actions={
+                <>
+                  <Button variant="primary" size="md" onClick={() => setPicking(true)}>Run an image</Button>
+                  <Button size="md" onClick={() => setComposeOpen(true)}>Start a Compose project</Button>
+                  {onBring && <Button variant="ghost" size="md" onClick={() => onBring()}>Bring over from Docker Desktop</Button>}
+                </>
+              }
+            >
               {onBring ? "Your Docker Desktop volumes are still on this Mac. Bring them over first, so your projects start with their data." : "Run an image, or start a Compose project from a folder on your Mac."}
-              {onBring && <Button variant="default" onClick={() => onBring()}>Bring over from Docker Desktop</Button>}
-              <Button variant={onBring ? "ghost" : "default"} onClick={() => setPicking(true)}>Run an image</Button>
-              <Button variant="ghost" onClick={() => setComposeOpen(true)}>Start a Compose project</Button>
             </Empty>
           ) : (
-            <ul className="apps" aria-label="Containers">{shown.map(row)}</ul>
-          )}
+            <List aria-label="Containers">
+              <TableHeadRow />
+              {nodes}
+            </List>
+          ))}
           {term && shown.length === 0 && (
-            <p className="hint pad">
+            <p className="hint">
               Nothing matches &ldquo;{term}&rdquo;.
               {projectHits > 0 && <> {projectHits === 1 ? "1 Compose project that isn't running matches" : `${projectHits} Compose projects that aren't running match`}. <Button variant="ghost" size="sm" onClick={() => setComposeOpen(true)}>Show {projectHits === 1 ? "it" : "them"}</Button></>}
             </p>
           )}
         </>
       )}
+
+      <ProblemInspector
+        content={inspector}
+        onClose={() => setInspect(null)}
+        onFix={() => { if (inspectFix && !inspectFix.locked) void inspectFix.go(); }}
+        onLogs={() => { const c = inspect?.c; setInspect(null); if (c) setDetailId(c.ID); }}
+        onShell={() => {
+          const c = inspect?.c;
+          const a = c ? apps.find((x) => x.rows.some((r) => r.ID === c.ID)) : undefined;
+          setInspect(null);
+          if (ctx && c && a) void openShell(ctx, c.Names).catch((e: unknown) => fail(a, e instanceof Error ? e.message : String(e)));
+        }}
+      />
 
       {composeOpen && ctx && <ComposeProjects ctx={ctx} scan={compose} containers={all} attention={problems} query={term && shown.length === 0 ? term : ""} onClose={() => setComposeOpen(false)} onChanged={fixed} />}
       {logsOf && ctx && logsOf.dir && (
@@ -728,16 +874,14 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
       )}
       {picking && ctx && <RunPicker ctx={ctx} onClose={() => setPicking(false)} onPick={(ref) => { setPicking(false); setRunImage(ref); }} />}
       {runImage && ctx && <RunPanel ctx={ctx} arch={profile.arch} image={runImage} onClose={() => setRunImage(null)} onRan={(id) => { setRunImage(null); setDetailId(id); }} />}
-    </div>
+    </>
   );
 }
 
 const ING: Record<Action, string> = { up: "Starting…", stop: "Stopping…", restart: "Restarting…", down: "Removing…", build: "Rebuilding…", pull: "Updating…" };
 const DID: Record<Action, string> = { up: "start", stop: "stop", restart: "restart", down: "go away", build: "rebuild", pull: "update" };
-// A row's name button, found again by its key (a project key holds a NUL, so it is stored encoded).
 // How a container last ended: true of that run only.
 const ENDED = new Set(["oom", "crashed"]);
-const rowSel = (key: string) => `[data-row="${encodeURIComponent(key)}"]`;
 const tilde = (dir: string) => dir.replace(/^\/Users\/[^/]+/, "~");
 const firstLine = (t: string) => t.split("\n").map((l) => l.trim()).find(Boolean) ?? t;
 // "shop-web-1" reads as "web" inside the shop project; a container named some other way keeps its name.
@@ -746,18 +890,19 @@ const serviceName = (c: C, project: string) => {
   return svc ?? (c.Names.startsWith(`${project}-`) ? c.Names.slice(project.length + 1).replace(/-\d+$/, "") : kubeName(c));
 };
 
-// The state as a shape as well as a color, so it reads the same to someone who can't tell red from green.
-// A bad problem (crashed, out of memory) shows ✕; anything else that needs action shows the warning sign.
-const markOf = (issues: { p?: Finding }[]) => (issues.some((i) => i.p?.level === "bad") ? "bad" : "warn");
+// A row is found again by the text of its name; a removed row hands focus to its neighbour, never to the page body.
+function focusName(name: string): void {
+  const node = [...document.querySelectorAll<HTMLElement>(".list .row .name")].find((n) => n.textContent === name);
+  node?.closest<HTMLElement>(".row")?.focus();
+}
 
-// off: a plain line for what is only stopped (nothing went wrong), in the page's own colors.
 // A container that hit its own memory limit, on home: one button at the right edge. While the file still sets the
 // old limit (or can't be read), Open compose.yaml, to raise it; once it is raised, Apply and start (a plain start
 // would keep the old limit); when what it depends on isn't running, the project's own Start, since Apply leaves those.
-// Home's line for a container that hit its own limit. One button, chosen by what the file says now; each state is its
-// own button (its own key), so a screen reader never hears one button change its name under it. When the button
-// changes while it has focus, focus moves to the new one, and the change is said in the page's polite region.
-function LimitLine({ who, text, detail, fix, ctx, project, locked, lockWhy, onApply, onStart, onOpenFail, onSay }: { who: string; text: string; detail: string; fix: ProblemFix & { reveal: string }; ctx?: string; project: string; locked: boolean; lockWhy: string; onApply: (service: string) => void; onStart: () => void; onOpenFail: (e: string) => void; onSay: (status: string) => void }) {
+// One button, chosen by what the file says now; each state is its own button (its own key), so a screen reader never
+// hears one button change its name under it. When the button changes while it has focus, focus moves to the new one,
+// and the change is said in the page's polite region.
+function LimitLine({ who, text, detail, fix, ctx, project, locked, lockWhy, onApply, onStart, onOpenFail, onSay, child, onOpen }: { who: string; text: string; detail: string; fix: ProblemFix & { reveal: string }; ctx?: string; project: string; locked: boolean; lockWhy: string; onApply: (service: string) => void; onStart: () => void; onOpenFail: (e: string) => void; onSay: (status: string) => void; child: boolean; onOpen?: () => void }) {
   const a = fix.apply;
   const view = useServiceLimit(ctx, a, true);
   const run = useComposeRun();
@@ -771,29 +916,17 @@ function LimitLine({ who, text, detail, fix, ctx, project, locked, lockWhy, onAp
   const why = locked ? <span className="sr-only" id={`${id}-why`}>{lockWhy}</span> : null;
   const lock = { "aria-disabled": locked || undefined, "aria-describedby": why ? `${id}-why` : undefined };
   const mine = !!a && run.busy?.service === a.service && run.busy.dir === dir;
+  const openerName = `${opener.failed?.finder ? "Show in Finder" : opener.label}: ${file}, ${a?.service ?? project}`;
   const button = !a || state === "open"
-    ? opener.button(a?.service ?? project, "small")
+    ? <Button size="xs" aria-disabled={opener.pending || undefined} aria-label={openerName} onClick={() => { if (!opener.pending) void (opener.failed?.finder ? opener.reveal() : opener.open()); }}>{opener.failed?.finder ? "Show in Finder" : opener.label}</Button>
     : state === "start"
-      ? <Button key="start" variant="ghost" size="sm" className="small" {...lock} aria-label={`Start ${project}: ${a.service} needs ${view.waiting.join(" and ")}`} onClick={() => !locked && onStart()}>{label}</Button>
-      : <Button key="apply" variant="ghost" size="sm" className="small" {...lock} aria-label={`${mine ? "Starting" : "Apply and start"} ${a.service}`} title={`docker compose up -d --no-deps ${a.service}`} onClick={() => !locked && onApply(a.service)}>{mine ? "Starting…" : label}</Button>;
-  const action = <span className="limit-action" ref={box}>{button}</span>;
+      ? <Button key="start" size="xs" {...lock} aria-label={`Start ${project}: ${a.service} needs ${view.waiting.join(" and ")}`} onClick={() => !locked && onStart()}>{label}</Button>
+      : <Button key="apply" size="xs" {...lock} aria-label={`${mine ? "Starting" : "Apply and start"} ${a.service}`} title={`docker compose up -d --no-deps ${a.service}`} onClick={() => !locked && onApply(a.service)}>{mine ? "Starting…" : label}</Button>;
+  const action = <span ref={box}>{button}</span>;
   if (a && state !== "open") {
     // Nothing is failing now; one step is waiting. So the line is neutral, like a stopped container's.
     const words = raisedLine(a, view.now, view.waiting, project);
-    return <Line level="off" text={<><Ticks text={`${who}${who ? words.replace(/^Its /, "its ") : words}`} />{why}</>} title={detail} action={action} />;
+    return <Problem level="info" text={<><Ticks text={`${who}${who ? words.replace(/^Its /, "its ") : words}`} />{why}</>} title={detail} action={action} child={child} onOpen={onOpen} />;
   }
-  return <Line level="bad" text={<><Ticks text={text} />{(opener.failed?.text ?? opener.hint) && <span className="hint limit-hint"><Ticks text={opener.failed?.text ?? opener.hint} /></span>}{why}</>} title={detail} action={action} />;
+  return <Problem level="bad" text={<><Ticks text={text} />{(opener.failed?.text ?? opener.hint) && <span className="hint"><Ticks text={opener.failed?.text ?? opener.hint} /></span>}{why}</>} title={detail} action={action} child={child} onOpen={onOpen} />;
 }
-
-function Line({ level, text, title, action }: { level: "bad" | "warn" | "ok" | "busy" | "off"; text: ReactNode; title?: string; action?: ReactNode }) {
-  const badgeVariant = level === "ok" ? "ok" : level === "bad" ? "bad" : level === "busy" ? "info" : level === "off" ? "" : "warn";
-  const badgeLabel = level === "ok" ? "Fixed" : level === "bad" ? "Error" : level === "busy" ? "Busy" : level === "off" ? "Stopped" : "Warning";
-  return (
-    <div className={`problem ${level}`} title={title}>
-      {badgeVariant && <span className={`sev ${badgeVariant}`}>{badgeLabel}</span>}
-      <span className="problem-text">{text}</span>
-      {action}
-    </div>
-  );
-}
-

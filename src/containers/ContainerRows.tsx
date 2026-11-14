@@ -116,7 +116,6 @@ export function EntryRow(props: EntryProps): JSX.Element {
         )}
       </Col>
       <Sparkline points={history.length >= 2 ? history : null} label={`CPU ${cpuNow ?? 0} percent`} />
-      {isGroup && blocks && <Blocks services={blocks} />}
       <Col kind="stats" mono>{stats}</Col>
       <Col kind="state">{isGroup ? runningText ?? "" : stateWord}</Col>
       {action && (
