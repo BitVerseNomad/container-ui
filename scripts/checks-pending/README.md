@@ -10,6 +10,10 @@ Rules:
 
 | Check | Brought back by |
 |---|---|
+| `check-home.mjs` | WO-3.1 |
+| `check-down.mjs` | WO-3.1 |
+| `check-menus.mjs` | WO-3.1 |
+| `check-select.mjs` | WO-3.1 |
 | `check-observe.mjs` | WO-3.2 |
 | `check-mounts.mjs` | WO-3.2 |
 | `check-compose.mjs` | WO-3.3 |
