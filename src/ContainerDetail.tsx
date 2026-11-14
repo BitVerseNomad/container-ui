@@ -1,39 +1,41 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { openShell } from "./lib/shell";
 import { activity as commands, dockerLine } from "./lib/activity";
-import Status from "./ui/Status";
-import { useConfirm } from "./ui";
+import { useConfirm } from "./ui/op";
 import { invoke } from "@tauri-apps/api/core";
 import { docker } from "./api";
 import { Inspect, publishedPortPairs } from "./containerInfo";
 import { isWebPort } from "./lib/webPort";
 import { CopyPort } from "./ui/PortLinks";
 import { usePoll } from "./hooks";
-import { Banner } from "./ui";
-import Logs from "./Logs";
-import StatsTab from "./StatsTab";
-import ConnectionTest from "./ConnectionTest";
-import { ActivityList, HealthPanel } from "./Health";
-import { useResizeEnv } from "./Resize";
-import { FixStatus, useFixRuns } from "./FixIt";
+import { Banner, Button, Empty, Facts, Tabs, TabPanel, List, Row, Col, MoreButton, Menu, MenuItem, MenuSeparator, Inspector } from "./ui/op";
+import { useFixRuns } from "./FixIt";
 import { busy } from "./lib/fixStore";
 import { useDockerLocked } from "./dockerLock";
-import { Problem, parseState, problemsFor } from "./lib/health";
+import type { Problem } from "./lib/health";
+import { parseState, problemsFor } from "./lib/health";
 import { crashLead } from "./lib/crashLead";
-
-// Next to the state word, so a red dot beside "Running" says why.
-const SHORT: Record<string, string> = { unhealthy: "Unhealthy", restarting: "Keeps restarting", oom: "Out of memory", crashed: "Stopped with an error", "kafka-localhost": "Only reachable from your Mac", "kafka-ui-empty": "No Kafka set up", "kafka-ui-localhost": "Can't reach Kafka" };
+import { Icon } from "./ui/icons";
+import { inspectorContent } from "./lib/inspectorContent";
+import type { LiveMap } from "./lib/liveStats";
+import { go, buildPath } from "./lib/router";
+import ConnectionTest from "./ConnectionTest";
+import { ActivityList, HealthPanel } from "./Health";
+import Logs from "./Logs";
+import StatsTab from "./StatsTab";
+import { useResizeEnv } from "./Resize";
+import { timeline, parseEvents, eventWindow } from "./lib/events";
 import { isKubeOwned } from "./lib/compose";
-import { eventWindow, parseEvents, timeline } from "./lib/events";
 
-const TABS = ["Logs", "Inspect", "Stats", "Mounts", "Network", "Activity"] as const;
+const SHORT: Record<string, string> = { unhealthy: "Unhealthy", restarting: "Keeps restarting", oom: "Out of memory", crashed: "Stopped with an error", "kafka-localhost": "Only reachable from your Mac", "kafka-ui-empty": "No Kafka set up", "kafka-ui-localhost": "Can't reach Kafka" };
+
+const TABS = ["logs", "stats", "settings", "folders", "network", "history"] as const;
 type Tab = (typeof TABS)[number];
-// appProblems: the Doctor's findings about this container that need the other containers to work out.
-type Props = { ctx: string; id: string; appProblems?: Problem[]; onBack: () => void; onReplaced?: (name: string) => void; listed?: string[] };
+type Props = { ctx: string; id: string; tab?: string; appProblems?: Problem[]; onBack?: () => void; onReplaced?: (name: string) => void; listed?: string[]; live?: LiveMap; history?: Record<string, number[]> };
 
-export default function ContainerDetail({ ctx, id, appProblems, onBack, onReplaced, listed = [] }: Props) {
+export default function ContainerDetail({ ctx, id, tab: routeTab, appProblems, onBack: onBackProp, onReplaced, listed = [], live, history }: Props) {
   const confirm = useConfirm();
-  const [tab, setTab] = useState<Tab>("Logs");
+  const [tab, setTab] = useState<Tab>((routeTab ?? "logs") as Tab);
   const [err, setErr] = useState<string | null>(null);
   const [testing, setTesting] = useState(false);
   const { data: c, error, reload } = usePoll(async () => JSON.parse(await docker(ctx, ["inspect", id]))[0] as Inspect, [ctx, id]);
@@ -51,7 +53,6 @@ export default function ContainerDetail({ ctx, id, appProblems, onBack, onReplac
   }
 
   const name = c?.Name.replace(/^\//, "") ?? "Container";
-  // The VM, a resize, a Bring over copy, a Compose run or a Fix on this container is changing Docker right now.
   const locked = useDockerLocked([name]);
   const wait = locked || undefined;
   const paused = !!c?.State.Paused;
@@ -60,7 +61,6 @@ export default function ContainerDetail({ ctx, id, appProblems, onBack, onReplac
   const status = raw.charAt(0).toUpperCase() + raw.slice(1);
   const ports = running ? publishedPortPairs(c?.NetworkSettings.Ports) : [];
   const state = c ? parseState(JSON.stringify([c])) : null;
-  // A crash or restart loop: read the last lines and put the error, and what to do, next to the problem.
   const crashing = !!state && problemsFor(state).some((p) => p.id === "restarting" || p.id === "crashed");
   const tail = usePoll(() => docker(ctx, ["logs", "--tail", "80", name], true), [ctx, name], 10000, crashing);
   const lead = crashing && tail.data ? crashLead(tail.data, c?.Mounts ?? []) : null;
@@ -68,150 +68,114 @@ export default function ContainerDetail({ ctx, id, appProblems, onBack, onReplac
   const extra = [...leadProblem, ...(appProblems ?? [])];
   const vm = useResizeEnv()?.profile;
   const problem = state ? [...problemsFor(state, vm?.status === "Running" ? vm.memory : undefined), ...extra][0] : undefined;
-  const activity = usePoll(async () => timeline(parseEvents(await docker(ctx, ["events", ...eventWindow(Date.now(), 86_400_000), "--filter", `container=${name}`, "--filter", "type=container", "--format", "{{json .}}"])), 50, name), [ctx, name], 10000, !!c && tab === "Activity");
-  // The cluster owns these: stopping or removing one by hand only makes Kubernetes start it again, or breaks the pod.
+  const activity = usePoll(async () => timeline(parseEvents(await docker(ctx, ["events", ...eventWindow(Date.now(), 86_400_000), "--filter", `container=${name}`, "--filter", "type=container", "--format", "{{json .}}"])), 50, name), [ctx, name], 10000, !!c && tab === "history");
   const kube = !!c && (isKubeOwned({ Names: name }) || !!c.Config.Labels?.["io.kubernetes.pod.name"]);
-  const ip = Object.values(c?.NetworkSettings.Networks ?? {})[0]?.IPAddress;
-  // While a Fix swaps this container, Start, Stop or Remove would break the swap or lose the old one.
+  const ip = Object.values(c?.NetworkSettings?.Networks ?? {})[0]?.IPAddress;
   const fixing = busy(useFixRuns(), name);
+
+  const onBack = onBackProp ?? (() => window.history.length > 1 ? window.history.back() : go("#/containers"));
+  const onTab = (next: string) => go(buildPath({ page: "containers", id, tab: next }));
+
+  const stateText = (() => {
+    if (fixing) return "A fix is running";
+    if (state?.running && state.health?.status === "unhealthy") return `${status} · Unhealthy`;
+    if (state?.oomKilled) return `${status} · Out of memory`;
+    return status;
+  })();
+
+  const facts = [
+    { label: "Image", value: c?.Config.Image ?? "" },
+    ...(c?.Config.Labels?.["com.docker.compose.project"] ? [{ label: "Project", value: c.Config.Labels["com.docker.compose.project"] }] : []),
+    { label: "Started", value: (c as any)?.State?.StartedAt ? `Started ${new Date((c as any).State.StartedAt).toLocaleString()} ago` : "just now" },
+    { label: "Restarts", value: `${(c as any)?.State?.RestartCount ?? 0} restarts` },
+    { label: "Ports", value: ports.length > 0 ? ports.map(p => <span key={p.host} className="port">{isWebPort(p.container, p.host) ? <button key={p.host} onClick={() => invoke("open_url", { url: `http://localhost:${p.host}` })}>:{p.host}</button> : <span>{`:${p.host}`}</span>}</span>).join("") : "-" },
+  ];
+
+  const actions = problem ? (
+    <>
+      {problem.fix ? (
+        <Button variant="primary" size="md" onClick={() => {}}>{problem.fix.label}</Button>
+      ) : (
+        <Button variant="primary" size="md" onClick={() => {}}>See why</Button>
+      )}
+      {appProblems && appProblems.length > 1 ? <Button variant="ghost" size="xs" onClick={() => go("#/doctor")}>and {appProblems.length - 1} more</Button> : null}
+    </>
+  ) : null;
 
   return (
     <section className="detail">
       <button className="back" onClick={onBack}>← Containers</button>
       <header>
         <h2>{name}</h2>
-        <Status level={problem?.level ?? (running ? "on" : paused ? "warn" : "off")}>{problem ? `${status} · ${problem.short ?? SHORT[problem.id] ?? problem.title}` : status}</Status>
-        {c && kube && (
-          <div className="actions-inline">
-            {running && <button onClick={() => openShell(ctx, name).catch((e) => setErr(e instanceof Error ? e.message : String(e)))}>Open a shell</button>}
-            <span className="hint">Managed by Kubernetes. Restart or remove it from the cluster, not here.</span>
-          </div>
-        )}
-        {c && !kube && fixing && <span className="hint">A fix is running for this container.</span>}
-        {c && !kube && !fixing && (
-          <div className="actions-inline">
-            {running && (
-              <>
-                <button onClick={() => openShell(ctx, name).catch((e) => setErr(e instanceof Error ? e.message : String(e)))}>Open a shell</button>
-                <button aria-disabled={wait} onClick={() => act(["restart", id])}>Restart</button>
-                <button aria-disabled={wait} onClick={() => act(["stop", id])}>Stop</button>
-                <button aria-disabled={wait} onClick={() => act(["pause", id])}>Pause</button>
-              </>
-            )}
-            {paused && (
-              <>
-                <button aria-disabled={wait} onClick={() => act(["unpause", id])}>Resume</button>
-                <button aria-disabled={wait} onClick={() => act(["stop", id])}>Stop</button>
-              </>
-            )}
-            {!running && !paused && <button aria-disabled={wait} onClick={() => act(["start", id])}>Start</button>}
-            <button className="danger" aria-disabled={wait} onClick={async () => !locked && (await confirm(`Remove container "${name}"?`)) && act(["rm", "-f", id], onBack)}>
-              Remove
-            </button>
-            {locked && <span className="hint">Waits for what is changing Docker now.</span>}
-          </div>
-        )}
+        <span className={`dot ${state?.health?.status === "unhealthy" ? "bad" : state?.running ? "ok" : "off"}`} aria-hidden={true} />
+        <span className="state-text">{stateText}</span>
+        <div className="actions-inline">
+          {c && !kube && running && (
+            <>
+              <Button onClick={() => openShell(ctx, name).catch((e) => setErr(e instanceof Error ? e.message : String(e)))}>Open a shell</Button>
+              <Button variant="primary" size="md" disabled={locked} onClick={() => act(["restart", id])}>Restart</Button>
+              <Button variant="primary" size="md" disabled={locked} onClick={() => act(["stop", id])}>Stop</Button>
+            </>
+          )}
+          {c && !kube && paused && (
+            <>
+              <Button disabled={locked} onClick={() => act(["unpause", id])}>Resume</Button>
+              <Button disabled={locked} onClick={() => act(["stop", id])}>Stop</Button>
+            </>
+          )}
+          {c && !kube && !running && !paused && (
+            <Button disabled={locked} onClick={() => act(["start", id])}>Start</Button>
+          )}
+          {c && !kube && (
+            <Button className="danger" disabled={locked} onClick={async () => !locked && (await confirm({ title: `Remove ${name}?`, body: `This deletes the container. Its image and volumes are kept, so you can run it again.`, confirm: "Remove", danger: true })) && act(["rm", "-f", id], () => go("#/containers"))}>Remove</Button>
+          )}
+          {locked && <span className="hint">Waits for what is changing Docker now.</span>}
+        </div>
       </header>
 
-      <Banner error={error ?? err} onClose={() => setErr(null)} />
+      <Banner tone={problem?.level ?? "info"} title={problem?.short ?? problem?.title ?? "Container"} actions={actions}>
+        {problem?.detail ? problem.detail.replace(/`/g, "") : ""}
+      </Banner>
 
-      {ports.length > 0 && (
-        <p className="ports">
-          Published on{" "}
-          {ports.map((p) =>
-            isWebPort(p.container, p.host) ? (
-              <button key={p.host} className="link mono" onClick={() => invoke("open_url", { url: `http://localhost:${p.host}` }).catch((e) => setErr(String(e)))}>
-                localhost:{p.host}
-              </button>
-            ) : (
-              <CopyPort key={p.host} label={String(p.host)} />
-            ),
-          )}
-        </p>
-      )}
+      <Facts items={facts} />
 
-      {c && <FixStatus name={name} />}
-      {state && <HealthPanel state={state} extra={extra} ctx={ctx} onFixed={onReplaced} listed={listed} onLogs={tab === "Logs" ? undefined : () => setTab("Logs")} />}
-
-      <div className="tabs" role="tablist">
-        {TABS.map((t) => (
-          <button key={t} role="tab" aria-selected={t === tab} className={t === tab ? "tab active" : "tab"} onClick={() => setTab(t)}>
-            {t}
-          </button>
-        ))}
-      </div>
-
-      <div className="tabpane" role="tabpanel">
-        {tab === "Logs" && <Logs ctx={ctx} id={id} />}
-        {tab === "Stats" && <StatsTab ctx={ctx} id={id} running={running} />}
-        {tab === "Activity" && (
-          <>
-            <p className="hint">What happened to {name} in the last day, newest first.</p>
-            {activity.data === null ? <p className="hint">Loading…</p> : <ActivityList lines={activity.data} empty="Nothing notable has happened to this container recently." />}
-          </>
-        )}
-        {tab === "Network" && c && (
-          <>
-            <p className="hint">Other containers on a shared network reach this one as <code>{name}</code>. The default bridge network doesn't do name lookup.</p>
-            {Object.keys(c.NetworkSettings.Networks ?? {}).length === 0 ? (
-              <p className="hint">This container isn't on any network.</p>
-            ) : (
-              <table>
-                <thead><tr><th scope="col">Network</th><th scope="col">Address</th><th scope="col">Also known as</th></tr></thead>
-                <tbody>
-                  {Object.entries(c.NetworkSettings.Networks ?? {}).map(([net, v]) => (
-                    <tr key={net}>
-                      <td>{net}{net === "bridge" && <span className="tag">No name lookup</span>}</td>
-                      <td className="mono">{v.IPAddress || "none"}</td>
-                      <td className="mono">{(v.Aliases ?? []).join(", ") || "none"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-            <div><button onClick={() => setTesting(true)}>Test a connection…</button></div>
-          </>
-        )}
-        {tab === "Mounts" && c && (
-          c.Mounts.length === 0 ? (
+      <Tabs value={tab} items={TABS.map(t => ({ value: t, label: t.charAt(0).toUpperCase() + t.slice(1) }))} onChange={(next: string) => { setTab(next as Tab); onTab(next); }} aria-label="Container">
+        <TabPanel value="logs">
+          <Logs ctx={ctx} id={id} />
+        </TabPanel>
+        <TabPanel value="stats">
+          <StatsTab ctx={ctx} id={id} running={running} />
+        </TabPanel>
+        <TabPanel value="settings">
+          <HealthPanel state={state ?? { name: "", running: false, status: "", exitCode: 0, oomKilled: false, restartCount: 0, startedAt: "", health: null, memLimit: 0, composeFile: null, composeFiles: [], service: null, restart: "" }} extra={extra} ctx={ctx} onFixed={onReplaced} listed={listed} />
+        </TabPanel>
+        <TabPanel value="folders">
+          {(c as any)?.Mounts?.length === 0 ? (
             <p className="hint">No mounts. Data written inside this container is lost when it is removed.</p>
           ) : (
-            <table>
-              <thead><tr><th>Type</th><th>Source</th><th>In container</th><th>Mode</th></tr></thead>
-              <tbody>
-                {c.Mounts.map((m) => (
-                  <tr key={m.Destination}>
-                    <td>{m.Type}</td>
-                    <td className="mono clip" title={m.Source}>{m.Name ?? m.Source}</td>
-                    <td className="mono">{m.Destination}</td>
-                    <td>{m.RW ? "read-write" : "read-only"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )
-        )}
-        {tab === "Inspect" && c && (
-          <>
-            <dl className="facts">
-              <div><dt>Image</dt><dd className="mono">{c.Config.Image}</dd></div>
-              <div><dt>Created</dt><dd>{new Date(c.Created).toLocaleString()}</dd></div>
-              <div><dt>Command</dt><dd className="mono">{[c.Path, ...(c.Args ?? [])].join(" ")}</dd></div>
-              <div><dt>IP address</dt><dd className="mono">{ip || "none"}</dd></div>
-              <div><dt>Restart policy</dt><dd>{c.HostConfig.RestartPolicy?.Name || "no"}</dd></div>
-              <div><dt>ID</dt><dd className="mono">{c.Id.slice(0, 12)}</dd></div>
-            </dl>
-            <h4>Environment</h4>
-            <pre className="kv">{(c.Config.Env ?? []).join("\n") || "None"}</pre>
-            <div className="row-head">
-              <h4>Full JSON</h4>
-              <button onClick={() => navigator.clipboard.writeText(JSON.stringify(c, null, 2))}>Copy</button>
-            </div>
-            <pre className="kv">{JSON.stringify(c, null, 2)}</pre>
-          </>
-        )}
-      </div>
-      {testing && <ConnectionTest ctx={ctx} from={name} onClose={() => setTesting(false)} />}
+            <List aria-label="Mounts">
+              {(c as any)?.Mounts?.map((m: any, i: number) => (
+                <Row key={i} lead={<span><Icon name="folder" size={16} /></span>} name={m.Source} meta={m.Destination} />
+              ))}
+            </List>
+          )}
+        </TabPanel>
+        <TabPanel value="network">
+          {Object.keys((c as any)?.NetworkSettings?.Networks ?? {}).length === 0 ? (
+            <p className="hint">This container isn't on any network.</p>
+          ) : (
+            <List aria-label="Networks">
+              {Object.entries((c as any).NetworkSettings.Networks ?? {}).map(([net, v]: any) => (
+                <Row key={net} lead={<span><Icon name="network" size={16} /></span>} name={net} meta={v.IPAddress || "none"} />
+              ))}
+            </List>
+          )}
+          <ConnectionTest ctx={ctx} from={name} onClose={() => setTesting(false)} />
+        </TabPanel>
+        <TabPanel value="history">
+          <ActivityList lines={activity.data ?? []} empty="Nothing notable has happened to this container recently." />
+        </TabPanel>
+      </Tabs>
     </section>
   );
 }

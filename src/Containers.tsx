@@ -26,7 +26,6 @@ import ComposeProjects, { composeRunState, runCompose, useComposeRun } from "./C
 import type { Action } from "./ComposeProjects";
 import ComposeLogs from "./ComposeLogs";
 import type { ComposeScan } from "./useComposeScan";
-import ContainerDetail from "./ContainerDetail";
 import type { Finding, Report } from "./lib/doctor";
 import { setMuted } from "./lib/muted";
 import { fixAction, useFixRuns } from "./FixIt";
@@ -66,7 +65,6 @@ type Props = {
   vm: VmState;
   onVm: (s: VmState) => void;
   reload: () => void;
-  detailId: string | null;
   setDetailId: (id: string | null) => void;
   onPull: () => void;
   onProfiles: () => void;
@@ -102,7 +100,7 @@ function readOpen(): Record<string, boolean> {
   }
 }
 
-export default function Containers({ profile, ctx, vm, onVm, reload, detailId, setDetailId, onPull, onProfiles, compose, onImages, onKubernetes, report, onReport, onBring, inspected, live, history }: Props) {
+export default function Containers({ profile, ctx, vm, onVm, reload, setDetailId, onPull, onProfiles, compose, onImages, onKubernetes, report, onReport, onBring, inspected, live, history }: Props) {
   const runs = useFixRuns();
   const confirm = useConfirm();
   // `fixAction` is still on the old three-argument confirm until WO-3.8 rebuilds FixIt.
@@ -339,17 +337,6 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
 
   // Coming back from a container's page puts focus on the row it was opened from, not on the page body.
   const opened = useRef<string | null>(null);
-  useEffect(() => {
-    if (detailId) { opened.current = detailId; return; }
-    const id = opened.current;
-    opened.current = null;
-    if (!id) return;
-    requestAnimationFrame(() => {
-      const a = appsRef.current.find((x) => x.rows.some((c) => c.ID === id || c.ID.startsWith(id)));
-      const c = a?.rows.find((x) => x.ID === id || x.ID.startsWith(id));
-      if (a && c) focusName(serviceName(c, a.name));
-    });
-  }, [detailId]);
 
   // Esc clears the selection first; a second press clears the search.
   useEffect(() => {
@@ -360,11 +347,6 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
     window.addEventListener("openpier:escape", onEscape);
     return () => window.removeEventListener("openpier:escape", onEscape);
   }, [checked, q]);
-
-  if (detailId && ctx) {
-    const named = all.find((c) => c.ID === detailId || c.ID.startsWith(detailId) || c.Names === detailId)?.Names;
-    return <ContainerDetail ctx={ctx} id={detailId} listed={compose.paths ?? []} appProblems={named ? report?.extra.get(named) : undefined} onBack={() => setDetailId(null)} onReplaced={(n) => { setDetailId(n); fixed(); }} />;
-  }
 
   if (!profile) {
     const busy = vm.op !== null;

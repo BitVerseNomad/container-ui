@@ -11,9 +11,10 @@ import EngineSwitcher from "./EngineSwitcher";
 import { engineOfProfile, chooseEngine, busyOf, buttonLabel } from "./lib/engineModel";
 import { ShortcutId, SHORTCUTS, activeShortcuts, showKeys, isTypingTarget } from "./lib/shortcuts";
 import { MachineUsageProvider, Header } from "./Header";
-import { useRoute, go } from "./lib/router";
+import { useRoute, go, buildPath } from "./lib/router";
 import { tabOfRoute, pathOfTab } from "./lib/tabRoutes";
 import Containers, { VmState } from "./Containers";
+import ContainerDetail from "./ContainerDetail";
 import Images from "./Images";
 import Volumes from "./Volumes";
 import Networks from "./Networks";
@@ -90,7 +91,8 @@ export default function App() {
   const [active, setActive] = useState<string | null>(null);
   const [stored] = useState(() => { try { return localStorage.getItem("openpier:engine"); } catch { return null; } });
   const [engineOpen, setEngineOpen] = useState(false);
-  const [detailId, setDetailId] = useState<string | null>(null);
+  const detailId = route.page === "containers" ? route.id ?? null : null;
+  const setDetailId = useCallback((id: string | null) => go(id ? buildPath({ page: "containers", id, tab: "logs" }) : "#/containers"), []);
   const [pullOnOpen, setPullOnOpen] = useState(false);
   const [newProfileOnOpen, setNewProfileOnOpen] = useState(false);
   const confirm = useConfirm();
@@ -261,30 +263,43 @@ export default function App() {
 
   const page =
     tab === "Containers" ? (
-      env && toolsMissing ? (
-        <InstallCard env={env} onDone={recheck} />
-      ) : (
-        <Containers
-          key={ctx ?? "none"}
-          profile={current}
-          ctx={ctx}
+      detailId ? (
+        <ContainerDetail
+          key={detailId}
+          ctx={ctx!}
+          id={detailId!}
+          tab={route.tab ?? "logs"}
+          appProblems={undefined}
+          onReplaced={(n: string) => { setDetailId(n); }}
+          listed={compose.paths ?? []}
           live={live}
           history={history}
-          vm={vm}
-          onVm={setVm}
-          reload={reloadProfiles}
-          detailId={detailId}
-          setDetailId={setDetailId}
-          onPull={() => { setPullOnOpen(true); setTab("Images"); }}
-          onProfiles={() => { setNewProfileOnOpen(true); setTab("Profiles"); }}
-          compose={compose}
-          onImages={() => setTab("Images")}
-          onKubernetes={kubeOn ? () => setTab("Kubernetes") : undefined}
-          report={doc.report}
-          onReport={doc.reload}
-          onBring={bringOffered(setup.findings) ? openBring : undefined}
-          inspected={doc.containers}
         />
+      ) : (
+        env && toolsMissing ? (
+          <InstallCard env={env} onDone={recheck} />
+        ) : (
+          <Containers
+            key={ctx ?? "none"}
+            profile={current}
+            ctx={ctx}
+            live={live}
+            history={history}
+            vm={vm}
+            onVm={setVm}
+            reload={reloadProfiles}
+            setDetailId={setDetailId}
+            onPull={() => { setPullOnOpen(true); setTab("Images"); }}
+            onProfiles={() => { setNewProfileOnOpen(true); setTab("Profiles"); }}
+            compose={compose}
+            onImages={() => setTab("Images")}
+            onKubernetes={kubeOn ? () => setTab("Kubernetes") : undefined}
+            report={doc.report}
+            onReport={doc.reload}
+            onBring={bringOffered(setup.findings) ? openBring : undefined}
+            inspected={doc.containers}
+          />
+        )
       )
     ) : tab === "Doctor" ? (
       // Until the tool check answers, an empty Doctor could read as an all-clear on a Mac with nothing installed.
