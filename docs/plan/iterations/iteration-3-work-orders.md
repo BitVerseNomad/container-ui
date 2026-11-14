@@ -6,7 +6,7 @@
 2. Each screen has its eight states (spec section 8), each one openable by URL in the preview, and each one checked in Chromium and WebKit.
 3. The old browser checks wait in `scripts/checks-pending/`. This iteration brings every one of them back, so that folder ends with no `check-*.mjs` in it. `scripts/not-migrated.json` loses every screen file named here.
 
-Order: WO-3.4, WO-3.5, WO-3.6, WO-3.7, WO-3.8a, WO-3.8b, WO-3.9, WO-3.10, WO-3.11.
+Order: WO-P.1 (written in `../PARALLEL.md`), WO-3.4, WO-3.5, WO-3.6, WO-3.7, WO-3.8a, WO-3.8b, WO-3.9, WO-3.10, WO-3.11. After WO-3.4, WO-3.5, WO-3.6, WO-3.7 and WO-3.8a can run as parallel lanes: see `../PARALLEL.md`.
 
 WO-3.8 is split: 3.8a is the Doctor page, 3.8b is the fix and health pieces it uses (`FixIt.tsx`, `Health.tsx`). Reason: Doctor alone is the biggest screen, and its check has about 25 behaviours.
 

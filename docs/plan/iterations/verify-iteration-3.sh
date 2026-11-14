@@ -45,6 +45,11 @@ count_is "the migrated files import new components from ui/op, never the old ind
 count_is "the migrated files do not import the old Ticks, OutputLog or Drawer" "0" "grep -nE 'ui/Ticks|ui/OutputLog|Drawer' src/Images.tsx src/Volumes.tsx src/Networks.tsx src/ConnectionTest.tsx src/Kubernetes.tsx src/PodSheet.tsx src/Doctor.tsx src/FixIt.tsx src/Health.tsx src/Resize.tsx src/VmStrip.tsx src/Settings.tsx src/settings/*.tsx src/Setup.tsx src/InstallCard.tsx src/InstallTool.tsx src/BringOver.tsx 2>/dev/null | wc -l"
 count_is "every WO of this iteration has a PR text file" "9" "ls docs/plan/iterations/pr/wo-3.4.md docs/plan/iterations/pr/wo-3.5.md docs/plan/iterations/pr/wo-3.6.md docs/plan/iterations/pr/wo-3.7.md docs/plan/iterations/pr/wo-3.8a.md docs/plan/iterations/pr/wo-3.8b.md docs/plan/iterations/pr/wo-3.9.md docs/plan/iterations/pr/wo-3.10.md docs/plan/iterations/pr/wo-3.11.md 2>/dev/null | wc -l"
 
+echo "== WO-P.1 preview port per worktree (docs/plan/PARALLEL.md) =="
+has "WO-P.1: the preview reads PREVIEW_PORT" vite.preview.config.ts "process.env.PREVIEW_PORT"
+has "WO-P.1: check-all passes the port to every check" scripts/check-all.sh 'export PREVIEW_URL="$url"'
+present "WO-P.1: pull request text" docs/plan/iterations/pr/wo-P.1.md
+
 echo "== WO-3.4 Images"
 for f in src/Images.tsx src/DiskCard.tsx; do not_listed "$f"; done
 sh_ok "src/DiskCard.tsx is deleted" "test ! -e src/DiskCard.tsx"
