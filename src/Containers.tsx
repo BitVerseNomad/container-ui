@@ -82,6 +82,7 @@ type Props = {
   // only: the volume to pick alone, from the problem line of the row that uses it. returnTo: where focus goes if that
   // line is gone when the panel closes (the row's name button).
   onBring?: (only?: string[], returnTo?: string) => void;
+  onRun?: () => void;
   // The Doctor's `docker inspect` of every container (restart policy, ports, health check), read every 30 s. It
   // decides whether a container that exited 0 is a finished job or a stopped service.
   inspected?: unknown[];
@@ -100,7 +101,7 @@ function readOpen(): Record<string, boolean> {
   }
 }
 
-export default function Containers({ profile, ctx, vm, onVm, reload, setDetailId, onPull, onProfiles, compose, onImages, onKubernetes, report, onReport, onBring, inspected, live, history }: Props) {
+export default function Containers({ profile, ctx, vm, onVm, reload, setDetailId, onPull, onProfiles, compose, onImages, onKubernetes, report, onReport, onBring, onRun, inspected, live, history }: Props) {
   const runs = useFixRuns();
   const confirm = useConfirm();
   // `fixAction` is still on the old three-argument confirm until WO-3.8 rebuilds FixIt.
@@ -760,7 +761,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, setDetailId
         ) : running ? (
           <>
             <Field icon="search" width="search" data-page-search aria-label="Search containers" placeholder="Search containers" value={q} onChange={(e) => setQ(e.target.value)} onClear={() => setQ("")} />
-            <NewMenu onRun={() => setPicking(true)} onPull={onPull} onCompose={() => setComposeOpen(true)} />
+            <NewMenu onRun={onRun} onPull={onPull} onCompose={() => setComposeOpen(true)} />
           </>
         ) : null}
       </Header>
@@ -882,7 +883,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, setDetailId
         </Sheet>
       )}
       {picking && ctx && <RunPicker ctx={ctx} onClose={() => setPicking(false)} onPick={(ref) => { setPicking(false); setRunImage(ref); }} />}
-      {runImage && ctx && <RunPanel ctx={ctx} arch={profile.arch} image={runImage} onClose={() => setRunImage(null)} onRan={(id) => { setRunImage(null); setDetailId(id); }} />}
+      {runImage && ctx && <RunPanel ctx={ctx} arch={profile.arch} image={runImage} onClose={() => setRunImage(null)} onRan={(id, name) => { setRunImage(null); setHighlight(id); toast({ text: `Started ${name}` }); }} />}
     </>
   );
 }
@@ -902,6 +903,12 @@ const serviceName = (c: C, project: string) => {
 // A row is found again by the text of its name; a removed row hands focus to its neighbour, never to the page body.
 function focusName(name: string): void {
   const node = [...document.querySelectorAll<HTMLElement>(".list .row .name")].find((n) => n.textContent === name);
+  node?.closest<HTMLElement>(".row")?.focus();
+}
+
+// Highlight a row after an action (e.g. after a successful Run): scroll into view and focus.
+function setHighlight(id: string): void {
+  const node = [...document.querySelectorAll<HTMLElement>(".list .row .name")].find((n) => n.textContent === id);
   node?.closest<HTMLElement>(".row")?.focus();
 }
 
