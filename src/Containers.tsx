@@ -35,7 +35,7 @@ import { useDesktopOffer } from "./desktopOffer";
 import { gapLine } from "./lib/bringOver";
 import { describe } from "./lib/fixRun";
 import { busy as fixBusy, dismiss, runFor, type Run } from "./lib/fixStore";
-import { Banner, Button, Empty, Field, List, MenuItem, MenuSeparator, Problem, Sheet, useConfirm, useToast } from "./ui/op";
+import { Banner, Button, Empty, Field, List, MenuItem, MenuSeparator, Problem, Sheet, SkeletonRows, useConfirm, useToast } from "./ui/op";
 import type { DotState } from "./ui/op";
 import { EntryRow, ChildRow, RowMenu, TableHeadRow } from "./containers/ContainerRows";
 import { NewMenu } from "./containers/NewMenu";
@@ -821,10 +821,29 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
         </Empty>
       )}
 
-      {running && (
+      {running ? (
         <>
-          {containers.error && <Banner tone="bad">{containers.error}</Banner>}
-          {containers.data && (all.length === 0 ? (
+          {containers.error && (
+            <Banner
+              tone="bad"
+              title="Couldn't list containers"
+              actions={
+                <>
+                  <Button size="md" onClick={() => void containers.reload()}>Try again</Button>
+                  <Button variant="primary" size="md" onClick={start}>
+                    Restart {profile.name}
+                  </Button>
+                </>
+              }
+            >
+              {firstLine(containers.error)}
+              {/Cannot connect|did not answer/.test(containers.error) && " The machine may be stuck."}
+            </Banner>
+          )}
+          {containers.data === null ? (
+            // First load: four skeleton rows, header already visible (search and New shown).
+            <SkeletonRows rows={4} />
+          ) : all.length === 0 ? (
             // Right after switching, the data comes first: a `compose up` before it makes new empty volumes.
             <Empty
               icon="box"
@@ -844,14 +863,20 @@ export default function Containers({ profile, ctx, vm, onVm, reload, detailId, s
               <TableHeadRow />
               {nodes}
             </List>
-          ))}
+          )}
           {term && shown.length === 0 && (
-            <p className="hint">
-              Nothing matches &ldquo;{term}&rdquo;.
-              {projectHits > 0 && <> {projectHits === 1 ? "1 Compose project that isn't running matches" : `${projectHits} Compose projects that aren't running match`}. <Button variant="ghost" size="sm" onClick={() => setComposeOpen(true)}>Show {projectHits === 1 ? "it" : "them"}</Button></>}
-            </p>
+            <Empty icon="search" title={`Nothing matches "${term}".`} actions={<Button size="md">Clear search</Button>} />
           )}
         </>
+      ) : (
+        // Engine stopped: header shows only the title (no search, no New).
+        <Empty
+          icon="box"
+          title={`${profile.name} is stopped`}
+          actions={<Button variant="primary" size="md" onClick={start}>Start {profile.name}</Button>}
+        >
+          Your containers and data are kept. Start the machine to see them.
+        </Empty>
       )}
 
       <ProblemInspector

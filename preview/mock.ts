@@ -229,6 +229,9 @@ function dockerCmd(args: string[]): string {
       const noMem = cmd === "start" && !!ddParam("oomfail") && args.includes("report-job");
       // start=fail: web's port is taken, once. docker starts the others and names the one it couldn't on its last line.
       const blocked = cmd === "start" && startFail && args.includes("web");
+      // &failstart=<name>: starting that one container throws, so the failed action state shows.
+      const failName = ddParam("failstart");
+      if (cmd === "start" && failName && args.includes(failName)) throw `Error response from daemon: driver failed programming external connectivity on endpoint ${failName}: Bind for 0.0.0.0:8080 failed: port is already allocated\nError: failed to start containers: ${failName}`;
       const cs = args.slice(1).map((x) => find(x)!).filter((c) => !(blocked && c.name === "web") && !(noMem && c.name === "report-job"));
       for (const c of cs) { c.state = cmd === "stop" ? "exited" : cmd === "pause" ? "paused" : "running"; if (cmd === "stop") c.endedAt = Date.now(); else if (cmd !== "pause") { c.born = Date.now(); c.endedAt = undefined; c.oom = false; c.exitCode = 0; } }
       // db has a health check: it reports healthy a moment after it starts.
@@ -275,6 +278,7 @@ if (ddParam("down2")) db.ctrs.filter((c) => c.name === "db").forEach((c) => { c.
 const ddVolumes: [string, string][] = [["shop_db", "412MB"], ["redis-data", "18MB"], ["uploads", "2.1GB"], ["b".repeat(64), "36B"]];
 const ddImages = [{ Repository: "acme/api", Tag: "dev", Size: "1.2GB" }, { Repository: "postgres", Tag: "16", Size: "438MB" }, { Repository: "<none>", Tag: "<none>", Size: "90MB" }];
 let stopCopy = false;
+let psCalls = 0;
 const MB = (s: string) => parseFloat(s) * (s.endsWith("GB") ? 1e9 : 1e6);
 
 async function progress(event: string, steps: [string, number][]) { for (const [l, ms] of steps) { await sleep(ms); emit(event, l); } }
@@ -285,7 +289,15 @@ export async function invoke<T>(cmd: string, a: Record<string, any> = {}): Promi
   await sleep(60);
   switch (cmd) {
     case "list_profiles": return db.profiles.map((p) => ({ ...p })) as T; // fresh objects per call, like the real IPC
-    case "docker": { const args: string[] = a.args.filter((x: string) => x !== "--format" && x !== "{{json .}}"); const i = a.args.indexOf("--format"); return dockerCmd(i > 0 && (a.args[0] === "image" || (a.args[0] === "inspect" && a.args[i + 1] !== "{{json .}}")) ? a.args : args) as T; }
+    case "docker": {
+      const args: string[] = a.args.filter((x: string) => x !== "--format" && x !== "{{json .}}");
+      // ?scenario=loading: the first docker ps never answers, so the skeleton stays on screen.
+      if (scenario === "loading" && args[0] === "ps") return new Promise<string>(() => {}) as T;
+      // ?scenario=unreachable: the first ps answers, every later ps throws, so the error banner shows.
+      if (scenario === "unreachable" && args[0] === "ps" && ++psCalls > 1) throw "Cannot connect to the Docker daemon at unix:///Users/me/.colima/default/docker.sock. Is the docker daemon running?";
+      const i = a.args.indexOf("--format");
+      return dockerCmd(i > 0 && (a.args[0] === "image" || (a.args[0] === "inspect" && a.args[i + 1] !== "{{json .}}")) ? a.args : args) as T;
+    }
     case "docker_check": return undefined as T;
     case "desktop_state": return { ...desktop } as T;
     case "open_docker_desktop": if (!desktop.installed) throw "Docker Desktop isn't installed"; setTimeout(() => { desktop.running = true; }, 2500); return undefined as T;
