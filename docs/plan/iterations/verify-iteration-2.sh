@@ -157,6 +157,28 @@ chk "WO-2.5: check-restyle passes in Chromium" node scripts/check-restyle.mjs
 chk "WO-2.5: check-restyle passes in WebKit" env PW_ENGINE=webkit node scripts/check-restyle.mjs
 chk "WO-2.5: every pull request of WO-2.x has Contract differences" sh -c 'for id in 2.1 2.2 2.3 2.4 2.5; do grep -q "## Contract differences" docs/plan/iterations/pr/wo-$id.md || exit 1; done'
 
+echo "== WO-2.6 the app picks its engine at startup =="
+has "WO-2.6: the registry activates the first engine that answers" src/runtime/index.ts "async activateFirstAvailable()"
+has "WO-2.6: App activates the engine at startup" src/App.tsx "runtimeRegistry.activateFirstAvailable()"
+lacks "WO-2.6: the preview no longer chooses the engine for the app" preview/mock.ts "runtimeRegistry.setActive"
+has "WO-2.6: the preview answers colima_version" preview/mock.ts 'case "colima_version"'
+has "WO-2.6: registry test, Colima becomes active" src/runtime/index.test.tsx "Then Colima is the active engine"
+has "WO-2.6: registry test, nothing answers" src/runtime/index.test.tsx "Then it returns null and no engine is active"
+has "WO-2.6: registry test, keeps the active engine" src/runtime/index.test.tsx "Then it keeps that engine and asks nothing"
+has "WO-2.6: registry test, half-built engines are not chosen" src/runtime/index.test.tsx "Given only podman_version answers"
+has "WO-2.6: App activates inside reloadProfiles" src/App.tsx "runtimeRegistry.getActive() ?? (await runtimeRegistry.activateFirstAvailable())"
+chk "WO-2.6: registry tests pass" npx vitest run src/runtime/index.test.tsx
+atleast "WO-2.6: check-engine-start has its five lines" 5 scripts/check-engine-start.mjs "check("
+has "WO-2.6: check-engine-start opens the running scenario" scripts/check-engine-start.mjs "scenario=running"
+has "WO-2.6: check-engine-start opens the stopped scenario" scripts/check-engine-start.mjs "scenario=stopped"
+has "WO-2.6: check-engine-start opens the none scenario" scripts/check-engine-start.mjs "scenario=none"
+has "WO-2.6: check-engine-start opens the unreachable scenario" scripts/check-engine-start.mjs "scenario=unreachable"
+has "WO-2.6: check-engine-start opens the missing scenario" scripts/check-engine-start.mjs "scenario=missing"
+has "WO-2.6: check-engine-start looks for the onboarding words" scripts/check-engine-start.mjs "Start your first VM"
+lacks "WO-2.6: check-engine-start has no empty check" scripts/check-engine-start.mjs "check(true"
+chk "WO-2.6: check-engine-start passes in Chromium" node scripts/check-engine-start.mjs
+chk "WO-2.6: check-engine-start passes in WebKit" env PW_ENGINE=webkit node scripts/check-engine-start.mjs
+
 echo "== WO-3.1a row model =="
 present "WO-3.1a: files exist" src/lib/containerRows.ts src/lib/containerRows.test.ts
 has "WO-3.1a: the dot type is DotState from ui/op" src/lib/containerRows.ts "DotState"
