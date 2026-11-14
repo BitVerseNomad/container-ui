@@ -7,7 +7,7 @@ const backend = vi.hoisted(() => ({ current: null as null | ReturnType<typeof im
 vi.mock("@tauri-apps/api/core", () => ({ invoke: (cmd: string, a: Record<string, unknown>) => backend.current!.invoke(cmd, a) }));
 
 import Containers, { VmState } from "./Containers";
-import { ConfirmProvider } from "./ui";
+import { ConfirmProvider } from "./ui/op";
 import { reset as resetFixes, startFix } from "./lib/fixStore";
 import { resetComposeRun, runCompose } from "./ComposeProjects";
 import { noteDocker, resetAppStopped } from "./lib/appStopped";
@@ -118,7 +118,7 @@ describe("Containers", () => {
     await waitFor(() => expect(backend.current!.dockerCalls()).toContainEqual(["stop", "s1", "s2"]));
     // The same button stays focused and says what is happening until docker ps shows it stopped.
     expect(stop).toHaveTextContent("Stopping…");
-    expect(stop).toHaveAttribute("aria-disabled", "true");
+    expect(stop).toBeDisabled();
   });
 
   it("given Stop was pressed, when docker ps shows the container stopped, then the button reads Start again", async () => {
@@ -211,7 +211,7 @@ describe("Containers", () => {
     await user.click(beta);
     expect(backend.current!.calls.filter((c) => c.cmd === "compose_action")).toHaveLength(1);
     expect(beta).toHaveTextContent("Start");
-    expect(beta).toHaveAttribute("aria-disabled", "true");
+    expect(beta).toBeDisabled();
   });
 
   it("given a problem with no one-click fix, when the list loads, then it shows once under its row with See why, which opens the container", async () => {
@@ -260,9 +260,9 @@ describe("Containers", () => {
     const list = [...rows.slice(0, 2), { ID: "old", Names: "web-old", Image: "nginx:latest", State: "exited", Status: "Exited (0) 1 second ago", Ports: "", Labels: "" }];
     show({ list });
     fixing("web");
-    await waitFor(() => expect(screen.getByRole("button", { name: "Stop web" })).toHaveAttribute("aria-disabled", "true"));
-    expect(screen.getByRole("button", { name: "Start web-old" })).toHaveAttribute("aria-disabled", "true");
-    expect(screen.getByRole("button", { name: "Start cache" })).not.toHaveAttribute("aria-disabled");
+    await waitFor(() => expect(screen.getByRole("button", { name: "Stop web" })).toBeDisabled());
+    expect(screen.getByRole("button", { name: "Start web-old" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Start cache" })).not.toBeDisabled();
     const menu = await menuOf(user, "web");
     for (const name of ["Restart", "Remove…"]) expect(within(menu).getByRole("menuitem", { name })).toHaveAttribute("aria-disabled", "true");
     await user.click(within(menu).getByRole("menuitem", { name: "Remove…" }));
