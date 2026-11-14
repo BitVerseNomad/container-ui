@@ -70,7 +70,7 @@ export default function ContainerDetail({ ctx, id, tab: routeTab, appProblems, o
   const problem = state ? [...problemsFor(state, vm?.status === "Running" ? vm.memory : undefined), ...extra][0] : undefined;
   const activity = usePoll(async () => timeline(parseEvents(await docker(ctx, ["events", ...eventWindow(Date.now(), 86_400_000), "--filter", `container=${name}`, "--filter", "type=container", "--format", "{{json .}}"])), 50, name), [ctx, name], 10000, !!c && tab === "history");
   const kube = !!c && (isKubeOwned({ Names: name }) || !!c.Config.Labels?.["io.kubernetes.pod.name"]);
-  const ip = Object.values(c?.NetworkSettings.Networks ?? {})[0]?.IPAddress;
+  const ip = Object.values(c?.NetworkSettings?.Networks ?? {})[0]?.IPAddress;
   const fixing = busy(useFixRuns(), name);
 
   const onBack = onBackProp ?? (() => window.history.length > 1 ? window.history.back() : go("#/containers"));
@@ -154,7 +154,7 @@ export default function ContainerDetail({ ctx, id, tab: routeTab, appProblems, o
             <p className="hint">No mounts. Data written inside this container is lost when it is removed.</p>
           ) : (
             <List aria-label="Mounts">
-              {(c as any)?.Mounts.map((m: any, i: number) => (
+              {(c as any)?.Mounts?.map((m: any, i: number) => (
                 <Row key={i} lead={<span><Icon name="folder" size={16} /></span>} name={m.Source} meta={m.Destination} />
               ))}
             </List>
