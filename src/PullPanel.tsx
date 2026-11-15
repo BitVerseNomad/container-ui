@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { dockerJson } from "./api";
 import { Hit, SortKey, isOfficial, sortHits } from "./lib/hub";
 import { PRESETS, checkRef, isAuthError, loginCommand, needsLogin, presetFor } from "./lib/registry";
-import { Banner, Button, Sheet, Field, Fields, FormRow, ChipButton, Canvas, Command, Row, Col, Menu, MenuItem, MenuSeparator, Inspector } from "./ui/op";
+import { Banner, Button, Sheet, Field, Fields, FormRow, ChipButton, Canvas, Command, Row, Col, Menu, MenuItem, MenuSeparator, Inspector, Select } from "./ui/op";
 import { useFixRuns } from "./FixIt";
 import { useBringBusy } from "./bringBusy";
 import { useDockerLocked } from "./dockerLock";
@@ -96,7 +96,7 @@ export default function PullPanel({ ctx, onClose, onPulled, onRun, searchFor }: 
         <div className="chips">
           <span className="hint">Or try one:</span>
           {["hello-world", "nginx", "mysql", "postgres", "redis"].map((n) => (
-            <button key={n} className="chip" disabled={pulling} onClick={() => setImage(n)}>{n}</button>
+            <Button key={n} className="chip" disabled={pulling} onClick={() => setImage(n)}>{n}</Button>
           ))}
         </div>
       </div>
@@ -104,7 +104,7 @@ export default function PullPanel({ ctx, onClose, onPulled, onRun, searchFor }: 
         <h4>Not sure of the name? Search Docker Hub</h4>
         <p className="hint">Searching only lists images. Nothing is downloaded.</p>
         <Field id="search-docker-hub-2" width="search" value={term} onChange={(e) => setTerm(e.target.value)} disabled={searching || pulling} />
-        <button disabled={!query || searching || pulling} onClick={search}>{searching ? "Searching…" : "Search"}</button>
+        <Button disabled={!query || searching || pulling} onClick={search}>{searching ? "Searching…" : "Search"}</Button>
         {hits && hits.length === 0 && <p className="hint">Nothing found on Docker Hub for "{query}".</p>}
         {hits && hits.length > 0 && (
           <>
@@ -112,11 +112,11 @@ export default function PullPanel({ ctx, onClose, onPulled, onRun, searchFor }: 
               <span className="hint">{hits.length} result{hits.length > 1 ? "s" : ""}. Choose one to fill in the image above.</span>
               <label className="sort">
                 Sort by
-                <select aria-label="Sort by" value={sort} onChange={(e) => setSort(e.target.value as SortKey)}>
-                  <option value="stars">Stars (most first)</option>
-                  <option value="name">Name (A to Z)</option>
-                  <option value="official">Official first</option>
-                </select>
+                <Select aria-label="Sort by" value={sort} onChange={(value: string) => setSort(value as SortKey)} options={[
+                  { value: "stars", label: "Stars (most first)" },
+                  { value: "name", label: "Name (A to Z)" },
+                  { value: "official", label: "Official first" },
+                ]} />
               </label>
             </div>
             <div className="list">
@@ -148,7 +148,7 @@ export default function PullPanel({ ctx, onClose, onPulled, onRun, searchFor }: 
             <div className="login-hint">
               <p className="hint">Private images need you to sign in first. Run this in Terminal:</p>
               <pre className="cmd">{login ?? `docker login ${host.trim()}`}</pre>
-              <button disabled={!login} onClick={() => login && navigator.clipboard.writeText(login)}><Icon name="copy" size="md" /> Copy command</button>
+              <Button disabled={!login} onClick={() => login && navigator.clipboard.writeText(login)} icon="copy">Copy command</Button>
             </div>
           )}
         </>
