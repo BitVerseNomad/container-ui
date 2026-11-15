@@ -2,12 +2,9 @@
 // `docker compose` in the project's own folder, exactly as typing it there would.
 import { useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import Drawer from "./ui/Drawer";
 import OutputLog from "./ui/OutputLog";
 import ComposeLogs from "./ComposeLogs";
-import { Banner, useConfirm } from "./ui";
-import { Icon } from "./ui/icons";
-import { Button } from "@ui/components/Button";
+import { Button, Icon, Sheet, useConfirm, Banner } from "./ui/op";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@ui/components/DropdownMenu";
 import { ComposeScan } from "./useComposeScan";
 import { cdPath, portHolder, projectName, projectsFrom, shellQuote, whyFailed } from "./lib/composeScan";
@@ -74,13 +71,9 @@ export async function runCompose(ctx: string, p: Pick<ComposeProject, "dir" | "f
 function CopyCommand({ text, label }: { text: string; label: string }) {
   const [done, setDone] = useState(false);
   return (
-    <button
-      aria-label={label}
-      title={text}
-      onClick={() => navigator.clipboard.writeText(text).then(() => { setDone(true); setTimeout(() => setDone(false), 1200); }, () => {})}
-    >
-      <Icon name="copy" size={13} /> {done ? "Copied" : "Copy"}
-    </button>
+    <Button icon="copy" size="md" onClick={() => navigator.clipboard.writeText(text)} aria-label={label} title={text}>
+      {done ? "Copied" : "Copy"}
+    </Button>
   );
 }
 
@@ -116,7 +109,7 @@ export default function ComposeProjects({ ctx, scan, containers, attention, onCl
 
   async function run(p: ComposeProject, action: Action) {
     if (state.busy || fixing) return;
-    if (action === "down" && !(await confirm(`Stop and remove the containers of ${p.name}? Its volumes, and the data in them, stay.`, "Remove containers"))) return;
+    if (action === "down" && !(await confirm({ title: `Stop and remove the containers of ${p.name}? Its volumes, and the data in them, stay.`, body: "", confirm: "Remove containers" }))) return;
     await runCompose(ctx, p, action, containers);
     onChanged?.();
   }
@@ -147,19 +140,21 @@ export default function ComposeProjects({ ctx, scan, containers, attention, onCl
   }
 
   return (
-    <Drawer label="Compose projects" title={<>Compose projects</>} onClose={onClose}>
+    <Sheet open={true} onClose={onClose} title="Compose projects">
       <p className="hint">Every folder in your home with a Compose file. Missing one? Add its folder.</p>
       {fixing && <p className="hint">{bringing ? "Wait for the copy from Docker Desktop to finish" : "Wait for the fix to finish"} before starting or stopping a project.</p>}
       <div className="inline">
         <label className="search-field">
-          <Icon name="search" size={14} />
+          <Icon name="search" size="md" />
           <input placeholder="Search projects" aria-label="Search projects" value={q} onChange={(e) => setQ(e.target.value)} />
         </label>
-        <button onClick={() => scan.scan()} disabled={scan.scanning}><Icon name="restart" size={13} /> {scan.scanning ? "Scanning…" : "Scan again"}</button>
-        <button onClick={addFolder} disabled={scan.scanning}><Icon name="plus" size={13} /> Add a folder…</button>
+        <Button icon="restart" size="md" onClick={() => scan.scan()} disabled={scan.scanning}>
+  {scan.scanning ? "Scanning…" : "Scan again"}
+</Button>
+        <Button icon="plus" size="md" onClick={addFolder} disabled={scan.scanning}>Add a folder…</Button>
       </div>
       {added && <p className="hint" role="status">{added}</p>}
-      <Banner error={scan.error ?? err} onClose={() => setErr(null)} />
+      <Banner tone={scan.error === null ? "info" : "bad"} title={scan.error ?? "Warning"} />
       {scan.paths && all.length === 0 && <p className="hint">No Compose files found. Spotlight skips hidden folders and folders it doesn't index.</p>}
       {cut && <p className="hint">Showing the first {SHOWN_MAX} Compose files, A to Z. Search to narrow the list.</p>}
       {all.length > 0 && rows.length === 0 && <p className="hint">Nothing matches "{q.trim()}". Try part of the folder name.</p>}
@@ -177,9 +172,9 @@ export default function ComposeProjects({ ctx, scan, containers, attention, onCl
           const leftovers = failed?.dir === p.dir && !mine;
           const off = !!busy || fixing;
           const btn = (a: Action) => (
-            <button className="small" disabled={off} title={fixing ? (bringing ? "Wait for the copy from Docker Desktop to finish" : "Wait for the fix to finish") : typed(p.dir, a, ctx)} aria-label={`${VERB[a][0]} ${p.name}`} onClick={() => run(p, a)}>
+            <Button className="small" disabled={off} aria-label={`${VERB[a][0]} ${p.name}`} onClick={() => run(p, a)}>
               {mine && busy?.action === a ? VERB[a][1] : label(a)}
-            </button>
+            </Button>
           );
           // The common action is the button: Start when the project has stopped services, Stop when it runs. The rest are
           // under "More actions", each with a line on when you would use it.
@@ -189,16 +184,16 @@ export default function ComposeProjects({ ctx, scan, containers, attention, onCl
                 <span className={sick.length ? "sdot warn" : up ? "sdot on" : "sdot"} aria-hidden="true" />
                 <b title={p.name}>{p.name}</b>
               </div>
-              {sick.length > 0 && <p className="compose-sick"><Icon name="alert" size={13} /><span>{sick.length === 1 ? "1 needs attention" : `${sick.length} need attention`}</span></p>}
+              {sick.length > 0 && <p className="compose-sick"><Icon name="alert" size="md" /><span>{sick.length === 1 ? "1 needs attention" : `${sick.length} need attention`}</span></p>}
               <span className="sub folder-line"><span className="mono path" title={`${p.dir}/${p.files.join(", ")}`}>{tilde(p.dir)}</span><span className="status">&nbsp;· {p.total ? `${p.running} of ${p.total} running` : "Not running"}</span></span>
               <div className="actions-inline">
                 {up && stopped === 0 ? btn("stop") : btn("up")}
-                {mine && <button className="small" onClick={() => invoke("cancel_compose").catch(() => {})}>Cancel</button>}
+                {mine && <Button className="small" onClick={() => invoke("cancel_compose").catch(() => {})}>Cancel</Button>}
                 {!mine && (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" size="sm" className="more" aria-label={`More actions for ${p.name}`}>
-                        <Icon name="more" size={16} />
+                        <Icon name="more" size="md" />
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent>
@@ -256,9 +251,9 @@ export default function ComposeProjects({ ctx, scan, containers, attention, onCl
                 <div className="note" role="status">
                   <p>{failed.why}</p>
                   {failed.holder && (
-                    <button className="primary" disabled={!!busy || fixing} onClick={() => freePortAndStart(p, failed.holder!)}>
+                    <Button className="primary" disabled={!!busy || fixing} onClick={() => freePortAndStart(p, failed.holder!)}>
                       Stop {failed.holder} and start {p.name}
-                    </button>
+                    </Button>
                   )}
                 </div>
               )}
@@ -279,6 +274,6 @@ export default function ComposeProjects({ ctx, scan, containers, attention, onCl
           );
         })}
       </ul>
-    </Drawer>
+    </Sheet>
   );
 }

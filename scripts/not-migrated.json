@@ -2,8 +2,6 @@
   "src/App.tsx",
   "src/BringOver.tsx",
   "src/Commands.tsx",
-  "src/ComposeLogs.tsx",
-  "src/ComposeProjects.tsx",
   "src/ConnectionTest.tsx",
   "src/ContainerDetail.tsx",
   "src/DiskCard.tsx",
@@ -21,7 +19,6 @@
   "src/Profiles.tsx",
   "src/PullPanel.tsx",
   "src/Resize.tsx",
-
   "src/Setup.tsx",
   "src/Sparkline.tsx",
   "src/StatsTab.tsx",
