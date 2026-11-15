@@ -4,7 +4,7 @@ import { Hit, SortKey, isOfficial, sortHits } from "./lib/hub";
 import { PRESETS, checkRef, isAuthError, loginCommand, needsLogin, presetFor } from "./lib/registry";
 import { Banner, Button, Sheet, Field, Fields, FormRow, ChipButton, Canvas, Command, Row, Col, Menu, MenuItem, MenuSeparator, Inspector } from "./ui/op";
 import { useFixRuns } from "./FixIt";
-import { busy } from "./lib/fixStore";
+import { useBringBusy } from "./bringBusy";
 import { useDockerLocked } from "./dockerLock";
 import { useConfirm, useToast } from "./ui/op";
 import { useState, useEffect } from "react";
@@ -29,6 +29,7 @@ export default function PullPanel({ ctx, onClose, onPulled, onRun, searchFor }: 
   const [sort, setSort] = useState<SortKey>("stars");
   const [searching, setSearching] = useState(false);
   const [pulling, setPulling] = useState(false);
+  const copyBusy = useBringBusy();
   const [done, setDone] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
@@ -89,7 +90,7 @@ export default function PullPanel({ ctx, onClose, onPulled, onRun, searchFor }: 
     <>
       <div className="group">
         <FormRow label="Image to pull" htmlFor="image-to-pull">
-          <Field id="image-to-pull" width="search" placeholder="nginx or postgres:16" disabled={busy} onChange={(e) => setImage(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && name && !pulling) { pull(); } }} />
+          <Field id="image-to-pull" width="search" placeholder="nginx or postgres:16" disabled={copyBusy} onChange={(e) => setImage(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && name && !pulling) { pull(); } }} />
         </FormRow>
         <p className="hint">Add a version after a colon, like <code>nginx:1.27</code>; with none you get <code>latest</code>.</p>
         <div className="chips">
@@ -170,15 +171,15 @@ export default function PullPanel({ ctx, onClose, onPulled, onRun, searchFor }: 
         ))}
       </div>
       <Fields>
-        <Field id="registry-host" width="search" value={host} onChange={(e) => setHost(e.target.value)} disabled={busy} />
-        <Field id="image-path" width="search" value={path} onChange={(e) => setPath(e.target.value)} disabled={busy} />
-        <Field id="tag" width="port" value={tag} onChange={(e) => setTag(e.target.value)} disabled={busy} />
+        <Field id="registry-host" width="search" value={host} onChange={(e) => setHost(e.target.value)} disabled={copyBusy} />
+        <Field id="image-path" width="search" value={path} onChange={(e) => setPath(e.target.value)} disabled={copyBusy} />
+        <Field id="tag" width="port" value={tag} onChange={(e) => setTag(e.target.value)} disabled={copyBusy} />
       </Fields>
       <ChipButton icon="chev-right" pressed={mode === "hub"} onClick={() => switchMode("hub")}>Docker Hub</ChipButton>
       <ChipButton icon="chev-right" pressed={mode === "private"} onClick={() => switchMode("private")}>Other registry</ChipButton>
       {priv && privItems}
       {!priv && hubItems}
-      {busy && <p className="hint">Pulling the image. This may take a while.</p>}
+      {copyBusy && <p className="hint">Pulling the image. This may take a while.</p>}
       {done && (
         <>
           <Banner tone="info" title="Pulled {done}"><span>Pulled {done}</span></Banner>

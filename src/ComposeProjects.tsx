@@ -154,7 +154,9 @@ export default function ComposeProjects({ ctx, scan, containers, attention, onCl
         <Button icon="plus" size="md" onClick={addFolder} disabled={scan.scanning}>Add a folder…</Button>
       </div>
       {added && <p className="hint" role="status">{added}</p>}
-      <Banner tone={scan.error === null ? "info" : "bad"} title={scan.error ?? "Warning"} />
+      {scan.error || err ? (
+        <Banner tone="bad" title="Warning">{scan.error ?? err}</Banner>
+      ) : null}
       {scan.paths && all.length === 0 && <p className="hint">No Compose files found. Spotlight skips hidden folders and folders it doesn't index.</p>}
       {cut && <p className="hint">Showing the first {SHOWN_MAX} Compose files, A to Z. Search to narrow the list.</p>}
       {all.length > 0 && rows.length === 0 && <p className="hint">Nothing matches "{q.trim()}". Try part of the folder name.</p>}
@@ -172,7 +174,7 @@ export default function ComposeProjects({ ctx, scan, containers, attention, onCl
           const leftovers = failed?.dir === p.dir && !mine;
           const off = !!busy || fixing;
           const btn = (a: Action) => (
-            <Button className="small" disabled={off} aria-label={`${VERB[a][0]} ${p.name}`} onClick={() => run(p, a)}>
+            <Button className="small" disabled={off} title={fixing ? (bringing ? "Wait for the copy from Docker Desktop to finish" : "Wait for the fix to finish") : typed(p.dir, a, ctx)} aria-label={`${VERB[a][0]} ${p.name}`} onClick={() => run(p, a)}>
               {mine && busy?.action === a ? VERB[a][1] : label(a)}
             </Button>
           );
