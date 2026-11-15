@@ -49,6 +49,8 @@
   --bad-edge: rgb(196 43 35 / 0.30);
   /* depth */
   --shadow-control: 0 1px 1.5px rgb(0 0 0 / 0.08);
+  --shadow-btn: 0 0 0 0.5px var(--edge), var(--shadow-control);
+  --shadow-danger: 0 0 0 0.5px var(--bad-edge), var(--shadow-control);
   --shadow-raised: inset 0 1px 0 rgb(255 255 255 / 0.7), 0 1px 2px -0.5px rgb(0 0 0 / 0.06), 0 4px 10px -2px rgb(0 0 0 / 0.07);
   --shadow-floating: 0 0 0 0.5px var(--edge), 0 1px 2px -0.5px rgb(0 0 0 / 0.06), 0 4px 10px -2px rgb(0 0 0 / 0.07), 0 14px 28px -6px rgb(0 0 0 / 0.12);
   /* type */
@@ -79,6 +81,11 @@
   --dialog: 440px;
   --palette: 560px;
   --gutter: 20px;                /* page side padding */
+  /* spacing steps the components need (added for the Tailwind migration) */
+  --spacing-6: 6px;              /* control gaps */
+  --spacing-8: 8px;              /* xs padding */
+  --spacing-10: 10px;            /* sm padding */
+  --spacing-12: 12px;            /* md padding */
   /* motion */
   --fast: 120ms;
   --normal: 200ms;
