@@ -45,7 +45,6 @@ import { runtimeRegistry } from "./runtime";
 
 import CommandPalette from "./CommandPalette";
 import { useKeyboardShortcuts, KeyboardShortcut } from "./hooks/useKeyboardShortcuts";
-import { ToastProvider } from "./ui/components/Toast";
 import Activity from "./Activity";
 import HelpModal from "./HelpModal";
 import { score, rank, flat, type PaletteItem, type Section } from "./lib/paletteModel";
@@ -460,8 +459,7 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ResizeProvider value={{ profile: current, host, pick, runVm, containers: doc.containers, locked: vmLocked, vmBusy: vm.op !== null, onProfiles: () => setTab("Profiles") }}>
-        <ToastProvider position="top-right">
-          <Shell
+        <Shell
             nav={tab}
             onNav={(t) => setTab(t)}
             badges={{ Doctor: doctorTodo }}
@@ -514,7 +512,6 @@ export default function App() {
               />
             )}
           </Shell>
-        </ToastProvider>
       </ResizeProvider>
     </QueryClientProvider>
   );
