@@ -1,0 +1,80 @@
+@import "tailwindcss";
+
+@theme inline {
+  /* Turn the built-in palette off; every colour comes from openpier.css tokens. */
+  --color-*: initial;
+
+  /* surfaces */
+  --color-bg: var(--bg);
+  --color-bg-sidebar: var(--bg-sidebar);
+  --color-bg-raised: var(--bg-raised);
+  --color-bg-canvas: var(--bg-canvas);
+  --color-bg-overlay: var(--bg-overlay);
+  /* ink */
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-fg-faint: var(--fg-faint);
+  /* lines */
+  --color-line: var(--line);
+  --color-edge: var(--edge);
+  --color-edge-strong: var(--edge-strong);
+  /* tone steps */
+  --color-tile: var(--tile);
+  --color-tile-hover: var(--tile-hover);
+  --color-tile-active: var(--tile-active);
+  /* accent */
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-fill: var(--accent-fill);
+  --color-accent-fill-hover: var(--accent-fill-hover);
+  --color-accent-edge: var(--accent-edge);
+  --color-focus: var(--focus);
+  --color-on-accent: var(--on-accent);
+  --color-off: var(--off);
+  /* state */
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-bad: var(--bad);
+  --color-info: var(--info);
+  --color-ok-fill: var(--ok-fill);
+  --color-warn-fill: var(--warn-fill);
+  --color-bad-fill: var(--bad-fill);
+  --color-info-fill: var(--info-fill);
+  --color-bad-edge: var(--bad-edge);
+  /* depth */
+  --shadow-control: var(--shadow-control);
+  --shadow-raised: var(--shadow-raised);
+  --shadow-floating: var(--shadow-floating);
+  /* type */
+  --font-ui: var(--font-ui);
+  --font-mono: var(--font-mono);
+  --text-micro: var(--text-micro);
+  --text-meta: var(--text-meta);
+  --text-body: var(--text-body);
+  --text-title: var(--text-title);
+  --text-page: var(--text-page);
+  --leading: var(--leading);
+  /* shape */
+  --radius-xs: var(--r-xs);
+  --radius-sm: var(--r-sm);
+  --radius-md: var(--r-md);
+  --radius-lg: var(--r-lg);
+  --radius-xl: var(--r-xl);
+  /* size / spacing */
+  --spacing-h-xs: var(--h-xs);
+  --spacing-h-sm: var(--h-sm);
+  --spacing-h-md: var(--h-md);
+  --spacing-row: var(--row);
+  --spacing-subrow: var(--subrow);
+  --spacing-sidebar: var(--sidebar);
+  --spacing-sidebar-folded: var(--sidebar-folded);
+  --spacing-header: var(--header);
+  --spacing-sheet: var(--sheet);
+  --spacing-dialog: var(--dialog);
+  --spacing-palette: var(--palette);
+  --spacing-gutter: var(--gutter);
+  /* motion */
+  --fast: var(--fast);
+  --normal: var(--normal);
+  --ease: var(--ease);
+}
