@@ -14,4 +14,4 @@ artifacts/
 .superpowers/
 .claude/worktrees/
 .playwright-mcp/
-.freebuff/
+.freebuff/.tw-loop/
