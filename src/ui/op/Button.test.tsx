@@ -7,14 +7,20 @@ import { Button } from "./Button";
 it("given no props, when rendered, then class is exactly btn and type is button", () => {
   render(<Button>Run</Button>);
   const button = screen.getByRole("button", { name: "Run" });
-  expect(button).toHaveClass("btn");
-  expect(button.className).toBe("btn");
+  expect(button).toHaveClass("inline-flex", "bg-bg-raised", "text-fg", "h-h-sm", "px-10", "rounded-radius-md", "text-meta");
   expect(button).toHaveAttribute("type", "button");
 });
 
 it("given variant primary and size md, when rendered, then classes are btn primary md", () => {
   render(<Button variant="primary" size="md">New</Button>);
-  expect(screen.getByRole("button", { name: "New" })).toHaveClass("btn", "primary", "md");
+  expect(screen.getByRole("button", { name: "New" })).toHaveClass(
+    "bg-accent",
+    "text-on-accent",
+    "shadow-control",
+    "h-h-md",
+    "px-12",
+    "text-body",
+  );
 });
 
 it("given busy, when clicked, then onClick is not called and aria-busy is true", async () => {
