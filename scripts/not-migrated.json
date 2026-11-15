@@ -58,7 +58,6 @@
   "src/ui/components/Separator.tsx",
   "src/ui/components/Sidebar.tsx",
   "src/ui/components/Table.tsx",
-  "src/ui/components/Toast.tsx",
   "src/ui/components/Tooltip.tsx",
   "src/ui/icons.tsx",
   "src/ui/ui.tsx"
