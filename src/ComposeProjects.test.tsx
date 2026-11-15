@@ -8,7 +8,7 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke: (cmd: string, a: Record<string,
 vi.mock("@tauri-apps/api/event", () => ({ listen: async () => () => {} }));
 
 import ComposeProjects, { composeRunState, resetComposeRun, runCompose } from "./ComposeProjects";
-import { ConfirmProvider } from "./ui";
+import { ConfirmProvider } from "./ui/op";
 import { reset as resetFixes, startFix } from "./lib/fixStore";
 
 // jsdom has no scrolling; the output log scrolls to its end.

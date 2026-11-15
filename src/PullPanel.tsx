@@ -1,29 +1,35 @@
-import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { dockerJson } from "./api";
 import { Hit, SortKey, isOfficial, sortHits } from "./lib/hub";
 import { PRESETS, checkRef, isAuthError, loginCommand, needsLogin, presetFor } from "./lib/registry";
-import { Banner, Button, Sheet } from "./ui/op";
+import { Banner, Button, Sheet, Field, Fields, FormRow, ChipButton, Canvas, Command, Row, Col, Menu, MenuItem, MenuSeparator, Inspector } from "./ui/op";
+import { useFixRuns } from "./FixIt";
+import { useBringBusy } from "./bringBusy";
+import { useDockerLocked } from "./dockerLock";
+import { useConfirm, useToast } from "./ui/op";
+import { useState, useEffect } from "react";
 import { Icon } from "./ui/op";
-import OutputLog from "./ui/OutputLog";
-import { notePullFailure, notePullOk } from "./lib/netEvidence";
 
-// `searchFor` opens the panel already searching Docker Hub, for a name the user typed elsewhere.
 type Props = { ctx: string; onClose: () => void; onPulled: () => void; onRun: (image: string) => void; searchFor?: string };
 
 type Mode = "hub" | "private";
 
+type HitRow = { Name: string; Description: string; StarCount: string; IsOfficial: string };
+
 export default function PullPanel({ ctx, onClose, onPulled, onRun, searchFor }: Props) {
+  const confirm = useConfirm();
+  const toast = useToast();
   const [mode, setMode] = useState<Mode>("hub");
   const [host, setHost] = useState("");
   const [path, setPath] = useState("");
   const [tag, setTag] = useState("latest");
   const [term, setTerm] = useState(searchFor ?? "");
   const [image, setImage] = useState("");
-  const [hits, setHits] = useState<Hit[] | null>(null);
+  const [hits, setHits] = useState<HitRow[] | null>(null);
   const [sort, setSort] = useState<SortKey>("stars");
   const [searching, setSearching] = useState(false);
   const [pulling, setPulling] = useState(false);
+  const copyBusy = useBringBusy();
   const [done, setDone] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
@@ -38,7 +44,6 @@ export default function PullPanel({ ctx, onClose, onPulled, onRun, searchFor }: 
 
   useEffect(() => {
     if (searchFor?.trim()) void search();
-    // Once, on open: later edits search when the user asks.
   }, []);
 
   async function search() {
@@ -46,7 +51,7 @@ export default function PullPanel({ ctx, onClose, onPulled, onRun, searchFor }: 
     setSearching(true);
     setError(null);
     try {
-      setHits(await dockerJson<Hit>(ctx, ["search", "--limit", "25", query]));
+      setHits(await dockerJson<HitRow>(ctx, ["search", "--limit", "25", query]));
     } catch (e) {
       setError(String(e));
     } finally {
@@ -69,84 +74,24 @@ export default function PullPanel({ ctx, onClose, onPulled, onRun, searchFor }: 
     setFailure(null);
     try {
       await invoke("docker_pull", { context: ctx, image: target });
-      notePullOk();
       setDone(target);
       onPulled();
     } catch (e) {
-      notePullFailure(String(e));
-      setFailure(String(e));
+      const msg = String(e);
+      setFailure(msg);
     } finally {
       setPulling(false);
     }
   }
 
-  const shown = hits ? sortHits(hits, sort) : [];
+  const shown = hits ? sortHits(hits as HitRow[], sort) : [];
 
-  return (
-    <Sheet open={true} onClose={onClose} title="Pull an image">
-      <div className="seg" role="group" aria-label="Where to pull from">
-        <button aria-pressed={!priv} disabled={pulling} onClick={() => switchMode("hub")}>Docker Hub</button>
-        <button aria-pressed={priv} disabled={pulling} onClick={() => switchMode("private")}>Other registry</button>
-      </div>
-
-      {priv && (
-        <div className="group">
-          <div className="chips">
-            <span className="hint">Registry:</span>
-            {PRESETS.map((p) => (
-              <button key={p.id} className="chip" aria-pressed={preset?.id === p.id} disabled={pulling} onClick={() => setHost(p.host)}>{p.label}</button>
-            ))}
-          </div>
-          <label className="reg-field">
-            Registry host
-            <input aria-label="Registry host" value={host} placeholder="ghcr.io, or your own like harbor.example.com" disabled={pulling} onChange={(e) => setHost(e.target.value)} />
-          </label>
-          <label className="reg-field">
-            Image path
-            <input aria-label="Image path" value={path} placeholder={preset?.pathExample ?? "acme/api"} disabled={pulling} onChange={(e) => setPath(e.target.value)} onKeyDown={(e) => e.key === "Enter" && target && !pulling && pull()} />
-          </label>
-          <label className="reg-field">
-            Tag
-            <input aria-label="Tag" value={tag} placeholder="latest" disabled={pulling} onChange={(e) => setTag(e.target.value)} onKeyDown={(e) => e.key === "Enter" && target && !pulling && pull()} />
-          </label>
-          {refCheck.ok ? (
-            <p className="hint">Will pull <code>{refCheck.ref}</code></p>
-          ) : (
-            (host.trim() || path.trim()) && <p className="hint">{refCheck.reason}</p>
-          )}
-          {!authHint && needsLogin(host) && (
-            <div className="login-hint">
-              <p className="hint">Private images need you to sign in first. Run this in Terminal:</p>
-              <pre className="cmd">{login ?? "docker login <registry>"}</pre>
-              <button disabled={!login} onClick={() => login && navigator.clipboard.writeText(login)}><Icon name="copy" size="sm" /> Copy command</button>
-            </div>
-          )}
-          <button className="primary" disabled={!target || pulling} onClick={pull}>
-            {pulling ? "Pulling…" : target ? `Pull ${target}` : "Pull"}
-          </button>
-        </div>
-      )}
-
-      {authHint && (
-        <div className="problem-line bad start-why" role="alert">
-          <b><Icon name="alert" size="sm" /> Sign in to {host.trim()} first</b>
-          <span className="hint">The registry refused the pull. Run this in Terminal, then try again:</span>
-          <pre className="cmd">{login ?? `docker login ${host.trim()}`}</pre>
-          <span className="actions-inline">
-            <button disabled={!login} onClick={() => login && navigator.clipboard.writeText(login)}><Icon name="copy" size="sm" /> Copy command</button>
-          </span>
-        </div>
-      )}
-
-      {!priv && (<>
+  const hubItems = (
+    <>
       <div className="group">
-        <h4>Image</h4>
-        <span className="inline">
-          <input aria-label="Image to pull" value={image} placeholder={!image ? "nginx or postgres:16" : undefined} disabled={pulling} onChange={(e) => setImage(e.target.value)} onKeyDown={(e) => e.key === "Enter" && name && !pulling && pull()} />
-          <button className="primary" disabled={!name || pulling} onClick={pull}>
-            {pulling ? "Pulling…" : name ? `Pull ${name}` : "Pull"}
-          </button>
-        </span>
+        <FormRow label="Image to pull" htmlFor="image-to-pull">
+          <Field id="image-to-pull" width="search" placeholder="nginx or postgres:16" disabled={copyBusy} onChange={(e) => setImage(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && name && !pulling) { pull(); } }} />
+        </FormRow>
         <p className="hint">Add a version after a colon, like <code>nginx:1.27</code>; with none you get <code>latest</code>.</p>
         <div className="chips">
           <span className="hint">Or try one:</span>
@@ -155,22 +100,11 @@ export default function PullPanel({ ctx, onClose, onPulled, onRun, searchFor }: 
           ))}
         </div>
       </div>
-
       <div className="group">
         <h4>Not sure of the name? Search Docker Hub</h4>
         <p className="hint">Searching only lists images. Nothing is downloaded.</p>
-        <span className="inline">
-          <input
-            aria-label="Search Docker Hub"
-            value={term}
-            placeholder={!term ? "Search Docker Hub, like redis" : undefined}
-            disabled={pulling}
-            onChange={(e) => setTerm(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && search()}
-          />
-          <button disabled={!query || searching || pulling} onClick={search}>{searching ? "Searching…" : "Search"}</button>
-        </span>
-
+        <Field id="search-docker-hub-2" width="search" value={term} onChange={(e) => setTerm(e.target.value)} disabled={searching || pulling} />
+        <button disabled={!query || searching || pulling} onClick={search}>{searching ? "Searching…" : "Search"}</button>
         {hits && hits.length === 0 && <p className="hint">Nothing found on Docker Hub for "{query}".</p>}
         {hits && hits.length > 0 && (
           <>
@@ -185,34 +119,75 @@ export default function PullPanel({ ctx, onClose, onPulled, onRun, searchFor }: 
                 </select>
               </label>
             </div>
-            <ul className="hits">
+            <div className="list">
               {shown.map((h) => (
-                <li key={h.Name}>
-                  <button className="hit" disabled={pulling} aria-selected={h.Name === name} onClick={() => setImage(h.Name)}>
-                    <span className="hit-name">
-                      {h.Name}
-                      {isOfficial(h.IsOfficial) && <span className="tag">Official</span>}
-                    </span>
-                    <span className="hit-meta">{Number(h.StarCount).toLocaleString()} stars</span>
-                    <span className="hit-desc">{h.Description || "No description"}</span>
-                  </button>
-                </li>
+                <Row key={h.Name} lead={<Icon name="image" size="md" />} name={h.Name} meta={h.Description || "No description"} selected={h.Name === name} onOpen={() => setImage(h.Name)} />
               ))}
-            </ul>
+            </div>
           </>
         )}
       </div>
+    </>
+  );
 
-      </>)}
-
-      {error && <Banner tone="bad" title="Error">{error}</Banner>}
-      {done && (
+  const privItems = (
+    <>
+      <div className="chips">
+        {PRESETS.map((p) => (
+          <ChipButton key={p.id} icon={preset?.id === p.id ? "chev-down" : "chev-right"} pressed={preset?.id === p.id} disabled={pulling} onClick={() => setHost(p.host)}>{p.label}</ChipButton>
+        ))}
+      </div>
+      {(host.trim() || path.trim()) && (
         <>
-          <p className="ok">Pulled {done}. It's in your image list now.</p>
-          <button className="primary" onClick={() => onRun(done)}>Run {done}</button>
+          {refCheck.ok ? (
+            <p className="hint">Will pull <code>{refCheck.ref}</code></p>
+          ) : (
+            <p className="hint">{refCheck.reason}</p>
+          )}
+          {!authHint && needsLogin(host) && (
+            <div className="login-hint">
+              <p className="hint">Private images need you to sign in first. Run this in Terminal:</p>
+              <pre className="cmd">{login ?? `docker login ${host.trim()}`}</pre>
+              <button disabled={!login} onClick={() => login && navigator.clipboard.writeText(login)}><Icon name="copy" size="md" /> Copy command</button>
+            </div>
+          )}
         </>
       )}
-      <OutputLog event="pull-progress" active={pulling} failure={authHint ? null : failure} collapsed={authHint} />
+      <Button variant="primary" size="md" disabled={!target || pulling} onClick={pull}>
+        {pulling ? "Pulling…" : target ? `Pull ${target}` : "Pull"}
+      </Button>
+    </>
+  );
+
+  return (
+    <Sheet open={true} onClose={onClose} title="Pull an image">
+      <Fields>
+        <Field id="search-docker-hub" width="search" value={term} onChange={(e) => setTerm(e.target.value)} disabled={searching || pulling} />
+      </Fields>
+      <p className="hint">Searching only lists images. Nothing is downloaded.</p>
+      <div className="list">
+        {shown.map((h) => (
+          <Row key={h.Name} lead={<Icon name="image" size="md" />} name={h.Name} meta={h.Description || "No description"} selected={h.Name === name} onOpen={() => setImage(h.Name)} />
+        ))}
+      </div>
+      <Fields>
+        <Field id="registry-host" width="search" value={host} onChange={(e) => setHost(e.target.value)} disabled={copyBusy} />
+        <Field id="image-path" width="search" value={path} onChange={(e) => setPath(e.target.value)} disabled={copyBusy} />
+        <Field id="tag" width="port" value={tag} onChange={(e) => setTag(e.target.value)} disabled={copyBusy} />
+      </Fields>
+      <ChipButton icon="chev-right" pressed={mode === "hub"} onClick={() => switchMode("hub")}>Docker Hub</ChipButton>
+      <ChipButton icon="chev-right" pressed={mode === "private"} onClick={() => switchMode("private")}>Other registry</ChipButton>
+      {priv && privItems}
+      {!priv && hubItems}
+      {copyBusy && <p className="hint">Pulling the image. This may take a while.</p>}
+      {done && (
+        <>
+          <Banner tone="info" title="Pulled {done}"><span>Pulled {done}</span></Banner>
+          <Button variant="primary" size="md" onClick={() => { onRun(done); onClose(); }}>Run {done}</Button>
+        </>
+      )}
+      <Button variant="ghost" size="md" onClick={onClose}>Cancel</Button>
+      <Button variant="primary" size="md" disabled={pulling || !target} onClick={pull}>{pulling ? "Pulling…" : target ? `Pull ${target}` : "Pull"}</Button>
     </Sheet>
   );
 }

@@ -3,8 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { usePoll } from "./hooks";
-import { Banner } from "./ui";
-import { Icon } from "./ui/icons";
+import { Banner, Icon, Select, Button } from "./ui/op";
 import { ProjectLine, mergeProjectLogs, projectSince, serviceName } from "./lib/composeLogs";
 import { useActivity } from "./Commands";
 
@@ -54,18 +53,16 @@ export default function ComposeLogs({ ctx, file, project }: Props) {
     <div className="compose-logs">
       <div className="log-bar">
         {services.length > 1 && (
-          <select aria-label={`Service to show for ${project}`} value={only} onChange={(e) => setOnly(e.target.value)}>
-            <option value="">All services</option>
-            {services.map((s) => <option key={s} value={s}>{serviceName(s, project)}</option>)}
-          </select>
+          <Select aria-label={`Service to show for ${project}`} value={only} options={services.map(s => ({ value: s, label: serviceName(s, project) }))} onChange={(value: string) => setOnly(value)}>
+          </Select>
         )}
         <input className="filter" aria-label={`Filter ${project} log lines`} placeholder="Filter lines" value={filter} onChange={(e) => setFilter(e.target.value)} />
-        <button className={follow ? "toggle on" : "toggle"} aria-pressed={follow} onClick={() => setFollow((f) => !f)}>
+        <Button className={follow ? "toggle on" : "toggle"} aria-pressed={follow} onClick={() => setFollow((f) => !f)}>
           {follow ? "Following new lines" : "Paused, click to follow"}
-        </button>
-        <button onClick={() => navigator.clipboard.writeText(text)} disabled={!text}><Icon name="copy" size={13} /> Copy</button>
+        </Button>
+        <Button icon="copy" size="sm" onClick={() => navigator.clipboard.writeText(text)}>Copy</Button>
       </div>
-      <Banner error={error} />
+      <Banner tone={error ? "bad" : "info"} />
       <pre
         ref={box}
         className="mono"
