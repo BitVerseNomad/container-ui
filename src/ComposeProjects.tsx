@@ -174,7 +174,7 @@ export default function ComposeProjects({ ctx, scan, containers, attention, onCl
           const leftovers = failed?.dir === p.dir && !mine;
           const off = !!busy || fixing;
           const btn = (a: Action) => (
-            <Button className="small" disabled={off} title={fixing ? (bringing ? "Wait for the copy from Docker Desktop to finish" : "Wait for the fix to finish") : typed(p.dir, a, ctx)} aria-label={`${VERB[a][0]} ${p.name}`} onClick={() => run(p, a)}>
+            <Button size="xs" disabled={off} title={fixing ? (bringing ? "Wait for the copy from Docker Desktop to finish" : "Wait for the fix to finish") : typed(p.dir, a, ctx)} aria-label={`${VERB[a][0]} ${p.name}`} onClick={() => run(p, a)}>
               {mine && busy?.action === a ? VERB[a][1] : label(a)}
             </Button>
           );
@@ -190,7 +190,7 @@ export default function ComposeProjects({ ctx, scan, containers, attention, onCl
               <span className="sub folder-line"><span className="mono path" title={`${p.dir}/${p.files.join(", ")}`}>{tilde(p.dir)}</span><span className="status">&nbsp;· {p.total ? `${p.running} of ${p.total} running` : "Not running"}</span></span>
               <div className="actions-inline">
                 {up && stopped === 0 ? btn("stop") : btn("up")}
-                {mine && <Button className="small" onClick={() => invoke("cancel_compose").catch(() => {})}>Cancel</Button>}
+                {mine && <Button size="xs" onClick={() => invoke("cancel_compose").catch(() => {})}>Cancel</Button>}
                 {!mine && (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
