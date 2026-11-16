@@ -5,21 +5,24 @@ Owner decision, 2026-11-15: OpenPier moves to Tailwind CSS v4. The look stays "M
 Done means one command prints `0 FAIL`:
 
 ```
-sh docs/plan/iterations/verify-tailwind.sh
+sh docs/plan/iterations/verify-done.sh
 ```
+
+`verify-done.sh` runs `verify-tailwind.sh` and adds the build, the full test run, a check that every class produces CSS, and the release text (WO-TW-7).
 
 The implementer runs inside `docs/plan/iterations/run-until-green.sh`. The loop decides when the work is over, not the agent.
 
 ## Rules for every step
 
 1. One branch per step, named `wo-tw-<n>`. Merge into `main` with `git merge --no-ff`. Never commit on `main` directly.
-2. Never edit these files: `docs/plan/iterations/verify-tailwind.sh`, `docs/plan/iterations/verify-iteration-2.sh`, `docs/plan/iterations/run-until-green.sh`, this file, any `scripts/check-*.mjs`, `scripts/lib/`, any file under `docs/plan/design/` except `openpier.css`. The loop stops if they change.
+2. Never edit these files: `docs/plan/iterations/verify-done.sh`, `docs/plan/iterations/verify-tailwind.sh`, `scripts/readme-shots.mjs`, `docs/plan/iterations/verify-iteration-2.sh`, `docs/plan/iterations/run-until-green.sh`, this file, any `scripts/check-*.mjs`, `scripts/lib/`, any file under `docs/plan/design/` except `openpier.css`. The loop stops if they change.
 3. Never rename, skip or delete a test. Never add `.skip` or `.only`.
 4. Keep component APIs in `src/ui/op/` the same (props and names). Screens keep importing from `./ui/op`.
 5. When you change `src/ui/openpier.css`, copy it over `docs/plan/design/openpier.css` in the same commit (the two must stay equal).
-6. Colours, sizes, radii, shadows and fonts come from the tokens only. No hex, no `px`, no arbitrary values like `bg-[#123456]` or `p-[13px]`, no Tailwind palette colours like `bg-blue-500`. A grid template may be arbitrary (`grid-cols-[1fr_auto]`).
-7. Every step ends with `sh docs/plan/iterations/verify-tailwind.sh` run with the preview on port 4173 (`npm run preview`). Paste its last 5 lines in `docs/plan/iterations/pr/wo-tw-<n>.md`.
-8. A FAIL is never "pre-existing" or "out of scope". If it prints FAIL, it is your work. Find the cause and fix it.
+6. Colours, sizes, radii, shadows and fonts come from the tokens only. No hex, no `px`, no arbitrary values like `bg-[#123456]` or `p-[13px]`, no Tailwind palette colours like `bg-blue-500`. A grid template may be arbitrary (`grid-cols-[1fr_auto]`). Never `text-[var(--warn)]`: every token is mapped in `src/ui/tailwind.css`, so write `text-warn`. If a mapping is missing, add it there.
+7. Only real Tailwind utilities. A class that produces no CSS (an old `openpier.css` class, a daisyUI name such as `input-bordered`, an invented one such as `toggle--on`) renders nothing: `check-tw-classes` lists every one with its file and line. Replace each with utilities or a `src/ui/op` component. Classes that the browser checks find elements by (for example `sidebar`) stay.
+8. The loop runs `verify-done.sh` after each round and gives you the FAIL lines. Paste the last 5 lines of `.tw-loop/verify.txt` in `docs/plan/iterations/pr/wo-tw-<n>.md`.
+9. A FAIL is never "pre-existing" or "out of scope". `tsc` printed 0 errors at tag `tw-base`, before your first step. If it prints FAIL, it is your work. Find the cause and fix it.
 
 ## Steps
 
@@ -51,8 +54,9 @@ The implementer runs inside `docs/plan/iterations/run-until-green.sh`. The loop 
 1. `src/ui/openpier.css` ends with the tokens only: `:root`, the dark theme block, `@media (prefers-color-scheme)` and `@media (prefers-reduced-motion)`, and base rules on `html`, `body`, `*`. No `.class` selector left.
 2. Copy it over `docs/plan/design/openpier.css` and change its header comment to: "OpenPier design tokens. Components style themselves with Tailwind utilities mapped to these tokens in src/ui/tailwind.css."
 
-### WO-TW-5 Every FAIL of iteration 2 is fixed
+### WO-TW-5 Every FAIL is fixed
 
+0. First make the app compile: `npx tsc --noEmit` must print nothing. Main does not build today (`src/ComposeProjects.tsx` line 191 and 193, broken in WO-TW-3). Then the classes that produce no CSS (`check-tw-classes`, about 190 today, the biggest group), one screen per branch.
 1. Run the verify script and fix each FAIL, one cause per branch (`wo-tw-5a`, `wo-tw-5b`, ...).
 2. Group first: write every FAIL line and its cause in `docs/plan/iterations/pr/wo-tw-5.md`, then fix the cause behind the most lines first.
 3. Text checks (for example "Choose a folder…" with the single ellipsis character) mean the screen must show that exact text.
@@ -71,3 +75,11 @@ The implementer runs inside `docs/plan/iterations/run-until-green.sh`. The loop 
 3. "design files unchanged (SHA256SUMS)". Replaced by: every design file except `openpier.css` is unchanged.
 
 Then it adds the Tailwind checks. Everything else from iteration 2 still has to pass.
+
+### WO-TW-7 Release text (the loop does the rest)
+
+1. Raise the version to `0.3.0` in `package.json`, `src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml` (`check-version-sync` must pass).
+2. `CHANGELOG.md`: rename `## Unreleased` to `## 0.3.0`, and add what this migration changed for a user, in plain words (the look is the same; the screens of iteration 2 that are new). No em dash.
+3. `README.md`: say the UI uses Tailwind CSS v4 with the Manifest tokens, where the screenshots are, and keep every image path working. Do not take screenshots: the loop retakes them with `scripts/readme-shots.mjs` after everything is green.
+4. `docs/plan/iterations/pr/release-notes.md`: the GitHub release text for 0.3.0, three to six numbered lines, for users.
+5. You never push, tag or create a release. The loop pushes a `release/v0.3.0` branch and creates a draft release; the owner publishes it.
