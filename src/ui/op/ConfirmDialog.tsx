@@ -48,7 +48,7 @@ export function ConfirmProvider(props: { children: React.ReactNode }): React.JSX
       {options && (
         <AlertDialog.Root open onOpenChange={(open) => { if (!open) finish(false); }}>
           <AlertDialog.Portal container={container}>
-            <AlertDialog.Overlay className="overlay" />
+            <AlertDialog.Overlay className="fixed inset-0 bg-bg-overlay" />
             <AlertDialog.Content
               className="dialog"
               onOpenAutoFocus={(event) => {
@@ -74,7 +74,7 @@ export function ConfirmProvider(props: { children: React.ReactNode }): React.JSX
                 </Checkbox>
               )}
               {options.command && <Command text={options.command} />}
-              <div className="foot">
+              <div className="foot flex justify-end gap-2 pt-4">
                 <AlertDialog.Cancel asChild>
                   <Button ref={cancelRef} size="md" onClick={() => finish(false)}>Cancel</Button>
                 </AlertDialog.Cancel>

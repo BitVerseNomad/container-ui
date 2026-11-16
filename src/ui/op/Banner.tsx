@@ -9,11 +9,11 @@ export function Banner(props: { tone: "bad" | "warn" | "info"; title?: string; c
       <Sev level={tone} />
       {title ? (
         <div>
-          <div className="title">{title}</div>
-          <div className="body selectable">{children}</div>
+          <div className="title font-semibold">{title}</div>
+          <div className="select-text">{children}</div>
         </div>
       ) : (
-        <div className="body selectable">{children}</div>
+        <div className="select-text">{children}</div>
       )}
       {actions && <div className="actions">{actions}</div>}
     </div>
