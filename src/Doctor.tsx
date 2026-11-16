@@ -217,9 +217,9 @@ export default function Doctor({ ctx, setup, doc, onProfiles, onBring, onGo, onO
         <div>
           <b><Ticks text={f.title} /></b>
           {elsewhere && (
-            <span className="hint together">
+            <span className="hint inline-flex flex-wrap items-center gap-2">
               Fixed together with{" "}
-              <button className="link" aria-label={`Go to the fix on ${elsewhere.subject ?? elsewhere.title}`} onClick={() => {
+              <button className="text-accent-ink hover:underline" aria-label={`Go to the fix on ${elsewhere.subject ?? elsewhere.title}`} onClick={() => {
                 const row = document.querySelector<HTMLElement>(`[data-key="${CSS.escape(elsewhere.key)}"]`);
                 const fixButton = row?.querySelector<HTMLElement>(".finding-actions button.small, .limit-actions button.small");
                 // A muted owner has no button here; its row (or the page) still takes focus so the move is heard.
@@ -229,13 +229,13 @@ export default function Doctor({ ctx, setup, doc, onProfiles, onBring, onGo, onO
             </span>
           )}
           <span className="hint"><Ticks text={f.detail} /></span>
-          {f.code && <pre className="code-lines">{f.code}</pre>}
+          {f.code && <pre className="block overflow-x-auto whitespace-pre rounded-sm bg-tile p-2 font-mono text-meta">{f.code}</pre>}
           {f.after && <span className="hint"><Ticks text={f.after} /></span>}
           {f.fix?.resize && !elsewhere && <ResizeOther title={f.title} need="memory" />}
           {f.fix?.resize && <ResizeStatus from={`doctor:${f.key}`} />}
           {f.fix?.vm && <ResizeStatus from={`doctor:${f.key}`} title={f.title} okElsewhere />}
           {f.fix?.text && !f.fix.go && !elsewhere && (
-            <details className="how">
+            <details className="text-meta text-fg-muted">
               <summary><Icon name="chevron" size={12} />Or run it yourself<span className="sr-only">: {f.title}</span></summary>
               {/* A VM change is two short commands: one line of code, run in order. Other fixes keep their block. */}
               {f.fix.vm ? <p className="how-cmd"><code>{f.fix.text.split("\n").join(" && ")}</code></p> : <pre className="cmd">{f.fix.text}</pre>}
@@ -310,31 +310,31 @@ export default function Doctor({ ctx, setup, doc, onProfiles, onBring, onGo, onO
       <Banner error={setup.error ?? doc.error} />
       {/* A VM change whose row is gone (the folder is shared now): its result stays here until Dismiss. */}
       {rs.change && rs.from?.startsWith("doctor:") && <ResultRow from={rs.from} />}
-      {rs.change && rs.from?.startsWith("doctor:") && (!!rs.outcome || !!rs.progress) && !listed.some((f) => `doctor:${f.key}` === rs.from) && <div className="resize-orphan"><ResizeStatus from={rs.from} okElsewhere /></div>}
+      {rs.change && rs.from?.startsWith("doctor:") && (!!rs.outcome || !!rs.progress) && !listed.some((f) => `doctor:${f.key}` === rs.from) && <div className="mt-2"><ResizeStatus from={rs.from} okElsewhere /></div>}
       <FixRuns />
       {actions.log}
       {todo > 0 && (
         <section aria-label="Needs action">
-          <div className="doctor-group-head"><h3 className="doctor-group">Needs action</h3>{/* Only fixes that edit settings: Bring over copies data and the VM size fix restarts the VM, so each asks on its own. */}{actions.fixAll(plan, sAction.filter((f) => f.fix?.kind === "fix" || f.fix?.kind === "install"), todo)}</div>
-          <ul className="findings">{[...sAction.map(setupRow), ...eAction.map(item)]}</ul>
+          <div className="flex items-center justify-between gap-3 pb-1 pt-4"><h3 className="text-title font-semibold text-fg-muted">Needs action</h3>{/* Only fixes that edit settings: Bring over copies data and the VM size fix restarts the VM, so each asks on its own. */}{actions.fixAll(plan, sAction.filter((f) => f.fix?.kind === "fix" || f.fix?.kind === "install"), todo)}</div>
+          <ul className="m-0 flex list-none flex-col gap-2 p-0">{[...sAction.map(setupRow), ...eAction.map(item)]}</ul>
         </section>
       )}
       {onHome.length > 0 && (
         <section aria-label="On the Containers screen">
-          <h3 className="doctor-group">On the Containers screen</h3>
-          <ul className="findings">{onHome.map(item)}</ul>
+          <h3 className="text-title font-semibold text-fg-muted">On the Containers screen</h3>
+          <ul className="m-0 flex list-none flex-col gap-2 p-0">{onHome.map(item)}</ul>
         </section>
       )}
       {sKnow.length + eKnow.length > 0 && (
         <section aria-label="Worth knowing">
-          <h3 className="doctor-group">Worth knowing</h3>
-          <ul className="findings">{[...sKnow.map(setupRow), ...eKnow.map(item)]}</ul>
+          <h3 className="text-title font-semibold text-fg-muted">Worth knowing</h3>
+          <ul className="m-0 flex list-none flex-col gap-2 p-0">{[...sKnow.map(setupRow), ...eKnow.map(item)]}</ul>
         </section>
       )}
       {passed.length > 0 && (
-        <details className="passing">
+        <details className="mt-3 text-meta text-fg-muted">
           <summary><Icon name="chevron" size={12} />{passed.length} check{passed.length === 1 ? "" : "s"} pass</summary>
-          <ul className="findings">
+          <ul className="m-0 flex list-none flex-col gap-2 p-0">
             {passed.map(({ t, setup: id }) => (
               <li key={t} className="finding ok" data-setup={id}><Icon name="check" /><div><b>{t}</b></div></li>
             ))}
@@ -342,11 +342,11 @@ export default function Doctor({ ctx, setup, doc, onProfiles, onBring, onGo, onO
         </details>
       )}
       {hidden.length > 0 && (
-        <details className="passing">
+        <details className="mt-3 text-meta text-fg-muted">
           <summary><Icon name="chevron" size={12} />{hidden.length} marked not an issue</summary>
-          <ul className="findings">
+          <ul className="m-0 flex list-none flex-col gap-2 p-0">
             {hidden.map((f) => (
-              <li key={f.key} className="finding info">
+              <li key={f.key} className="finding text-info">
                 <Icon name="info" />
                 <div>
                   <b>{f.title}</b>
@@ -388,14 +388,14 @@ function SizeRow({ f, primary, onProfiles }: { f: SetupFinding; primary: boolean
   const o = mine ? s.outcome : null;
   return (
     <li className={`finding ${f.status}`} data-setup={f.id}>
-      {busy ? <span className="mark finding-mark" aria-hidden="true"><span className="spin" /></span> : <Icon name={ICON[f.status]} />}
+      {busy ? <span className="mark inline-flex size-4 shrink-0 items-center justify-center" aria-hidden="true"><span className="spin" /></span> : <Icon name={ICON[f.status]} />}
       <div>
         <b>{f.title}</b>
         {/* While a result shows, it is the row's one sentence. */}
         {!o && <span className="hint"><Ticks text={f.detail} /></span>}
-        {open && f.more && <span className="hint">Other numbers? <button className="link" aria-label={`${f.more.label}: ${f.title}`} onClick={onProfiles}>{f.more.label}</button></span>}
+        {open && f.more && <span className="hint">Other numbers? <button className="text-accent-ink hover:underline" aria-label={`${f.more.label}: ${f.title}`} onClick={onProfiles}>{f.more.label}</button></span>}
         {open && f.command && !(mine && s.outcome) && (
-          <details className="how">
+          <details className="text-meta text-fg-muted">
             <summary><Icon name="chevron" size={12} />What it does<span className="sr-only">: {f.title}</span></summary>
             <pre className="cmd">{f.command}</pre>
           </details>
@@ -405,7 +405,7 @@ function SizeRow({ f, primary, onProfiles }: { f: SetupFinding; primary: boolean
       {fix && !(mine && s.outcome) && (
         <span className="finding-actions">
           <ResizeButton from="setup" size={{ cpus: fix.cpus, memory: fix.memory }} title={f.title} primary={primary} />
-          <span className="more-slot" aria-hidden="true" />
+          <span className="inline-block w-7 shrink-0" aria-hidden="true" />
         </span>
       )}
     </li>
