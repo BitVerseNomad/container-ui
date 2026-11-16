@@ -43,23 +43,23 @@ export default function Networks({ ctx }: { ctx: string }) {
     <section>
       <p className="hint lead">
         Containers on the same network reach each other by name, like <code>http://db:5432</code>. The built-in <b>bridge</b> network doesn't do name lookup, so put containers that talk to each other on a network of your own.{" "}
-        <button className="link ext" onClick={() => openUrl(BRIDGE_DOCS)}>Learn more <span className="host">(docs.docker.com)</span></button>
+        <button className="cursor-pointer border-0 bg-transparent p-0 text-accent-ink hover:underline" onClick={() => openUrl(BRIDGE_DOCS)}>Learn more <span className="font-mono text-fg-muted">(docs.docker.com)</span></button>
       </p>
-      <div className="inline newnet">
+      <div className="flex items-center gap-2">
         <input aria-label="New network name" placeholder="New network name, like devnet" value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && valid && act(["network", "create", newName.trim()]).then(() => setNewName(""))} />
         <button className="primary" disabled={!valid} onClick={async () => { await act(["network", "create", newName.trim()]); setNewName(""); }}>Create network</button>
-        <button className="push-right" onClick={() => setTesting(true)}>Test a connection…</button>
+        <button className="ml-auto" onClick={() => setTesting(true)}>Test a connection…</button>
       </div>
       <Banner error={nets.error ?? err} onClose={() => setErr(null)} />
       {nets.data && nets.data.length === 0 && <Empty title="No networks">Docker creates a few built-in ones when it starts.</Empty>}
       {nets.data && nets.data.length > 0 && (
         <>
-          <label className="search-field network-search">
+          <label className="flex h-7 items-center gap-2 rounded-sm border border-line bg-bg-raised px-2 focus-within:ring-2 focus-within:ring-focus">
             <Icon name="search" size={14} />
             <input placeholder="Search your networks" aria-label="Search your networks" value={q} onChange={(e) => setQ(e.target.value)} />
           </label>
           {shown.length === 0 && (
-            <p className="hint pad">No network here matches "{q.trim()}".</p>
+            <p className="hint py-2">No network here matches "{q.trim()}".</p>
           )}
           {shown.length > 0 && (
             <table>
@@ -73,13 +73,13 @@ export default function Networks({ ctx }: { ctx: string }) {
               return (
                 <tr key={n.name}>
                   <td><b>{n.name}</b>{builtin && <span className="tag">Built in</span>}</td>
-                  <td className="mono">{n.subnet || "none"}</td>
+                  <td className="font-mono">{n.subnet || "none"}</td>
                   <td>
                     {n.members.length === 0 && <span className="hint">No containers</span>}
-                    <span className="members">
+                    <span className="flex flex-wrap gap-2">
                       {n.members.map((m) => (
-                        <span key={m.id} className="member">
-                          <b>{m.name}</b> <span className="mono">{m.ip}</span>
+                        <span key={m.id} className="inline-flex items-center gap-1">
+                          <b>{m.name}</b> <span className="font-mono text-fg-muted">{m.ip}</span>
                           {!builtin && (
                             <Button variant="ghost" size="sm" icon={<Icon name="close" size={13} />} aria-label={`Disconnect ${m.name} from ${n.name}`} onClick={async () => (await confirm(`Disconnect ${m.name} from ${n.name}? It will no longer reach the others on this network.`, "Disconnect")) && act(["network", "disconnect", n.name, m.name])}>Disconnect</Button>
                           )}
@@ -87,7 +87,7 @@ export default function Networks({ ctx }: { ctx: string }) {
                       ))}
                     </span>
                     {!builtin && free.length > 0 && (
-                      <span className="connect">
+                      <span className="flex items-center gap-2">
                         <select aria-label={`Connect a container to ${n.name}`} value={pick[n.name] ?? ""} onChange={(e) => setPick({ ...pick, [n.name]: e.target.value })}>
                           <option value="">Connect a container…</option>
                           {free.map((c) => <option key={c.Names}>{c.Names}</option>)}
@@ -96,7 +96,7 @@ export default function Networks({ ctx }: { ctx: string }) {
                       </span>
                     )}
                   </td>
-                  <td className="row-actions">
+                  <td className="whitespace-nowrap text-right">
                     {!builtin && <Button variant="destructive" size="sm" icon={<Icon name="trash" size={13} />} aria-label={n.members.length ? `Remove network ${n.name} (still has containers)` : `Remove network ${n.name}`} disabled={n.members.length > 0} onClick={async () => (await confirm(`Remove network ${n.name}?`)) && act(["network", "rm", n.name])}>Remove</Button>}
                   </td>
                 </tr>
