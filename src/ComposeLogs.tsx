@@ -51,7 +51,7 @@ export default function ComposeLogs({ ctx, file, project }: Props) {
 
   return (
     <div className="space-y-2">
-      <div className="border-b border-[var(--line)] pb-2">
+      <div className="border-b border-line pb-2">
         {services.length > 1 && (
           <Select aria-label={`Service to show for ${project}`} value={only} options={services.map(s => ({ value: s, label: serviceName(s, project) }))} onChange={(value: string) => setOnly(value)}>
           </Select>
