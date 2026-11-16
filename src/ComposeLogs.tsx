@@ -50,14 +50,14 @@ export default function ComposeLogs({ ctx, file, project }: Props) {
   }, [text, follow]);
 
   return (
-    <div className="compose-logs">
-      <div className="log-bar">
+    <div className="space-y-2">
+      <div className="border-b border-[var(--line)] pb-2">
         {services.length > 1 && (
           <Select aria-label={`Service to show for ${project}`} value={only} options={services.map(s => ({ value: s, label: serviceName(s, project) }))} onChange={(value: string) => setOnly(value)}>
           </Select>
         )}
-        <input className="filter" aria-label={`Filter ${project} log lines`} placeholder="Filter lines" value={filter} onChange={(e) => setFilter(e.target.value)} />
-        <Button className={follow ? "toggle on" : "toggle"} aria-pressed={follow} onClick={() => setFollow((f) => !f)}>
+        <input className="input input-bordered w-full" aria-label={`Filter ${project} log lines`} placeholder="Filter lines" value={filter} onChange={(e) => setFilter(e.target.value)} />
+        <Button className={follow ? "toggle toggle--on" : "toggle toggle--off"} aria-pressed={follow} onClick={() => setFollow((f) => !f)}>
           {follow ? "Following new lines" : "Paused, click to follow"}
         </Button>
         <Button icon="copy" size="sm" onClick={() => navigator.clipboard.writeText(text)}>Copy</Button>
@@ -65,7 +65,7 @@ export default function ComposeLogs({ ctx, file, project }: Props) {
       <Banner tone={error ? "bad" : "info"} />
       <pre
         ref={box}
-        className="mono"
+        className="font-mono"
         tabIndex={0}
         aria-label={`Live logs of ${project}`}
         onScroll={(e) => {

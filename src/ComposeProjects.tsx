@@ -144,8 +144,8 @@ export default function ComposeProjects({ ctx, scan, containers, attention, onCl
     <Sheet open={true} onClose={onClose} title="Compose projects">
       <p className="hint">Every folder in your home with a Compose file. Missing one? Add its folder.</p>
       {fixing && <p className="hint">{bringing ? "Wait for the copy from Docker Desktop to finish" : "Wait for the fix to finish"} before starting or stopping a project.</p>}
-      <div className="inline">
-        <label className="search-field">
+      <div className="flex items-center gap-2">
+        <label className="select-label flex items-center gap-2">
           <Icon name="search" size="md" />
           <input placeholder="Search projects" aria-label="Search projects" value={q} onChange={(e) => setQ(e.target.value)} />
         </label>
@@ -154,14 +154,14 @@ export default function ComposeProjects({ ctx, scan, containers, attention, onCl
 </Button>
         <Button icon="plus" size="md" onClick={addFolder} disabled={scan.scanning}>Add a folder…</Button>
       </div>
-      {added && <p className="hint" role="status">{added}</p>}
+      {added && <p className="text-sm text-[var(--fg-muted)]" role="status">{added}</p>}
       {scan.error || err ? (
         <Banner tone="bad" title="Warning">{scan.error ?? err}</Banner>
       ) : null}
       {scan.paths && all.length === 0 && <p className="hint">No Compose files found. Spotlight skips hidden folders and folders it doesn't index.</p>}
       {cut && <p className="hint">Showing the first {SHOWN_MAX} Compose files, A to Z. Search to narrow the list.</p>}
-      {all.length > 0 && rows.length === 0 && <p className="hint">Nothing matches "{q.trim()}". Try part of the folder name.</p>}
-      <ul className="compose-list">
+      {all.length > 0 && rows.length === 0 && <p className="text-sm text-[var(--fg-muted)]">Nothing matches "{q.trim()}". Try part of the folder name.</p>}
+      <ul className="flex flex-col space-y-2">
         {rows.map((p) => {
           const mine = busy?.dir === p.dir;
           const up = p.running > 0;
@@ -182,20 +182,22 @@ export default function ComposeProjects({ ctx, scan, containers, attention, onCl
           // The common action is the button: Start when the project has stopped services, Stop when it runs. The rest are
           // under "More actions", each with a line on when you would use it.
           return (
-            <li key={p.dir} className="compose-item">
-              <div className="compose-head">
-                <span className={sick.length ? "sdot warn" : up ? "sdot on" : "sdot"} aria-hidden="true" />
+            <li key={p.dir} className="flex items-center gap-2 px-3 py-2 border-b border-[var(--line)]">
+              <div className="flex items-center gap-2 text-sm">
+                <span className={sick.length ? "inline-flex items-center gap-1 text-[var(--warn)]" : up ? "inline-flex items-center gap-1 text-[var(--ok)]" : "inline-flex items-center gap-1 bg-[var(--tile)] rounded-md w-2 h-2" } aria-hidden="true" />
                 <b title={p.name}>{p.name}</b>
               </div>
-              {sick.length > 0 && <p className="compose-sick"><Icon name="alert" size="md" /><span>{sick.length === 1 ? "1 needs attention" : `${sick.length} need attention`}</span></p>}
-              <span className="sub folder-line"><span className="mono path" title={`${p.dir}/${p.files.join(", ")}`}>{tilde(p.dir)}</span><span className="status">&nbsp;· {p.total ? `${p.running} of ${p.total} running` : "Not running"}</span></span>
-              <div className="actions-inline">
+              {sick.length > 0 && <p className="text-sm text-[var(--bad)] flex items-center gap-1"><Icon name="alert" size="md" /><span>{sick.length === 1 ? "1 needs attention" : `${sick.length} need attention`}</span></p>}
+              <span className="text-sm text-[var(--fg-muted)] flex items-baseline gap-1">
+          <span className="font-mono text-xs">{tilde(p.dir)}</span>
+          <span className="">{{p.total ? `${p.running} of ${p.total} running` : "Not running"}}</span>
+              <div className="flex items-center gap-2">
                 {up && stopped === 0 ? btn("stop") : btn("up")}
                 {mine && <Button size="xs" onClick={() => invoke("cancel_compose").catch(() => {})}>Cancel</Button>}
                 {!mine && (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="sm" className="more" aria-label={`More actions for ${p.name}`}>
+                      <Button variant="ghost" size="sm" aria-label={`More actions for ${p.name}`}>
                         <Icon name="more" size="md" />
                       </Button>
                     </DropdownMenuTrigger>
@@ -251,7 +253,7 @@ export default function ComposeProjects({ ctx, scan, containers, attention, onCl
                 )}
               </div>
               {failed?.dir === p.dir && failed.why && !mine && (
-                <div className="note" role="status">
+                <div className="bg-[var(--tile)] rounded-md py-2 px-4 mt-2 text-[var(--text-meta)]" role="status">
                   <p>{failed.why}</p>
                   {failed.holder && (
                     <Button className="primary" disabled={!!busy || fixing} onClick={() => freePortAndStart(p, failed.holder!)}>
@@ -265,9 +267,9 @@ export default function ComposeProjects({ ctx, scan, containers, attention, onCl
               {cmdsOpen.has(p.dir) && (
               <div className="fix-commands" role="group" aria-label={`Commands for ${p.name}`}>
                 {(up ? (["up", "restart", "stop", "down", "build", "pull"] as Action[]) : (["up", "build", "pull"] as Action[])).map((a) => (
-                  <div key={a} className="cmd-row">
-                    <span className="cmd-label">{label(a)}</span>
-                    <pre className="cmd">{typed(p.dir, a, ctx)}</pre>
+                  <div key={a} className="flex flex-col gap-1">
+                    <span className="font-mono text-xs">{label(a)}</span>
+                    <pre className="font-mono text-sm">{typed(p.dir, a, ctx)}</pre>
                     <CopyCommand text={typed(p.dir, a, ctx)} label={`Copy the ${VERB[a][0].toLowerCase()} command for ${p.name}`} />
                   </div>
                 ))}
