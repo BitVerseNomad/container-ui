@@ -1,6 +1,6 @@
 /* OpenPier design tokens. Components style themselves with Tailwind utilities mapped to these tokens in src/ui/tailwind.css. */
 
-/* ---------- 1. Tokens ---------- */
+ /* ---------- 1. Tokens ---------- */
 :root {
   color-scheme: light;
   /* surfaces */
