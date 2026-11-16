@@ -37,7 +37,7 @@ export default function OutputLog({ event, failure = null, active = false, onCle
         <summary><Icon name="chevron" size={12} />Show output ({lines.length} lines)</summary>
         <pre ref={box} className="out-log">
           {lines.map((l, i) => (
-            <div key={i} className={`ln ${l.level}`}>{l.text}</div>
+            <div key={i} className="whitespace-pre-wrap font-mono text-meta">{l.text}</div>
           ))}
         </pre>
       </details>
@@ -46,7 +46,7 @@ export default function OutputLog({ event, failure = null, active = false, onCle
   return (
     <div className="out">
       {failure && <p className="out-fail" role="alert">{headline || "Something went wrong."}</p>}
-      <div className="out-bar">
+      <div className="flex items-center justify-end gap-2 border-b border-line px-2 py-1 text-meta">
         <span className="state">{active ? "Working…" : "Output"}</span>
         <button onClick={() => navigator.clipboard.writeText(lines.map((l) => l.raw).join("\n"))}>
           <Icon name="copy" size={14} /> Copy raw output
@@ -57,7 +57,7 @@ export default function OutputLog({ event, failure = null, active = false, onCle
       </div>
       <pre ref={box} className="out-log">
         {lines.map((l, i) => (
-          <div key={i} className={`ln ${l.level}`}>{l.text}</div>
+          <div key={i} className="whitespace-pre-wrap font-mono text-meta">{l.text}</div>
         ))}
       </pre>
     </div>

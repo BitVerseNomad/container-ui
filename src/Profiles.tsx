@@ -95,14 +95,14 @@ export default function Profiles({ profiles, reload, openNew = false, kubeOn = (
                 <tr key={p.name}>
                   <td>{p.name}</td>
                   <td><Status level={up ? "on" : "off"}>{p.status}</Status></td>
-                  <td className="mono">{p.cpus}</td>
-                  <td className="mono">{gb(p.memory)}</td>
-                  <td className="mono">{gb(p.disk)}</td>
+                  <td className="font-mono">{p.cpus}</td>
+                  <td className="font-mono">{gb(p.memory)}</td>
+                  <td className="font-mono">{gb(p.disk)}</td>
                   <td>{p.runtime}</td>
                   <td>
                     {kubeOn(p.name) === true ? <Status level="on">On</Status> : kubeOn(p.name) === false ? <button disabled={!!busy} onClick={() => turnOnKubernetes(p)}>Turn on Kubernetes</button> : <span className="hint">–</span>}
                   </td>
-                  <td className="row-actions">
+                  <td className="whitespace-nowrap text-right">
                     {up ? (
                       <>
                         <Button variant="default" size="sm" icon={<Icon name="stop" size={13} />} aria-label={`Stop ${p.name}`} disabled={!!busy || fixing} onClick={() => act(p.name, "stopping", "stop_profile", { name: p.name })}>Stop</Button>
@@ -150,7 +150,7 @@ export default function Profiles({ profiles, reload, openNew = false, kubeOn = (
         >
           <h3>New profile</h3>
           <label>Name<input name="name" value={newName} onChange={(e) => setTypedName(e.target.value)} required pattern="[a-zA-Z0-9_-]+" /></label>
-          {taken && <p className="hint err">A profile named "{newName}" already exists. Use Edit on it instead.</p>}
+          {taken && <p className="hint text-bad">A profile named "{newName}" already exists. Use Edit on it instead.</p>}
           <label>CPUs<input key={size?.cpus} name="cpus" type="number" min={1} defaultValue={size?.cpus ?? 2} /></label>
           <label>Memory (GiB)<input key={size?.memory} name="memory" type="number" min={1} defaultValue={size?.memory ?? 4} /></label>
           <label>Disk (GiB)<input name="disk" type="number" min={10} defaultValue={60} /></label>
@@ -161,7 +161,7 @@ export default function Profiles({ profiles, reload, openNew = false, kubeOn = (
               <option>incus</option>
             </select>
           </label>
-          <label className="check"><input name="kubernetes" type="checkbox" /> Enable Kubernetes</label>
+          <label className="flex items-center gap-2"><input name="kubernetes" type="checkbox" /> Enable Kubernetes</label>
           <div className="actions">
             <button type="button" onClick={() => dialog.current?.close()}>Cancel</button>
             <button className="primary" type="submit" disabled={taken}>Create and start</button>

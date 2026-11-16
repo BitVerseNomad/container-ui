@@ -21,8 +21,8 @@ const shellQuote = (a: string) => (/[^\w@%+=:,./-]/.test(a) ? `'${a.replace(/'/g
 
 function Ext({ link, children }: { link: Link; children: ReactNode }) {
   return (
-    <Button className="link ext" onClick={() => openUrl(link.url)}>
-      {children} <span className="host">({link.host})</span>
+    <Button className="text-accent-ink hover:underline" onClick={() => openUrl(link.url)}>
+      {children} <span className="text-fg-muted">({link.host})</span>
     </Button>
   );
 }
@@ -131,9 +131,9 @@ export default function RunPanel({ ctx, image, arch, onClose, onRan }: Props) {
       </FormRow>
       <Fields>
         <Field id="mac-port" width="port" value="" onChange={(e) => {}} disabled={busy} />
-        <span className="muted nowrap">on this Mac, to</span>
+        <span className="whitespace-nowrap text-fg-muted">on this Mac, to</span>
         <Field id="container-port" width="port" value="" onChange={(e) => {}} disabled={busy} />
-        <span className="muted nowrap">in the container</span>
+        <span className="whitespace-nowrap text-fg-muted">in the container</span>
       </Fields>
       {env.split("\n").filter(Boolean).map((line, i) => {
         const [key, ...rest] = line.split("=");
@@ -148,8 +148,8 @@ export default function RunPanel({ ctx, image, arch, onClose, onRan }: Props) {
       {volumes.map((v, i) => (
         <Fields key={i}>
           <Field id={`vol-source-${i}`} value={v.source} list="volume-names" placeholder="name or /path" disabled={busy} onChange={(e) => setSource(i, e.target.value)} />
-          <span className="muted nowrap">at</span>
-          <Field id={`vol-target-${i}`} className="mono" value={v.target} disabled={busy} onChange={(e) => setVol(i, { target: e.target.value })} />
+          <span className="whitespace-nowrap text-fg-muted">at</span>
+          <Field id={`vol-target-${i}`} className="font-mono" value={v.target} disabled={busy} onChange={(e) => setVol(i, { target: e.target.value })} />
         </Fields>
       ))}
       <ChipButton icon="chev-right" pressed={false} onClick={() => {}}>More options</ChipButton>

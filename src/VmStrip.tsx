@@ -36,9 +36,9 @@ type Props = {
 function Use({ label, value, part }: { label: string; value: string; part: number }) {
   const pct = Math.round(part * 100);
   return (
-    <span className="use" title={`${label}: ${value}`}>
-      <span className="use-text"><span className="hint">{label}</span> {value}</span>
-      <span className="bar thin" role="meter" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}><i style={{ width: `${pct}%` }} /></span>
+    <span className="inline-flex items-center gap-1.5 whitespace-nowrap" title={`${label}: ${value}`}>
+      <span className="whitespace-nowrap"><span className="hint">{label}</span> {value}</span>
+      <span className="relative block h-1 w-16 overflow-hidden rounded-full bg-tile [&>i]:block [&>i]:h-full [&>i]:bg-accent" role="meter" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}><i style={{ width: `${pct}%` }} /></span>
     </span>
   );
 }
@@ -63,22 +63,22 @@ export default function VmStrip({ profile, totals, op, failure, failedOp, onStar
     <div className="vm-strip-wrap">
       <div className="vm-strip">
         {op ? <span className="mark" aria-hidden="true"><span className="spin" /></span> : <span className={`sdot ${dot}`} aria-hidden="true" />}
-        <span className="hint vm-state">{state}</span>
+        <span className="hint whitespace-nowrap">{state}</span>
         {busy && line && <span className="hint vm-line">{line}</span>}
         {running && !busy && (
-          <span className="uses">
+          <span className="inline-flex flex-wrap items-center gap-x-2">
             <Use label="CPU" value={`${t.cores.toFixed(1)} of ${profile.cpus} cores`} part={fraction(t.cores, profile.cpus)} />
             <Use label="Memory" value={`${formatBytes(t.memBytes)} of ${gbOf(profile.memory)} GiB`} part={fraction(t.memBytes, profile.memory)} />
             <Use label="Disk" value={`${formatBytes(t.diskBytes)} of ${gbOf(profile.disk)} GiB`} part={fraction(t.diskBytes, profile.disk)} />
           </span>
         )}
-        <span className="vm-actions">
+        <span className="inline-flex items-center gap-2">
           {busy && line ? null : busy ? (
             <button onClick={() => invoke("cancel_vm_op").catch(() => {})}>Cancel</button>
           ) : running && !failure ? (
             <>
-              <button className="quiet" aria-label={`Restart the ${profile.name} VM`} title={fixing ? "Wait for the fix to finish" : `Restart the ${profile.name} VM`} disabled={busy || fixing} onClick={onRestart}>Restart</button>
-              <button className="quiet" aria-label={`Stop the ${profile.name} VM`} title={fixing ? "Wait for the fix to finish" : `Stop the ${profile.name} VM`} disabled={busy || fixing} onClick={onStop}>Stop VM</button>
+              <button className="rounded-sm px-2 py-1 text-meta text-fg-muted hover:bg-tile-hover hover:text-fg" aria-label={`Restart the ${profile.name} VM`} title={fixing ? "Wait for the fix to finish" : `Restart the ${profile.name} VM`} disabled={busy || fixing} onClick={onRestart}>Restart</button>
+              <button className="rounded-sm px-2 py-1 text-meta text-fg-muted hover:bg-tile-hover hover:text-fg" aria-label={`Stop the ${profile.name} VM`} title={fixing ? "Wait for the fix to finish" : `Stop the ${profile.name} VM`} disabled={busy || fixing} onClick={onStop}>Stop VM</button>
             </>
           ) : failure || startInCard ? null : (
             <button className="primary" disabled={busy} onClick={onStart}>Start</button>
@@ -87,7 +87,7 @@ export default function VmStrip({ profile, totals, op, failure, failedOp, onStar
       </div>
       {!busy && note}
       {why && !busy && (
-        <div className="problem-line bad start-why">
+        <div className="problem-line text-bad">
           <b><Icon name="alert" size={14} /> {why.title}</b>
           <span className="hint">{why.detail}</span>
           {why.line && <pre className="cmd">{why.line}</pre>}

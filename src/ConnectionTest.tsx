@@ -128,7 +128,7 @@ export default function ConnectionTest({ ctx, from: initialFrom, onClose }: Prop
       <Banner error={error} onClose={() => setError(null)} />
 
       {findings && (
-        <ul className="findings">
+        <ul className="m-0 flex list-none flex-col gap-2 p-0">
           {findings.map((f) => {
             const connectFix = f.fix?.kind === "connect" && f.fix.containers.length > 0 ? f.fix : null;
             return (
@@ -151,7 +151,7 @@ export default function ConnectionTest({ ctx, from: initialFrom, onClose }: Prop
       )}
       {findings && hub && (
         <p className="hint">Setup notes for {image}:{" "}
-          <button className="link ext" onClick={() => openUrl(hub.url)}>Docker Hub page <span className="host">({hub.host})</span></button>
+          <button className="text-accent-ink hover:underline" onClick={() => openUrl(hub.url)}>Docker Hub page <span className="text-fg-muted">({hub.host})</span></button>
         </p>
       )}
     </Drawer>
