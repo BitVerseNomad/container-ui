@@ -48,7 +48,7 @@ export default function DiskCard({ ctx, onChanged }: { ctx: string; onChanged?: 
   }
 
   return (
-    <div className="panel disk-card" aria-labelledby="disk-title">
+    <div className="disk-card rounded-lg border border-line bg-bg-raised p-4" aria-labelledby="disk-title">
       <h3 id="disk-title">Space inside the VM</h3>
       <Banner error={error ?? err} onClose={() => setErr(null)} />
       {done && <p className="hint" role="status">{done}</p>}
@@ -62,9 +62,9 @@ export default function DiskCard({ ctx, onChanged }: { ctx: string; onChanged?: 
             return (
               <div className="disk-row" role="row" key={r.kind}>
                 <span role="cell">{info.label}</span>
-                <span role="cell" className="mono">{data ? formatDf(r.size) : "…"}</span>
-                <span role="cell" className="mono">{data ? formatDf(r.reclaimable) : "…"}</span>
-                <span role="cell" className="disk-action">
+                <span role="cell" className="font-mono">{data ? formatDf(r.size) : "…"}</span>
+                <span role="cell" className="font-mono">{data ? formatDf(r.reclaimable) : "…"}</span>
+                <span role="cell" className="flex justify-end">
                   {b ? (
                     <button disabled={busy || r.reclaimable === 0} title={r.reclaimable === 0 ? "Nothing to free" : undefined} onClick={async () => (await confirm(b.ask, b.confirmLabel)) && run(b.args, info.label.toLowerCase())}>{b.text}</button>
                   ) : (
