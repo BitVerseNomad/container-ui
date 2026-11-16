@@ -60,15 +60,15 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
         <div className="flex h-full items-center justify-center p-4">
           <Card className="max-w-md w-full">
             <CardContent className="pt-6 pb-6 px-6 text-center">
-              <div className="mx-auto mb-4 p-3 bg-[var(--color-brand-danger)]/10 rounded-full w-16 h-16 flex items-center justify-center">
-                <AlertTriangle className="h-8 w-8 text-[var(--color-brand-danger)]" />
+              <div className="mx-auto mb-4 p-3 bg-bad-fill rounded-full w-16 h-16 flex items-center justify-center">
+                <AlertTriangle className="h-8 w-8 text-bad" />
               </div>
               <h2 className="text-lg font-semibold mb-2">Something went wrong</h2>
-              <p className="text-[var(--color-fg-secondary)] text-sm mb-6">
+              <p className="text-fg-muted text-sm mb-6">
                 An unexpected error occurred in the project detail view. Please try refreshing or go back to the projects list.
               </p>
               {this.state.error && (
-                <details className="text-left mb-4 p-3 bg-[var(--color-bg-tertiary)] rounded-lg text-xs font-mono text-[var(--color-fg-tertiary)]">
+                <details className="text-left mb-4 p-3 bg-tile rounded-lg text-xs font-mono text-fg-faint">
                   <summary className="cursor-pointer select-none mb-1">Error details</summary>
                   <pre className="whitespace-pre-wrap break-all">{this.state.error.message}</pre>
                   {this.state.errorInfo?.componentStack && (
@@ -104,11 +104,11 @@ export function ProjectDetailErrorFallback({ error, resetErrorBoundary }: { erro
     <div className="flex h-full items-center justify-center p-4">
       <Card className="max-w-md w-full">
         <CardContent className="pt-6 pb-6 px-6 text-center">
-          <div className="mx-auto mb-4 p-3 bg-[var(--color-brand-danger)]/10 rounded-full w-16 h-16 flex items-center justify-center">
-            <AlertTriangle className="h-8 w-8 text-[var(--color-brand-danger)]" />
+          <div className="mx-auto mb-4 p-3 bg-bad-fill rounded-full w-16 h-16 flex items-center justify-center">
+            <AlertTriangle className="h-8 w-8 text-bad" />
           </div>
           <h2 className="text-lg font-semibold mb-2">Failed to load project</h2>
-          <p className="text-[var(--color-fg-secondary)] text-sm mb-6">
+          <p className="text-fg-muted text-sm mb-6">
             {error.message || "An unexpected error occurred while loading the project details."}
           </p>
           <div className="flex gap-2 justify-center">
