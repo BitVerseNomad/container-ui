@@ -68,7 +68,7 @@ $ npx vitest run src/Containers.test.tsx -t "given a start that fails"
       Tests  1 passed | 27 skipped (28)
 ```
 
-All seven new tests pass. Full file: 8 passed (2 old + 6 new — wait, 8 passed total: 2 old + 6 new? Let me recount). Full `src/Containers.test.tsx`: 8 passed, 19 failed (all 19 are the old tests WO-3.1b named, WO-3.1c-2's job).
+All seven new tests pass. Full file: 8 passed (2 old + 6 new, wait, 8 passed total: 2 old + 6 new? Let me recount). Full `src/Containers.test.tsx`: 8 passed, 19 failed (all 19 are the old tests WO-3.1b named, WO-3.1c-2's job).
 
 Verify script WO-3.1c lines:
 

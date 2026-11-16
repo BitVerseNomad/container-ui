@@ -69,8 +69,8 @@ Nothing. All steps of WO-2.6 are complete.
 
 1. `src/lib/mockCoverage.test.ts`: `NOT_IN_PREVIEW` list had `colima_version`, which is now handled by the preview mock. Removed it from the list so `mockCoverage.test.ts` passes. This is a consequence of WO-2.6 step 4 adding `case "colima_version"` to `preview/mock.ts`.
 2. `scripts/check-restyle.mjs`: two checks that pass at `8f9902b` (before WO-2.6) fail on `main` after WO-2.6, both at `900x600`:
-   - `[900x600] #/containers: no sideways overflow in .content` — FAIL on main, OK at `8f9902b`.
-   - `[900x600] #/kubernetes/pods: no sideways overflow in .content` — FAIL on main, OK at `8f9902b`.
+   - `[900x600] #/containers: no sideways overflow in .content`: FAIL on main, OK at `8f9902b`.
+   - `[900x600] #/kubernetes/pods: no sideways overflow in .content`: FAIL on main, OK at `8f9902b`.
    These are new failures introduced by WO-2.6 (the engine is now chosen a few mock calls after load, not when the module loads, so the 900x600 viewport measures before the first container row shows). Per WO-2.6 "Do not touch", they are not fixed and `check-restyle.mjs` is not edited.
 
 ## Contract differences

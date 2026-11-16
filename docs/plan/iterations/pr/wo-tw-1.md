@@ -17,7 +17,7 @@ The op components still use their `openpier.css` classes, so nothing on screen c
 - [x] Step 2: `@tailwindcss/vite` plugin in `vite.config.ts` and `vite.preview.config.ts`
 - [x] Step 3: created `src/ui/tailwind.css` (`@import "tailwindcss"`, `@theme inline` token mappings, `--color-*: initial`)
 - [x] Step 4: `src/main.tsx` imports `tailwind.css` before `openpier.css`
-- [x] Step 5: proof — `check-mockup` unchanged from its pre-round state (the screen did not change)
+- [x] Step 5: proof: `check-mockup` unchanged from its pre-round state (the screen did not change)
 
 ## Evidence
 
@@ -54,7 +54,7 @@ The remaining 60 FAILs are pre-existing iteration-2 failures (mockup comparison 
 
 ## Contract differences
 
-None — component APIs in `src/ui/op/` are unchanged.
+None: component APIs in `src/ui/op/` are unchanged.
 
 ## Found on the way
 
