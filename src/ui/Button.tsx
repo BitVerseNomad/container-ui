@@ -14,31 +14,31 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       "inline-flex items-center justify-center font-medium rounded-sm",
       "transition-colors duration-150 ease",
       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
-      "focus-visible:ring-[var(--color-focus)] focus-visible:ring-offset-[var(--color-bg)]",
+      "focus-visible:ring-focus focus-visible:ring-offset-bg",
       "disabled:opacity-50 disabled:pointer-events-none",
       "active:scale-[0.98]",
     ];
 
     const variants = {
       primary: [
-        "bg-[var(--color-accent)] text-white",
-        "hover:bg-[var(--color-accent-hover)]",
+        "bg-accent text-on-accent",
+        "hover:bg-accent-ink",
       ],
       secondary: [
-        "bg-[var(--color-border)] text-[var(--color-fg)]",
-        "hover:bg-[var(--color-border)]/80",
+        "bg-line text-fg",
+        "hover:bg-line/80",
       ],
       outline: [
-        "border border-[var(--color-border)] bg-transparent",
-        "hover:bg-[var(--color-accent-muted)] hover:text-[var(--color-accent)]",
+        "border border-line bg-transparent",
+        "hover:bg-accent-fill hover:text-accent",
       ],
       ghost: [
         "bg-transparent",
-        "hover:bg-[var(--color-border)] hover:text-[var(--color-fg)]",
+        "hover:bg-line hover:text-fg",
       ],
       danger: [
-        "bg-[var(--color-danger)] text-white",
-        "hover:bg-[var(--color-danger)]/90",
+        "bg-bad text-on-accent",
+        "hover:bg-bad/90",
       ],
     };
 
