@@ -115,6 +115,7 @@ else
   say "tauri build failed (see $LOGDIR/tauri-build.log); the draft release has no installer attached."
 fi
 
+GH_TOKEN=$(gh auth token --user BitVerseNomad); export GH_TOKEN   # the account that owns the repo
 run git push -u origin "$BR"
 run gh release create "v$VER" --draft --target "$BR" --title "OpenPier v$VER" \
   --notes-file docs/plan/iterations/pr/release-notes.md $DMG
