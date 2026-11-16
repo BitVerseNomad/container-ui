@@ -25,7 +25,7 @@ export function Problem(props: {
     }
   }
 
-  const mark = level === "busy" ? <span className="spinner" aria-hidden="true" /> : <Sev level={level} />;
+  const mark = level === "busy" ? <span className="spinner inline-block size-3 shrink-0 animate-spin rounded-full border-2 border-line border-t-accent" aria-hidden="true" /> : <Sev level={level} />;
 
   return (
     <div
@@ -36,7 +36,7 @@ export function Problem(props: {
       onKeyDown={handleKeyDown}
     >
       {mark}
-      <span className="what truncate" title={title}>{text}</span>
+      <span className="what truncate min-w-0 flex-1" title={title}>{text}</span>
       <span className="act">{action}</span>
     </div>
   );

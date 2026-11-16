@@ -145,7 +145,7 @@ export default function ComposeProjects({ ctx, scan, containers, attention, onCl
       <p className="hint">Every folder in your home with a Compose file. Missing one? Add its folder.</p>
       {fixing && <p className="hint">{bringing ? "Wait for the copy from Docker Desktop to finish" : "Wait for the fix to finish"} before starting or stopping a project.</p>}
       <div className="flex items-center gap-2">
-        <label className="select-label flex items-center gap-2">
+        <label className="flex items-center gap-2 text-meta text-fg-muted">
           <Icon name="search" size="md" />
           <input placeholder="Search projects" aria-label="Search projects" value={q} onChange={(e) => setQ(e.target.value)} />
         </label>
@@ -266,7 +266,7 @@ export default function ComposeProjects({ ctx, scan, containers, attention, onCl
               {logsHere && <ComposeLogs ctx={ctx} file={`${p.dir}/${p.files[0]}`} project={p.name} />}
               {(mine || failed?.dir === p.dir) && <OutputLog event="compose-progress" active={mine} failure={failed?.dir === p.dir ? failed.text : null} />}
               {cmdsOpen.has(p.dir) && (
-              <div className="fix-commands" role="group" aria-label={`Commands for ${p.name}`}>
+              <div className="mt-2 flex flex-col gap-1.5" role="group" aria-label={`Commands for ${p.name}`}>
                 {(up ? (["up", "restart", "stop", "down", "build", "pull"] as Action[]) : (["up", "build", "pull"] as Action[])).map((a) => (
                   <div key={a} className="flex flex-col gap-1">
                     <span className="font-mono text-xs">{label(a)}</span>

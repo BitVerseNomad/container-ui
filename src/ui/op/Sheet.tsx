@@ -35,7 +35,7 @@ export function Sheet(props: {
       }}
     >
       <Dialog.Portal container={container}>
-        <Dialog.Overlay className="overlay" />
+        <Dialog.Overlay className="fixed inset-0 z-40 bg-bg-overlay" />
         <Dialog.Content
           className="sheet"
           aria-describedby={undefined}
@@ -52,9 +52,9 @@ export function Sheet(props: {
             (first ?? closeRef.current)?.focus();
           }}
         >
-          <div className="sheet-head">
+          <div className="flex h-header shrink-0 items-center gap-2 border-b border-line px-4">
             <Dialog.Title className={hideTitle ? "sr-only" : undefined}>{title}</Dialog.Title>
-            {fact && <span className="muted mono">{fact}</span>}
+            {fact && <span className="text-fg-muted font-mono">{fact}</span>}
             <span className="grow" />
             <Dialog.Close asChild>
               <Button ref={closeRef} variant="ghost" iconOnly icon="close" aria-label="Close" />
@@ -63,7 +63,7 @@ export function Sheet(props: {
           <div ref={bodyRef} className={clsx("sheet-body", stack && "stack")}>
             {children}
           </div>
-          {footer && <div className="sheet-foot">{footer}</div>}
+          {footer && <div className="sheet-foot flex shrink-0 items-center justify-end gap-2 border-t border-line px-4 py-3">{footer}</div>}
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>

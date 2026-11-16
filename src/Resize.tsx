@@ -322,7 +322,7 @@ export function VmChangeButton({ from, change, title, primary, alsoStart }: { fr
 export function VmChangeOr({ from, change, title, primary, alsoStart, noStatus, plainRetry }: { from: string; change: VmChange; title: string; primary?: boolean; alsoStart?: string[]; noStatus?: boolean; plainRetry?: boolean }) {
   const s = useResize();
   return (
-    <span className="resize-or">
+    <span className="text-meta text-fg-faint">
       <span className="actions-inline">{!(s.from === from && s.outcome) && <VmChangeButton from={from} change={change} title={title} primary={primary} alsoStart={alsoStart} />}</span>
       {!noStatus && <ResizeStatus from={from} title={title} plainRetry={plainRetry} />}
     </span>
@@ -428,7 +428,7 @@ export function ResizeStatus({ from, after, title, okElsewhere, plainRetry }: { 
       <p className="sr-only" role="status">{logError ?? ""}</p>
       {logError && <p className="hint" aria-hidden="true">{logError}</p>}
       {o?.kind === "done" && !hidden && o.failed.filter((f) => f.long).map((f) => (
-        <p key={f.name} id={`resize-why-${f.name}`} className="hint resize-why" hidden={whyOpen !== f.name}>{f.long}</p>
+        <p key={f.name} id={`resize-why-${f.name}`} className="hint mt-2" hidden={whyOpen !== f.name}>{f.long}</p>
       ))}
       {mine && (s.progress || (o && !hidden && o.kind !== "refused")) && (
         <details className="out-more">
@@ -458,7 +458,7 @@ export function ResultRow({ from }: { from: string }) {
     to?.focus();
   };
   return (
-    <ul className="findings result-row">
+    <ul className="m-0 flex list-none flex-col gap-1 p-0 result-row">
       <li className="finding ok" data-key={`result:${from}`} ref={box}>
         <Icon name="check" />
         <div><p ref={line} tabIndex={-1} className="resize-result ok"><span><Ticks text={resultText(o)} /></span></p></div>
@@ -478,10 +478,10 @@ export function ResizeOr({ from, title, need = "any", alsoStart, fallback, prima
   const shown = s.from === from && (s.progress || s.outcome) ? s.target : size;
   if (!shown || !env) return <>{fallback}</>;
   return (
-    <span className="resize-or">
+    <span className="text-meta text-fg-faint">
       <span className="actions-inline">
         {!(s.from === from && s.outcome) && <ResizeButton from={from} size={shown} title={title} alsoStart={alsoStart} primary={primary} vmWords={vmWords} />}
-        {!noProfiles && <button className="link" aria-label={`Change in Profiles: ${title}`} onClick={env.onProfiles}>Change in Profiles</button>}
+        {!noProfiles && <button className="cursor-pointer border-0 bg-transparent p-0 text-accent-ink hover:underline" aria-label={`Change in Profiles: ${title}`} onClick={env.onProfiles}>Change in Profiles</button>}
       </span>
       {!noStatus && <ResizeStatus from={from} />}
     </span>
@@ -494,7 +494,7 @@ export function ResizeOther({ title, need = "any" }: { title: string; need?: "an
   const env = useResizeEnv();
   const size = useResizeTarget(need);
   if (!size || !env) return null;
-  return <span className="hint">Other numbers? <button className="link" aria-label={`Change in Profiles: ${title}`} onClick={env.onProfiles}>Change in Profiles</button></span>;
+  return <span className="hint">Other numbers? <button className="cursor-pointer border-0 bg-transparent p-0 text-accent-ink hover:underline" aria-label={`Change in Profiles: ${title}`} onClick={env.onProfiles}>Change in Profiles</button></span>;
 }
 
 // App's announcements for a run whose page is closed (the user went to another tab): each step, then the result.

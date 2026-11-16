@@ -4,25 +4,25 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "../utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-sm text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)] focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 active:scale-[0.98]",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-sm text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 active:scale-[0.98]",
   {
     variants: {
       variant: {
         default:
-          "bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent-hover)] shadow-[var(--color-shadow-sm)]",
+          "bg-accent text-on-accent hover:bg-accent-ink shadow-control",
         primary:
-          "bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent-hover)] shadow-[var(--color-shadow-sm)]",
+          "bg-accent text-on-accent hover:bg-accent-ink shadow-control",
         destructive:
-          "bg-[var(--color-danger)] text-white hover:bg-[var(--color-danger)]/90 shadow-[var(--color-shadow-sm)]",
+          "bg-bad text-on-accent hover:bg-bad/90 shadow-control",
         danger:
-          "bg-[var(--color-danger)] text-white hover:bg-[var(--color-danger)]/90 shadow-[var(--color-shadow-sm)]",
+          "bg-bad text-on-accent hover:bg-bad/90 shadow-control",
         outline:
-          "border border-[var(--color-border)] bg-transparent hover:bg-[var(--color-accent-muted)] hover:text-[var(--color-accent)]",
+          "border border-line bg-transparent hover:bg-accent-fill hover:text-accent",
         secondary:
-          "bg-[var(--color-border)] text-[var(--color-fg)] hover:bg-[var(--color-border)]/80",
+          "bg-line text-fg hover:bg-line/80",
         ghost:
-          "bg-transparent hover:bg-[var(--color-border)] hover:text-[var(--color-fg)]",
-        link: "text-[var(--color-accent)] underline-offset-4 hover:underline",
+          "bg-transparent hover:bg-line hover:text-fg",
+        link: "text-accent underline-offset-4 hover:underline",
       },
       size: {
         default: "h-9 px-4 py-0",
