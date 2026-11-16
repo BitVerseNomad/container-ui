@@ -20,7 +20,7 @@ const css = cssFiles.map((f) => readFileSync(f, "utf8")).join("\n");
 const MARKERS = new Set(["group", "peer", "dark", "sr-only-focusable"]);
 // Classes the browser checks find elements by (".sidebar" in scripts/*.mjs) are hooks, not styles: keep them.
 const hooks = new Set();
-const walkJs = (d) => { for (const f of readdirSync(d)) { const p = path.join(d, f); if (statSync(p).isDirectory()) walkJs(p); else if (/\.m?js$/.test(p)) for (const m of readFileSync(p, "utf8").matchAll(/(?<![\w$])\.([a-z][a-z0-9-]*)/g)) hooks.add(m[1]); } };
+const walkJs = (d) => { for (const f of readdirSync(d)) { const p = path.join(d, f); if (statSync(p).isDirectory()) walkJs(p); else if (/\.m?js$/.test(p)) for (const q of readFileSync(p, "utf8").matchAll(/(["'`])((?:(?!\1).)*)\1/g)) for (const m of q[2].matchAll(/(?:^|[\s,>+~(])\.([a-z][a-z0-9-]*)/g)) hooks.add(m[1]); } };
 walkJs("scripts");
 const escape =(c) => c.replace(/[^a-zA-Z0-9_-]/g, (ch) => "\\" + ch);
 
@@ -52,6 +52,7 @@ for (const f of files) {
     }
   });
 }
+if (process.env.SHOW_HOOKS) console.error("hooks kept: " + [...hooks].sort().join(" "));
 for (const [c, where] of unknown) console.error(`unknown class "${c}" (first at ${where}): it produces no CSS`);
 console.log(unknown.size ? `${unknown.size} unknown classes` : `every class in src produces CSS (${files.length} files)`);
 process.exit(unknown.size ? 1 : 0);
