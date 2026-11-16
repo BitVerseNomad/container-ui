@@ -72,15 +72,15 @@ export function MenuItem(props: {
       <span className="top">
         {icon && <Icon name={icon} size="sm" />}
         <span>{label}</span>
-        {shortcut && <span className="kbd">{shortcut}</span>}
+        {shortcut && <span className="ml-auto font-mono text-micro text-fg-faint">{shortcut}</span>}
       </span>
-      {why && <span className="why">{why}</span>}
+      {why && <span className="block text-meta text-fg-faint">{why}</span>}
     </DropdownMenu.Item>
   );
 }
 
 export function MenuSeparator(): React.JSX.Element {
-  return <DropdownMenu.Separator className="menu-sep" />;
+  return <DropdownMenu.Separator className="-mx-1 my-1 h-px bg-line" />;
 }
 
 export function MenuCaption(props: { children: React.ReactNode }): React.JSX.Element {
