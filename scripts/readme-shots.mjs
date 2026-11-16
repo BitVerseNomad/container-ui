@@ -1,5 +1,5 @@
 // Retakes the README screenshots (docs/screenshots/*.png) from the browser preview, in WebKit, the engine the app ships with.
-// Run after: node scripts/build-preview.mjs.
+// Needs the browser preview running: npm run preview (port 4173). The loop starts it.
 import { createRequire } from "node:module";
 import path from "node:path";
 const require = createRequire(import.meta.url);
@@ -19,7 +19,7 @@ const SHOTS = [
 const browser = await webkit.launch();
 for (const [name, query, act] of SHOTS) {
   const p = await browser.newPage({ viewport: { width: W, height: H }, deviceScaleFactor: 2 });
-  await p.goto(`file://${root}/preview/index.html?${query}`);
+  await p.goto(`${process.env.PREVIEW_URL ?? "http://localhost:4173"}/?${query}`);
   await p.waitForTimeout(4000);
   if (act) await act(p);
   const file = path.join(out, `${name}.png`);
