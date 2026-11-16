@@ -18,7 +18,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
         {label && (
           <label
             htmlFor={inputId}
-            className="text-sm font-medium text-[var(--color-fg-secondary)]"
+            className="text-sm font-medium text-fg-muted"
           >
             {label}
           </label>
@@ -27,14 +27,14 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           ref={ref}
           id={inputId}
           className={clsx(
-            "w-full px-3 py-2 text-sm bg-[var(--color-bg-primary)]",
+            "w-full px-3 py-2 text-sm bg-bg",
             "border rounded-lg transition-colors duration-150",
-            "placeholder:text-[var(--color-fg-tertiary)]",
+            "placeholder:text-fg-faint",
             "focus:outline-none focus:ring-2 focus:ring-offset-0",
             "disabled:opacity-50 disabled:pointer-events-none",
             error
-              ? "border-[var(--color-brand-danger)] focus:ring-[var(--color-brand-danger)]"
-              : "border-[var(--color-border-medium)] focus:ring-[var(--color-brand-primary)]",
+              ? "border-bad focus:ring-bad"
+              : "border-edge focus:ring-accent",
             className
           )}
           aria-invalid={error ? "true" : "false"}
@@ -42,12 +42,12 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           {...props}
         />
         {error && (
-          <p id={`${inputId}-error`} className="text-xs text-[var(--color-brand-danger)]" role="alert">
+          <p id={`${inputId}-error`} className="text-xs text-bad" role="alert">
             {error}
           </p>
         )}
         {hint && !error && (
-          <p id={`${inputId}-hint`} className="text-xs text-[var(--color-fg-tertiary)]">
+          <p id={`${inputId}-hint`} className="text-xs text-fg-faint">
             {hint}
           </p>
         )}
@@ -74,7 +74,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
         {label && (
           <label
             htmlFor={textareaId}
-            className="text-sm font-medium text-[var(--color-fg-secondary)]"
+            className="text-sm font-medium text-fg-muted"
           >
             {label}
           </label>
@@ -83,14 +83,14 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
           ref={ref}
           id={textareaId}
           className={clsx(
-            "w-full px-3 py-2 text-sm bg-[var(--color-bg-primary)] font-mono",
+            "w-full px-3 py-2 text-sm bg-bg font-mono",
             "border rounded-lg transition-colors duration-150 resize-y min-h-[80px]",
-            "placeholder:text-[var(--color-fg-tertiary)]",
+            "placeholder:text-fg-faint",
             "focus:outline-none focus:ring-2 focus:ring-offset-0",
             "disabled:opacity-50 disabled:pointer-events-none",
             error
-              ? "border-[var(--color-brand-danger)] focus:ring-[var(--color-brand-danger)]"
-              : "border-[var(--color-border-medium)] focus:ring-[var(--color-brand-primary)]",
+              ? "border-bad focus:ring-bad"
+              : "border-edge focus:ring-accent",
             className
           )}
           aria-invalid={error ? "true" : "false"}
@@ -98,12 +98,12 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
           {...props}
         />
         {error && (
-          <p id={`${textareaId}-error`} className="text-xs text-[var(--color-brand-danger)]" role="alert">
+          <p id={`${textareaId}-error`} className="text-xs text-bad" role="alert">
             {error}
           </p>
         )}
         {hint && !error && (
-          <p id={`${textareaId}-hint`} className="text-xs text-[var(--color-fg-tertiary)]">
+          <p id={`${textareaId}-hint`} className="text-xs text-fg-faint">
             {hint}
           </p>
         )}
@@ -121,11 +121,11 @@ export const Label = forwardRef<HTMLLabelElement, LabelProps>(
   ({ className, required, children, ...props }, ref) => (
     <label
       ref={ref}
-      className={clsx("text-sm font-medium text-[var(--color-fg-secondary)] flex items-center gap-1", className)}
+      className={clsx("text-sm font-medium text-fg-muted flex items-center gap-1", className)}
       {...props}
     >
       {children}
-      {required && <span className="text-[var(--color-brand-danger)]" aria-hidden="true">*</span>}
+      {required && <span className="text-bad" aria-hidden="true">*</span>}
     </label>
   )
 );

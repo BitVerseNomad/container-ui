@@ -34,8 +34,8 @@ export function Header(props: HeaderProps): React.JSX.Element {
       {back && <Button variant="ghost" iconOnly icon="back" aria-label={back.label} onClick={back.onBack} />}
       <h1>{title}</h1>
       {stateDot && <Dot state={stateDot} />}
-      {summary && <span className="sub">{summary}</span>}
-      {stateText && <span className="sub">{stateText}</span>}
+      {summary && <span className="text-meta text-fg-muted">{summary}</span>}
+      {stateText && <span className="text-meta text-fg-muted">{stateText}</span>}
       <span className="grow" />
       {meters !== false && usage && <Meters meters={metersOf(usage)} onOpen={() => go("#/settings/machines")} />}
       {children}
