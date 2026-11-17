@@ -140,8 +140,7 @@ export default function ComposeProjects({ ctx, scan, containers, attention, onCl
   }
 
   return (
-// The user-facing action is "Start a Compose project"; the sheet's dialog title is "Compose projects".
-    <Sheet open={true} onClose={onClose} title="Compose projects">
+    <Sheet open={true} onClose={onClose} title="Start a Compose project">
       <p className="hint">Every folder in your home with a Compose file. Missing one? Add its folder.</p>
       {fixing && <p className="hint">{bringing ? "Wait for the copy from Docker Desktop to finish" : "Wait for the fix to finish"} before starting or stopping a project.</p>}
       <div className="flex items-center gap-2">
@@ -152,7 +151,7 @@ export default function ComposeProjects({ ctx, scan, containers, attention, onCl
         <Button icon="restart" size="md" onClick={() => scan.scan()} disabled={scan.scanning}>
   {scan.scanning ? "Scanning…" : "Scan again"}
 </Button>
-        <Button icon="plus" size="md" onClick={addFolder} disabled={scan.scanning}>Add a folder…</Button>
+        <Button icon="plus" size="md" onClick={addFolder} disabled={scan.scanning}>Choose a folder…</Button>
       </div>
       {added && <p className="text-sm text-fg-muted" role="status">{added}</p>}
       {scan.error || err ? (
