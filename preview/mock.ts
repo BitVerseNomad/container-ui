@@ -1,3 +1,4 @@
+import { setBringBusy } from "../src/bringBusy";
 // Simulated backend for the browser preview. Same commands as the Rust side, fake data.
 type Ev = { payload: unknown };
 const listeners: Record<string, Set<(e: Ev) => void>> = {};
@@ -109,6 +110,8 @@ if (scenario === "doctor") db.ctrs.push(
 const flag = (k: string) => typeof location !== "undefined" && new URLSearchParams(location.search).get(k) === "1";
 const cfgMock = { mountType: flag("sshfs") ? "sshfs" : "virtiofs", mounts: [] as { path: string; writable: boolean }[], env: {} as Record<string, string> };
 let dnsBroken = flag("dns") || flag("vpn");
+// &lock=1: a "Bring them over" copy is holding Docker, so every container button waits. Set the same store Bring over sets (src/bringBusy.ts), which dockerLock.ts reads.
+if (flag("lock")) setBringBusy(true);
 
 if (flag("unshared")) {
   cfgMock.mounts = [{ path: "/Users/me/work", writable: true }];

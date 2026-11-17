@@ -873,8 +873,9 @@ export default function Containers({ profile, ctx, vm, onVm, reload, setDetailId
             </Empty>
           )}
         </>
-      ) : (
-        // Engine stopped: header shows only the title (no search, no New).
+      ) : failedChange ? null : (
+        // Engine stopped: header shows only the title (no search, no New). A failed change has its own card above, and its
+        // Start button would start the same saved list that just failed, so this card waits.
         <Empty
           icon="box"
           title={`${profile.name} is stopped`}

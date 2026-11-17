@@ -5,11 +5,11 @@ const HOST = (process.env.PREVIEW_URL || "http://localhost:4173/").replace(/\/$/
 
 const WAIT = 5000;
 
-async function openContainer(pageOrBrowser, id = "api") {
+async function openContainer(pageOrBrowser, id = "api", query = "") {
   const page = await pageOrBrowser.newPage({ viewport: { width: 1100, height: 1100 } });
   page.errors = [];
   page.on("pageerror", (e) => page.errors.push(e.message));
-  await page.goto(`${HOST}/?scenario=design#/containers`);
+  await page.goto(`${HOST}/?scenario=design${query}#/containers`);
   // A deep link on first load is still cleared by the shell's mount effects (App.tsx setDetailId(null)), so the address is set once the list is up.
   await page.waitForTimeout(1000);
   await page.evaluate((path) => { window.location.hash = path; }, `#/containers/${id}/logs`);
@@ -308,7 +308,7 @@ const browser = await engine.launch();
 
 // 32. Header buttons are disabled when locked
 {
-  const page = await openContainer(browser);
+  const page = await openContainer(browser, "api", "&lock=1");
   const stopBtn = page.getByRole("button", { name: "Stop" });
   if (await stopBtn.count() > 0) {
     check(await stopBtn.getAttribute("aria-disabled") === "true" || await stopBtn.getAttribute("disabled") !== null, "detail: Stop button is disabled when locked");
