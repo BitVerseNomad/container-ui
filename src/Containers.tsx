@@ -885,7 +885,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, setDetailId
         </Sheet>
       )}
       {picking && ctx && <RunPicker ctx={ctx} onClose={() => setPicking(false)} onPick={(ref) => { setPicking(false); setRunImage(ref); }} />}
-      {runImage && ctx && <RunPanel ctx={ctx} arch={profile.arch} image={runImage} onClose={() => setRunImage(null)} onRan={(id, name) => { setRunImage(null); setHighlight(id); toast({ text: `Started ${name}` }); }} />}
+      {runImage && ctx && <RunPanel ctx={ctx} arch={profile.arch} image={runImage} onClose={() => setRunImage(null)} onRan={(_id, name) => { setRunImage(null); focusWhenShown(name); toast({ text: `Started ${name}` }); }} />}
     </>
   );
 }
@@ -908,10 +908,13 @@ function focusName(name: string): void {
   node?.closest<HTMLElement>(".row")?.focus();
 }
 
-// Highlight a row after an action (e.g. after a successful Run): scroll into view and focus.
-function setHighlight(id: string): void {
-  const node = [...document.querySelectorAll<HTMLElement>(".list .row .name")].find((n) => n.textContent === id);
-  node?.closest<HTMLElement>(".row")?.focus();
+// Focus a row after an action (e.g. after a successful Run). Rows are found by their name, not their id.
+// The new row appears when the list reloads, so try for a few seconds, then give up.
+function focusWhenShown(name: string, tries = 30): void {
+  const node = [...document.querySelectorAll<HTMLElement>(".list .row .name")].find((n) => n.textContent === name);
+  const row = node?.closest<HTMLElement>(".row");
+  if (row) row.focus();
+  else if (tries > 0) setTimeout(() => focusWhenShown(name, tries - 1), 100);
 }
 
 // A container that hit its own memory limit, on home: one button at the right edge. While the file still sets the
