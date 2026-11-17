@@ -1,6 +1,7 @@
 // The home screen: your apps, one row each (a Compose project, a loose container, or Kubernetes), with one main
 // button and a "..." menu for the rest. Problems show once, under their row. Everything deeper lives one click in.
 import { openShell } from "./lib/shell";
+import { focusWhenShown } from "./lib/focusRow";
 import { activity, dockerLine, ranVm } from "./lib/activity";
 import { score } from "./lib/fuzzy";
 import { ReactNode, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
@@ -906,15 +907,6 @@ const serviceName = (c: C, project: string) => {
 function focusName(name: string): void {
   const node = [...document.querySelectorAll<HTMLElement>(".list .row .name")].find((n) => n.textContent === name);
   node?.closest<HTMLElement>(".row")?.focus();
-}
-
-// Focus a row after an action (e.g. after a successful Run). Rows are found by their name, not their id.
-// The new row appears when the list reloads, so try for a few seconds, then give up.
-function focusWhenShown(name: string, tries = 30): void {
-  const node = [...document.querySelectorAll<HTMLElement>(".list .row .name")].find((n) => n.textContent === name);
-  const row = node?.closest<HTMLElement>(".row");
-  if (row) row.focus();
-  else if (tries > 0) setTimeout(() => focusWhenShown(name, tries - 1), 100);
 }
 
 // A container that hit its own memory limit, on home: one button at the right edge. While the file still sets the

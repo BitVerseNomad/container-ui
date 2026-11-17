@@ -20,6 +20,7 @@ import ContainerDetail from "./ContainerDetail";
 import Images from "./Images";
 import RunPicker from "./RunPicker";
 import RunPanel from "./RunPanel";
+import { focusWhenShown } from "./lib/focusRow";
 import Volumes from "./Volumes";
 import Networks from "./Networks";
 import Kubernetes from "./Kubernetes";
@@ -104,11 +105,6 @@ export default function App() {
   const [newProfileOnOpen, setNewProfileOnOpen] = useState(false);
   const [runPicker, setRunPicker] = useState(false);
   const [runImage, setRunImage] = useState<string | null>(null);
-
-  function setHighlight(id: string): void {
-    const node = [...document.querySelectorAll<HTMLElement>(".list .row .name")].find((n) => n.textContent === id);
-    node?.closest<HTMLElement>(".row")?.focus();
-  }
 
   const confirm = useConfirm();
   const toast = useToast();
@@ -514,7 +510,7 @@ export default function App() {
                 image={runImage}
                 arch={current?.arch}
                 onClose={() => setRunImage(null)}
-                onRan={(id, name) => { setRunImage(null); setHighlight(id); toast({ text: `Started ${name}` }); }}
+                onRan={(_id, name) => { setRunImage(null); setTab("Containers"); focusWhenShown(name); toast({ text: `Started ${name}` }); }}
               />
             )}
           </Shell>

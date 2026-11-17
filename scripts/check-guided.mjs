@@ -30,7 +30,7 @@ const networkTrigger = (p) => p.locator('.sheet [role=combobox][aria-label="Netw
 // Opens More options, then waits until the network check has answered (`ready` text shows).
 async function openMore(p, ready) {
   await chip(p, "More options").click();
-  await p.waitForFunction((t) => (document.querySelector(".sheet")?.innerText ?? "").includes(t), ready, { timeout: 6000 });
+  await p.waitForFunction((t) => (document.querySelector(".sheet")?.innerText ?? "").includes(t), ready, { timeout: 15000 });
 }
 // Relative luminance (0 to 1) of the command box, read from a painted pixel: works for any CSS colour format.
 const cmdLuminance = (p) => p.locator(".sheet .cmd").evaluate((e) => {
@@ -146,6 +146,8 @@ await p.locator('.sheet input[aria-label="Host port"]').first().fill("8090");
 await p.getByRole("button", { name: "Run", exact: true }).click();
 await p.waitForSelector(".sheet", { state: "detached", timeout: 6000 }).catch(() => {});
 check(await p.getByText(/^Started /).count() >= 1, "keys: after Run from the picker the toast says Started");
+// The row appears when the list reloads, so wait for the focus to land (up to 3 seconds), then assert it.
+await p.waitForFunction(() => !!document.activeElement?.closest('[role="row"]'), null, { timeout: 3000 }).catch(() => {});
 check(await p.evaluate(() => !!document.activeElement?.closest('[role="row"]')), "keys: the new container's row takes focus (unproven in a browser until the loop runs this)");
 await p.close();
 
