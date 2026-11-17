@@ -1,6 +1,7 @@
 // The home screen: your apps, one row each (a Compose project, a loose container, or Kubernetes), with one main
 // button and a "..." menu for the rest. Problems show once, under their row. Everything deeper lives one click in.
 import { openShell } from "./lib/shell";
+import { focusWhenShown } from "./lib/focusRow";
 import { activity, dockerLine, ranVm } from "./lib/activity";
 import { score } from "./lib/fuzzy";
 import { ReactNode, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
@@ -892,7 +893,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, setDetailId
         </Sheet>
       )}
       {picking && ctx && <RunPicker ctx={ctx} onClose={() => setPicking(false)} onPick={(ref) => { setPicking(false); setRunImage(ref); }} />}
-      {runImage && ctx && <RunPanel ctx={ctx} arch={profile.arch} image={runImage} onClose={() => setRunImage(null)} onRan={(id, name) => { setRunImage(null); setHighlight(id); toast({ text: `Started ${name}` }); }} />}
+      {runImage && ctx && <RunPanel ctx={ctx} arch={profile.arch} image={runImage} onClose={() => setRunImage(null)} onRan={(_id, name) => { setRunImage(null); focusWhenShown(name); toast({ text: `Started ${name}` }); }} />}
     </>
   );
 }
@@ -928,12 +929,6 @@ const serviceName = (c: C, project: string) => {
 // A row is found again by the text of its name; a removed row hands focus to its neighbour, never to the page body.
 function focusName(name: string): void {
   const node = [...document.querySelectorAll<HTMLElement>(".list .row .name")].find((n) => n.textContent === name);
-  node?.closest<HTMLElement>(".row")?.focus();
-}
-
-// Highlight a row after an action (e.g. after a successful Run): scroll into view and focus.
-function setHighlight(id: string): void {
-  const node = [...document.querySelectorAll<HTMLElement>(".list .row .name")].find((n) => n.textContent === id);
   node?.closest<HTMLElement>(".row")?.focus();
 }
 
