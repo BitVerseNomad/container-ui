@@ -30,11 +30,11 @@ export function Header(props: HeaderProps): React.JSX.Element {
   const { title, summary, back, stateDot, stateText, meters, children } = props;
   const usage = useMachineUsage();
   return (
-    <header className="header" data-tauri-drag-region>
+    <header className="header -mx-gutter" data-tauri-drag-region>
       {back && <Button variant="ghost" iconOnly icon="back" aria-label={back.label} onClick={back.onBack} />}
       <h1>{title}</h1>
       {stateDot && <Dot state={stateDot} />}
-      {summary && <span className="text-meta text-fg-muted">{summary}</span>}
+      {summary && <span className="text-meta text-fg-muted whitespace-nowrap">{summary}</span>}
       {stateText && <span className="text-meta text-fg-muted">{stateText}</span>}
       <span className="grow" />
       {meters !== false && usage && <Meters meters={metersOf(usage)} onOpen={() => go("#/settings/machines")} />}
