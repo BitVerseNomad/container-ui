@@ -366,7 +366,7 @@ describe("Containers", () => {
     expect(screen.getByRole("textbox", { name: "Search containers" })).toBeInTheDocument();
   });
 
-  it("given a start that fails, when Start is pressed, then Dismiss shows under the row", async () => {
+  it("given a start that fails, when Start is pressed, then the plain reason and Try again show under the row", async () => {
     const user = userEvent.setup();
     const stopped = [{ ID: "aaa", Names: "web", Image: "nginx:latest", State: "exited", Status: "Exited (0) 3 hours ago", Ports: "", Labels: "" }];
     renderScreen({
@@ -377,7 +377,9 @@ describe("Containers", () => {
     ));
     const startBtn = await screen.findByRole("button", { name: "Start web" });
     await user.click(startBtn);
-    await screen.findByRole("button", { name: "Dismiss" }, { timeout: 5000 });
+    await screen.findByRole("button", { name: "Try again" }, { timeout: 5000 });
+    expect(screen.getAllByText(/port 8080 is in use on your Mac/).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/driver failed/)).toBeNull();
   });
 
   // --- New tests 8 to 11 for WO-3.1c-2 ---
