@@ -19,9 +19,9 @@ const variants = {
     ghost: "text-fg-muted hover:bg-tile-hover",
   },
   size: {
-    xs: "h-h-xs px-8 rounded-radius-sm text-micro",
-    sm: "h-h-sm px-10 rounded-radius-md text-meta",
-    md: "h-h-md px-12 rounded-radius-md text-body",
+    xs: "h-h-xs px-8 rounded-sm text-micro",
+    sm: "h-h-sm px-10 rounded-radius-md rounded-md text-meta",
+    md: "h-h-md px-12 rounded-md text-body",
   },
 } as const;
 
@@ -48,7 +48,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
         onClick?.(event);
       }}
     >
-      {busy ? <span className="spinner" /> : icon ? <Icon name={icon} size="sm" /> : null}
+      {busy ? <span className="inline-block size-3 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden="true" /> : icon ? <Icon name={icon} size="sm" /> : null}
       {!iconOnly && children}
     </button>
   );

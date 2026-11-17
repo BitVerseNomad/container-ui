@@ -11,7 +11,7 @@ export type EngineButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & 
 // The button at the top of the sidebar. It is the trigger of the engine menu, so it forwards its ref and every other prop to the <button>.
 export const EngineButton = forwardRef<HTMLButtonElement, EngineButtonProps>(function EngineButton({ dot, name, state, ...rest }, ref) {
   return (
-    <button type="button" className="engine" ref={ref} {...rest}>
+    <button type="button" className="engine flex w-full items-center gap-2.5 rounded-md p-2 text-left hover:bg-tile-hover" ref={ref} {...rest}>
       <Dot state={dot} />
       <span className="grow">
         <div className="name truncate">{name}</div>

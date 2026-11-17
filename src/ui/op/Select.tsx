@@ -23,12 +23,12 @@ export function Select(props: {
         <Icon name="chev-down" size="sm" />
       </SelectPrimitive.Trigger>
       <SelectPrimitive.Portal>
-        <SelectPrimitive.Content className="pop">
+        <SelectPrimitive.Content className="z-50 min-w-32 overflow-hidden rounded-md border border-edge bg-bg-raised p-1 shadow-floating">
           <SelectPrimitive.Viewport>
             {options.map((option) => (
               <SelectPrimitive.Item key={option.value} className="menu-item" value={option.value}>
                 <SelectPrimitive.ItemText>{option.label}</SelectPrimitive.ItemText>
-                {option.hint && <span className="why">{option.hint}</span>}
+                {option.hint && <span className="text-meta text-fg-muted">{option.hint}</span>}
               </SelectPrimitive.Item>
             ))}
           </SelectPrimitive.Viewport>
