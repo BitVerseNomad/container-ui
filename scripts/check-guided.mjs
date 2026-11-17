@@ -1,6 +1,7 @@
 // Guided Run sheet checks (run after: node scripts/build-preview.mjs). Needs playwright resolvable.
 import { createRequire } from "node:module";
 import path from "node:path";
+const HOST = (process.env.PREVIEW_URL || "http://localhost:4173/").replace(/\/$/, "");
 const require = createRequire(import.meta.url);
 // PW_ENGINE=webkit runs the same check in the engine the app ships with.
 const chromium = require("playwright")[process.env.PW_ENGINE || "chromium"];
@@ -14,7 +15,7 @@ async function openRun(scenario, ref, ready) {
   const p = await browser.newPage({ viewport: { width: 1100, height: 900 } });
   p.errors = [];
   p.on("pageerror", (e) => p.errors.push(e.message));
-  await p.goto(`http://localhost:4173/?scenario=${scenario}`);
+  await p.goto(`${HOST}/?scenario=${scenario}`);
   await p.waitForSelector("ul.apps > li.app");
   await p.locator(".sidebar").getByRole("button", { name: "Images", exact: true }).click();
   await p.waitForSelector("tbody tr:not(.group-row)");

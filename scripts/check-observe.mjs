@@ -1,6 +1,7 @@
 // Container detail page checks (WO-3.2). Runs against the preview.
 // Runs in Chromium and WebKit.
 import { engine, open, check, done } from "./lib/check.mjs";
+const HOST = (process.env.PREVIEW_URL || "http://localhost:4173/").replace(/\/$/, "");
 
 const WAIT = 5000;
 
@@ -8,7 +9,7 @@ async function openContainer(pageOrBrowser, id = "api") {
   const page = await pageOrBrowser.newPage({ viewport: { width: 1100, height: 1100 } });
   page.errors = [];
   page.on("pageerror", (e) => page.errors.push(e.message));
-  await page.goto(`http://localhost:4173/?scenario=design#/containers/${id}/logs`);
+  await page.goto(`${HOST}/?scenario=design#/containers/${id}/logs`);
   await page.waitForSelector(".detail", { timeout: WAIT });
   return page;
 }

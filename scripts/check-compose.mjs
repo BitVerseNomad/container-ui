@@ -1,6 +1,7 @@
 // Compose projects found on the Mac (run after: node scripts/build-preview.mjs). Needs playwright resolvable.
 import { createRequire } from "node:module";
 import path from "node:path";
+const HOST = (process.env.PREVIEW_URL || "http://localhost:4173/").replace(/\/$/, "");
 
 const require = createRequire(import.meta.url);
 // PW_ENGINE=webkit runs the same check in the engine the app ships with.
@@ -24,7 +25,7 @@ async function open(scenario) {
   const page = await ctx.newPage();
   page.errors = [];
   page.on("pageerror", (e) => page.errors.push(e.message));
-  await page.goto(`http://localhost:4173/?scenario=${scenario}`);
+  await page.goto(`${HOST}/?scenario=${scenario}`);
   await page.waitForSelector("ul.apps > li.app", { timeout: 4000 }).catch(() => {});
   return page;
 }
