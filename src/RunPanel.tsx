@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { ReactNode, useEffect, useState } from "react";
+import { ReactNode, useEffect, useRef, useState } from "react";
 import { docker, dockerJson, openUrl } from "./api";
 import { ImageInfo, Link, checkImage, docsLinks, hostArch, nameWarning, nextFreePort, parseImageInfo, peers, suggestVolumes, usedHostPorts } from "./lib/guided";
 import { PortRow, VolRow, buildRunArgs, defaultName, folderProblem, hintFor, isHostFolder, presetEnv, repoName, shouldCleanup } from "./runArgs";
@@ -82,14 +82,23 @@ export default function RunPanel({ ctx, image, arch, onClose, onRan }: Props) {
   }, [ctx, network, exists]);
 
   // Escape closes the sheet only when idle. While a run is starting, it asks first.
+  // The flag stops the same Escape that dismisses the question from asking it again.
+  const stopAsked = useRef(false);
   const askStop = async () => {
-    const stop = await confirm({
-      title: "Stop the run?",
-      body: "The container is still starting. Closing now does not undo the start, and the container may still come up.",
-      confirm: "Stop the run",
-      danger: true,
-    });
-    if (stop) onClose();
+    if (stopAsked.current) return;
+    stopAsked.current = true;
+    try {
+      const stop = await confirm({
+        title: "Stop the run?",
+        body: "The container is still starting. Closing now does not undo the start, and the container may still come up.",
+        confirm: "Stop the run",
+        danger: true,
+      });
+      if (stop) onClose();
+    } finally {
+      // A timer, not a microtask: the Escape key event is still reaching the window listener after the question closes.
+      setTimeout(() => { stopAsked.current = false; }, 0);
+    }
   };
   useEffect(() => {
     if (!busy) return;
