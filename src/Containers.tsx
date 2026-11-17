@@ -877,9 +877,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, setDetailId
       />
 
       {composeOpen && ctx && (
-        <Sheet open={true} onClose={() => setComposeOpen(false)} title="Compose projects">
-          <ComposeProjects ctx={ctx} scan={compose} containers={all} attention={problems} query={term && shown.length === 0 ? term : ""} onClose={() => setComposeOpen(false)} onChanged={fixed} />
-        </Sheet>
+        <ComposeProjects ctx={ctx} scan={compose} containers={all} attention={problems} query={term && shown.length === 0 ? term : ""} onClose={() => setComposeOpen(false)} onChanged={fixed} />
       )}
       {logsOf && ctx && logsOf.dir && (
         <Sheet open={logsOf !== null} onClose={() => setLogsOf(null)} title={`Logs of ${logsOf.name}`}>

@@ -2,11 +2,17 @@ wo-3.3c: Compose projects as a sheet with live logs
 
 ## What changed
 
-`src/ComposeProjects.tsx` converted from `Drawer` to `Sheet`: it now renders as a sheet titled "Compose projects" using `Sheet`, `Field`, `Fields`, `FormRow`, `Button`, `Icon`, `DropdownMenu` from `src/ui/op`, with project cards, start/stop/restart/rebuild/pull/down actions, a "More actions" menu, per-project live logs (`ComposeLogs`), and compose-progress output.
+`src/ComposeProjects.tsx` converted from `Drawer` to `Sheet`: it now renders as a sheet titled "Start a Compose project" using `Sheet`, `Field`, `Fields`, `FormRow`, `Button`, `Icon`, `DropdownMenu` from `src/ui/op`, with project cards, start/stop/restart/rebuild/pull/down actions, a "More actions" menu, per-project live logs (`ComposeLogs`), and compose-progress output.
 
 `src/ComposeLogs.tsx` converted to read-only sheet content using `Banner`, `Icon`, `Select`, `Button` from `src/ui/op` (no `Drawer`, no `./ui` imports). Live logs poll `compose_logs` every 2 s, filter by service/text, follow/pause on scroll, and mark compose runs in the stream.
 
-`src/Containers.tsx` wraps `ComposeProjects` and `ComposeLogs` in `Sheet` components (opened from the project menu's "Show logs"/"Start a Compose project"), passing `onClose` to `ComposeProjects`.
+`src/Containers.tsx` renders `ComposeProjects` directly (it draws its own sheet, so the outer "Compose projects" sheet is gone), and wraps `ComposeLogs` in a `Sheet` titled "Logs of {project}".
+
+## Changed tests and checks
+
+- `src/ComposeProjects.test.tsx`: "Add a folder" renamed to "Choose a folder…" (the spec's word), selector and test name updated, behaviour unchanged. New: "given the sheet opens, then its dialog is named Start a Compose project".
+- `scripts/check-compose.mjs`: dialog selector "Compose projects" to "Start a Compose project" (5 lines), "Add a folder" selector to "Choose a folder" (2 lines). The 61 `check(` lines are unchanged.
+- `scripts/check-menus.mjs`: the New menu item now expects the dialog "Start a Compose project" (one line).
 
 `src/PullPanel.tsx` fixed: `useBringBusy()` (reactive boolean) replaces the `busy` function from fixStore for disable/fetch-busy state.
 

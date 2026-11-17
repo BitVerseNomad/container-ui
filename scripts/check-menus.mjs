@@ -5,7 +5,7 @@ import { engine, open, check, done } from "./lib/check.mjs";
 const NEW_ITEMS = [
   ["Run an image", "Choose an image to run"],
   ["Pull an image", "Pull image"],
-  ["Start a Compose project", "Compose projects"],
+  ["Start a Compose project", "Start a Compose project"],
 ];
 
 for (const engine of ["chromium", "webkit"]) {
