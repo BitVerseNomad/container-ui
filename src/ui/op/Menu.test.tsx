@@ -4,6 +4,7 @@ import { expect, it, vi } from "vitest";
 import { Button } from "./Button";
 import { Menu, MenuItem, MoreButton, MenuRadioGroup, MenuRadioItem } from "./Menu";
 import { EngineButton } from "./EngineButton";
+import { Sheet } from "./Sheet";
 
 if (!Element.prototype.hasPointerCapture) Element.prototype.hasPointerCapture = () => false;
 Element.prototype.releasePointerCapture = () => {};
@@ -141,4 +142,26 @@ it("given a danger item, when the menu opens, then the item has class danger", a
   await user.click(screen.getByRole("button", { name: "Actions" }));
   const item = await screen.findByRole("menuitem", { name: "Remove…" });
   expect(item).toHaveClass("danger");
+});
+
+it("given a menu open inside a sheet, when Escape is pressed, then only the menu closes and the sheet stays open", async () => {
+  const user = userEvent.setup();
+  const onClose = vi.fn();
+  const sheetSawKey = vi.fn();
+  document.addEventListener("keydown", sheetSawKey, true);
+  render(
+    <Sheet open onClose={onClose} title="Run">
+      <Menu trigger={<Button>More actions for blog</Button>} label="Actions for blog">
+        <MenuItem label="Logs" onSelect={() => {}} />
+      </Menu>
+    </Sheet>,
+  );
+  await user.click(screen.getByRole("button", { name: "More actions for blog" }));
+  await screen.findByRole("menuitem", { name: "Logs" });
+  await user.keyboard("{Escape}");
+  await waitFor(() => expect(screen.queryByRole("menu")).not.toBeInTheDocument());
+  expect(screen.getByRole("dialog", { name: "Run" })).toBeInTheDocument();
+  expect(onClose).not.toHaveBeenCalled();
+  expect(sheetSawKey).not.toHaveBeenCalled();
+  document.removeEventListener("keydown", sheetSawKey, true);
 });
