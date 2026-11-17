@@ -10,12 +10,12 @@ export interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
 export const Badge = forwardRef<HTMLSpanElement, BadgeProps>(
   ({ className, variant = "default", size = "md", dot, children, ...props }, ref) => {
     const variants = {
-      default: "bg-[var(--color-accent-muted)] text-[var(--color-accent)] border border-[var(--color-accent)]/20",
-      success: "bg-[var(--color-success-bg)] text-[var(--color-success-fg)] border border-[var(--color-success)]/20",
-      warning: "bg-[var(--color-warning-bg)] text-[var(--color-warning-fg)] border border-[var(--color-warning)]/20",
-      danger: "bg-[var(--color-danger-bg)] text-[var(--color-danger-fg)] border border-[var(--color-danger)]/20",
-      info: "bg-[var(--color-info-bg)] text-[var(--color-info-fg)] border border-[var(--color-info)]/20",
-      outline: "bg-transparent text-[var(--color-fg)] border border-[var(--color-border)]",
+      default: "bg-accent-fill text-accent border border-accent/20",
+      success: "bg-ok-fill text-ok border border-ok/20",
+      warning: "bg-warn-fill text-warn border border-warn/20",
+      danger: "bg-bad-fill text-bad border border-bad/20",
+      info: "bg-info-fill text-info border border-info/20",
+      outline: "bg-transparent text-fg border border-line",
     };
 
     const sizes = {
@@ -39,12 +39,12 @@ export const Badge = forwardRef<HTMLSpanElement, BadgeProps>(
           <span
             className={clsx(
               "w-1.5 h-1.5 rounded-full",
-              variant === "success" && "bg-[var(--color-success)]",
-              variant === "warning" && "bg-[var(--color-warning)]",
-              variant === "danger" && "bg-[var(--color-danger)]",
-              variant === "info" && "bg-[var(--color-info)]",
-              variant === "default" && "bg-[var(--color-accent)]",
-              variant === "outline" && "bg-[var(--color-fg-muted)]",
+              variant === "success" && "bg-ok",
+              variant === "warning" && "bg-warn",
+              variant === "danger" && "bg-bad",
+              variant === "info" && "bg-info",
+              variant === "default" && "bg-accent",
+              variant === "outline" && "bg-fg-muted",
             )}
             aria-hidden="true"
           />

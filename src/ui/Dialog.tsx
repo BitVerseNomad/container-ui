@@ -97,32 +97,32 @@ export function Dialog({
     <Fragment>
       <div
         ref={overlayRef}
-        className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[var(--z-modal)] animate-fade-in"
+        className="fixed inset-0 z-50 bg-bg-overlay backdrop-blur-sm"
         onClick={() => onOpenChange(false)}
         aria-hidden="true"
       />
       <div
         ref={contentRef}
-        className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[calc(var(--z-modal)+1)] w-full max-h-[90vh] overflow-hidden animate-slide-up"
+        className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-h-[90vh] overflow-hidden"
         role="dialog"
         aria-modal="true"
         aria-labelledby={title ? "dialog-title" : undefined}
         aria-describedby={description ? "dialog-description" : undefined}
       >
-        <div className={clsx("bg-[var(--color-bg-primary)] rounded-xl shadow-[var(--color-shadow-xl)] w-full", sizes[size])}>
+        <div className={clsx("bg-bg-raised rounded-xl shadow-floating w-full", sizes[size])}>
           {(title || description) && (
-            <div className="px-6 py-4 border-b border-[var(--color-border-light)] flex items-start justify-between gap-4">
+            <div className="px-6 py-4 border-b border-line flex items-start justify-between gap-4">
               <div>
                 {title && (
                   <h2
                     id="dialog-title"
-                    className="text-lg font-semibold text-[var(--color-fg-primary)]"
+                    className="text-lg font-semibold text-fg"
                   >
                     {title}
                   </h2>
                 )}
                 {description && (
-                  <p id="dialog-description" className="text-sm text-[var(--color-fg-tertiary)] mt-1">
+                  <p id="dialog-description" className="text-sm text-fg-faint mt-1">
                     {description}
                   </p>
                 )}
@@ -130,7 +130,7 @@ export function Dialog({
               <button
                 type="button"
                 onClick={() => onOpenChange(false)}
-                className="p-1 rounded-lg text-[var(--color-fg-tertiary)] hover:text-[var(--color-fg-primary)] hover:bg-[var(--color-bg-hover)] transition-colors flex-shrink-0"
+                className="p-1 rounded-lg text-fg-faint hover:text-fg hover:bg-tile-hover transition-colors flex-shrink-0"
                 aria-label="Close dialog"
               >
                 <X className="h-5 w-5" />
@@ -154,11 +154,11 @@ export function DialogHeader({ children, className, ...props }: DialogHeaderProp
 }
 
 export function DialogTitle({ children, className, ...props }: DialogTitleProps) {
-  return <h3 className={clsx("text-lg font-semibold text-[var(--color-fg-primary)]", className)} {...props}>{children}</h3>;
+  return <h3 className={clsx("text-lg font-semibold text-fg", className)} {...props}>{children}</h3>;
 }
 
 export function DialogDescription({ children, className, ...props }: DialogDescriptionProps) {
-  return <p className={clsx("text-sm text-[var(--color-fg-tertiary)] mt-1", className)} {...props}>{children}</p>;
+  return <p className={clsx("text-sm text-fg-faint mt-1", className)} {...props}>{children}</p>;
 }
 
 export function DialogFooter({ children, className, ...props }: DialogFooterProps) {

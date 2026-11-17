@@ -16,7 +16,7 @@ export function Skeleton({
   animation = "pulse",
 }: SkeletonProps) {
   const baseStyles = clsx(
-    "bg-[var(--color-bg-tertiary)] rounded",
+    "bg-tile-hover rounded",
     animation === "pulse" && "animate-pulse",
     animation === "wave" && "animate-[shimmer_1.5s_infinite]",
     variant === "circular" && "rounded-full",
@@ -44,7 +44,7 @@ export function SkeletonText({ lines = 3, className, ...props }: { lines?: numbe
 
 export function SkeletonCard({ className, ...props }: { className?: string } & Omit<SkeletonProps, "variant">) {
   return (
-    <div className={clsx("space-y-4 p-4 bg-[var(--color-bg-primary)] rounded-xl border border-[var(--color-border-light)]", className)}>
+    <div className={clsx("space-y-4 p-4 bg-bg-raised rounded-xl border border-line", className)}>
       <div className="flex items-center gap-3">
         <Skeleton variant="circular" width={40} height={40} {...props} />
         <div className="flex-1 space-y-2">
@@ -67,10 +67,10 @@ export function SkeletonCard({ className, ...props }: { className?: string } & O
 
 export function ProjectCardSkeleton() {
   return (
-    <div className="group transition-all duration-200 hover:shadow-[var(--color-shadow-lg)] cursor-pointer p-0">
+    <div className="group transition-all duration-200 hover:shadow-floating cursor-pointer p-0">
       <div className="p-4">
         <div className="flex items-center gap-3">
-          <Skeleton variant="circular" width={40} height={40} className="bg-[var(--color-brand-primary-light)]" />
+          <Skeleton variant="circular" width={40} height={40} className="bg-accent-fill" />
           <div className="flex-1 space-y-2">
             <Skeleton variant="text" width="40%" height="1.25rem" />
             <Skeleton variant="text" width="80%" height="0.875rem" />
@@ -122,7 +122,7 @@ export function ProjectDetailSkeleton() {
 export function TerminalSkeleton() {
   return (
     <div className="fixed inset-0 z-50 flex flex-col m-4 max-h-[90vh] max-w-[90vw]">
-      <div className="flex items-center justify-between border-b p-3 bg-[var(--color-bg-primary)]">
+      <div className="flex items-center justify-between border-b p-3 bg-bg-raised">
         <div className="flex items-center gap-2">
           <Skeleton variant="text" width="80px" height="1.25rem" />
           <Skeleton variant="text" width="100px" height="0.75rem" />
@@ -130,22 +130,22 @@ export function TerminalSkeleton() {
         </div>
         <Skeleton variant="circular" width={40} height={40} />
       </div>
-      <div className="flex-1 p-4 bg-black rounded-b-xl">
+      <div className="flex-1 p-4 bg-bg-canvas rounded-b-xl">
         <div className="space-y-3 h-full">
-          <Skeleton variant="text" width="100%" height="1.5rem" className="text-green-300" />
-          <Skeleton variant="text" width="100%" height="1.5rem" className="text-green-300" />
-          <Skeleton variant="text" width="100%" height="1.5rem" className="text-green-300" />
-          <Skeleton variant="text" width="100%" height="1.5rem" className="text-green-300" />
-          <Skeleton variant="text" width="100%" height="1.5rem" className="text-green-300" />
-          <Skeleton variant="text" width="100%" height="1.5rem" className="text-green-300" />
-          <Skeleton variant="text" width="100%" height="1.5rem" className="text-green-300" />
-          <Skeleton variant="text" width="100%" height="1.5rem" className="text-green-300" />
+          <Skeleton variant="text" width="100%" height="1.5rem" className="text-ok" />
+          <Skeleton variant="text" width="100%" height="1.5rem" className="text-ok" />
+          <Skeleton variant="text" width="100%" height="1.5rem" className="text-ok" />
+          <Skeleton variant="text" width="100%" height="1.5rem" className="text-ok" />
+          <Skeleton variant="text" width="100%" height="1.5rem" className="text-ok" />
+          <Skeleton variant="text" width="100%" height="1.5rem" className="text-ok" />
+          <Skeleton variant="text" width="100%" height="1.5rem" className="text-ok" />
+          <Skeleton variant="text" width="100%" height="1.5rem" className="text-ok" />
         </div>
       </div>
-      <div className="border-t p-3 bg-[var(--color-bg-primary)]">
+      <div className="border-t p-3 bg-bg-raised">
         <div className="flex items-center gap-2">
           <Skeleton variant="text" width="20px" height="20px" />
-          <Skeleton variant="text" width="100%" height="40px" className="bg-transparent border-[var(--color-border-medium)] rounded" />
+          <Skeleton variant="text" width="100%" height="40px" className="bg-transparent border-edge-strong rounded" />
           <Skeleton variant="text" width="100px" height="40px" />
           <Skeleton variant="text" width="100px" height="40px" />
         </div>
@@ -169,15 +169,15 @@ export function LogsSkeleton() {
           <Skeleton variant="circular" width={40} height={40} />
         </div>
       </div>
-      <div className="border-b p-3 bg-[var(--color-bg-primary)] flex flex-wrap items-center gap-2">
-        <Skeleton variant="text" width="300px" height="40px" className="bg-[var(--color-bg-tertiary)] rounded" />
+      <div className="border-b p-3 bg-bg-raised flex flex-wrap items-center gap-2">
+        <Skeleton variant="text" width="300px" height="40px" className="bg-tile-hover rounded" />
         <Skeleton variant="text" width="150px" height="32px" />
       </div>
-      <div className="flex-1 p-4 bg-black overflow-y-auto">
+      <div className="flex-1 p-4 bg-bg-canvas overflow-y-auto">
         <div className="space-y-2 h-full">
           {Array.from({ length: 15 }, (_, i) => (
             <div key={i} className="flex items-center gap-2">
-              <Skeleton variant="text" width="80px" height="14px" className="text-[var(--color-fg-tertiary)]" />
+              <Skeleton variant="text" width="80px" height="14px" className="text-fg-faint" />
               <Skeleton variant="text" width="70px" height="20px" className="rounded text-xs" />
               <Skeleton variant="text" width="100%" height="14px" />
             </div>
@@ -194,19 +194,19 @@ export function PortsSkeleton() {
       <div className="flex flex-row items-center justify-between">
         <Skeleton variant="text" width="150px" height="1.25rem" />
         <div className="flex items-center gap-2">
-          <Skeleton variant="text" width="100px" height="40px" className="bg-[var(--color-bg-tertiary)] rounded" />
+          <Skeleton variant="text" width="100px" height="40px" className="bg-tile-hover rounded" />
           <Skeleton variant="text" width="100px" height="40px" />
         </div>
       </div>
-      <div className="space-y-2 max-h-[400px] overflow-y-auto">
+      <div className="space-y-2 max-h-100 overflow-y-auto">
         {Array.from({ length: 5 }, (_, i) => (
-          <div key={i} className="flex items-center justify-between p-3 bg-[var(--color-bg-tertiary)] rounded-lg">
+          <div key={i} className="flex items-center justify-between p-3 bg-tile-hover rounded-lg">
             <div className="flex items-center gap-4 flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <Skeleton variant="text" width="60px" height="24px" className="font-mono text-lg" />
                 <Skeleton variant="text" width="50px" height="20px" className="rounded text-xs" />
               </div>
-              <Skeleton variant="text" width="150px" height="14px" className="text-[var(--color-fg-tertiary)]" />
+              <Skeleton variant="text" width="150px" height="14px" className="text-fg-faint" />
               <Skeleton variant="text" width="80px" height="20px" className="rounded" />
             </div>
             <Skeleton variant="circular" width={40} height={40} />
@@ -252,7 +252,7 @@ export function EnvVarsSkeleton() {
           <Skeleton variant="text" width="80px" height="20px" />
         </div>
         <Skeleton variant="text" width="100%" height="40px" className="rounded border" />
-        <div className="space-y-3 p-4 bg-[var(--color-bg-tertiary)]/50 rounded-lg border">
+        <div className="space-y-3 p-4 bg-tile-hover/50 rounded-lg border">
           <div className="grid gap-3 sm:grid-cols-2">
             <Skeleton variant="text" width="100%" height="40px" className="rounded border" />
             <Skeleton variant="text" width="100%" height="40px" className="rounded border" />

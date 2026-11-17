@@ -35,11 +35,11 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
       {children}
       {req && (
         <>
-          <div className="scrim scrim-top" onClick={() => close(false)} />
+          <div className="fixed inset-0 z-40" onClick={() => close(false)} />
           <div className="modal" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby={req.message.includes("\n") ? "confirm-body" : undefined} onKeyDown={(e) => e.key === "Escape" && close(false)}>
             {req.message.includes("\n") ? (
               <>
-                <p className="modal-title" id="confirm-title">{req.message.slice(0, req.message.indexOf("\n"))}</p>
+                <p className="text-title font-semibold text-fg" id="confirm-title">{req.message.slice(0, req.message.indexOf("\n"))}</p>
                 <div id="confirm-body"><Body text={req.message.slice(req.message.indexOf("\n") + 1)} /></div>
               </>
             ) : <p id="confirm-title">{req.message}</p>}
@@ -62,7 +62,7 @@ function Body({ text }: { text: string }) {
   const flush = () => { if (items.length) blocks.push(<ul key={blocks.length}>{items.map((t) => <li key={t}>{t}</li>)}</ul>); items = []; };
   for (const line of text.split("\n")) {
     if (line.startsWith("• ")) items.push(line.slice(2));
-    else if (line.startsWith("! ")) { flush(); blocks.push(<p key={blocks.length} className="confirm-notice"><Icon name="alert" size={14} /><span>{line.slice(2)}</span></p>); }
+    else if (line.startsWith("! ")) { flush(); blocks.push(<p key={blocks.length} className="flex items-start gap-2 text-meta text-warn"><Icon name="alert" size={14} /><span>{line.slice(2)}</span></p>); }
     else { flush(); if (line.trim()) blocks.push(<p key={blocks.length}>{line}</p>); }
   }
   flush();
@@ -103,11 +103,11 @@ export function Empty({ title, description, action, size = "md", children }: Emp
       gap: sizeStyles.gap,
       textAlign: "center"
     }}>
-      <Icon name="info" size={sizeStyles.iconSize} className="empty-icon" />
-      {title && <h3 className="empty-title">{title}</h3>}
-      {description && <p className="empty-content">{description}</p>}
-      {children && <span className="empty-children">{children}</span>}
-      {action && <span className="empty-action">{action}</span>}
+      <Icon name="info" size={sizeStyles.iconSize} className="text-fg-faint" />
+      {title && <h3 className="text-title font-medium text-fg">{title}</h3>}
+      {description && <p className="text-meta text-fg-muted">{description}</p>}
+      {children && <span className="text-meta text-fg-muted">{children}</span>}
+      {action && <span className="mt-2 inline-flex">{action}</span>}
     </div>
   );
 }

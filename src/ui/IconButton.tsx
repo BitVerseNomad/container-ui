@@ -7,7 +7,7 @@ export default function IconButton({ label, icon, onClick, danger, disabled, wai
   return (
     <button className={`${text ? "icon-btn text-btn" : ""}${danger ? " danger" : ""}`} aria-label={waiting ? `${label}. ${waiting}` : label} title={waiting ?? label} aria-disabled={waiting ? true : undefined} onClick={() => !waiting && onClick()} disabled={disabled}>
       <Icon name={icon} />
-      {text && <span className="icon-btn-label">{label}</span>}
+      {text && <span className="text-meta">{label}</span>}
     </button>
   );
 }

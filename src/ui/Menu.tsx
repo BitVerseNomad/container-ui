@@ -63,11 +63,11 @@ export default function Menu({ label, children, items, primary, className, align
               >
                 {it.icon}
                 <span>{it.label}</span>
-                {it.hint && <span className="hint menu-hint">{it.hint}</span>}
-                {it.checked !== undefined && <span className="menu-check">{it.checked && <Icon name="tick" size={13} />}</span>}
+                {it.hint && <span className="hint ml-auto pl-4">{it.hint}</span>}
+                {it.checked !== undefined && <span className="inline-flex w-4 justify-center">{it.checked && <Icon name="tick" size={13} />}</span>}
               </button>
               {it.side && (
-                <button role="menuitem" className="menu-side" aria-label={it.side.ariaLabel} title={it.side.ariaLabel} aria-disabled={it.side.disabled || undefined} onClick={() => { if (it.side?.disabled) return; close(); it.side?.onSelect(); }}>
+                <button role="menuitem" className="inline-flex items-center rounded-xs px-2 text-meta text-fg-muted hover:bg-tile-hover aria-disabled:opacity-50" aria-label={it.side.ariaLabel} title={it.side.ariaLabel} aria-disabled={it.side.disabled || undefined} onClick={() => { if (it.side?.disabled) return; close(); it.side?.onSelect(); }}>
                   {it.side.label}
                 </button>
               )}
