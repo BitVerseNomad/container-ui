@@ -25,7 +25,7 @@ const browser = await engine.launch();
 // 2. Header has back button
 {
   const page = await openContainer(browser);
-  check(await page.getByRole("button", { name: /← Containers/ }).count() > 0, "detail: back button present");
+  check(await page.getByRole("button", { name: "Back to Containers" }).count() > 0, "detail: back button present");
   await page.close();
 }
 
@@ -64,10 +64,10 @@ const browser = await engine.launch();
   await page.close();
 }
 
-// 8. Header has Remove button
+// 8. Header has the actions menu (Remove… lives in it)
 {
   const page = await openContainer(browser);
-  check(await page.getByRole("button", { name: "Remove" }).count() > 0, "detail: Remove button present");
+  check(await page.getByRole("button", { name: "More actions for api" }).count() > 0, "detail: actions menu present");
   await page.close();
 }
 
@@ -112,7 +112,7 @@ const browser = await engine.launch();
 // 14. Logs tab shows logs content
 {
   const page = await openContainer(browser);
-  check(await page.locator(".logs").count() > 0 || await page.locator(".log-bar").count() > 0, "detail: Logs tab content present");
+  check(await page.locator(".canvas").count() > 0, "detail: Logs tab content present");
   await page.close();
 }
 
@@ -202,7 +202,8 @@ const browser = await engine.launch();
 // 24. Remove button shows confirm dialog
 {
   const page = await openContainer(browser);
-  await page.getByRole("button", { name: "Remove" }).click();
+  await page.getByRole("button", { name: "More actions for api" }).click();
+  await page.getByRole("menuitem", { name: "Remove…" }).click();
   await page.waitForSelector(".dialog, [role=alertdialog]", { timeout: WAIT }).catch(() => {});
   check(await page.locator(".dialog, [role=alertdialog]").count() > 0, "detail: Remove shows confirm dialog");
   await page.close();
@@ -211,7 +212,8 @@ const browser = await engine.launch();
 // 25. Remove confirm has Remove button
 {
   const page = await openContainer(browser);
-  await page.getByRole("button", { name: "Remove" }).click();
+  await page.getByRole("button", { name: "More actions for api" }).click();
+  await page.getByRole("menuitem", { name: "Remove…" }).click();
   await page.waitForSelector(".dialog, [role=alertdialog]", { timeout: WAIT }).catch(() => {});
   const dialog = page.locator(".dialog, [role=alertdialog]");
   if (await dialog.count() > 0) {
@@ -225,7 +227,8 @@ const browser = await engine.launch();
 // 26. Remove confirm has Cancel button
 {
   const page = await openContainer(browser);
-  await page.getByRole("button", { name: "Remove" }).click();
+  await page.getByRole("button", { name: "More actions for api" }).click();
+  await page.getByRole("menuitem", { name: "Remove…" }).click();
   await page.waitForSelector(".dialog, [role=alertdialog]", { timeout: WAIT }).catch(() => {});
   const dialog = page.locator(".dialog, [role=alertdialog]");
   if (await dialog.count() > 0) {

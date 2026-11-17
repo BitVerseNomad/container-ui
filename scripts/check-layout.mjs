@@ -158,4 +158,21 @@ check(swErrors.length === 0, "[1180x760] no switcher page errors: ${swErrors.joi
 
 await sw.close();
 
+// 14. A container's Logs tab fills the page and the log scrolls inside itself (WO-3.2, moved from WO-2.2 item 6).
+for (const { width, height } of SIZES) {
+  const logPage = await open("/?scenario=design#/containers/api/logs", { width, height });
+  await logPage.waitForFunction(() => (document.querySelector(".canvas")?.textContent ?? "").length > 500, null, { timeout: 8000 }).catch(() => {});
+  const overflows = await logPage.evaluate(() => {
+    const pane = document.querySelector(".canvas");
+    return pane ? pane.scrollHeight > pane.clientHeight : false;
+  });
+  check(overflows, `[${width}x${height}] the log pane scrolls inside itself once the log has more than 500 characters`);
+  await logPage.locator(".canvas").hover();
+  await logPage.mouse.wheel(0, 400);
+  await logPage.waitForTimeout(200);
+  const scrolled = await logPage.evaluate(() => ({ page: window.scrollY, content: document.querySelector(".content")?.scrollTop ?? 0 }));
+  check(scrolled.page === 0 && scrolled.content === 0, `[${width}x${height}] scrolling the log does not move the page or .content`);
+  await logPage.close();
+}
+
 await done();
