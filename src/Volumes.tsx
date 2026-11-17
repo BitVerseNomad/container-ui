@@ -83,7 +83,7 @@ export default function Volumes({ ctx }: { ctx: string }) {
     <section>
       <div className="table-tools">
         <button
-          className="danger"
+          className="text-bad hover:bg-bad-fill"
           disabled={loose.length === 0}
           aria-disabled={locked || undefined}
           aria-describedby={locked ? "volumes-wait" : undefined}
@@ -98,7 +98,7 @@ export default function Volumes({ ctx }: { ctx: string }) {
         </button>
         {selectedUnused.length > 0 && (
           <button
-            className="danger"
+            className="text-bad hover:bg-bad-fill"
             aria-disabled={locked || undefined}
             onClick={async () =>
               !locked && (await confirm(
@@ -117,7 +117,7 @@ export default function Volumes({ ctx }: { ctx: string }) {
       {data && data.length > 0 && (
         <>
           <div className="table-tools">
-            <label className="search-field volume-search">
+            <label className="flex items-center gap-2 rounded-sm border border-line bg-bg-raised px-2 text-meta">
               <Icon name="search" size={14} />
               <input placeholder="Search your volumes" aria-label="Search your volumes" value={q} onChange={(e) => setQ(e.target.value)} />
             </label>
@@ -131,12 +131,12 @@ export default function Volumes({ ctx }: { ctx: string }) {
               <option value="size">Size</option>
               <option value="usage">Usage</option>
             </select>
-            <button className="link-plain" onClick={() => setDir((d) => (d === "asc" ? "desc" : "asc"))} aria-label="Toggle sort direction">
+            <button className="cursor-pointer text-accent hover:underline" onClick={() => setDir((d) => (d === "asc" ? "desc" : "asc"))} aria-label="Toggle sort direction">
               {dir === "asc" ? "↑" : "↓"}
             </button>
           </div>
           {shown.length === 0 && (
-            <p className="hint pad">No volume here matches "{q.trim()}".</p>
+            <p className="hint p-4">No volume here matches "{q.trim()}".</p>
           )}
           {shown.length > 0 && (
             <table>
@@ -156,7 +156,7 @@ export default function Volumes({ ctx }: { ctx: string }) {
               return (
                 <tr key={v.Name}>
                   <td><input type="checkbox" aria-label={`Select ${v.Name}`} checked={selected.has(v.Name)} onChange={() => toggleSelect(v.Name)} /></td>
-                  <td className="mono clip" title={v.Name}>
+                  <td className="font-mono max-w-xs truncate" title={v.Name}>
                     {isAnonymous(v.Name) ? `${v.Name.slice(0, 12)}… (anonymous)` : v.Name}
                     {/* A backup Bring over made: easy to find, and to remove once the data is checked. */}
                     {backupOf(v.Name) && <span className="volume-backup">{backupOf(v.Name)}</span>}
@@ -165,8 +165,8 @@ export default function Volumes({ ctx }: { ctx: string }) {
                   <td className={by.length ? "in-use" : ""}>
                     {usage.data === null ? "…" : by.length ? `In use by ${by.length} container${by.length > 1 ? "s" : ""}: ${by.join(", ")}` : "Not used"}
                   </td>
-                  <td className="mono">{sizes.data?.has(v.Name) ? formatBytes(sizes.data.get(v.Name)!) : "—"}</td>
-                  <td className="row-actions">
+                  <td className="font-mono">{sizes.data?.has(v.Name) ? formatBytes(sizes.data.get(v.Name)!) : "—"}</td>
+                  <td className="flex items-center justify-end gap-1">
                     <Button variant="destructive" size="sm" icon={<Icon name="trash" size={13} />} aria-label={locked ? `${removeLabel}. ${WAIT}` : removeLabel} disabled={by.length > 0 || locked} loading={locked} onClick={async () => (await confirm(`Remove volume ${v.Name}? Its data is lost.`)) && act(["volume", "rm", v.Name])}>Remove</Button>
                   </td>
                 </tr>

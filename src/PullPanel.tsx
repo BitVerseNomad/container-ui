@@ -93,10 +93,10 @@ export default function PullPanel({ ctx, onClose, onPulled, onRun, searchFor }: 
           <Field id="image-to-pull" width="search" placeholder="nginx or postgres:16" disabled={copyBusy} onChange={(e) => setImage(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && name && !pulling) { pull(); } }} />
         </FormRow>
         <p className="hint">Add a version after a colon, like <code>nginx:1.27</code>; with none you get <code>latest</code>.</p>
-        <div className="chips">
+        <div className="flex flex-wrap gap-1.5">
           <span className="hint">Or try one:</span>
           {["hello-world", "nginx", "mysql", "postgres", "redis"].map((n) => (
-            <Button key={n} className="chip" disabled={pulling} onClick={() => setImage(n)}>{n}</Button>
+            <Button key={n} className="rounded-full border border-line bg-tile px-2.5 py-0.5 text-meta text-fg-muted hover:bg-tile-hover" disabled={pulling} onClick={() => setImage(n)}>{n}</Button>
           ))}
         </div>
       </div>
@@ -108,9 +108,9 @@ export default function PullPanel({ ctx, onClose, onPulled, onRun, searchFor }: 
         {hits && hits.length === 0 && <p className="hint">Nothing found on Docker Hub for "{query}".</p>}
         {hits && hits.length > 0 && (
           <>
-            <div className="sortbar">
+            <div className="flex items-center gap-3 text-meta">
               <span className="hint">{hits.length} result{hits.length > 1 ? "s" : ""}. Choose one to fill in the image above.</span>
-              <label className="sort">
+              <label className="flex items-center gap-1.5 text-meta text-fg-muted">
                 Sort by
                 <Select aria-label="Sort by" value={sort} onChange={(value: string) => setSort(value as SortKey)} options={[
                   { value: "stars", label: "Stars (most first)" },
@@ -132,7 +132,7 @@ export default function PullPanel({ ctx, onClose, onPulled, onRun, searchFor }: 
 
   const privItems = (
     <>
-      <div className="chips">
+      <div className="flex flex-wrap gap-1.5">
         {PRESETS.map((p) => (
           <ChipButton key={p.id} icon={preset?.id === p.id ? "chev-down" : "chev-right"} pressed={preset?.id === p.id} disabled={pulling} onClick={() => setHost(p.host)}>{p.label}</ChipButton>
         ))}
@@ -145,7 +145,7 @@ export default function PullPanel({ ctx, onClose, onPulled, onRun, searchFor }: 
             <p className="hint">{refCheck.reason}</p>
           )}
           {!authHint && needsLogin(host) && (
-            <div className="login-hint">
+            <div className="text-meta text-fg-muted">
               <p className="hint">Private images need you to sign in first. Run this in Terminal:</p>
               <pre className="cmd">{login ?? `docker login ${host.trim()}`}</pre>
               <Button disabled={!login} onClick={() => login && navigator.clipboard.writeText(login)} icon="copy">Copy command</Button>

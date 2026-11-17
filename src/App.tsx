@@ -317,7 +317,7 @@ export default function App() {
       // Until the tool check answers, an empty Doctor could read as an all-clear on a Mac with nothing installed.
       !env ? null : toolsMissing ? (
         <div className="blank">
-          <span className="blank-icon"><Icon name="download" size={28} /></span>
+          <span className="flex items-center justify-center text-fg-faint"><Icon name="download" size={28} /></span>
           <h2>Install a container runtime and Docker first</h2>
           <p className="hint">The checks need both.</p>
           <span className="actions-inline"><button className="primary" onClick={() => setTab("Containers")}>Install them</button></span>

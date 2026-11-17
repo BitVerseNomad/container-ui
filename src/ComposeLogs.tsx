@@ -56,7 +56,7 @@ export default function ComposeLogs({ ctx, file, project }: Props) {
           <Select aria-label={`Service to show for ${project}`} value={only} options={services.map(s => ({ value: s, label: serviceName(s, project) }))} onChange={(value: string) => setOnly(value)}>
           </Select>
         )}
-        <input className="input input-bordered w-full" aria-label={`Filter ${project} log lines`} placeholder="Filter lines" value={filter} onChange={(e) => setFilter(e.target.value)} />
+        <input className="w-full rounded-sm border border-line bg-bg-raised px-3 py-1.5 font-mono text-meta text-fg outline-none placeholder:text-fg-faint focus:border-accent" aria-label={`Filter ${project} log lines`} placeholder="Filter lines" value={filter} onChange={(e) => setFilter(e.target.value)} />
         <Button className={follow ? "toggle toggle--on" : "toggle toggle--off"} aria-pressed={follow} onClick={() => setFollow((f) => !f)}>
           {follow ? "Following new lines" : "Paused, click to follow"}
         </Button>

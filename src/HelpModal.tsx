@@ -21,24 +21,24 @@ export default function HelpModal({ open, onClose }: HelpModalProps) {
       </>
     }>
       {groups.map((g) => (
-        <div key={g.group} className="sheet-body">
+        <div key={g.group} className="flex flex-col gap-4">
           <GroupCaption>{g.group}</GroupCaption>
           {g.items.map((s) => (
             <div key={s.id} className="row">
               <span className="name">{s.label}</span>
               <span className="grow" />
-              <span className="kbd">{showKeys(s)}</span>
+              <span className="inline-flex min-w-5 items-center justify-center rounded-xs border border-edge bg-tile px-1.5 font-mono text-micro text-fg-muted">{showKeys(s)}</span>
             </div>
           ))}
         </div>
       ))}
-      <div className="sheet-body">
+      <div className="flex flex-col gap-4">
         <GroupCaption>List</GroupCaption>
         {LIST_KEYS.map((l) => (
           <div key={l.keys} className="row">
             <span className="name">{l.label}</span>
             <span className="grow" />
-            <span className="kbd">{l.keys}</span>
+            <span className="inline-flex min-w-5 items-center justify-center rounded-xs border border-edge bg-tile px-1.5 font-mono text-micro text-fg-muted">{l.keys}</span>
           </div>
         ))}
       </div>
