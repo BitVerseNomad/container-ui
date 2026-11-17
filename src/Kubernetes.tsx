@@ -7,6 +7,7 @@ import PodDrawer from "./PodDrawer";
 import { K8sEvent, Pod, parseDeployments, parseK8sEvents, parseNamespaces, parseNodes, parsePods, parseServices, podProblems } from "./lib/k8s";
 import { ago } from "./lib/events";
 import { Banner } from "./ui";
+import { Button } from "./ui/op";
 import Card from "./ui/Card";
 import { Icon } from "./ui/icons";
 import { Badge } from "@ui/components/Badge";
@@ -91,7 +92,7 @@ export default function Kubernetes({ profile, ctx }: { profile: Profile; ctx: st
         <span className={`sdot ${nodes.error ? "bad" : ready ? "on" : ""}`} aria-hidden="true" />
         <b>{ready} node{ready === 1 ? "" : "s"} ready</b>
         <span className="hint">{nodes.error ? "The cluster isn't answering yet" : (nodes.data ?? []).map((n) => n.version).filter(Boolean)[0] ?? ""}</span>
-        <span className="text-meta text-fg-muted"><span>{running} of {(pods.data ?? []).length} pods running</span>{sick.length > 0 && <span className="font-medium text-bad">{sick.length} need attention</span>}</span>
+        <span className="text-meta text-fg-muted"><span>{running} of {(pods.data ?? []).length} pods running</span>{sick.length > 0 && <><span aria-hidden="true"> · </span><span className="font-medium text-bad">{sick.length} need attention</span></>}</span>
       </div>
 
       {sick.length > 0 && (
@@ -120,7 +121,7 @@ export default function Kubernetes({ profile, ctx }: { profile: Profile; ctx: st
         </label>
         <span className="flex items-center gap-2">
           {env.k9s ? (
-            <button onClick={() => invoke("open_terminal", { kind: "k9s", context: kctx }).catch((e) => setError(String(e)))}><Icon name="cluster" size={14} /> Open in k9s</button>
+            <Button size="sm" variant="default" icon="cluster" onClick={() => invoke("open_terminal", { kind: "k9s", context: kctx }).catch((e) => setError(String(e)))}>Open in k9s</Button>
           ) : (
             <span className="hint">Want a terminal UI? <code>brew install k9s</code></span>
           )}

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { EnvReport } from "./useEnv";
 import Card from "./ui/Card";
+import { Button } from "./ui/op";
 import OutputLog from "./ui/OutputLog";
 import { Icon } from "./ui/icons";
 
@@ -57,9 +58,7 @@ export default function InstallCard({ env, onDone }: { env: EnvReport; onDone: (
           <p className="hint">Homebrew isn't installed either. Its installer asks for your password, so it runs in Terminal, where you type it. Come back and press Check again when it finishes.</p>
           <pre className="cmd">{BOOTSTRAP}</pre>
           <div className="actions-inline">
-            <button className="primary" onClick={() => invoke("open_homebrew_install").catch((e) => setNote(String(e)))}>
-              <Icon name="terminal" size={14} /> Open Terminal and install
-            </button>
+            <Button variant="primary" size="sm" icon="terminal" onClick={() => invoke("open_homebrew_install").catch((e) => setNote(String(e)))}>Open Terminal and install</Button>
             <button onClick={() => navigator.clipboard.writeText(BOOTSTRAP)}>
               <Icon name="copy" size={14} /> Copy command
             </button>

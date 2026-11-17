@@ -7,6 +7,7 @@ import { Profile, StartOpts, gbOf } from "./api";
 import EditPanel from "./EditPanel";
 import { Empty } from "./ui";
 import { Button } from "@ui/components/Button";
+import { Button as OpButton } from "./ui/op";
 import { Icon } from "./ui/icons";
 import OutputLog from "./ui/OutputLog";
 import { useFixRuns } from "./FixIt";
@@ -72,12 +73,7 @@ export default function Profiles({ profiles, reload, openNew = false, kubeOn = (
   return (
     <section>
       <header>
-        <button
-          className="primary"
-          onClick={openForm}
-        >
-          New profile
-        </button>
+        <OpButton variant="primary" size="sm" onClick={openForm}>New profile</OpButton>
         {busy && <span className="state">{busy}</span>}
       </header>
       <p className="hint lead">A profile is a separate Colima VM with its own containers, images and volumes. Most people only need <b>default</b>.</p>
@@ -102,7 +98,7 @@ export default function Profiles({ profiles, reload, openNew = false, kubeOn = (
                   <td>
                     {kubeOn(p.name) === true ? <Status level="on">On</Status> : kubeOn(p.name) === false ? <button disabled={!!busy} onClick={() => turnOnKubernetes(p)}>Turn on Kubernetes</button> : <span className="hint">–</span>}
                   </td>
-                  <td className="whitespace-nowrap text-right">
+                  <td className="text-right">
                     {up ? (
                       <>
                         <Button variant="default" size="sm" icon={<Icon name="stop" size={13} />} aria-label={`Stop ${p.name}`} disabled={!!busy || fixing} onClick={() => act(p.name, "stopping", "stop_profile", { name: p.name })}>Stop</Button>
