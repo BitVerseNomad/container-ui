@@ -3,7 +3,8 @@
 import { openShell } from "./lib/shell";
 import { focusWhenShown } from "./lib/focusRow";
 import { activity, dockerLine, ranVm } from "./lib/activity";
-import { score } from "./lib/fuzzy";
+import { rank, score } from "./lib/fuzzy";
+import { projectsFrom } from "./lib/composeScan";
 import { ReactNode, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Profile, docker, dockerJson } from "./api";
@@ -380,9 +381,8 @@ export default function Containers({ profile, ctx, vm, onVm, reload, setDetailId
   // A number finds whatever publishes that port ("8080" finds web on 0.0.0.0:8080->80).
   const hit = (c: C) => score(c.Names, term) > 0 || score(c.Image, term, false) > 0 || (/^\d{2,5}$/.test(term) && new RegExp(`(^|[ ,:])${term}->`).test(c.Ports ?? ""));
   const shown = term ? apps.filter((a) => score(a.name, term) > 0 || a.rows.some(hit)) : apps;
-  const composeDirs = compose.paths ? [...new Set(compose.paths.map((x) => x.slice(0, x.lastIndexOf("/"))))] : [];
   // A search that finds nothing may be for a project that was never started, which only the Compose panel lists.
-  const projectHits = term ? composeDirs.filter((d) => score(d.slice(d.lastIndexOf("/") + 1), term) > 0).length : 0;
+  const idleProjects = term ? rank(projectsFrom([...new Set([...(compose.pinned ?? []), ...(compose.paths ?? [])])], all), term, (p) => p.name, (p) => p.dir).filter((p) => p.running === 0) : [];
 
   // The failure card stays mounted through the way back, so the good result lands where focus already is.
   const failedChange = rs.card && !!rs.outcome && rs.from?.startsWith("home:") === true;
@@ -432,7 +432,8 @@ export default function Containers({ profile, ctx, vm, onVm, reload, setDetailId
     });
   };
   const sorted = sortEntries(shown.map((a) => ({ ...a, hasProblem: a.rows.some(hasProblem), running: appState(a.rows, infoOf).up > 0 })));
-  const lines = flatten<C>(sorted, (e) => openNow(e as App<C>), hasProblem);
+  // A search shows, under a project, only the containers it finds; a project whose name matches shows all of them.
+  const lines = flatten<C>(sorted, (e) => openNow(e as App<C>), hasProblem, (e, c) => !term || score(e.name, term) > 0 || hit(c));
 
   const toggleCheck = (id: string, on: boolean) => setChecked((prev) => {
     const next = new Set(prev);
@@ -644,21 +645,21 @@ export default function Containers({ profile, ctx, vm, onVm, reload, setDetailId
     const see = p
       ? <Button size="xs" aria-label={`See why: ${c.Names}`} onClick={() => setInspect({ c, f: p })}>See why</Button>
       : <Button variant="ghost" size="xs" aria-label={`See why: ${c.Names}`} onClick={() => setDetailId(c.ID)}>See why</Button>;
-    if (run?.step) return <Problem key={c.ID} level="busy" text={`${who}${run.step}`} action={<Button variant="ghost" size="xs" aria-disabled="true">Fixing…</Button>} child={indent} />;
+    if (run?.step) return <Problem key={`problem-${c.ID}`} level="busy" text={`${who}${run.step}`} action={<Button variant="ghost" size="xs" aria-disabled="true">Fixing…</Button>} child={indent} />;
     const r = run?.result;
     if (r?.ok) {
       // A broker needs a little while after a restart, and an app that looks for it shows nothing until then.
       const slow = /kafka/i.test(c.Image) ? " Kafka needs about 30 s to start." : "";
-      return <Problem key={c.ID} level="ok" text={`${who}Fixed.${slow}`} title={describe(r)} action={<Button variant="ghost" size="xs" onClick={() => dismiss(c.Names)}>Done</Button>} child={indent} />;
+      return <Problem key={`problem-${c.ID}`} level="ok" text={`${who}Fixed.${slow}`} title={describe(r)} action={<Button variant="ghost" size="xs" onClick={() => dismiss(c.Names)}>Done</Button>} child={indent} />;
     }
-    if (!p) return r ? <Problem key={c.ID} level="bad" text={`${who}The fix didn't finish.`} title={describe(r)} action={see} child={indent} /> : null;
+    if (!p) return r ? <Problem key={`problem-${c.ID}`} level="bad" text={`${who}The fix didn't finish.`} title={describe(r)} action={see} child={indent} /> : null;
     // When this row's own fix replaces containers, a bigger fix that also replaces this one (Kafka UI's "fix both"
     // includes its broker) wins, so both rows offer the one fix that makes them work together.
     const shared = biggerFix(p.fix, [...problems.values()].flat().map((f) => f.fix));
     const fix = shared ?? p.fix;
     // That bigger fix gets one button, on the row that owns it; this row says where it is.
     const owner = shared ? [...problems].find(([, l]) => l.some((f) => f.fix === shared))?.[0] : undefined;
-    if (shared && owner && owner !== c.Names) return <Problem key={c.ID} level={p.level === "bad" ? "bad" : "warn"} text={`${who}${p.short ?? p.title}. Fixed together with ${owner}.`} title={plain(p.detail)} child={indent} onOpen={openThis} />;
+    if (shared && owner && owner !== c.Names) return <Problem key={`problem-${c.ID}`} level={p.level === "bad" ? "bad" : "warn"} text={`${who}${p.short ?? p.title}. Fixed together with ${owner}.`} title={plain(p.detail)} child={indent} onOpen={openThis} />;
     const one = fix ? fixAction(fix, ctx ?? undefined, oldConfirm, runs, fixed) : null;
     const names = fix?.steps?.map((x) => x.name) ?? [];
     const said = p.short ?? p.title;
@@ -672,7 +673,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, setDetailId
     // Its own memory limit, from a listed project: one button, chosen by what the file says now.
     if (fix?.reveal && a && isListed(fix.reveal, compose.paths ?? [])) {
       const lockedHere = !canAct(a);
-      return <LimitLine key={c.ID} who={who} text={text} detail={plain(p.detail)} fix={{ ...fix, reveal: fix.reveal }} ctx={ctx ?? undefined} project={a.name} locked={lockedHere} lockWhy={composeRun.busy ? "Waits for the Compose run that is going." : "Waits for what is changing Docker now."}
+      return <LimitLine key={`problem-${c.ID}`} who={who} text={text} detail={plain(p.detail)} fix={{ ...fix, reveal: fix.reveal }} ctx={ctx ?? undefined} project={a.name} locked={lockedHere} lockWhy={composeRun.busy ? "Waits for the Compose run that is going." : "Waits for what is changing Docker now."}
         onApply={(svc) => void project(a, "up", null, `${svc} started with its new limit.`, svc)}
         onStart={() => void project(a, "up", { target: "running", word: "Starting…", since: Date.now() }, `${a.name} started`)}
         onOpenFail={(alert) => setSaid({ status: "", alert })}
@@ -689,7 +690,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, setDetailId
     ) : fix?.go === "Images" ? (
       <Button variant="ghost" size="xs" onClick={onImages}>Open Images</Button>
     ) : see;
-    return <Problem key={c.ID} level={p.level === "bad" ? "bad" : "warn"} text={<Ticks text={text} />} title={plain(p.detail)} action={action} child={indent} onOpen={openThis} />;
+    return <Problem key={`problem-${c.ID}`} level={p.level === "bad" ? "bad" : "warn"} text={<Ticks text={text} />} title={plain(p.detail)} action={action} child={indent} onOpen={openThis} />;
   };
 
   // What sits under an entry row beyond the lines `flatten` makes: a Compose run that failed, a failed action, the
@@ -857,7 +858,19 @@ export default function Containers({ profile, ctx, vm, onVm, reload, setDetailId
             </List>
           )}
           {term && shown.length === 0 && (
-            <Empty icon="search" title={`Nothing matches "${term}".`} actions={<Button size="md">Clear search</Button>} />
+            <Empty
+              icon="search"
+              title={`Nothing matches "${term}".`}
+              actions={
+                <>
+                  <Button size="md" onClick={() => setQ("")}>Clear search</Button>
+                  {idleProjects.length > 0 && <Button size="md" onClick={() => setComposeOpen(true)}>Show it</Button>}
+                </>
+              }
+            >
+              {idleProjects.length === 1 && "1 Compose project that isn't running matches."}
+              {idleProjects.length > 1 && `${idleProjects.length} Compose projects that aren't running match.`}
+            </Empty>
           )}
         </>
       ) : (

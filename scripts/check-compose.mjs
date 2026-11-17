@@ -29,7 +29,7 @@ async function open(scenario) {
   page.errors = [];
   page.on("pageerror", (e) => page.errors.push(e.message));
   await page.goto(`${HOST}/?scenario=${scenario}`);
-  await page.waitForSelector("ul.apps > li.app", { timeout: 4000 }).catch(() => {});
+  await page.waitForSelector(".list > .row:not(.th)", { timeout: 4000 }).catch(() => {});
   return page;
 }
 
@@ -129,7 +129,7 @@ check((await drawer.getByLabel("Service to show for shop").click().then(() => p.
 await via(drawer, "shop", "Restart");
 await p.waitForFunction(() => /you ran compose restart/.test(document.querySelector(".compose-logs pre")?.textContent ?? ""), null, { timeout: 5000 }).catch(() => {});
 check(/·· \d\d:\d\d:\d\d  you ran compose restart ··/.test(await live.innerText()), "running: a restart is marked in the live logs");
-await p.waitForFunction(() => !/Cancel/.test(document.querySelector(".drawer")?.textContent ?? ""), null, { timeout: 4000 }).catch(() => {});
+await p.waitForFunction(() => !/Cancel/.test(document.querySelector("[role=dialog]")?.textContent ?? ""), null, { timeout: 4000 }).catch(() => {});
 await drawer.getByLabel("Service to show for shop").click(); await p.getByRole("option", { name: "db", exact: true }).click();
 check(!/^web /m.test(await live.innerText()) && /db ready/.test(await live.innerText()), "running: choosing a service shows only its lines");
 await via(drawer, "shop", "Hide logs");
@@ -144,7 +144,7 @@ await via(drawer, "shop", "Update images");
 await p.waitForFunction(() => (window.__composed ?? []).some((c) => c.action === "pull"), null, { timeout: 3000 }).catch(() => {});
 check(await p.evaluate(() => (window.__composed ?? []).some((c) => c.action === "pull")), "running: Update images runs compose up --pull always");
 // Running hides the row's other buttons, so wait for Cancel to go, not for a button to be enabled.
-await p.waitForFunction(() => !/Cancel/.test(document.querySelector(".drawer")?.textContent ?? ""), null, { timeout: 4000 }).catch(() => {});
+await p.waitForFunction(() => !/Cancel/.test(document.querySelector("[role=dialog]")?.textContent ?? ""), null, { timeout: 4000 }).catch(() => {});
 const rightEdge = await p.evaluate(() => Math.max(...[...document.querySelectorAll('[aria-label="Compose projects"] button')].map((b) => b.getBoundingClientRect().right)));
 const drawerEdge = await p.evaluate(() => document.querySelector('[role=dialog]').getBoundingClientRect().right);
 check(rightEdge <= drawerEdge, `running: every card button fits inside the panel (${Math.round(rightEdge)} <= ${Math.round(drawerEdge)})`);
@@ -166,7 +166,6 @@ await p.keyboard.press("Escape");
 
 // A minimal image has no shell: open a toolbox shell next to it, and say so, instead of a Terminal that closes at once.
 await p.evaluate(() => (window.__terminal = []));
-await p.locator("li.app .app-name", { hasText: /^shop$/ }).click();
 await p.getByRole("button", { name: "More actions for worker", exact: true }).click();
 await p.getByRole("menuitem", { name: "Open a shell" }).click();
 await p.waitForFunction(() => (window.__terminal ?? []).length > 0, null, { timeout: 3000 }).catch(() => {});
@@ -178,16 +177,16 @@ check(/worker has no shell .*toolbox shell opened/.test(shellToast) && /busybox:
 
 // A container search that finds nothing points to the projects that match.
 await p.getByRole("textbox", { name: /Search containers/ }).fill("sss");
-const hint = p.locator("p.hint", { hasText: "Nothing matches" });
+const hint = p.locator(".empty", { hasText: "Nothing matches" });
 check(/1 Compose project that isn't running matches/.test(await hint.innerText().catch(() => "")), "running: an empty container search points to a matching project");
 await hint.getByRole("button", { name: "Show it" }).click();
 check((await p.getByRole("dialog", { name: "Start a Compose project" }).locator(ITEM + " .name").first().innerText().catch(() => "")) === "service-search-service", "running: Show it opens the panel already searched");
 await p.keyboard.press("Escape");
 
 // Every command of the session, from the sidebar.
-await p.getByRole("button", { name: "Commands", exact: true }).click();
-const log = p.getByRole("dialog", { name: "Commands" });
-const box = await p.evaluate(() => { const l = document.querySelector(".check-row"); return l.querySelector("input").getBoundingClientRect().left - l.getBoundingClientRect().left; });
+await p.getByRole("button", { name: "Activity: commands the app ran" }).click();
+const log = p.getByRole("dialog", { name: "Activity" });
+const box = await p.evaluate(() => { const l = document.querySelector(".check-row"); return l ? l.querySelector("input").getBoundingClientRect().left - l.getBoundingClientRect().left : NaN; });
 check(box < 2, `running: the recall checkbox sits at the start of its label (${Math.round(box)}px in)`);
 const again = log.getByRole("button", { name: /^Run again: / });
 check(await again.count() >= 1 && !(await again.evaluateAll((bs) => bs.some((b) => / compose /.test(b.getAttribute("aria-label"))))), "running: Run again is offered for the shell, never for Compose actions");
@@ -196,14 +195,14 @@ await again.first().click();
 await p.waitForFunction((n) => (window.__terminal ?? []).length > n, before, { timeout: 3000 }).catch(() => {});
 check((await p.evaluate(() => window.__terminal ?? [])).length === before + 1, "running: Run again runs the same click once more");
 check(/has no shell .*toolbox shell opened/.test(await log.innerText()), "running: each entry says what it did, in words");
-check((await log.locator(".cmd-log li").count()) >= 2 && /failed/.test(await log.innerText()), "running: the Commands list has both runs, the failed one marked");
+check((await log.locator("li").count()) >= 2 && /failed/.test(await log.innerText()), "running: the Commands list has both runs, the failed one marked");
 check(p.errors.length === 0, `running: no page errors${p.errors.length ? ": " + p.errors.join("; ") : ""}`);
 
 // A port clash fixed in one click, on a fresh page so the rest above saw the clash.
 p = await open("running");
 await p.getByRole("textbox", { name: /Search containers/ }).fill("8080");
-const portApps = await p.locator("ul.apps > li.app").count();
-const portSvcs = await p.locator("ul.svc > li .svc-name").allInnerTexts();
+const portApps = await p.locator(".list > .row:not(.th):not(.child)").count();
+const portSvcs = await p.locator(".list > .row.child").allInnerTexts();
 check(portApps === 1 && portSvcs.length === 1 && /\bweb\b/.test(portSvcs[0]), `running: searching 8080 finds the container that publishes it (${portApps} app, ${portSvcs.length} service)`);
 await p.getByRole("textbox", { name: /Search containers/ }).fill("");
 await p.getByRole("button", { name: "New" }).click();
@@ -215,8 +214,8 @@ await d2.getByRole("button", { name: "Stop web and start blog" }).click();
 await p.waitForFunction(() => /1 of 1 running/.test([...document.querySelectorAll('[aria-label="Compose projects"] .row[role=row]')].find((e) => /~\/code\/blog/.test(e.textContent))?.textContent ?? ""), null, { timeout: 6000 }).catch(() => {});
 check(/1 of 1 running/.test(await d2.locator(ITEM, { hasText: "~/code/blog" }).innerText()), "running: after Stop web and start blog, blog is running");
 await p.keyboard.press("Escape");
-await p.getByRole("button", { name: "Commands", exact: true }).click();
-check(/docker --context colima stop web/.test(await p.getByRole("dialog", { name: "Commands" }).innerText()), "running: the stop it ran is in the Commands list");
+await p.getByRole("button", { name: "Activity: commands the app ran" }).click();
+check(/docker --context colima stop web/.test(await p.getByRole("dialog", { name: "Activity" }).innerText()), "running: the stop it ran is in the Commands list");
 
 // Compose projects has no button of its own on home any more; it opens from the New menu. A crash loop gets its cause and a next step.
 p = await open("running");
@@ -225,8 +224,8 @@ await p.getByRole("button", { name: "New" }).click();
 await p.getByRole("menuitem", { name: /^Start a Compose project/ }).click();
 check(await p.getByRole("dialog", { name: "Start a Compose project" }).count() === 1, "running: New opens the Compose projects panel");
 await p.keyboard.press("Escape");
-await p.locator("li.app .app-name", { hasText: /^shop$/ }).click();
-await p.getByRole("button", { name: /^worker, / }).first().click();
+await p.locator('.list .row.child[aria-label^="worker, "]').click();
+await p.getByRole("tab", { name: "Settings" }).click();
 await p.waitForFunction(() => /Its last error/.test(document.querySelector(".content")?.textContent ?? ""), null, { timeout: 6000 }).catch(() => {});
 const crash = await p.locator(".health-panel").innerText().catch(() => "");
 check(/Its last error/.test(crash) && /4182\.png: no such file/.test(crash), "running: a restarting container shows the error behind it");
