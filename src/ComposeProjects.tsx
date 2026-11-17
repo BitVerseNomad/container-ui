@@ -4,8 +4,7 @@ import { useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import OutputLog from "./ui/OutputLog";
 import ComposeLogs from "./ComposeLogs";
-import { Button, Icon, Sheet, useConfirm, Banner } from "./ui/op";
-import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@ui/components/DropdownMenu";
+import { Banner, Button, Col, Empty, Field, Icon, List, Menu, MenuItem, MenuSeparator, MoreButton, Problem, Row, Sheet, useConfirm } from "./ui/op";
 import { ComposeScan } from "./useComposeScan";
 import { cdPath, portHolder, projectName, projectsFrom, shellQuote, whyFailed } from "./lib/composeScan";
 import { docker, pinComposeStop } from "./api";
@@ -69,10 +68,9 @@ export async function runCompose(ctx: string, p: Pick<ComposeProject, "dir" | "f
 }
 
 function CopyCommand({ text, label }: { text: string; label: string }) {
-  const [done, setDone] = useState(false);
   return (
-    <Button icon="copy" size="md" onClick={() => navigator.clipboard.writeText(text)} aria-label={label} title={text}>
-      {done ? "Copied" : "Copy"}
+    <Button icon="copy" size="xs" onClick={() => navigator.clipboard.writeText(text)} aria-label={label} title={text}>
+      Copy
     </Button>
   );
 }
@@ -109,7 +107,7 @@ export default function ComposeProjects({ ctx, scan, containers, attention, onCl
 
   async function run(p: ComposeProject, action: Action) {
     if (state.busy || fixing) return;
-    if (action === "down" && !(await confirm({ title: `Stop and remove the containers of ${p.name}? Its volumes, and the data in them, stay.`, body: "", confirm: "Remove containers" }))) return;
+    if (action === "down" && !(await confirm({ title: `Remove the containers of ${p.name}?`, body: "Its volumes, and the data in them, stay.", confirm: "Remove containers", danger: true }))) return;
     await runCompose(ctx, p, action, containers);
     onChanged?.();
   }
@@ -143,30 +141,28 @@ export default function ComposeProjects({ ctx, scan, containers, attention, onCl
     <Sheet open={true} onClose={onClose} title="Start a Compose project">
       <p className="hint">Every folder in your home with a Compose file. Missing one? Add its folder.</p>
       {fixing && <p className="hint">{bringing ? "Wait for the copy from Docker Desktop to finish" : "Wait for the fix to finish"} before starting or stopping a project.</p>}
-      <div className="flex items-center gap-2">
-        <label className="flex items-center gap-2 text-meta text-fg-muted">
-          <Icon name="search" size="md" />
-          <input placeholder="Search projects" aria-label="Search projects" value={q} onChange={(e) => setQ(e.target.value)} />
-        </label>
+      <div className="flex flex-wrap items-center gap-2">
+        <Field aria-label="Search projects" placeholder="Search projects" icon="search" width="search" value={q} onChange={(e) => setQ(e.target.value)} />
         <Button icon="restart" size="md" onClick={() => scan.scan()} disabled={scan.scanning}>
-  {scan.scanning ? "Scanning…" : "Scan again"}
-</Button>
+          {scan.scanning ? "Scanning…" : "Scan again"}
+        </Button>
         <Button icon="plus" size="md" onClick={addFolder} disabled={scan.scanning}>Choose a folder…</Button>
       </div>
       {added && <p className="text-sm text-fg-muted" role="status">{added}</p>}
-      {scan.error || err ? (
-        <Banner tone="bad" title="Warning">{scan.error ?? err}</Banner>
-      ) : null}
-      {scan.paths && all.length === 0 && <p className="hint">No Compose files found. Spotlight skips hidden folders and folders it doesn't index.</p>}
+      {scan.error || err ? <Banner tone="bad" title="Warning">{scan.error ?? err}</Banner> : null}
+      {scan.paths && all.length === 0 && (
+        <Empty icon="folder" title="No Compose files found">Spotlight skips hidden folders and folders it doesn't index.</Empty>
+      )}
       {cut && <p className="hint">Showing the first {SHOWN_MAX} Compose files, A to Z. Search to narrow the list.</p>}
       {all.length > 0 && rows.length === 0 && <p className="text-sm text-fg-muted">Nothing matches "{q.trim()}". Try part of the folder name.</p>}
-      <ul className="flex flex-col space-y-2">
+      <List aria-label="Compose projects">
         {rows.map((p) => {
           const mine = busy?.dir === p.dir;
           const up = p.running > 0;
           const stopped = p.total - p.running;
           const sick = p.names.flatMap((n) => (attention?.get(n)?.[0] ? [`${n}: ${(attention.get(n)![0].short ?? attention.get(n)![0].title).toLowerCase()}`] : []));
           const logsHere = logsDir === p.dir;
+          const full = `${p.dir}/${p.files.join(", ")}`;
           // On a partly running project, Start only starts what is stopped, so it says so.
           // Rebuild and Update images end with `up -d`, so on a stopped project they start it too, and say so.
           const label = (a: Action) => (a === "up" && up ? `Start the ${stopped} stopped` : !up && (a === "build" || a === "pull") ? `${VERB[a][0]} and start` : VERB[a][0]);
@@ -178,107 +174,66 @@ export default function ComposeProjects({ ctx, scan, containers, attention, onCl
               {mine && busy?.action === a ? VERB[a][1] : label(a)}
             </Button>
           );
-          // The common action is the button: Start when the project has stopped services, Stop when it runs. The rest are
-          // under "More actions", each with a line on when you would use it.
+          const menu = (
+            <Menu trigger={<MoreButton name={p.name} />} label={`Actions for ${p.name}`} align="end" wide contentClassName="z-50">
+              {up && stopped > 0 && (
+                <MenuItem label="Stop" why="When you're done for now. The containers stay, so Start is quick." disabled={off} onSelect={() => void run(p, "stop")} />
+              )}
+              {up && (
+                <MenuItem label="Restart" why="After you change a setting in compose.yaml." disabled={off} onSelect={() => void run(p, "restart")} />
+              )}
+              <MenuItem label={label("build")} why="After you change a Dockerfile or the code it copies in." disabled={off} onSelect={() => void run(p, "build")} />
+              <MenuItem label={label("pull")} why="When a newer version of an image is out." disabled={off} onSelect={() => void run(p, "pull")} />
+              {p.total > 0 && <MenuSeparator />}
+              {p.total > 0 && (
+                <MenuItem label={logsHere ? "Hide logs" : "Show logs"} why="When something misbehaves and you want to see why." disabled={off} onSelect={() => setLogsDir(logsHere ? null : p.dir)} />
+              )}
+              <MenuItem label={cmdsOpen.has(p.dir) ? "Hide the commands" : "Show the commands to run yourself"} why="If you'd rather run it in Terminal yourself." onSelect={() => setCmdsOpen((o) => { const n = new Set(o); if (!n.delete(p.dir)) n.add(p.dir); return n; })} />
+              <MenuItem label="Show in Finder" why="To edit compose.yaml or the project's files." onSelect={() => void invoke("reveal_compose", { path: `${p.dir}/${p.files[0]}` }).then(() => setErr(null), (e) => setErr(String(e)))} />
+              {(up || leftovers) && <MenuSeparator />}
+              {(up || leftovers) && (
+                <MenuItem label="Remove containers" why="To start clean. Volumes and data are kept." danger disabled={off} onSelect={() => void run(p, "down")} />
+              )}
+            </Menu>
+          );
+          // The common action is the button: Start when the project has stopped services, Stop when it runs.
           return (
-            <li key={p.dir} className="flex items-center gap-2 px-3 py-2 border-b border-line">
-              <div className="flex items-center gap-2 text-sm">
-                <span className={sick.length ? "inline-flex items-center gap-1 text-warn" : up ? "inline-flex items-center gap-1 text-ok" : "inline-flex items-center gap-1 bg-tile rounded-md w-2 h-2"} aria-hidden="true" />
-                <b title={p.name}>{p.name}</b>
-              </div>
-              {sick.length > 0 && <p className="text-sm text-bad flex items-center gap-1"><Icon name="alert" size="md" /><span>{sick.length === 1 ? "1 needs attention" : `${sick.length} need attention`}</span></p>}
-              <span className="text-sm text-fg-muted flex items-baseline gap-1">
-                <span className="font-mono text-xs" title={`${p.dir}/${p.files.join(", ")}`}>{tilde(p.dir)}</span>
-                <span>&nbsp;· {p.total ? `${p.running} of ${p.total} running` : "Not running"}</span>
-              </span>
-              <div className="flex items-center gap-2">
-                {up && stopped === 0 ? btn("stop") : btn("up")}
-                {mine && <Button size="xs" onClick={() => invoke("cancel_compose").catch(() => {})}>Cancel</Button>}
-                {!mine && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="sm" aria-label={`More actions for ${p.name}`}>
-                        <Icon name="more" size="md" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent>
-                      {up && stopped > 0 && (
-                        <DropdownMenuItem key="stop" disabled={off} onSelect={() => void run(p, "stop")} aria-label={`Stop ${p.name}`}>
-                          <span>Stop</span>
-                          <span className="ml-auto text-xs opacity-60" aria-hidden="true">When you're done for now. The containers stay, so Start is quick.</span>
-                        </DropdownMenuItem>
-                      )}
-                      {up && (
-                        <DropdownMenuItem key="restart" disabled={off} onSelect={() => void run(p, "restart")} aria-label={`Restart ${p.name}`}>
-                          <span>Restart</span>
-                          <span className="ml-auto text-xs opacity-60" aria-hidden="true">After you change a setting in compose.yaml.</span>
-                        </DropdownMenuItem>
-                      )}
-                      <DropdownMenuItem key="build" disabled={off} onSelect={() => void run(p, "build")} aria-label={`Rebuild and start ${p.name}`}>
-                        <span>Rebuild and start</span>
-                        <span className="ml-auto text-xs opacity-60" aria-hidden="true">After you change a Dockerfile or the code it copies in.</span>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem key="pull" disabled={off} onSelect={() => void run(p, "pull")} aria-label={`Update images and start ${p.name}`}>
-                        <span>Update images and start</span>
-                        <span className="ml-auto text-xs opacity-60" aria-hidden="true">When a newer version of an image is out.</span>
-                      </DropdownMenuItem>
-                      {p.total > 0 && (
-                        <DropdownMenuSeparator key="sep" />
-                      )}
-                      {p.total > 0 && (
-                        <DropdownMenuItem key="logs" disabled={off} onSelect={() => setLogsDir(logsHere ? null : p.dir)} aria-label={`${logsHere ? "Hide" : "Show"} logs ${p.name}`}>
-                          <span>{logsHere ? "Hide logs" : "Show logs"}</span>
-                          <span className="ml-auto text-xs opacity-60" aria-hidden="true">When something misbehaves and you want to see why.</span>
-                        </DropdownMenuItem>
-                      )}
-                      <DropdownMenuItem key="run-yourself" onSelect={() => setCmdsOpen((o) => { const n = new Set(o); if (!n.delete(p.dir)) n.add(p.dir); return n; })} aria-label={`${cmdsOpen.has(p.dir) ? "Hide the commands" : "Run it yourself"} ${p.name}`}>
-                        <span>{cmdsOpen.has(p.dir) ? "Hide the commands" : "Run it yourself"}</span>
-                        <span className="ml-auto text-xs opacity-60" aria-hidden="true">If you'd rather run it in Terminal yourself.</span>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem key="finder" onSelect={() => void invoke("reveal_compose", { path: `${p.dir}/${p.files[0]}` }).then(() => setErr(null), (e) => setErr(String(e)))} aria-label={`Show ${p.name} in Finder`}>
-                        <span>Show in Finder</span>
-                        <span className="ml-auto text-xs opacity-60" aria-hidden="true">To edit compose.yaml or the project's files.</span>
-                      </DropdownMenuItem>
-                      {(up || leftovers) && (
-                        <DropdownMenuSeparator key="sep2" />
-                      )}
-                      {(up || leftovers) && (
-                        <DropdownMenuItem key="down" disabled={off} onSelect={() => void run(p, "down")} aria-label={`Remove containers of ${p.name}`}>
-                          <span>Remove containers</span>
-                          <span className="ml-auto text-xs opacity-60" aria-hidden="true">To start clean. Volumes and data are kept.</span>
-                        </DropdownMenuItem>
-                      )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )}
-              </div>
+            <div key={p.dir} className="border-b border-line">
+              <Row
+                lead={<Icon name="folder" size="sm" />}
+                name={p.name}
+                title={full}
+                meta={<span className="path font-mono text-meta" title={full}>{tilde(p.dir)}</span>}
+                action={mine ? <Button size="xs" onClick={() => invoke("cancel_compose").catch(() => {})}>Cancel</Button> : up && stopped === 0 ? btn("stop") : btn("up")}
+                menu={!mine ? menu : undefined}
+              >
+                <Col kind="state"><span className="status">{p.total ? `${p.running} of ${p.total} running` : "Not running"}</span></Col>
+              </Row>
+              {sick.length > 0 && <Problem level="warn" text={sick.length === 1 ? "1 needs attention" : `${sick.length} need attention`} />}
               {failed?.dir === p.dir && failed.why && !mine && (
-                <div className="bg-tile rounded-md py-2 px-4 mt-2 text-meta" role="status">
-                  <p>{failed.why}</p>
-                  {failed.holder && (
-                    <Button className="primary" disabled={!!busy || fixing} onClick={() => freePortAndStart(p, failed.holder!)}>
-                      Stop {failed.holder} and start {p.name}
-                    </Button>
-                  )}
-                </div>
+                <Problem
+                  level="bad"
+                  text={failed.why}
+                  action={failed.holder ? <Button size="xs" className="primary" disabled={!!busy || fixing} onClick={() => freePortAndStart(p, failed.holder!)}>Stop {failed.holder} and start {p.name}</Button> : undefined}
+                />
               )}
               {logsHere && <ComposeLogs ctx={ctx} file={`${p.dir}/${p.files[0]}`} project={p.name} />}
               {(mine || failed?.dir === p.dir) && <OutputLog event="compose-progress" active={mine} failure={failed?.dir === p.dir ? failed.text : null} />}
               {cmdsOpen.has(p.dir) && (
-              <div className="mt-2 flex flex-col gap-1.5" role="group" aria-label={`Commands for ${p.name}`}>
-                {(up ? (["up", "restart", "stop", "down", "build", "pull"] as Action[]) : (["up", "build", "pull"] as Action[])).map((a) => (
-                  <div key={a} className="flex flex-col gap-1">
-                    <span className="font-mono text-xs">{label(a)}</span>
-                    <pre className="font-mono text-sm">{typed(p.dir, a, ctx)}</pre>
-                    <CopyCommand text={typed(p.dir, a, ctx)} label={`Copy the ${VERB[a][0].toLowerCase()} command for ${p.name}`} />
-                  </div>
-                ))}
-              </div>
+                <div className="mt-2 flex flex-col gap-1.5" role="group" aria-label={`Commands for ${p.name}`}>
+                  {(up ? (["up", "restart", "stop", "down", "build", "pull"] as Action[]) : (["up", "build", "pull"] as Action[])).map((a) => (
+                    <div key={a} className="flex flex-col gap-1">
+                      <span className="font-mono text-xs">{label(a)}</span>
+                      <pre className="font-mono text-sm">{typed(p.dir, a, ctx)}</pre>
+                      <CopyCommand text={typed(p.dir, a, ctx)} label={`Copy the ${VERB[a][0].toLowerCase()} command for ${p.name}`} />
+                    </div>
+                  ))}
+                </div>
               )}
-            </li>
+            </div>
           );
         })}
-      </ul>
+      </List>
     </Sheet>
   );
 }

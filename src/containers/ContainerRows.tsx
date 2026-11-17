@@ -114,9 +114,9 @@ export function EntryRow(props: EntryProps): JSX.Element {
       menu={menu}
       onMenuKey={() => onMenuOpenChange(true)}
     >
-      {isGroup && blocks && <Blocks services={blocks} />}
+      {isGroup && blocks && <span className="hidden lg:block"><Blocks services={blocks} /></span>}
       <Col kind="ports">
-        {ports.map((p) => <PortLink p={p} id={id} />)}
+        {ports.map((p) => <PortLink key={p} p={p} id={id} />)}
         {ports.length > 2 && (
           <a
             className="port"
@@ -127,7 +127,7 @@ export function EntryRow(props: EntryProps): JSX.Element {
           </a>
         )}
       </Col>
-      <Sparkline points={history.length >= 2 ? history : null} label={`CPU ${cpuNow ?? 0} percent`} />
+      <span className="hidden xl:block"><Sparkline points={history.length >= 2 ? history : null} label={`CPU ${cpuNow ?? 0} percent`} /></span>
       <Col kind="stats" mono>{stats}</Col>
       <Col kind="state">{isGroup ? runningText ?? "" : stateWord}</Col>
     </Row>
@@ -164,7 +164,7 @@ export function ChildRow(props: RowCommon & { id: string }): JSX.Element {
       child
     >
       <Col kind="ports">
-        {ports.map((p) => <PortLink p={p} id={id} />)}
+        {ports.map((p) => <PortLink key={p} p={p} id={id} />)}
         {ports.length > 2 && (
           <a
             className="port"
@@ -175,7 +175,7 @@ export function ChildRow(props: RowCommon & { id: string }): JSX.Element {
           </a>
         )}
       </Col>
-      <Sparkline points={history.length >= 2 ? history : null} label={`CPU ${cpuNow ?? 0} percent`} />
+      <span className="hidden xl:block"><Sparkline points={history.length >= 2 ? history : null} label={`CPU ${cpuNow ?? 0} percent`} /></span>
       <Col kind="stats" mono>{stats}</Col>
       <Col kind="state">{stateWord}</Col>
     </Row>

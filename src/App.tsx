@@ -20,6 +20,7 @@ import ContainerDetail from "./ContainerDetail";
 import Images from "./Images";
 import RunPicker from "./RunPicker";
 import RunPanel from "./RunPanel";
+import { focusWhenShown } from "./lib/focusRow";
 import Volumes from "./Volumes";
 import Networks from "./Networks";
 import Kubernetes from "./Kubernetes";
@@ -105,11 +106,6 @@ export default function App() {
   const [runPicker, setRunPicker] = useState(false);
   const [runImage, setRunImage] = useState<string | null>(null);
 
-  function setHighlight(id: string): void {
-    const node = [...document.querySelectorAll<HTMLElement>(".list .row .name")].find((n) => n.textContent === id);
-    node?.closest<HTMLElement>(".row")?.focus();
-  }
-
   const confirm = useConfirm();
   const toast = useToast();
   const [vm, setVmState] = useState<VmState>({ op: null, failure: null });
@@ -157,7 +153,12 @@ export default function App() {
     }
   }, [profiles, engines, stored, active]);
 
-  useEffect(() => setDetailId(null), [active]);
+  // Only a change of engine clears the detail. The first profile to load must not drop a deep link.
+  const prevActive = useRef<string | null>(active);
+  useEffect(() => {
+    if (prevActive.current !== null && prevActive.current !== active) setDetailId(null);
+    prevActive.current = active;
+  }, [active]);
 
   // A failure goes stale when the VM comes up some other way (for example from Profiles).
   const prevStatus = useRef<string | undefined>(undefined);
@@ -171,8 +172,11 @@ export default function App() {
   const { live, history, usage } = useLiveStats(ctx, current?.status === "Running");
   setMachineProfile(current ? { cpus: current.cpus, memory: current.memory, disk: current.disk } : null);
   // A container page from a VM that has stopped is gone; show the list when the VM comes back.
+  // Only a running VM that stops clears it. A page that loads with no VM yet keeps its address.
+  const prevCtx = useRef<string | null>(ctx);
   useEffect(() => {
-    if (!ctx) setDetailId(null);
+    if (prevCtx.current && !ctx) setDetailId(null);
+    prevCtx.current = ctx;
   }, [ctx]);
   // The Kubernetes page goes away with its nav item once the active profile has no cluster.
   // Wait until both the engine and the cluster list are known: on startup both are still loading.
@@ -332,13 +336,16 @@ export default function App() {
         <Doctor ctx={ctx} composePaths={compose.paths ?? []} setup={setup} doc={doc} onProfiles={() => setTab("Profiles")} onBring={(only) => openBring(only)} onGo={(page) => setTab(page)} onOpen={(name) => { setDetailId(name); setTab("Containers"); }} />
       )
     ) : tab === "Profiles" ? (
-      <Profiles
-        profiles={profiles}
-        reload={() => { reloadProfiles(); kube.reload(); }}
-        openNew={newProfileOnOpen}
-        kubeOn={(name) => (kubeAsked.includes(name) ? true : kubernetesOn(ctxFor(name), kube.data))}
-        onKubeAsked={(name) => setKubeAsked((l) => (l.includes(name) ? l : [...l, name]))}
-      />
+      // The machines table is wider than a small window; it scrolls inside its own box, not the page.
+      <div className="min-w-0 overflow-x-auto">
+        <Profiles
+          profiles={profiles}
+          reload={() => { reloadProfiles(); kube.reload(); }}
+          openNew={newProfileOnOpen}
+          kubeOn={(name) => (kubeAsked.includes(name) ? true : kubernetesOn(ctxFor(name), kube.data))}
+          onKubeAsked={(name) => setKubeAsked((l) => (l.includes(name) ? l : [...l, name]))}
+        />
+      </div>
     ) : !ctx ? (
       toolsMissing ? (
         <Empty title="No container runtime yet" action={<button className="primary" onClick={() => setTab("Containers")}>Install one</button>}>
@@ -514,7 +521,7 @@ export default function App() {
                 image={runImage}
                 arch={current?.arch}
                 onClose={() => setRunImage(null)}
-                onRan={(id, name) => { setRunImage(null); setHighlight(id); toast({ text: `Started ${name}` }); }}
+                onRan={(_id, name) => { setRunImage(null); setTab("Containers"); focusWhenShown(name); toast({ text: `Started ${name}` }); }}
               />
             )}
           </Shell>
