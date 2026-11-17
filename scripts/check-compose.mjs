@@ -28,7 +28,7 @@ async function open(scenario) {
   const page = await ctx.newPage();
   page.errors = [];
   page.on("pageerror", (e) => page.errors.push(e.message));
-  await page.goto(`${HOST}/?scenario=${scenario}`);
+  await page.goto(`${HOST}/?scenario=${scenario}#/containers`);
   await page.waitForSelector(".list > .row:not(.th)", { timeout: 4000 }).catch(() => {});
   return page;
 }
