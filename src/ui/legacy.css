@@ -554,6 +554,8 @@
 .legacy .resize-status .actions-inline { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .legacy .resize-status .out-more { margin-top: 0; }
 .legacy .resize-status .resize-actions, .legacy .resize-status .resize-why { padding-left: 20px; }
+/* The card is a flex column with align-items: flex-start, which shrinks the button row to its content, so justify-end had no room to push the buttons right. */
+.legacy .resize-status .resize-actions { align-self: stretch; }
 .legacy .resize-result { display: flex; gap: 6px; align-items: flex-start; margin: 0; color: var(--fg); font-size: 13px; border-radius: 4px; }
 .legacy .resize-result svg, .legacy .finding .resize-result svg { flex: none; margin-top: 2px; }
 .legacy .resize-result.ok svg, .legacy .finding .resize-result.ok svg { color: var(--ok); }
