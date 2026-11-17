@@ -61,7 +61,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
           <Card className="max-w-md w-full">
             <CardContent className="pt-6 pb-6 px-6 text-center">
               <div className="mx-auto mb-4 p-3 bg-bad-fill rounded-full w-16 h-16 flex items-center justify-center">
-                <AlertTriangle className="h-8 w-8 text-bad" />
+                <AlertTriangle className="size-h-md text-bad" />
               </div>
               <h2 className="text-lg font-semibold mb-2">Something went wrong</h2>
               <p className="text-fg-muted text-sm mb-6">
@@ -105,7 +105,7 @@ export function ProjectDetailErrorFallback({ error, resetErrorBoundary }: { erro
       <Card className="max-w-md w-full">
         <CardContent className="pt-6 pb-6 px-6 text-center">
           <div className="mx-auto mb-4 p-3 bg-bad-fill rounded-full w-16 h-16 flex items-center justify-center">
-            <AlertTriangle className="h-8 w-8 text-bad" />
+            <AlertTriangle className="size-h-md text-bad" />
           </div>
           <h2 className="text-lg font-semibold mb-2">Failed to load project</h2>
           <p className="text-fg-muted text-sm mb-6">

@@ -37,6 +37,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       {...rest}
       ref={ref}
       type="button"
+      data-op=""
       className={clsx(
         cn("inline-flex items-center justify-center gap-6 whitespace-nowrap", variants.size[size]),
         variants.variant[variant],

@@ -89,7 +89,7 @@ const SidebarGroupLabel = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <div
     ref={ref}
-    className={cn("flex h-8 shrink-0 items-center rounded-sm px-2 text-xs font-medium text-fg-muted", className)}
+    className={cn("flex h-h-sm shrink-0 items-center rounded-sm px-2 text-xs font-medium text-fg-muted", className)}
     {...props}
   />
 ));
@@ -133,8 +133,8 @@ const sidebarMenuButtonVariants = cva(
       },
       size: {
         default: "h-9 text-sm",
-        sm: "h-8 text-xs",
-        lg: "h-10 text-base",
+        sm: "h-h-sm text-xs",
+        lg: "h-h-md text-base",
       },
     },
     defaultVariants: {
@@ -192,8 +192,8 @@ const SidebarMenuSubButton = React.forwardRef<
       ref={ref}
       className={cn(
         "flex w-full items-center gap-2 overflow-hidden rounded-sm px-2 py-1.5 text-sm outline-none ring-focus transition-all duration-200 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-bg disabled:pointer-events-none disabled:opacity-50",
-        size === "sm" && "h-8 text-xs",
-        size === "lg" && "h-10 text-base",
+        size === "sm" && "h-h-sm text-xs",
+        size === "lg" && "h-h-md text-base",
         className
       )}
       {...props}
@@ -211,7 +211,7 @@ const SidebarCollapse = React.forwardRef<
   <button
     ref={ref}
     className={cn(
-      "flex h-9 w-9 items-center justify-center rounded-sm border border-line bg-bg-raised text-fg-muted transition-colors hover:bg-accent-fill hover:text-accent",
+      "flex size-h-md items-center justify-center rounded-sm border border-line bg-bg-raised text-fg-muted transition-colors hover:bg-accent-fill hover:text-accent",
       className
     )}
     {...props}

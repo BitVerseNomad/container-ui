@@ -103,7 +103,7 @@ export function ProjectDetailSkeleton() {
           <Skeleton variant="text" width="40%" height="1.5rem" />
           <Skeleton variant="text" width="60%" height="0.875rem" />
         </div>
-        <div className="w-10" />
+        <div className="w-h-md" />
       </div>
       <div className="flex-1 overflow-auto p-6 space-y-6">
         {/* Dev Environment Card */}
