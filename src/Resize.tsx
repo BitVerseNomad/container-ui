@@ -356,9 +356,13 @@ function useResultFocus(from: string, mine: boolean, o: Outcome | null, tick: nu
     return () => { shownOn.set(from, (shownOn.get(from) ?? 1) - 1); };
   }, [from]);
   useEffect(() => {
-    if (!mine || !o || lastShownTick === tick) return;
+    if (!mine || !o) return;
     const lost = !document.activeElement || document.activeElement === document.body;
-    if (!isBad(o) && !lost) return;
+    const shown = lastShownTick === tick;
+    // A failed result that lost focus (the line that had it went away when the VM stopped) takes focus again, so a keyboard
+    // person is not left on the page body. A good result or one still in focus is not moved to twice.
+    const takesFocus = isBad(o) ? !shown || lost : lost && !shown;
+    if (!takesFocus) return;
     lastShownTick = tick;
     line.current?.focus({ preventScroll: true });
     box.current?.scrollIntoView?.({ block: "nearest" });
@@ -408,7 +412,7 @@ export function ResizeStatus({ from, after, title, okElsewhere, plainRetry }: { 
         </p>
       )}
       {o && !hidden && env && (
-        <span className="actions-inline resize-actions">
+        <span className="actions-inline resize-actions justify-end">
           {o.kind === "done" && o.failed.map((f) => [
             // Out of memory again: Start would fail the same way, so the way to more memory comes first.
             f.memory ? (next ? <ResizeButton key={`more:${f.name}`} from={from} size={next} title={`${f.name} didn't start`} alsoStart={[f.name]} vmWords /> : <button key={`prof:${f.name}`} className="small" aria-label={`Change in Profiles: ${f.name} didn't start`} onClick={env.onProfiles}>Change in Profiles</button>)
@@ -518,7 +522,12 @@ export function ResizeAnnouncer() {
     const next = s.progress ? { status: plain(progressText(s)), alert: "" } : !s.outcome ? null : isBad(s.outcome) ? { status: "", alert: plain(resultText(s.outcome)) } : { status: plain(resultText(s.outcome)), alert: "" };
     // A result a status line already took focus to was said by that focus; saying it again would be twice.
     const tick = s.tick;
-    if (next) later.current = setTimeout(() => { if (!s.progress && lastShownTick === tick) return; setSaidNow(next); }, 50);
+    // Focus already inside the result box speaks it too, so the announcer stays quiet then.
+    if (next) later.current = setTimeout(() => {
+      const focusOnResult = !!document.activeElement?.closest(".resize-status");
+      if (!s.progress && (lastShownTick === tick || focusOnResult)) return;
+      setSaidNow(next);
+    }, 50);
   }, [s]);
   return (
     <>
