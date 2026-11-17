@@ -93,3 +93,7 @@ Nothing. Images.tsx was not touched (not named in WO-2.5; migrated in WO-3.x).
 ## Found on the way
 
 Nothing new; docs/plan/FOUND.md keeps its three iteration-1 entries.
+
+## Contract differences
+
+None.
