@@ -6,7 +6,7 @@ wo-3.3a: Run an image from a sheet, with every guided check kept
 - `src/RunPanel.tsx`: the Run sheet is a `Sheet` titled `Run {image}`. It has, in order: the image's warnings (CPU mismatch, unpinned `latest`, name clash), the Name row with the setup notes, Docker Hub and source links, the Ports rows (with the taken-port banner and its `Use {port} instead` button), the "Settings the image needs" rows (password fields for password variables), the "Keep its data" rows (named volume suggestion, read-only folder checkbox, Library and hidden folders refused), and two chips: More options (defaults line, network, extra environment, add folder or port, exposing to the network) and Show command (`Command` with copy).
 - A failed run shows a `Banner` with a plain title ("The host port is taken" for a port clash). The raw Docker text sits behind Show output.
 - While a run is starting, Escape asks "Stop the run?" before the sheet closes. Idle Escape and a click on the overlay close the sheet through `Sheet`.
-- `src/RunPanel.test.tsx`: 15 tests in Given/When/Then form (5 existing, 10 new).
+- `src/RunPanel.test.tsx`: 14 tests in Given/When/Then form (5 existing, 9 new).
 - `src/RunPicker.test.tsx` (new): one test, picking an image through Continue.
 - `scripts/checks-pending/check-guided.mjs` moved to `scripts/check-guided.mjs` with `git mv`. All 32 `check(` lines are kept (one check was split in two, for the two chips). Selectors now use the `Sheet` markup (`.sheet`, `.banner`, `.cmd`, the network combobox, the chips).
 
