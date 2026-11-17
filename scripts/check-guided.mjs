@@ -139,7 +139,7 @@ check(await p.locator(".sheet").count() === 0, "keys: Escape closes the sheet wh
 await p.keyboard.press("Meta+n");
 await p.waitForSelector(".sheet", { timeout: 3000 }).catch(() => {});
 check(await p.getByRole("dialog", { name: "Choose an image to run" }).count() === 1, "keys: Cmd+N opens the picker titled Choose an image to run");
-await p.getByLabel("Image to run").fill("acme/orders-api:1.4");
+await p.getByRole("textbox", { name: "Image to run", exact: true }).fill("acme/orders-api:1.4");
 await p.getByRole("button", { name: "Continue", exact: true }).click();
 await p.waitForFunction((t) => (document.querySelector(".sheet")?.innerText ?? "").includes(t), "Read the setup notes", { timeout: 6000 }).catch(() => {});
 await p.locator('.sheet input[aria-label="Host port"]').first().fill("8090");
