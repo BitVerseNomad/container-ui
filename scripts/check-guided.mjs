@@ -15,10 +15,9 @@ async function openRun(scenario, ref, ready) {
   const p = await browser.newPage({ viewport: { width: 1100, height: 900 } });
   p.errors = [];
   p.on("pageerror", (e) => p.errors.push(e.message));
-  await p.goto(`${HOST}/?scenario=${scenario}`);
-  await p.waitForSelector("ul.apps > li.app");
-  await p.locator(".sidebar").getByRole("button", { name: "Images", exact: true }).click();
-  await p.waitForSelector("tbody tr:not(.group-row)");
+  // Opens the Images route by its address, as the scenario URLs do.
+  await p.goto(`${HOST}/?scenario=${scenario}#/images`);
+  await p.waitForSelector(".nav-item");
   await p.getByRole("button", { name: `Run ${ref}`, exact: true }).click();
   await p.waitForSelector(".sheet");
   await p.waitForFunction((t) => (document.querySelector(".sheet")?.innerText ?? "").includes(t), ready, { timeout: 6000 });
