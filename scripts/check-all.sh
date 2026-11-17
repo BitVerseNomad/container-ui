@@ -7,7 +7,8 @@ cd "$(dirname "$0")/.." || exit 1
 url="${PREVIEW_URL:-http://localhost:4173/}"
 started=""
 if ! curl -s -o /dev/null "$url"; then
-  npx vite --config vite.preview.config.ts >/tmp/openpier-preview.log 2>&1 &
+  port=$(echo "$url" | sed -E "s#.*:([0-9]+).*#\1#")
+  npx vite --config vite.preview.config.ts --port "$port" --strictPort >/tmp/openpier-preview.log 2>&1 &
   started=$!
   i=0
   until curl -s -o /dev/null "$url"; do
