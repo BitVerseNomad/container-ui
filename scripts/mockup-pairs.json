@@ -1,6 +1,64 @@
 [
-  { "mockup": "containers", "path": "/?scenario=design#/containers", "themes": ["light", "dark"], "threshold": 0.01, "mask": [".header .meters", ".header .sub", ".sidebar .count", ".sidebar .engine", ".spark", ".col.stats"], "why": "Live numbers (meters, stats, sparklines, counts) differ from the picture by design; threshold is 0.01 because the text of problem lines can wrap by a few pixels in WebKit." },
-  { "mockup": "empty-state", "path": "/?scenario=running&empty=1#/containers", "themes": ["light", "dark"], "mask": [".header .meters", ".sidebar .count", ".sidebar .engine"] },
-  { "mockup": "machine-stopped", "path": "/?scenario=stopped#/containers", "themes": ["light", "dark"], "mask": [".sidebar .count"] },
-  { "mockup": "container-detail", "path": "/?scenario=design#/containers/api/logs", "themes": ["light", "dark"], "threshold": 0.01, "mask": [".canvas", ".facts", ".sidebar .count", ".sidebar .engine"], "why": "Log lines carry the time of the run and the facts line carries relative times." }
+  {
+    "mockup": "containers",
+    "path": "/?scenario=design#/containers",
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "threshold": 0.03,
+    "mask": [
+      ".header .meters",
+      ".header .sub",
+      ".sidebar .count",
+      ".sidebar .engine",
+      ".spark",
+      ".col.stats"
+    ],
+    "why": "Live numbers (meters, stats, sparklines, counts) differ from the picture by design; threshold is 0.01 because the text of problem lines can wrap by a few pixels in WebKit. The preview mock has other names, order and problem wording than the picture. The mockup sidebar also draws Projects, which the spec (WO-2.2) leaves out until WO-7.5: one 29px row shifts the nav."
+  },
+  {
+    "mockup": "empty-state",
+    "path": "/?scenario=running&empty=1#/containers",
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "mask": [
+      ".header .meters",
+      ".sidebar .count",
+      ".sidebar .engine"
+    ],
+    "threshold": 0.02,
+    "why": "The app adds a count of 0 and the longer copy from WO-3.1b. The mockup sidebar also draws Projects, which the spec (WO-2.2) leaves out until WO-7.5: one 29px row shifts the nav."
+  },
+  {
+    "mockup": "machine-stopped",
+    "path": "/?scenario=stopped#/containers",
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "mask": [
+      ".sidebar .count"
+    ],
+    "threshold": 0.025,
+    "why": "The app hides the meters while the machine is stopped (live state). The mockup sidebar also draws Projects, which the spec (WO-2.2) leaves out until WO-7.5: one 29px row shifts the nav."
+  },
+  {
+    "mockup": "container-detail",
+    "path": "/?scenario=design#/containers/api/logs",
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "threshold": 0.025,
+    "mask": [
+      ".canvas",
+      ".facts",
+      ".sidebar .count",
+      ".sidebar .engine"
+    ],
+    "why": "Log lines carry the time of the run and the facts line carries relative times.  The mockup sidebar also draws Projects, which the spec (WO-2.2) leaves out until WO-7.5: one 29px row shifts the nav."
+  }
 ]
