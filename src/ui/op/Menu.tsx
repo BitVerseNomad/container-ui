@@ -15,8 +15,30 @@ export function Menu(props: {
   children: React.ReactNode;
 }): React.JSX.Element {
   const { trigger, label, align, wide, open, onOpenChange, contentClassName, children } = props;
+  // Open state lives here so Escape can close the menu even when it arrives before Radix has re-rendered its layers.
+  const [ownOpen, setOwnOpen] = React.useState(false);
+  const isOpen = open ?? ownOpen;
+  const setOpen = React.useCallback(
+    (next: boolean) => {
+      if (open === undefined) setOwnOpen(next);
+      onOpenChange?.(next);
+    },
+    [open, onOpenChange],
+  );
+  // An open menu owns Escape. A Sheet holding the menu also listens for Escape, and Radix can still have that listener
+  // live for a moment after the menu opens, so this capture listener on window stops the key before the Sheet sees it.
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.stopPropagation();
+      setOpen(false);
+    };
+    window.addEventListener("keydown", closeOnEscape, true);
+    return () => window.removeEventListener("keydown", closeOnEscape, true);
+  }, [isOpen, setOpen]);
   return (
-    <DropdownMenu.Root open={open} onOpenChange={onOpenChange}>
+    <DropdownMenu.Root open={isOpen} onOpenChange={setOpen}>
       <DropdownMenu.Trigger asChild>{trigger}</DropdownMenu.Trigger>
       <DropdownMenu.Portal>
         <DropdownMenu.Content
