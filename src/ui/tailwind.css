@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "./openpier.css" layer(base);
 @import "./components.css" layer(components);
+@import "./legacy.css" layer(components);
 
 @theme inline {
   /* Turn the built-in palette off; every colour comes from openpier.css tokens. */
