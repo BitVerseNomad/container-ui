@@ -8,18 +8,18 @@ const badgeVariants = cva(
     variants: {
       variant: {
         default:
-          "bg-[var(--color-accent-muted)] text-[var(--color-accent)] border border-[var(--color-accent)]/20",
+          "bg-accent-fill text-accent border border-accent/20",
         secondary:
-          "bg-[var(--color-border)] text-[var(--color-fg)] border border-[var(--color-border)]",
+          "bg-line text-fg border border-line",
         destructive:
-          "bg-[var(--color-danger-bg)] text-[var(--color-danger-fg)] border border-[var(--color-danger)]/20",
-        outline: "text-[var(--color-fg)] border border-[var(--color-border)]",
+          "bg-bad-fill text-bad border border-bad/20",
+        outline: "text-fg border border-line",
         success:
-          "bg-[var(--color-success-bg)] text-[var(--color-success-fg)] border border-[var(--color-success)]/20",
+          "bg-ok-fill text-ok border border-ok/20",
         warning:
-          "bg-[var(--color-warning-bg)] text-[var(--color-warning-fg)] border border-[var(--color-warning)]/20",
+          "bg-warn-fill text-warn border border-warn/20",
         info:
-          "bg-[var(--color-info-bg)] text-[var(--color-info-fg)] border border-[var(--color-info)]/20",
+          "bg-info-fill text-info border border-info/20",
       },
     },
     defaultVariants: {

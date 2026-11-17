@@ -119,34 +119,34 @@ export function Select<T>({
   const selectedOption = options.find((o) => o.value === value);
 
   return (
-    <div className={`select-wrapper ${className}`}>
-      {label && <label className="select-label" htmlFor={id}>{label}</label>}
-      <div className="select-trigger-wrapper" role="combobox" aria-expanded={isOpen} aria-controls={listboxId} aria-label={ariaLabel} aria-describedby={ariaDescribedBy || (error ? `${id}-error` : undefined)} aria-disabled={disabled}>
+    <div className={`flex w-full flex-col gap-1.5 ${className}`}>
+      {label && <label className="text-meta font-medium text-fg-muted" htmlFor={id}>{label}</label>}
+      <div className="relative" role="combobox" aria-expanded={isOpen} aria-controls={listboxId} aria-label={ariaLabel} aria-describedby={ariaDescribedBy || (error ? `${id}-error` : undefined)} aria-disabled={disabled}>
         <button
           ref={triggerRef}
           id={id}
           type="button"
-          className={`select-trigger ${isOpen ? "open" : ""} ${error ? "error" : ""} ${disabled ? "disabled" : ""}`}
+          className={`flex h-h-md w-full items-center gap-2 rounded-sm border bg-bg-raised px-3 text-left text-body text-fg outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:cursor-not-allowed disabled:opacity-50 ${isOpen ? "border-accent" : "border-line"} ${error ? "border-bad-edge" : ""}`}
           onClick={() => !disabled && setIsOpen(!isOpen)}
           onKeyDown={handleKeyDown}
           disabled={disabled}
           aria-haspopup="listbox"
           aria-owns={listboxId}
         >
-          <span className="select-value">
+          <span className="min-w-0 flex-1 truncate">
             {selectedOption ? selectedOption.label : placeholder}
           </span>
           {selectedOption && selectedOption.description && !isOpen && (
-            <span className="select-description">{selectedOption.description}</span>
+            <span className="text-meta text-fg-muted">{selectedOption.description}</span>
           )}
-          <Icon name="chevron" size={16} className={`select-chevron ${isOpen ? "open" : ""}`} aria-hidden="true" />
+          <Icon name="chevron" size={16} className={`shrink-0 text-fg-muted transition-transform ${isOpen ? "rotate-180" : ""}`} aria-hidden="true" />
         </button>
 
         {isOpen && (
           <Portal>
-            <div className="select-dropdown" role="listbox" id={listboxId} aria-label={ariaLabel} style={{ maxHeight }}>
+            <div className="z-50 overflow-hidden rounded-md border border-edge bg-bg-raised p-1 shadow-floating" role="listbox" id={listboxId} aria-label={ariaLabel} style={{ maxHeight }}>
               {searchable && (
-                <div className="select-search">
+                <div className="p-1">
                   <input
                     type="text"
                     value={search}
@@ -155,15 +155,15 @@ export function Select<T>({
                       setHighlightedIndex(0);
                     }}
                     placeholder="Filtrar..."
-                    className="select-search-input"
+                    className="w-full rounded-sm border border-line bg-bg-canvas px-2 py-1 text-meta text-fg outline-none focus:border-accent"
                     autoFocus
                     onKeyDown={(e) => e.stopPropagation()}
                   />
                 </div>
               )}
-              <ul ref={listRef} className="select-list" role="listbox" style={{ maxHeight }}>
+              <ul ref={listRef} className="m-0 list-none overflow-y-auto" role="listbox" style={{ maxHeight }}>
                 {enabledOptions.length === 0 ? (
-                  <li className="select-empty" role="option" aria-disabled="true">Nenhuma opção encontrada</li>
+                  <li className="px-2 py-1.5 text-meta text-fg-muted" role="option" aria-disabled="true">Nenhuma opção encontrada</li>
                 ) : (
                   enabledOptions.map((option, index) => {
                     const isSelected = option.value === value;
@@ -175,16 +175,16 @@ export function Select<T>({
                         role="option"
                         aria-selected={isSelected}
                         aria-disabled={option.disabled}
-                        className={`select-option ${isSelected ? "selected" : ""} ${isHighlighted ? "highlighted" : ""}`}
+                        className={`flex cursor-pointer items-center gap-2 rounded-xs px-2 py-1.5 text-body ${isSelected ? "text-accent" : "text-fg"} ${isHighlighted ? "bg-tile-hover" : ""}`}
                         onClick={() => { onChange(option.value); setIsOpen(false); }}
                         onMouseEnter={() => setHighlightedIndex(index)}
                       >
-                        {option.icon && <Icon name={option.icon} size={14} className="select-option-icon" aria-hidden="true" />}
-                        <div className="select-option-content">
-                          <span className="select-option-label">{option.label}</span>
-                          {option.description && <span className="select-option-description">{option.description}</span>}
+                        {option.icon && <Icon name={option.icon} size={14} className="shrink-0 text-fg-muted" aria-hidden="true" />}
+                        <div className="flex min-w-0 flex-1 flex-col">
+                          <span className="truncate">{option.label}</span>
+                          {option.description && <span className="text-meta text-fg-muted">{option.description}</span>}
                         </div>
-                        {isSelected && <Icon name="tick" size={14} className="select-option-check" aria-hidden="true" />}
+                        {isSelected && <Icon name="tick" size={14} className="shrink-0 text-accent" aria-hidden="true" />}
                       </li>
                     );
                   })
@@ -194,7 +194,7 @@ export function Select<T>({
           </Portal>
         )}
       </div>
-      {error && <p id={`${id}-error`} className="select-error" role="alert">{error}</p>}
+      {error && <p id={`${id}-error`} className="text-meta text-bad" role="alert">{error}</p>}
     </div>
   );
 }
