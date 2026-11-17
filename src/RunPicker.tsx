@@ -16,7 +16,7 @@ export default function RunPicker({ ctx, onPick, onClose }: { ctx: string; onPic
 
   return (
     <Sheet open={true} onClose={onClose} title="Choose an image to run">
-      <Field icon="search" placeholder="nginx or postgres:16" value={q} onChange={(e) => setQ(e.target.value)} />
+      <Field icon="search" aria-label="Image to run" placeholder="nginx or postgres:16" value={q} onChange={(e) => setQ(e.target.value)} />
       {error && <p className="hint">{error}</p>}
       {data && rows.length === 0 && <p className="hint">{data.length === 0 ? "No images yet. Pull one first." : "No image matches that search."}</p>}
       <List aria-label="Images you have">
