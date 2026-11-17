@@ -6,7 +6,7 @@ import { Profile, ctxFor, dockerJson } from "./api";
 import { usePoll } from "./hooks";
 import { Banner, Empty } from "./ui";
 import { Icon } from "./ui/icons";
-import { useToast } from "./ui/op";
+import { Button, useToast } from "./ui/op";
 import Shell, { Tab } from "./Shell";
 import EngineSwitcher from "./EngineSwitcher";
 import { engineOfProfile, chooseEngine, busyOf, buttonLabel } from "./lib/engineModel";
@@ -330,7 +330,7 @@ export default function App() {
           <span className="flex items-center justify-center text-fg-faint"><Icon name="download" size={28} /></span>
           <h2>Install a container runtime and Docker first</h2>
           <p className="hint">The checks need both.</p>
-          <span className="actions-inline"><button className="primary" onClick={() => setTab("Containers")}>Install them</button></span>
+          <span className="actions-inline"><Button variant="primary" size="sm" onClick={() => setTab("Containers")}>Install them</Button></span>
         </div>
       ) : (
         <Doctor ctx={ctx} composePaths={compose.paths ?? []} setup={setup} doc={doc} onProfiles={() => setTab("Profiles")} onBring={(only) => openBring(only)} onGo={(page) => setTab(page)} onOpen={(name) => { setDetailId(name); setTab("Containers"); }} />

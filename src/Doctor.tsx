@@ -23,7 +23,7 @@ import { fixAllPlan } from "./lib/setup";
 import { biggerFix } from "./lib/sharedFix";
 import type { SetupFinding } from "./lib/setup";
 import { Banner, useConfirm } from "./ui";
-import { Button } from "@ui/components/Button";
+import { Button } from "./ui/op";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@ui/components/DropdownMenu";
 import { Icon } from "./ui/icons";
 import Ticks, { plain } from "./ui/Ticks";
@@ -235,7 +235,7 @@ export default function Doctor({ ctx, setup, doc, onProfiles, onBring, onGo, onO
           {f.fix?.resize && <ResizeStatus from={`doctor:${f.key}`} />}
           {f.fix?.vm && <ResizeStatus from={`doctor:${f.key}`} title={f.title} okElsewhere />}
           {f.fix?.text && !f.fix.go && !elsewhere && (
-            <details className="text-meta text-fg-muted">
+            <details className="how text-meta text-fg-muted">
               <summary><Icon name="chevron" size={12} />Or run it yourself<span className="sr-only">: {f.title}</span></summary>
               {/* A VM change is two short commands: one line of code, run in order. Other fixes keep their block. */}
               {f.fix.vm ? <p className="how-cmd"><code>{f.fix.text.split("\n").join(" && ")}</code></p> : <pre className="cmd">{f.fix.text}</pre>}
@@ -254,9 +254,7 @@ export default function Doctor({ ctx, setup, doc, onProfiles, onBring, onGo, onO
           ) : limitRow ? null : f.fix ? <DoctorFix fix={f.fix} title={f.title} ctx={ctx} onGo={onGo} onFixed={() => doc.reload()} /> : f.subject ? <button className="small" onClick={() => onOpen(f.subject!)}>Open {f.subject}</button> : null}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="more" aria-label={`More actions for ${plain(f.title)}`}>
-                <Icon name="more" size={16} />
-              </Button>
+              <Button variant="ghost" iconOnly icon="more" aria-label={`More actions for ${plain(f.title)}`} />
             </DropdownMenuTrigger>
             <DropdownMenuContent>
               {f.subject && (
@@ -293,9 +291,7 @@ export default function Doctor({ ctx, setup, doc, onProfiles, onBring, onGo, onO
           <button className="small" disabled={checking} onClick={recheck}>{checking ? "Checking…" : "Run checks again"}</button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="more" aria-label="More Doctor actions">
-                <Icon name="more" size={16} />
-              </Button>
+              <Button variant="ghost" iconOnly icon="more" aria-label="More Doctor actions" />
             </DropdownMenuTrigger>
             <DropdownMenuContent>
               <DropdownMenuItem key="test-connection" disabled={!ctx} onSelect={() => setTesting(true)}>
@@ -332,7 +328,7 @@ export default function Doctor({ ctx, setup, doc, onProfiles, onBring, onGo, onO
         </section>
       )}
       {passed.length > 0 && (
-        <details className="mt-3 text-meta text-fg-muted">
+        <details className="how mt-3 text-meta text-fg-muted">
           <summary><Icon name="chevron" size={12} />{passed.length} check{passed.length === 1 ? "" : "s"} pass</summary>
           <ul className="m-0 flex list-none flex-col gap-2 p-0">
             {passed.map(({ t, setup: id }) => (
@@ -342,7 +338,7 @@ export default function Doctor({ ctx, setup, doc, onProfiles, onBring, onGo, onO
         </details>
       )}
       {hidden.length > 0 && (
-        <details className="mt-3 text-meta text-fg-muted">
+        <details className="how mt-3 text-meta text-fg-muted">
           <summary><Icon name="chevron" size={12} />{hidden.length} marked not an issue</summary>
           <ul className="m-0 flex list-none flex-col gap-2 p-0">
             {hidden.map((f) => (
@@ -395,7 +391,7 @@ function SizeRow({ f, primary, onProfiles }: { f: SetupFinding; primary: boolean
         {!o && <span className="hint"><Ticks text={f.detail} /></span>}
         {open && f.more && <span className="hint">Other numbers? <button className="text-accent-ink hover:underline" aria-label={`${f.more.label}: ${f.title}`} onClick={onProfiles}>{f.more.label}</button></span>}
         {open && f.command && !(mine && s.outcome) && (
-          <details className="text-meta text-fg-muted">
+          <details className="how text-meta text-fg-muted">
             <summary><Icon name="chevron" size={12} />What it does<span className="sr-only">: {f.title}</span></summary>
             <pre className="cmd">{f.command}</pre>
           </details>

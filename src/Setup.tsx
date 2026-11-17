@@ -7,6 +7,7 @@ import { usePoll } from "./hooks";
 import { PlanStep, SetupFinding, SetupReport, fixAllPlan, setupFindings, sortFindings } from "./lib/setup";
 import { useHost } from "./useHostSize";
 import { Icon } from "./ui/icons";
+import { Button } from "./ui/op";
 import OutputLog from "./ui/OutputLog";
 import { useConfirm } from "./ui";
 import Ticks, { plain } from "./ui/Ticks";
@@ -152,7 +153,7 @@ export function useSetupActions({ reload, profile, onProfiles, onBring, rc = "yo
     if (plan.length < 2 || covers.length < 2) return null;
     const go = async () => busy === null && (await confirm([`Fix ${covers.length} problems?`, planText(plan, rc)].join("\n"), "Fix them", { safe: true })) && run("all", plan);
     const label = total > covers.length ? `Fix ${covers.length} of ${total} problems` : `Fix ${covers.length} problems`;
-    return <button className="small primary" title={FIX_ALL} aria-disabled={busy !== null || undefined} onClick={go}>{busy === "all" ? "Fixing…" : label}</button>;
+    return <Button variant="primary" size="sm" title={FIX_ALL} aria-disabled={busy !== null || undefined} onClick={go}>{busy === "all" ? "Fixing…" : label}</Button>;
   };
   const log = (
     <>
