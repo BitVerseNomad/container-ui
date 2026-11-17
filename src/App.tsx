@@ -12,7 +12,7 @@ import EngineSwitcher from "./EngineSwitcher";
 import { engineOfProfile, chooseEngine, busyOf, buttonLabel } from "./lib/engineModel";
 import { ShortcutId, SHORTCUTS, activeShortcuts, showKeys, isTypingTarget } from "./lib/shortcuts";
 import { MachineUsageProvider, Header } from "./Header";
-import { useRoute, go, buildPath } from "./lib/router";
+import { useRoute, go, buildPath, parseRoute } from "./lib/router";
 import { tabOfRoute, pathOfTab } from "./lib/tabRoutes";
 import Containers, { VmState } from "./Containers";
 import ContainerDetail from "./ContainerDetail";
@@ -94,7 +94,12 @@ export default function App() {
   const [stored] = useState(() => { try { return localStorage.getItem("openpier:engine"); } catch { return null; } });
   const [engineOpen, setEngineOpen] = useState(false);
   const detailId = route.page === "containers" ? route.id ?? null : null;
-  const setDetailId = useCallback((id: string | null) => go(id ? buildPath({ page: "containers", id, tab: "logs" }) : "#/containers"), []);
+  // Clearing the detail only matters on a container page. Anywhere else it would send you to the list and add a history entry.
+  const setDetailId = useCallback((id: string | null) => {
+    const onContainerDetail = parseRoute(window.location.hash)?.id !== undefined;
+    if (id === null && !onContainerDetail) return;
+    go(id ? buildPath({ page: "containers", id, tab: "logs" }) : "#/containers");
+  }, []);
   const [pullOnOpen, setPullOnOpen] = useState(false);
   const [newProfileOnOpen, setNewProfileOnOpen] = useState(false);
   const [runPicker, setRunPicker] = useState(false);
@@ -152,7 +157,12 @@ export default function App() {
     }
   }, [profiles, engines, stored, active]);
 
-  useEffect(() => setDetailId(null), [active]);
+  // Only a change of engine clears the detail. The first profile to load must not drop a deep link.
+  const prevActive = useRef<string | null>(active);
+  useEffect(() => {
+    if (prevActive.current !== null && prevActive.current !== active) setDetailId(null);
+    prevActive.current = active;
+  }, [active]);
 
   // A failure goes stale when the VM comes up some other way (for example from Profiles).
   const prevStatus = useRef<string | undefined>(undefined);
@@ -166,8 +176,11 @@ export default function App() {
   const { live, history, usage } = useLiveStats(ctx, current?.status === "Running");
   setMachineProfile(current ? { cpus: current.cpus, memory: current.memory, disk: current.disk } : null);
   // A container page from a VM that has stopped is gone; show the list when the VM comes back.
+  // Only a running VM that stops clears it. A page that loads with no VM yet keeps its address.
+  const prevCtx = useRef<string | null>(ctx);
   useEffect(() => {
-    if (!ctx) setDetailId(null);
+    if (prevCtx.current && !ctx) setDetailId(null);
+    prevCtx.current = ctx;
   }, [ctx]);
   // The Kubernetes page goes away with its nav item once the active profile has no cluster.
   useEffect(() => {

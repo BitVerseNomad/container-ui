@@ -7,7 +7,7 @@ for (const theme of ["light", "dark"]) {
   const names = await p.locator(".group-cap").allInnerTexts();
   for (const n of ["Button", "Field", "Select", "Switch", "Chip", "Tabs", "Dot", "Sev", "Banner", "Empty", "SkeletonRows", "Canvas", "Command", "Tile", "Facts", "GroupCaption", "Row", "Problem", "Blocks", "Sparkline", "Meters", "Menu", "Sheet", "ConfirmDialog", "Toast", "Inspector"])
     check(names.some((x) => x.startsWith(n)), `gallery (${theme}): has a section for ${n}`);
-  check((await p.locator(".btn.primary").count()) > 0, `gallery (${theme}): shows a primary button`);
+  check((await p.locator("button.primary").count()) > 0, `gallery (${theme}): shows a primary button`);
   await p.screenshot({ path: `test-results/gallery-${theme}.png`, fullPage: true });
 }
 await done();
