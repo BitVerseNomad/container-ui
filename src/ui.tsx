@@ -36,7 +36,8 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
     <ConfirmCtx.Provider value={ask}>
       {children}
       {req && (
-        <>
+        // .legacy carries the .modal and .scrim styles in src/ui/legacy.css; it is display: contents, so it adds no box.
+        <div className="legacy">
           <div className="scrim scrim-top" onClick={() => close(false)} />
           <div className="modal" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby={req.message.includes("\n") ? "confirm-body" : undefined} onKeyDown={(e) => e.key === "Escape" && close(false)}>
             {req.message.includes("\n") ? (
@@ -50,7 +51,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
               <button className={req.safe ? "primary" : "primary danger-fill"} onClick={() => close(true)}>{req.label}</button>
             </div>
           </div>
-        </>
+        </div>
       )}
     </ConfirmCtx.Provider>
   );
