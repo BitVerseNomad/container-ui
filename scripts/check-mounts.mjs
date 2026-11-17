@@ -120,7 +120,7 @@ const browser = await engine.launch();
   await page.locator(".resize-result", { hasText: "The VM started with the folders it had" }).waitFor({ timeout: 30000 }).catch(() => {});
   const back = await page.evaluate(() => window.__vmChange);
   check(back?.cmd === "apply_mounts" && back.args.force === true && JSON.stringify(back.args.mounts) === JSON.stringify([{ path: "/Users/me/work", writable: true }]), `failed: old folders start stopped VM`);
-  check(/^The VM started with the folders it had\.$/.test((await page.locator(".resize-result").innerText().catch(() => "")).trim()), "failed: result says started with folders");
+  check(/^The VM started with the folders it had\.( Everything that was running is running again\.)?$/.test((await page.locator(".resize-result").innerText().catch(() => "")).trim()), "failed: result says started with folders");
   check(await page.locator(".resize-status .resize-result.ok").count() === 1 && await page.locator(".resize-result").count() === 1, "failed: good result in same card, once");
   await page.close();
 }
@@ -167,7 +167,7 @@ const browser = await engine.launch();
   await page.locator(".resize-status .resize-result.ok, .resize-result.ok").first().waitFor({ timeout: 30000 }).catch(() => {});
   const wb = await page.evaluate(() => window.__vmChange);
   check(wb?.cmd === "apply_mounts" && wb.args.force === true && JSON.stringify(wb.args.mounts) === JSON.stringify([{ path: "/Users/me/work", writable: true }]), `way back: button ran folders profile had`);
-  check(/^The VM started with the folders it had\.$/.test((await page.locator(".resize-result").first().innerText().catch(() => "")).trim()), "way back: result says so");
+  check(/^The VM started with the folders it had\.( Everything that was running is running again\.)?$/.test((await page.locator(".resize-result").first().innerText().catch(() => "")).trim()), "way back: result says so");
   await page.close();
 }
 

@@ -1,5 +1,6 @@
 import { ReactNode, createContext, useCallback, useContext, useRef, useState } from "react";
 import { Icon } from "./ui/icons";
+import Ticks from "./ui/Ticks";
 
 // A simple confirmation dialog, app-wide. The opener gets focus back so a
 // keyboard or VoiceOver user lands on the button that asked.
@@ -39,10 +40,10 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
           <div className="modal" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby={req.message.includes("\n") ? "confirm-body" : undefined} onKeyDown={(e) => e.key === "Escape" && close(false)}>
             {req.message.includes("\n") ? (
               <>
-                <p className="modal-title" id="confirm-title">{req.message.slice(0, req.message.indexOf("\n"))}</p>
+                <p className="modal-title" id="confirm-title"><Ticks text={req.message.slice(0, req.message.indexOf("\n"))} /></p>
                 <div id="confirm-body"><Body text={req.message.slice(req.message.indexOf("\n") + 1)} /></div>
               </>
-            ) : <p id="confirm-title">{req.message}</p>}
+            ) : <p id="confirm-title"><Ticks text={req.message} /></p>}
             <div className="actions">
               <button autoFocus onClick={() => close(false)}>Cancel</button>
               <button className={req.safe ? "primary" : "primary danger-fill"} onClick={() => close(true)}>{req.label}</button>
@@ -59,11 +60,11 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
 function Body({ text }: { text: string }) {
   const blocks: ReactNode[] = [];
   let items: string[] = [];
-  const flush = () => { if (items.length) blocks.push(<ul key={blocks.length}>{items.map((t) => <li key={t}>{t}</li>)}</ul>); items = []; };
+  const flush = () => { if (items.length) blocks.push(<ul key={blocks.length}>{items.map((t) => <li key={t}><Ticks text={t} /></li>)}</ul>); items = []; };
   for (const line of text.split("\n")) {
     if (line.startsWith("• ")) items.push(line.slice(2));
-    else if (line.startsWith("! ")) { flush(); blocks.push(<p key={blocks.length} className="confirm-notice"><Icon name="alert" size={14} /><span>{line.slice(2)}</span></p>); }
-    else { flush(); if (line.trim()) blocks.push(<p key={blocks.length}>{line}</p>); }
+    else if (line.startsWith("! ")) { flush(); blocks.push(<p key={blocks.length} className="confirm-notice"><Icon name="alert" size={14} /><span><Ticks text={line.slice(2)} /></span></p>); }
+    else { flush(); if (line.trim()) blocks.push(<p key={blocks.length}><Ticks text={line} /></p>); }
   }
   flush();
   return <>{blocks}</>;
