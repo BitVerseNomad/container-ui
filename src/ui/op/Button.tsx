@@ -11,12 +11,13 @@ export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   busy?: boolean;
 };
 
+// openpier.css sets `button` and `a` colours outside any layer, so they beat plain utilities. The ! variants win over them.
 const variants = {
   variant: {
-    default: "bg-bg-raised text-fg shadow-btn",
-    primary: "primary bg-accent text-on-accent shadow-control",
-    danger: "bg-bad-fill text-bad shadow-danger",
-    ghost: "text-fg-muted hover:bg-tile-hover",
+    default: "bg-bg-raised text-fg !text-fg shadow-btn",
+    primary: "primary bg-accent text-on-accent !text-on-accent shadow-control",
+    danger: "bg-bad-fill text-bad !text-bad shadow-danger",
+    ghost: "text-fg-muted !text-fg-muted hover:bg-tile-hover",
   },
   size: {
     xs: "h-h-xs px-8 rounded-sm text-micro",

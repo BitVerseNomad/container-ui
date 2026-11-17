@@ -5,7 +5,6 @@ import { ConfirmProvider } from "./ui";
 import { ToastProvider, TooltipProvider } from "./ui/op";
 import { migrateStorage } from "./lib/migrateStorage";
 import "./ui/tailwind.css";
-import "./ui/openpier.css";
 
 migrateStorage(window.localStorage);
 const root = ReactDOM.createRoot(document.getElementById("root")!);

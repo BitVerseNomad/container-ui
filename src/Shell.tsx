@@ -75,7 +75,7 @@ export default function Shell({ nav, onNav, badges = {}, hidden = [], counts = {
   return (
     <div className={`app ${folded ? "folded" : ""}`}>
       <aside className="sidebar">
-        <div className="h-header shrink-0" data-tauri-drag-region />
+        <div className="titlebar" data-tauri-drag-region />
         <div>{engine}</div>
         <nav className="nav" aria-label="Main" onClick={handleNavClick}>
           {navItems.main.map(({ tab, label, icon }) => {

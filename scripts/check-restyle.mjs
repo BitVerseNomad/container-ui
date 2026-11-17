@@ -58,14 +58,14 @@ for (const { width, height } of SIZES) {
   await page.close();
 }
 
-// The pull panel uses OutputLog (fresh page, VM running).
+// The pull sheet shows progress in a progress element (fresh page, VM running).
 const pullPage = await open("/?scenario=design#/images", { width: 1180, height: 760 });
 await pullPage.getByRole("button", { name: "Pull image" }).click().catch(() => {});
 await pullPage.getByLabel("Image to pull").fill("redis").catch(() => {});
 await pullPage.getByRole("button", { name: /^Pull redis/ }).click().catch(() => {});
-await pullPage.waitForSelector(".drawer .out-log", { state: "attached", timeout: 5000 });
-check(await pullPage.locator(".drawer .out-log").count() === 1,
-  "pull panel: progress uses OutputLog");
+await pullPage.waitForSelector('[role=dialog] progress[aria-label="Pull progress"]', { state: "attached", timeout: 5000 });
+check(await pullPage.locator('[role=dialog] progress[aria-label="Pull progress"]').count() === 1,
+  "pull panel: progress is shown in a progress element");
 await pullPage.close();
 
 await done();
