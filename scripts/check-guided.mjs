@@ -93,7 +93,8 @@ await p.screenshot({ path: "/tmp/guided-after.png" });
 await p.close();
 
 // 2. no shared network yet: it is created on Run; an unpinned image is flagged
-p = await openRun("nonet", "nginx:latest", "Run nginx:latest");
+// Waits for the image inspect (the unpinned-version warning), not just the title, so the layout has settled before the click.
+p = await openRun("nonet", "nginx:latest", "No version is pinned");
 await openMore(p, "doesn't exist yet");
 t = await sheet(p);
 check(/devnet \(new, created for you\)/.test(await networkTrigger(p).innerText()) && /doesn't exist yet/.test(t), "nonet: says the network will be created");
