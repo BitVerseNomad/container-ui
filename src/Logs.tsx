@@ -1,15 +1,32 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { docker } from "./api";
 import { usePoll } from "./hooks";
 import { Banner } from "./ui";
-import { Icon } from "./ui/icons";
+import { Canvas, Field, type CanvasLine, useToast } from "./ui/op";
 import { LogLine, mergeLogs, sinceOf } from "./lib/logMerge";
 
+const KEEP_LINES = 10_000;
+const FOLLOW_SLACK_PX = 4;
+
 const clock = (iso: string) => (iso ? new Date(iso).toLocaleTimeString([], { hour12: false }) + "  " : "");
+const levelOf = (text: string): CanvasLine["level"] => (/\b(error|fatal|panic)\b/i.test(text) ? "e" : /\bwarn(ing)?\b/i.test(text) ? "w" : undefined);
 
-type Props = { ctx: string; id: string };
+// The filter field the page puts in the tabs row, on the Logs tab.
+export function LogFilter({ value, onChange }: { value: string; onChange: (text: string) => void }) {
+  return <Field icon="search" width="filter" aria-label="Filter lines" placeholder="Filter lines" value={value} onChange={(e) => onChange(e.target.value)} />;
+}
 
-export default function Logs({ ctx, id }: Props) {
+type Props = {
+  ctx: string;
+  id: string;
+  name: string;
+  filter: string;
+  follow: boolean;
+  onFollowChange: (on: boolean) => void;
+  registerCopy: (copy: () => void) => void;
+};
+
+export default function Logs({ ctx, id, name, filter, follow, onFollowChange, registerCopy }: Props) {
   // First the last 500 lines, then only what is new since the last timestamp: a tick costs a few lines, not 1000.
   const [lines, setLines] = useState<LogLine[] | null>(null);
   const have = useRef<LogLine[]>([]);
@@ -23,48 +40,51 @@ export default function Logs({ ctx, id }: Props) {
   }, [ctx, id], 2000);
   useEffect(() => {
     if (data === null) return;
-    have.current = mergeLogs(have.current, data);
+    have.current = mergeLogs(have.current, data, KEEP_LINES);
     setLines(have.current);
   }, [data]);
-  const [filter, setFilter] = useState("");
-  const [follow, setFollow] = useState(true);
-  const box = useRef<HTMLPreElement>(null);
+
+  const toast = useToast();
+  const paneRef = useRef<HTMLPreElement>(null);
   const lastTop = useRef(0);
 
-  const text = useMemo(() => {
+  const shown = useMemo(() => {
     const q = filter.toLowerCase();
-    const shown = (lines ?? []).filter((l) => !q || l.text.toLowerCase().includes(q));
-    return shown.map((l) => clock(l.iso) + l.text).join("\n");
+    return (lines ?? []).slice(-KEEP_LINES).filter((l) => !q || l.text.toLowerCase().includes(q));
   }, [lines, filter]);
 
   useEffect(() => {
-    if (follow && box.current) box.current.scrollTop = box.current.scrollHeight;
-  }, [text, follow]);
+    if (follow && paneRef.current) paneRef.current.scrollTop = paneRef.current.scrollHeight;
+  }, [shown, follow]);
+
+  const copy = useCallback(() => {
+    const text = shown.map((l) => clock(l.iso) + l.text).join("\n");
+    navigator.clipboard.writeText(text).then(() => toast({ text: "Copied logs" }));
+  }, [shown, toast]);
+  useEffect(() => {
+    registerCopy(copy);
+  }, [copy, registerCopy]);
+
+  const canvasLines: CanvasLine[] = shown.map((l) => ({ time: clock(l.iso), text: l.text, level: levelOf(l.text) }));
 
   return (
-    <>
-      <div className="log-bar">
-        <input className="filter" placeholder="Filter lines" value={filter} onChange={(e) => setFilter(e.target.value)} />
-        <button className={follow ? "toggle on" : "toggle"} aria-pressed={follow} onClick={() => setFollow((f) => !f)}>
-          {follow ? "Following new lines" : "Paused, click to follow"}
-        </button>
-        <button onClick={() => navigator.clipboard.writeText(text)} disabled={!text}><Icon name="copy" size={14} /> Copy</button>
-      </div>
+    <div className="stack">
       <Banner error={error} />
-      <pre
-        ref={box}
-        className="logs"
+      <Canvas
+        ref={paneRef}
+        fill
+        aria-label={`Logs of ${name}`}
+        lines={canvasLines.length > 0 ? canvasLines : undefined}
         onScroll={(e) => {
           // Our own auto-scroll only moves down, so only an upward scroll means the user wants to read back.
           const el = e.currentTarget;
-          const up = el.scrollTop < lastTop.current - 4;
+          const up = el.scrollTop < lastTop.current - FOLLOW_SLACK_PX;
           lastTop.current = el.scrollTop;
-          if (up) setFollow(false);
-          else if (el.scrollHeight - el.scrollTop - el.clientHeight < 24) setFollow(true);
+          if (up && follow) onFollowChange(false);
         }}
       >
-        {text || (lines === null ? "Loading…" : filter ? "No lines match." : "No log output.")}
-      </pre>
-    </>
+        {canvasLines.length === 0 ? (lines === null ? "Loading…" : filter ? "No lines match." : "No log output.") : null}
+      </Canvas>
+    </div>
   );
 }

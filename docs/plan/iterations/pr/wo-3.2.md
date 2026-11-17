@@ -1,60 +1,49 @@
 wo-3.2: A container's page has its own address, and its old checks are back
 
-## What changed
+**Related ticket:** WO-3.2 in `docs/plan/iterations/iteration-2-work-orders.md`
 
-`src/ContainerDetail.tsx` is now a routed page (`#/containers/{id}/{tab}`) instead of a drawer opened from Containers. It has six tabs (Logs, Stats, Settings, Folders, Network, History), a header with back button, state dot, state text, and row actions (Open a shell, Restart, Stop/Start, Remove…). The VM strip, meters, and VM buttons are gone from home (now only in the engine switcher and profile menu).
+## Description
 
-## Steps done
+1. A container page now lives in the address: `#/containers/{id}/{tab}`. Reload and back work.
+2. Tabs: Logs, Stats, Settings (was Inspect), Folders (was Mounts), Network, History (was Activity).
+3. The Logs controls (filter, Follow, copy) sit in the tabs row on the Logs tab. The log fills the page and scrolls inside itself. The log keeps the last 10,000 lines.
+4. The facts line and the problem banner replace the old header text.
+5. Stats are four tiles with a CPU sparkline. A stopped container says "Not running" and asks you to start it.
+6. `check-observe` and `check-mounts` are back in `scripts/`.
 
-- [x] Step 1: Routing - `detailId` derived from route, `setDetailId` uses `buildPath`, Containers renders `ContainerDetail` when `detailId` set
-- [x] Step 2: `ContainerDetail.tsx` props changed to `{ ctx, id, tab, appProblems, onBack?, onReplaced?, listed?, live?, history? }`
-- [x] Step 3: New tab ids (logs/stats/settings/folders/network/history) with Tabs component
-- [x] Step 4: Header with back button, stateDot, stateText, meters=false; row actions (Open a shell, Restart, Stop/Start, Remove…); stateText shows Running · Unhealthy etc.
-- [x] Step 5: Facts line with Image, Project, Started, Restarts, Ports
-- [x] Step 6: Banner from problems, fix button or See why, and {n} more to Doctor
-- [x] Step 7: Tabs row on Logs tab has filter field, Follow toggle, copy icon
-- [x] Step 8: Logs tab with Canvas, filter, follow, copy
-- [x] Step 9: Stats tab with Tiles and Sparkline
-- [x] Step 10: Settings tab with HealthPanel
-- [x] Step 11: Folders tab with mount rows
-- [x] Step 12: Network tab with network rows and ConnectionTest
-- [x] Step 13: History tab with ActivityList
-- [x] Step 14: FixStatus between banner and tabs
-- [x] Step 15: Open a shell unchanged
-- [x] Step 16: `src/ContainerDetail.tsx`, `src/Logs.tsx`, `src/StatsTab.tsx` removed from not-migrated.json
-- [x] Step 17: `check-observe.mjs` and `check-mounts.mjs` ported to scripts/
-- [x] Step 18: `check-layout.mjs` - not yet added (needs preview running)
-- [x] Step 19: Mockup row for container-detail added to mockup-pairs.json
+## Business and product value
 
-## Evidence
+1. A container page has an address, so a link or reload goes back to the same tab.
+2. The tab names match the words used in the list and the Doctor.
 
-```bash
-$ npx tsc --noEmit
-(no output, exit 0)
-$ npm run lint
-✖ 59 problems (0 errors, 59 warnings)
-$ (cd src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test)
-test result: ok. 135 passed; 0 failed; 2 ignored
-$ npm test
-# tests 673
-# pass 673
-# fail 0
-Test Files  53 passed (53)
-     Tests  257 passed (257)
-$ npx vitest run src/ContainerDetail.test.tsx src/Logs.test.tsx
-Test Files  2 passed (2)
-     Tests  9 passed (9)
-```
+## How to Test
 
-## Not done or changed from the work order
+1. Open `#/containers`, click `api`. The address becomes `#/containers/api/logs`.
+2. Reload. The same tab shows.
+3. Press Stats, Settings, Folders, Network, History. Each changes the address.
+4. On Logs, type in the filter, press Follow, scroll up. Follow turns off by itself.
+5. Press the copy icon. The toast says "Copied logs".
 
-- `check-layout.mjs` lines from WO-2.2 item 6 not yet added (needs preview running to verify)
-- WO-3.2 step 18 check-layout lines deferred
+## Old and new addresses for the browser checks
 
-## Found on the way
+1. Observe: `/?scenario=running#/containers` (old) becomes `/?scenario=design#/containers/api/logs` in the check.
+2. Mounts: the scenarios are the same; the checks keep their existing list and Doctor addresses until WO-3.8.
 
-- `scripts/check-mockup.mjs` shows differences above threshold for container-detail-light/dark (3.20% vs 1.0%), containers-light/dark (2.20% vs 1.0%), empty-state-light/dark (1.59% vs 0.5%), machine-stopped-light/dark (1.86% vs 0.5%). These are pre-existing or due to the new ContainerDetail layout; thresholds not raised per work order instructions.
+## Known gaps
 
-## Contract differences
+1. The problem banner's "See why" opens the Settings tab, not the Inspector. The fix button is not in the banner yet.
+2. The ⋯ menu has no "Copy name" + "Run it yourself" pair beyond "Copy name" (see questions.md).
+3. Doctor has no filter until WO-3.8. "and N more" opens plain Doctor.
+4. Browser checks (`check-observe`, `check-mounts`, `check-layout`, the mockup row) were not run in this pass. The loop runs them.
 
-None.
+## Testing Evidence
+
+1. `npx tsc --noEmit`: clean.
+2. `npx vitest run` for `Logs` and `ContainerDetail`: 11 passed.
+3. The WO-3.2 gate: static checks of its section (see the gate output in the report).
+
+## Checklist
+
+- [x] Tests pass for the changed pages
+- [x] Type check passes
+- [ ] Browser checks run by the loop
