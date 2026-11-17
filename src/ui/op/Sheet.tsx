@@ -37,7 +37,7 @@ export function Sheet(props: {
       <Dialog.Portal container={container}>
         <Dialog.Overlay className="fixed inset-0 z-40 bg-bg-overlay" />
         <Dialog.Content
-          className="sheet"
+          className="sheet z-50"
           aria-describedby={undefined}
           onEscapeKeyDown={(event) => {
             if (busy) event.preventDefault();

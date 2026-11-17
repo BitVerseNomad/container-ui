@@ -48,9 +48,9 @@ export function ConfirmProvider(props: { children: React.ReactNode }): React.JSX
       {options && (
         <AlertDialog.Root open onOpenChange={(open) => { if (!open) finish(false); }}>
           <AlertDialog.Portal container={container}>
-            <AlertDialog.Overlay className="fixed inset-0 bg-bg-overlay" />
+            <AlertDialog.Overlay className="fixed inset-0 z-50 bg-bg-overlay" />
             <AlertDialog.Content
-              className="dialog"
+              className="dialog z-50"
               onOpenAutoFocus={(event) => {
                 event.preventDefault();
                 (options.danger ? cancelRef.current : confirmRef.current)?.focus();
