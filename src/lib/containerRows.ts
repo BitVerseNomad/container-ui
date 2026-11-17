@@ -89,7 +89,8 @@ export type Line<C> =
   | { kind: "child"; id: string; entry: App<any>; c: C }
   | { kind: "problem"; id: string; entry: App<any>; c: C; indent: boolean; prefix: boolean };
 
-export function flatten<C>(entries: App<any>[], open: (e: App<any>) => boolean, hasProblem: (c: C) => boolean): Line<C>[] {
+// include: which containers of a group show under it (a search shows only the ones it finds). A group's own line always shows.
+export function flatten<C>(entries: App<any>[], open: (e: App<any>) => boolean, hasProblem: (c: C) => boolean, include: (e: App<any>, c: C) => boolean = () => true): Line<C>[] {
   const out: Line<C>[] = [];
   for (const e of entries) {
     const isGroup = e.kind === "compose";
@@ -98,11 +99,12 @@ export function flatten<C>(entries: App<any>[], open: (e: App<any>) => boolean, 
     if (e.kind === "kubernetes") continue;
     if (opened) {
       for (const c of e.rows) {
+        if (!include(e, c as C)) continue;
         out.push({ kind: "child", id: `${e.key}/${c.Names}`, entry: e as never, c: c as never });
         if (hasProblem(c)) out.push({ kind: "problem", id: `${e.key}/${c.Names}/problem`, entry: e as never, c: c as never, indent: true, prefix: false });
       }
     } else {
-      for (const c of e.rows) if (hasProblem(c)) out.push({ kind: "problem", id: `${e.key}/${c.Names}/problem`, entry: e as never, c: c as never, indent: false, prefix: isGroup });
+      for (const c of e.rows) if (hasProblem(c) && include(e, c as C)) out.push({ kind: "problem", id: `${e.key}/${c.Names}/problem`, entry: e as never, c: c as never, indent: false, prefix: isGroup });
     }
   }
   return out;

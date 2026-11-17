@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 import { Sheet, Command, Sev, Empty, Button } from "./ui/op";
-import { useActivity } from "./Commands";
+import { said, useActivity } from "./Commands";
 import { useFixRuns } from "./FixIt";
 
 const time = (at: number) => new Date(at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -22,12 +22,13 @@ export default function Activity({ open, onClose }: { open: boolean; onClose: ()
             return (
               <li key={e.id} className={e.ok === false ? "bad" : undefined}>
                 <span className="hint">{time(e.at)}</span>
+                {said(e) && <span className="hint">{said(e)}</span>}
                 <Command text={e.cmd} />
                 {e.ok === false && <Sev level="bad" />}
                 {e.ok === null && <span className="hint">running</span>}
                 {e.ok === false && <span className="hint">failed</span>}
                 {again && (
-                  <Button size="xs" onClick={() => { setErr(null); e.again!().catch((x) => setErr(x instanceof Error ? x.message : String(x))); }}>
+                  <Button size="xs" aria-label={`Run again: ${e.cmd}`} onClick={() => { setErr(null); e.again!().catch((x) => setErr(x instanceof Error ? x.message : String(x))); }}>
                     Run again
                   </Button>
                 )}
