@@ -100,10 +100,15 @@ describe("ComposeProjects", () => {
     expect(onLogs).toHaveBeenCalledWith({ context: "colima", file: `${dir}/docker-compose.yml`, since: null });
   });
 
-  it("given a folder that can't be added, when Add a folder is used, then the reason shows", async () => {
+  it("given the sheet opens, when shown, then its dialog is named Start a Compose project", () => {
+    show();
+    expect(screen.getByRole("dialog", { name: "Start a Compose project" })).toBeInTheDocument();
+  });
+
+  it("given a folder that can't be added, when Choose a folder is used, then the reason shows", async () => {
     const user = userEvent.setup();
     show({ add: async () => { throw "No compose.yaml or docker-compose.yml in notes"; } });
-    await user.click(screen.getByRole("button", { name: /Add a folder/ }));
+    await user.click(screen.getByRole("button", { name: "Choose a folder…" }));
     expect(await screen.findByText(/No compose.yaml or docker-compose.yml in notes/)).toBeInTheDocument();
   });
 

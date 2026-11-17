@@ -15,7 +15,6 @@
   "src/Networks.tsx",
   "src/PodDrawer.tsx",
   "src/Profiles.tsx",
-  "src/PullPanel.tsx",
   "src/Resize.tsx",
   "src/Setup.tsx",
   "src/Sparkline.tsx",
