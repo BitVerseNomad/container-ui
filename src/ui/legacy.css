@@ -9,7 +9,7 @@
 .legacy .primary:not([data-op]) { background: var(--accent-fill); color: var(--on-accent); border-color: var(--accent-fill); }
 .legacy .danger:not([data-op]) { color: var(--bad); }
 .legacy .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; }
-.legacy section:not(.detail) > header { position: absolute; top: 14px; right: 20px; display: flex; align-items: center; gap: 8px; margin: 0; }
+.legacy section:not(.detail) > header { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin: 0 0 8px; }
 .legacy section:not(.detail) > header h2 { display: none; }
 .legacy .state { color: var(--fg-muted); font-size: 13px; }
 .legacy table { width: 100%; border-collapse: collapse; }

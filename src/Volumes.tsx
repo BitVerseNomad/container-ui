@@ -117,7 +117,7 @@ export default function Volumes({ ctx }: { ctx: string }) {
       {data && data.length > 0 && (
         <>
           <div className="table-tools">
-            <label className="flex items-center gap-2 rounded-sm border border-line bg-bg-raised px-2 text-meta">
+            <label className="search-field">
               <Icon name="search" size={14} />
               <input placeholder="Search your volumes" aria-label="Search your volumes" value={q} onChange={(e) => setQ(e.target.value)} />
             </label>

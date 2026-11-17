@@ -8,20 +8,19 @@ const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..")
 const out = path.join(root, "docs/screenshots");
 const W = 1180, H = 740, CROP = 700; // the crop drops the preview's "simulated Docker data" footer
 
-const nav = (name) => (p) => p.locator(".sidebar").getByRole("button", { name: new RegExp(`^${name}\\b`) }).first().click().then(() => p.waitForTimeout(1200));
+// Every page has an address since WO-2.1, so each shot opens its route directly.
 const SHOTS = [
-  ["home", "scenario=desktop"],
-  ["doctor", "scenario=desktop", nav("Doctor")],
-  ["images", "scenario=desktop", nav("Images")],
+  ["home", "scenario=desktop#/containers"],
+  ["doctor", "scenario=desktop#/doctor"],
+  ["images", "scenario=desktop#/images"],
   ["setup", "scenario=nobrew"],
 ];
 
 const browser = await webkit.launch();
-for (const [name, query, act] of SHOTS) {
+for (const [name, query] of SHOTS) {
   const p = await browser.newPage({ viewport: { width: W, height: H }, deviceScaleFactor: 2 });
-  await p.goto(`${process.env.PREVIEW_URL ?? "http://localhost:4173"}/?${query}`);
+  await p.goto(`${(process.env.PREVIEW_URL ?? "http://localhost:4173").replace(/\/$/, "")}/?${query}`);
   await p.waitForTimeout(4000);
-  if (act) await act(p);
   const file = path.join(out, `${name}.png`);
   await p.screenshot({ path: file, clip: { x: 0, y: 0, width: W, height: CROP } });
   console.log("wrote", path.relative(root, file));

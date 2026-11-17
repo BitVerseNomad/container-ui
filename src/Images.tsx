@@ -10,6 +10,7 @@ import { formatBytes, parseBytes } from "./containerInfo";
 import RunPanel from "./RunPanel";
 import DiskCard from "./DiskCard";
 import { Icon } from "./ui/icons";
+import { Button as OpButton } from "./ui/op/Button";
 import { activity, dockerLine } from "./lib/activity";
 
 type I = { ID: string; Repository: string; Tag: string; Size: string; CreatedSince: string };
@@ -37,7 +38,7 @@ export default function Images({ ctx, onRan, startPull = false, arch }: { ctx: s
   return (
     <section>
       <header>
-        <button className="primary inline-flex items-center gap-1.5" onClick={() => { setHubTerm(undefined); setPulling(true); }}><Icon name="download" size={13} /> Pull image</button>
+        <OpButton variant="primary" icon="download" onClick={() => { setHubTerm(undefined); setPulling(true); }}>Pull image</OpButton>
       </header>
       <Banner error={error ?? err} onClose={() => setErr(null)} />
       <DiskCard ctx={ctx} onChanged={reload} />
@@ -45,7 +46,7 @@ export default function Images({ ctx, onRan, startPull = false, arch }: { ctx: s
         <Empty title="No images">Use <strong>Pull image</strong> to download one from Docker Hub.</Empty>
       )}
       {data && data.length > 0 && (
-        <label className="flex h-7 items-center gap-2 rounded-sm border border-line bg-bg-raised px-2 focus-within:ring-2 focus-within:ring-focus">
+        <label className="search-field">
           <Icon name="search" size={14} />
           <input placeholder="Search your images" aria-label="Search your images" value={q} onChange={(e) => setQ(e.target.value)} />
         </label>

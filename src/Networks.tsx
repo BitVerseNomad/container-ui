@@ -54,7 +54,7 @@ export default function Networks({ ctx }: { ctx: string }) {
       {nets.data && nets.data.length === 0 && <Empty title="No networks">Docker creates a few built-in ones when it starts.</Empty>}
       {nets.data && nets.data.length > 0 && (
         <>
-          <label className="flex h-7 items-center gap-2 rounded-sm border border-line bg-bg-raised px-2 focus-within:ring-2 focus-within:ring-focus">
+          <label className="search-field">
             <Icon name="search" size={14} />
             <input placeholder="Search your networks" aria-label="Search your networks" value={q} onChange={(e) => setQ(e.target.value)} />
           </label>
