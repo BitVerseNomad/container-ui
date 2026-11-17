@@ -340,13 +340,16 @@ export default function App() {
         <Doctor ctx={ctx} composePaths={compose.paths ?? []} setup={setup} doc={doc} onProfiles={() => setTab("Profiles")} onBring={(only) => openBring(only)} onGo={(page) => setTab(page)} onOpen={(name) => { setDetailId(name); setTab("Containers"); }} />
       )
     ) : tab === "Profiles" ? (
-      <Profiles
-        profiles={profiles}
-        reload={() => { reloadProfiles(); kube.reload(); }}
-        openNew={newProfileOnOpen}
-        kubeOn={(name) => (kubeAsked.includes(name) ? true : kubernetesOn(ctxFor(name), kube.data))}
-        onKubeAsked={(name) => setKubeAsked((l) => (l.includes(name) ? l : [...l, name]))}
-      />
+      // The machines table is wider than a small window; it scrolls inside its own box, not the page.
+      <div className="min-w-0 overflow-x-auto">
+        <Profiles
+          profiles={profiles}
+          reload={() => { reloadProfiles(); kube.reload(); }}
+          openNew={newProfileOnOpen}
+          kubeOn={(name) => (kubeAsked.includes(name) ? true : kubernetesOn(ctxFor(name), kube.data))}
+          onKubeAsked={(name) => setKubeAsked((l) => (l.includes(name) ? l : [...l, name]))}
+        />
+      </div>
     ) : !ctx ? (
       toolsMissing ? (
         <Empty title="No container runtime yet" action={<button className="primary" onClick={() => setTab("Containers")}>Install one</button>}>
