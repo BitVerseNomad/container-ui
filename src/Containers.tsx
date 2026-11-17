@@ -41,6 +41,7 @@ import { NewMenu } from "./containers/NewMenu";
 import { SelectionBar } from "./containers/SelectionBar";
 import { ProblemInspector } from "./containers/ProblemInspector";
 import { inspectorContent } from "./lib/inspectorContent";
+import { startReason } from "./lib/vmSize";
 import { Header } from "./Header";
 import { blockOf, flatten, hostPorts, isOpen, sortEntries, stateView, statsText, summary } from "./lib/containerRows";
 import type { StateView } from "./lib/containerRows";
@@ -121,7 +122,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, setDetailId
   const [menuFor, setMenuFor] = useState<string | null>(null);
   const [inspect, setInspect] = useState<{ c: C; f: Finding } | null>(null);
   const [pending, setPending] = useState<Map<string, Pending>>(new Map());
-  const [failed, setFailed] = useState<Map<string, string>>(new Map());
+  const [failed, setFailed] = useState<Map<string, Failure>>(new Map());
   // Read aloud by VoiceOver: what just finished, or what went wrong. Both regions exist from the first render,
   // because WebKit often skips a live region that appears with its text already in it.
   const [said, setSaidNow] = useState({ status: "", alert: "" });
@@ -284,24 +285,25 @@ export default function Containers({ profile, ctx, vm, onVm, reload, setDetailId
   }, [copying]); // eslint-disable-line react-hooks/exhaustive-deps
   const canAct = (a: App<C>) => !dockerLocked(a.rows.map((c) => c.Names)) && !pending.has(a.key);
 
-  async function act(a: App<C>, args: string[], p: Pending | null, done: string) {
+  // failKey is the row the failure shows under: the container's own row for a child, the app's row otherwise.
+  async function act(a: App<C>, args: string[], p: Pending | null, done: string, failKey = a.key) {
     if (!canAct(a) || !ctx) return;
     if (p) { setPending((m) => new Map(m).set(a.key, p)); setSaid({ status: `${p.word.replace("…", "")} ${a.name}…`, alert: "" }); }
-    unfail(a.key);
+    unfail(failKey);
     // Logged with names, as you'd type it; the call itself uses IDs, which can't be mistaken.
     const shown = args.map((x) => all.find((c) => c.ID === x)?.Names ?? x);
     try {
       await activity.ran(args[0], dockerLine(ctx, shown), () => docker(ctx, args), a.name);
       setSaid({ status: done, alert: "" });
     } catch (e) {
-      fail(a, String(e));
+      fail(a, String(e), failKey, () => void act(a, args, p, done, failKey));
     }
     containers.reload();
   }
-  function fail(a: App<C>, text: string) {
+  function fail(a: App<C>, text: string, key = a.key, retry: (() => void) | null = null) {
     unpend(a.key);
-    setFailed((m) => new Map(m).set(a.key, text));
-    setSaid({ status: "", alert: `${a.name} failed. ${firstLine(text)}` });
+    setFailed((m) => new Map(m).set(key, { text, retry }));
+    setSaid({ status: "", alert: `${a.name} failed. ${plainReason(a.name, text)}` });
   }
   // A project whose Compose file is known runs `docker compose`, as typing it in its folder would. Without the file
   // (the folder moved, or it was started some other way) the same verb goes to its containers directly.
@@ -626,7 +628,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, setDetailId
         ariaLabel={`${serviceName(c, a.name)}, ${v.word}`} ports={hostPorts(c.Ports)} stats={statsFor(c)} history={historyOf(c)} cpuNow={cpuNowOf(c)}
         action={{ label: verb, busy: false, locked: lock }} selected={checked.has(c.ID)}
         onSelect={(on) => toggleCheck(c.ID, on)} onOpen={() => setDetailId(c.ID)}
-        onAction={() => { if (!lock) void act(a, [verb === "Stop" ? "stop" : "start", c.ID], null, `${c.Names} ${verb === "Stop" ? "stopped" : "started"}`); }}
+        onAction={() => { if (!lock) void act(a, [verb === "Stop" ? "stop" : "start", c.ID], null, `${c.Names} ${verb === "Stop" ? "stopped" : "started"}`, id); }}
         menu={rowMenu(id, c.Names, containerMenuItems(c, a))} menuOpen={menuFor === id}
         onMenuOpenChange={(open) => setMenuFor(open ? id : null)} />
     );
@@ -702,7 +704,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, setDetailId
       );
     }
     const failure = failed.get(a.key);
-    if (failure && !v.cf) out.push(<Problem key={`failure-${a.key}`} level="bad" text={`${a.name}: ${firstLine(failure)}`} title={failure} action={<Button variant="ghost" size="xs" onClick={() => unfail(a.key)}>Dismiss</Button>} />);
+    if (failure && !v.cf) out.push(failureLine(`failure-${a.key}`, a.name, failure, () => unfail(a.key)));
     if (v.lock && !v.changing) out.push(<span key={`why-${a.key}`} className="sr-only" id={`why-${a.key}`}>{a.rows.some((c) => fixBusy(runs, c.Names)) ? "A fix is running on it." : vm.op ? "The VM is changing." : "Another action is running."}</span>);
     // First: a database that came up empty can explain the problems under it.
     for (const g of v.rowGaps) {
@@ -729,7 +731,12 @@ export default function Containers({ profile, ctx, vm, onVm, reload, setDetailId
       nodes.push(entryRow(a, line.open));
       extras = entryExtras(a, line.open);
     } else if (line.kind === "child") {
-      nodes.push(childRow(line.entry as App<C>, line.c as C));
+      const ca = line.entry as App<C>;
+      const cc = line.c as C;
+      const childKey = `${ca.key}/${cc.Names}`;
+      nodes.push(childRow(ca, cc));
+      const childFailure = failed.get(childKey);
+      if (childFailure) nodes.push(failureLine(`failure-${childKey}`, serviceName(cc, ca.name), childFailure, () => unfail(childKey), true));
     } else {
       const c = line.c as C;
       const a = line.entry as App<C>;
@@ -896,6 +903,22 @@ const DID: Record<Action, string> = { up: "start", stop: "stop", restart: "resta
 const ENDED = new Set(["oom", "crashed"]);
 const tilde = (dir: string) => dir.replace(/^\/Users\/[^/]+/, "~");
 const firstLine = (t: string) => t.split("\n").map((l) => l.trim()).find(Boolean) ?? t;
+// The reason in plain words when startReason knows it (a port clash, out of memory); otherwise the first line of Docker's text.
+const plainReason = (name: string, raw: string) => startReason(raw, name).short ?? firstLine(raw);
+type Failure = { text: string; retry: (() => void) | null };
+// A failed action under a row: the plain reason, the raw text in the title, and Try again when the action can run again.
+const failureLine = (key: string, name: string, failure: Failure, dismiss: () => void, child = false) => (
+  <Problem
+    key={key}
+    level="bad"
+    child={child}
+    text={`${name}: ${plainReason(name, failure.text)}`}
+    title={failure.text}
+    action={failure.retry
+      ? <Button variant="ghost" size="xs" onClick={failure.retry}>Try again</Button>
+      : <Button variant="ghost" size="xs" onClick={dismiss}>Dismiss</Button>}
+  />
+);
 // "shop-web-1" reads as "web" inside the shop project; a container named some other way keeps its name.
 const serviceName = (c: C, project: string) => {
   const svc = /(?:^|,)com\.docker\.compose\.service=([^,]+)/.exec(c.Labels ?? "")?.[1];
