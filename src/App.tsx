@@ -12,7 +12,8 @@ import EngineSwitcher from "./EngineSwitcher";
 import { engineOfProfile, chooseEngine, busyOf, buttonLabel } from "./lib/engineModel";
 import { ShortcutId, SHORTCUTS, activeShortcuts, showKeys, isTypingTarget } from "./lib/shortcuts";
 import { MachineUsageProvider, Header } from "./Header";
-import { useRoute, go, buildPath, parseRoute } from "./lib/router";
+import { useRoute, go, buildPath } from "./lib/router";
+import { parseRoute } from "./lib/routes";
 import { tabOfRoute, pathOfTab } from "./lib/tabRoutes";
 import Containers, { VmState } from "./Containers";
 import ContainerDetail from "./ContainerDetail";
@@ -94,11 +95,10 @@ export default function App() {
   const [stored] = useState(() => { try { return localStorage.getItem("openpier:engine"); } catch { return null; } });
   const [engineOpen, setEngineOpen] = useState(false);
   const detailId = route.page === "containers" ? route.id ?? null : null;
-  // Clearing the detail only matters on a container page. Anywhere else it would send you to the list and add a history entry.
+  // Closing the detail only navigates when a detail page is open; effects that clear it on startup must not bounce every page to Containers.
   const setDetailId = useCallback((id: string | null) => {
-    const onContainerDetail = parseRoute(window.location.hash)?.id !== undefined;
-    if (id === null && !onContainerDetail) return;
-    go(id ? buildPath({ page: "containers", id, tab: "logs" }) : "#/containers");
+    if (id) go(buildPath({ page: "containers", id, tab: "logs" }));
+    else if (parseRoute(window.location.hash)?.id) go("#/containers");
   }, []);
   const [pullOnOpen, setPullOnOpen] = useState(false);
   const [newProfileOnOpen, setNewProfileOnOpen] = useState(false);
@@ -183,8 +183,9 @@ export default function App() {
     prevCtx.current = ctx;
   }, [ctx]);
   // The Kubernetes page goes away with its nav item once the active profile has no cluster.
+  // Wait until both the engine and the cluster list are known: on startup both are still loading.
   useEffect(() => {
-    if (tab === "Kubernetes" && !kubeOn && (kube.data !== null || !current)) setTab("Containers");
+    if (tab === "Kubernetes" && current && kube.data !== null && !kubeOn) setTab("Containers");
   }, [tab, kubeOn, kube.data, current]);
   const setup = useSetup(current);
   const doc = useDoctor(ctx, current);
