@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./openpier.css" layer(base);
 @import "./components.css" layer(components);
 
 @theme inline {
