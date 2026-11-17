@@ -70,9 +70,11 @@ export default function Logs({ ctx, id, name, filter, follow, onFollowChange, re
   return (
     <div className="stack">
       <Banner error={error} />
+      {/* The pane is bounded by the window, so the log scrolls inside it and not the whole page. */}
       <Canvas
         ref={paneRef}
         fill
+        className="h-[calc(100dvh-16rem)]"
         aria-label={`Logs of ${name}`}
         lines={canvasLines.length > 0 ? canvasLines : undefined}
         onScroll={(e) => {

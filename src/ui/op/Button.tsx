@@ -14,7 +14,7 @@ export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
 const variants = {
   variant: {
     default: "bg-bg-raised text-fg shadow-btn",
-    primary: "bg-accent text-on-accent shadow-control",
+    primary: "primary bg-accent text-on-accent shadow-control",
     danger: "bg-bad-fill text-bad shadow-danger",
     ghost: "text-fg-muted hover:bg-tile-hover",
   },

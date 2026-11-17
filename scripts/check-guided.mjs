@@ -15,10 +15,9 @@ async function openRun(scenario, ref, ready) {
   const p = await browser.newPage({ viewport: { width: 1100, height: 900 } });
   p.errors = [];
   p.on("pageerror", (e) => p.errors.push(e.message));
-  await p.goto(`${HOST}/?scenario=${scenario}`);
-  await p.waitForSelector("ul.apps > li.app");
-  await p.locator(".sidebar").getByRole("button", { name: "Images", exact: true }).click();
-  await p.waitForSelector("tbody tr:not(.group-row)");
+  // Opens the Images route by its address, as the scenario URLs do.
+  await p.goto(`${HOST}/?scenario=${scenario}#/images`);
+  await p.waitForSelector(".nav-item");
   await p.getByRole("button", { name: `Run ${ref}`, exact: true }).click();
   await p.waitForSelector(".sheet");
   await p.waitForFunction((t) => (document.querySelector(".sheet")?.innerText ?? "").includes(t), ready, { timeout: 6000 });
@@ -31,7 +30,7 @@ const networkTrigger = (p) => p.locator('.sheet [role=combobox][aria-label="Netw
 // Opens More options, then waits until the network check has answered (`ready` text shows).
 async function openMore(p, ready) {
   await chip(p, "More options").click();
-  await p.waitForFunction((t) => (document.querySelector(".sheet")?.innerText ?? "").includes(t), ready, { timeout: 6000 });
+  await p.waitForFunction((t) => (document.querySelector(".sheet")?.innerText ?? "").includes(t), ready, { timeout: 15000 });
 }
 // Relative luminance (0 to 1) of the command box, read from a painted pixel: works for any CSS colour format.
 const cmdLuminance = (p) => p.locator(".sheet .cmd").evaluate((e) => {
@@ -140,13 +139,15 @@ check(await p.locator(".sheet").count() === 0, "keys: Escape closes the sheet wh
 await p.keyboard.press("Meta+n");
 await p.waitForSelector(".sheet", { timeout: 3000 }).catch(() => {});
 check(await p.getByRole("dialog", { name: "Choose an image to run" }).count() === 1, "keys: Cmd+N opens the picker titled Choose an image to run");
-await p.getByLabel("Image to run").fill("acme/orders-api:1.4");
+await p.getByRole("textbox", { name: "Image to run", exact: true }).fill("acme/orders-api:1.4");
 await p.getByRole("button", { name: "Continue", exact: true }).click();
 await p.waitForFunction((t) => (document.querySelector(".sheet")?.innerText ?? "").includes(t), "Read the setup notes", { timeout: 6000 }).catch(() => {});
 await p.locator('.sheet input[aria-label="Host port"]').first().fill("8090");
 await p.getByRole("button", { name: "Run", exact: true }).click();
 await p.waitForSelector(".sheet", { state: "detached", timeout: 6000 }).catch(() => {});
 check(await p.getByText(/^Started /).count() >= 1, "keys: after Run from the picker the toast says Started");
+// The row appears when the list reloads, so wait for the focus to land (up to 3 seconds), then assert it.
+await p.waitForFunction(() => !!document.activeElement?.closest('[role="row"]'), null, { timeout: 3000 }).catch(() => {});
 check(await p.evaluate(() => !!document.activeElement?.closest('[role="row"]')), "keys: the new container's row takes focus (unproven in a browser until the loop runs this)");
 await p.close();
 

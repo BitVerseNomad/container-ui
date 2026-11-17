@@ -9,7 +9,7 @@ export type NewMenuProps = {
 
 export function NewMenu({ onRun, onPull, onCompose }: NewMenuProps = {}): JSX.Element {
   return (
-    <Menu label="New" align="end" wide trigger={<Button variant="primary" icon="plus" aria-label="New">New</Button>}>
+    <Menu label="New" align="end" wide trigger={<Button variant="primary" icon="plus" aria-label="New" className="btn primary">New</Button>}>
       <MenuItem label="Run an image" why="Start one container from an image you have" shortcut="⌘N" onSelect={() => onRun?.()} />
       <MenuItem label="Pull an image" why="Download an image without starting it" shortcut="⌘P" onSelect={() => onPull?.()} />
       <MenuItem label="Start a Compose project" why="Pick a folder with a compose.yaml" onSelect={() => onCompose?.()} />
