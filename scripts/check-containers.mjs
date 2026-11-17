@@ -251,8 +251,21 @@ async function rowNames(page) {
     check(items.some((t) => t.includes("Logs")), "chromium design: kafka menu has Logs");
     check(items.some((t) => t.includes("Open a shell")), "chromium design: kafka menu has Open a shell");
     check(items.some((t) => t.includes("Restart")), "chromium design: kafka menu has Restart");
+    check(items.some((t) => t.includes("Remove…")), "chromium design: kafka menu has Remove…");
+    await page.getByRole("menuitem", { name: /^Remove…/ }).click();
+    await page.waitForTimeout(300);
+    check(await page.getByRole("alertdialog", { name: "Remove kafka?" }).count() === 1, "chromium design: Remove… asks first and names kafka");
     await page.keyboard.press("Escape");
   }
+  await page.close();
+}
+
+// ============ Scenario: k8spods - Kubernetes is one row, last ============
+{
+  const page = await open("/?scenario=k8spods#/containers", { engine: "chromium", width: 1280, height: 800 });
+  await page.waitForTimeout(2000);
+  const names = await rowNames(page);
+  check(names.at(-1) === "Kubernetes, 2 containers" && names.filter((n) => n.startsWith("Kubernetes, ")).length === 1 && !names.some((n) => /coredns|k8s_/.test(n)), `chromium k8spods: one Kubernetes row, last, with its 2 containers and no pod rows (${names.join(" | ")})`);
   await page.close();
 }
 
