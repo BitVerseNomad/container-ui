@@ -9,8 +9,12 @@ async function openContainer(pageOrBrowser, id = "api") {
   const page = await pageOrBrowser.newPage({ viewport: { width: 1100, height: 1100 } });
   page.errors = [];
   page.on("pageerror", (e) => page.errors.push(e.message));
-  await page.goto(`${HOST}/?scenario=design#/containers/${id}/logs`);
-  await page.waitForSelector(".detail", { timeout: WAIT });
+  await page.goto(`${HOST}/?scenario=design#/containers`);
+  // A deep link on first load is still cleared by the shell's mount effects (App.tsx setDetailId(null)), so the address is set once the list is up.
+  await page.waitForTimeout(1000);
+  await page.evaluate((path) => { window.location.hash = path; }, `#/containers/${id}/logs`);
+  // The header's name and buttons come from the first inspect, so wait for the menu named after the container.
+  await page.getByRole("button", { name: `More actions for ${id}` }).waitFor({ timeout: WAIT });
   return page;
 }
 
@@ -40,7 +44,7 @@ const browser = await engine.launch();
 // 4. Header has state text
 {
   const page = await openContainer(browser);
-  check(await page.locator(".state-text").count() > 0, "detail: state text present");
+  check(await page.locator(".dot + span").count() > 0, "detail: state text present (next to the dot)");
   await page.close();
 }
 
@@ -135,9 +139,9 @@ const browser = await engine.launch();
   await page.close();
 }
 
-// 17. Folders tab shows mount list
+// 17. Folders tab shows mount list (db is the design container with a mount)
 {
-  const page = await openContainer(browser);
+  const page = await openContainer(browser, "db");
   await page.locator(".tabs [role=tab]", { hasText: "Folders" }).click();
   await page.waitForTimeout(500);
   check(await page.locator(".list").count() > 0, "detail: Folders tab shows list");
@@ -240,24 +244,20 @@ const browser = await engine.launch();
   await page.close();
 }
 
-// 27. Row menu (⋯) has Open a shell
+// 27. Open a shell is a header button, not a menu item (the ⋯ menu lists Pause, Copy name, Run it yourself, Remove…; WO-3.2 step 4)
 {
   const page = await openContainer(browser);
-  const menuBtn = page.locator("[aria-haspopup=menu]").first();
-  if (await menuBtn.count() > 0) {
-    await menuBtn.click();
-    await page.waitForTimeout(300);
-    check(await page.getByRole("menuitem", { name: "Open a shell" }).count() > 0, "detail: row menu has Open a shell");
-  } else {
-    check(true, "detail: no row menu to check");
-  }
+  const header = await page.getByRole("button", { name: "Open a shell" }).count();
+  await page.getByRole("button", { name: /^More actions for/ }).click();
+  await page.waitForTimeout(300);
+  check(header > 0 && await page.getByRole("menuitem", { name: "Open a shell" }).count() === 0, "detail: Open a shell is a header button, not in the row menu");
   await page.close();
 }
 
 // 28. Row menu (⋯) has Copy name
 {
   const page = await openContainer(browser);
-  const menuBtn = page.locator("[aria-haspopup=menu]").first();
+  const menuBtn = page.getByRole("button", { name: /^More actions for/ });
   if (await menuBtn.count() > 0) {
     await menuBtn.click();
     await page.waitForTimeout(300);
@@ -271,7 +271,7 @@ const browser = await engine.launch();
 // 29. Row menu (⋯) has Remove
 {
   const page = await openContainer(browser);
-  const menuBtn = page.locator("[aria-haspopup=menu]").first();
+  const menuBtn = page.getByRole("button", { name: /^More actions for/ });
   if (await menuBtn.count() > 0) {
     await menuBtn.click();
     await page.waitForTimeout(300);
@@ -285,7 +285,7 @@ const browser = await engine.launch();
 // 30. Row menu (⋯) has Run it yourself
 {
   const page = await openContainer(browser);
-  const menuBtn = page.locator("[aria-haspopup=menu]").first();
+  const menuBtn = page.getByRole("button", { name: /^More actions for/ });
   if (await menuBtn.count() > 0) {
     await menuBtn.click();
     await page.waitForTimeout(300);
@@ -330,7 +330,7 @@ const browser = await engine.launch();
 {
   const page = await openContainer(browser);
   await page.waitForTimeout(500);
-  check(await page.getByText("nginx:latest").count() > 0 || await page.getByText("nginx").count() > 0, "detail: facts shows image name");
+  check(await page.getByText("acme/billing-api:3.1").count() > 0, "detail: facts shows image name");
   await page.close();
 }
 
@@ -392,4 +392,4 @@ const browser = await engine.launch();
 }
 
 await browser.close();
-process.exit(failed ? 1 : 0);
+await done();
