@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { docker } from "./api";
 import { usePoll } from "./hooks";
-import { Banner } from "./ui";
+import { Banner } from "./ui/op";
 import { Canvas, Field, type CanvasLine, useToast } from "./ui/op";
 import { LogLine, mergeLogs, sinceOf } from "./lib/logMerge";
 
@@ -69,7 +69,7 @@ export default function Logs({ ctx, id, name, filter, follow, onFollowChange, re
 
   return (
     <div className="stack">
-      <Banner error={error} />
+      {error && <Banner tone="bad">{error}</Banner>}
       {/* The pane is bounded by the window, so the log scrolls inside it and not the whole page. */}
       <Canvas
         ref={paneRef}

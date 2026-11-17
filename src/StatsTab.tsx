@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { dockerJson } from "./api";
 import { formatBytes, parsePercent, parseUsage } from "./containerInfo";
 import { usePoll } from "./hooks";
-import { Banner } from "./ui";
+import { Banner } from "./ui/op";
 import { Empty, Sparkline, Tile, Tiles } from "./ui/op";
 
 type Stat = { CPUPerc: string; MemUsage: string; NetIO: string; BlockIO: string; PIDs: string };
@@ -33,7 +33,7 @@ export default function StatsTab({ ctx, id, running }: { ctx: string; id: string
 
   return (
     <div className="stack">
-      <Banner error={error} />
+      {error && <Banner tone="bad">{error}</Banner>}
       <Tiles>
         <Tile label="CPU" value={data ? `${cpuNow.toFixed(1)}%` : "…"}>
           <Sparkline points={cpu} label="CPU, 10 min" />

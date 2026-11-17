@@ -68,7 +68,8 @@ chk "design stylesheet equals the plan's (check-design-sync)" node scripts/check
 chk "design files unchanged (docs/plan/design/SHA256SUMS)" sh -c 'cd docs/plan/design && shasum -a 256 -c SHA256SUMS >/dev/null 2>&1'
 chk "mockup comparison passes (check-mockup, WebKit only, needs npm run preview running or started by check-all)" env PW_ENGINE=webkit node scripts/check-mockup.mjs
 chk "every class used is defined (check-classes)" node scripts/check-classes.mjs
-chk "no old names left in src (wharf, colima-ui storage keys)" sh -c '! grep -rniE "wharf:|colima-ui:|colima-ui\." src --include=*.ts --include=*.tsx'
+# migrateStorage moves the old keys to the new ones, so it (and its test) must name them.
+chk "no old names left in src (wharf, colima-ui storage keys)" sh -c '! grep -rniE "wharf:|colima-ui:|colima-ui\." src --include=*.ts --include=*.tsx --exclude=migrateStorage.ts --exclude=migrateStorage.test.ts'
 EMDASH=$(printf '\342\200\224')
 chk "no leftover Design gap marker in the iteration 2 files" sh -c '! grep -n "Design gap\|PROPOSED" docs/plan/iterations/iteration-2-work-orders.md docs/plan/iterations/iteration-2-acceptance.md'
 chk "no em dash in the iteration 2 files" sh -c '! cat docs/plan/iterations/iteration-2-*.md docs/plan/iterations/verify-iteration-2.sh docs/plan/iterations/pr/wo-2.*.md docs/plan/iterations/pr/wo-3.*.md 2>/dev/null | grep -q "$1"' sh "$EMDASH"

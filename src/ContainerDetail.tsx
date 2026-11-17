@@ -14,7 +14,7 @@ import { useDockerLocked } from "./dockerLock";
 import type { Problem } from "./lib/health";
 import { parseState, problemsFor } from "./lib/health";
 import { crashLead } from "./lib/crashLead";
-import { Icon } from "./ui/icons";
+import { Icon } from "./ui/op";
 import type { LiveMap } from "./lib/liveStats";
 import { go, buildPath } from "./lib/router";
 import ConnectionTest from "./ConnectionTest";
@@ -215,7 +215,7 @@ export default function ContainerDetail({ ctx, id, tab: routeTab, appProblems, o
           ) : (
             <List aria-label="Folders">
               {mounts.map((m) => (
-                <Row key={m.Destination} lead={<Icon name="folder" size={16} />} name={m.Source} meta={m.Destination} metaSelectable>
+                <Row key={m.Destination} lead={<Icon name="folder" size="md" />} name={m.Source} meta={m.Destination} metaSelectable>
                   <Col><Chip>{m.RW ? "Can change files" : "Read only"}</Chip></Col>
                 </Row>
               ))}
@@ -228,7 +228,7 @@ export default function ContainerDetail({ ctx, id, tab: routeTab, appProblems, o
           ) : (
             <List aria-label="Networks">
               {networks.map(([net, v]) => (
-                <Row key={net} lead={<Icon name="network" size={16} />} name={net} meta={v.IPAddress || "none"} />
+                <Row key={net} lead={<Icon name="network" size="md" />} name={net} meta={v.IPAddress || "none"} />
               ))}
             </List>
           )}

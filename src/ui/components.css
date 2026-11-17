@@ -307,3 +307,44 @@ button.meters { border: 0; background: none; padding: 0; font-family: inherit; }
 .link:hover { color: var(--accent); }
 .ext { display: inline-flex; align-items: center; gap: 4px; font-size: var(--text-micro); color: var(--fg-muted); }
 .host { color: var(--fg-muted); font-size: var(--text-meta); }
+
+/* Rules dropped before ad6ef71^, recovered from openpier.css history (check-tw-classes). */
+
+
+/* Rules dropped before ad6ef71^, recovered from the stylesheet history (check-tw-classes). */
+
+
+/* Rules dropped when styles.css became openpier.css, recovered from 5defa01^:src/styles.css (check-tw-classes). */
+.finding .how { margin-top: 4px; font-size: 12px; }
+details.how > summary, details.out-more > summary { cursor: pointer; color: var(--fg-muted); list-style: none; display: inline-flex; align-items: center; gap: 4px; }
+details.how > summary::-webkit-details-marker, details.out-more > summary::-webkit-details-marker { display: none; }
+details.how > summary svg, details.out-more > summary svg { transform: rotate(-90deg); transition: transform .12s; }
+details.how[open] > summary svg, details.out-more[open] > summary svg { transform: none; }
+.fix-result details.how { margin: 2px 0 0 20px; font-size: 12px; }
+.finding .how .cmd { margin-top: 6px; background: var(--bg-raised); color: var(--fg); }
+details.how ul.steps { list-style: none; padding-left: 0; margin: 6px 0 0; }
+details.how ul.steps li + li { margin-top: 6px; }
+.defaults.how > summary { font-size: 13px; }
+.tag { font-size: 11px; font-weight: 500; color: var(--accent); border: 1px solid var(--accent); border-radius: 4px; padding: 0 5px; }
+td .tag { margin-left: 8px; white-space: nowrap; }
+td:first-child:has(.tag) { white-space: nowrap; }
+.tag { color: var(--fg-muted); border-color: var(--line); }
+.adot { width: 8px; height: 8px; border-radius: 50%; background: var(--fg-muted); }
+.activity .good .adot { background: var(--accent); }
+.activity .bad .adot { background: var(--bad); }
+.activity .warn .adot { background: #c9a227; }
+.activity .when { color: var(--fg-muted); font-size: 12px; }
+.out-more { margin-top: 8px; }
+.out-more summary { cursor: pointer; color: var(--fg-muted); font-size: 12px; }
+.out-more .out-log { margin-top: 6px; }
+.resize-status .out-more { margin-top: 0; }
+.problem.result.stopped .out-more { padding-left: 20px; }
+.more-slot { width: 28px; }
+.out-fail { color: var(--bad); font-weight: 600; margin: 0 0 8px; }
+.scrim { position: fixed; inset: 0; background: rgb(0 0 0 / .3); z-index: 10; }
+.scrim-top { z-index: 20; }
+.modal-title { font-weight: 600; font-size: 13px; margin-bottom: 4px; }
+.bring-late, .confirm-notice { margin: 0; font-size: 13px; color: var(--fg); display: flex; gap: 6px; align-items: flex-start; }
+.bring-late svg, .confirm-notice svg { color: var(--warn); flex: 0 0 auto; margin-top: 2px; }
+.bring-late code, .bring-late .tick, .confirm-notice code, .confirm-notice .tick { font: 12px ui-monospace, "SF Mono", Menlo, monospace; }
+.rounded-radius-md { border-radius: var(--r-md); }
