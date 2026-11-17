@@ -228,8 +228,9 @@ function dockerCmd(args: string[]): string {
       // start=fail: web's port is taken, once. docker starts the others and names the one it couldn't on its last line.
       const blocked = cmd === "start" && startFail && args.includes("web");
       // &failstart=<name>: starting that one container throws, so the failed action state shows.
-      const failName = ddParam("failstart");
-      if (cmd === "start" && failName && args.includes(failName)) throw `Error response from daemon: driver failed programming external connectivity on endpoint ${failName}: Bind for 0.0.0.0:8080 failed: port is already allocated\nError: failed to start containers: ${failName}`;
+      const failName = typeof location !== "undefined" ? new URLSearchParams(location.search).get("failstart") : null;
+      // The app starts containers by ID, so the name is matched after the lookup.
+      if (cmd === "start" && failName && args.slice(1).some((x) => { const n = find(x)?.name ?? ""; return n === failName || n.includes(`-${failName}-`); })) throw `Error response from daemon: driver failed programming external connectivity on endpoint ${failName}: Bind for 0.0.0.0:8080 failed: port is already allocated\nError: failed to start containers: ${failName}`;
       const cs = args.slice(1).map((x) => find(x)!).filter((c) => !(blocked && c.name === "web") && !(noMem && c.name === "report-job"));
       for (const c of cs) { c.state = cmd === "stop" ? "exited" : cmd === "pause" ? "paused" : "running"; if (cmd === "stop") c.endedAt = Date.now(); else if (cmd !== "pause") { c.born = Date.now(); c.endedAt = undefined; c.oom = false; c.exitCode = 0; } }
       // db has a health check: it reports healthy a moment after it starts.

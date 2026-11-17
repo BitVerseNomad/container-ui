@@ -107,7 +107,7 @@ async function rowNames(page) {
   if ((await startBtn.count()) > 0) {
     await startBtn.click();
     await page.waitForTimeout(3000);
-    check(await page.locator(".subrow").filter({ hasText: /already allocated/ }).count() > 0, "chromium failstart: subrow reason");
+    check(await page.locator(".subrow").filter({ hasText: /in use on your Mac/ }).count() > 0, "chromium failstart: subrow reason");
     check(await page.getByRole("button", { name: "Try again" }).count() > 0, "chromium failstart: Try again");
     const title = await page.locator(".subrow").first().getAttribute("title") ?? "";
     check(!title.includes("driver failed"), "chromium failstart: raw text not visible");
@@ -130,8 +130,16 @@ async function rowNames(page) {
 {
   const page = await open("/?scenario=design#/containers", { engine: "chromium", width: 1280, height: 800 });
   await page.waitForTimeout(1000);
+  // Row handles arrows once a row has focus (WO-3.1c-3 item 9: "ArrowDown moves between rows"), so focus the first row first.
+  await page.locator(".list > .row:not(.th):not(.child)").first().focus();
   await page.keyboard.press("ArrowDown");
-  check(await page.locator(".list > .row:not(.th):not(.child):focus").count() > 0, "chromium design: ArrowDown moves focus");
+  // The next stop may be the first row's problem line (a .subrow with tabindex 0), which Row also moves to.
+  const moved = await page.evaluate(() => {
+    const first = document.querySelector(".list > .row:not(.th):not(.child)");
+    const active = document.activeElement;
+    return !!active && active !== first && !!active.closest(".list");
+  });
+  check(moved, "chromium design: ArrowDown moves focus");
   await page.close();
 }
 
@@ -193,7 +201,7 @@ async function rowNames(page) {
 {
   const page = await open("/?scenario=design#/containers", { engine: "chromium", width: 1280, height: 800 });
   await page.waitForTimeout(2000);
-  const kafkaRow = page.locator(".list > .row:not(.th):not(.child)").filter({ hasText: "kafka, Running" });
+  const kafkaRow = page.locator('.list > .row:not(.th):not(.child)[aria-label="kafka, Running"]');
   check(await kafkaRow.locator(".dot").count() === 1, "chromium design: kafka has dot");
   check(await kafkaRow.locator(".name.truncate").count() === 1, "chromium design: kafka has name");
   check(await kafkaRow.locator(".meta.truncate.grow").count() === 1, "chromium design: kafka has meta");
@@ -201,7 +209,7 @@ async function rowNames(page) {
   check(await kafkaRow.locator(".col.stats.mono").count() === 1, "chromium design: kafka has stats col");
   check(await kafkaRow.locator(".col.state").count() === 1, "chromium design: kafka has state col");
   check(await kafkaRow.locator(".act").count() === 1, "chromium design: kafka has act col");
-  const shopRow = page.locator(".list > .row:not(.th):not(.child)").filter({ hasText: "shop, project" });
+  const shopRow = page.locator('.list > .row:not(.th):not(.child)[aria-label^="shop, project"]');
   check(await shopRow.locator(".blocks").count() === 1, "chromium design: shop has blocks col");
   check(await shopRow.locator(".spark").count() === 1, "chromium design: shop has sparkline col");
   await page.close();
@@ -211,8 +219,8 @@ async function rowNames(page) {
 {
   const page = await open("/?scenario=design#/containers", { engine: "chromium", width: 1280, height: 800 });
   await page.waitForTimeout(2000);
-  const shopRow = page.locator(".list > .row:not(.th):not(.child)").filter({ hasText: "shop, project" });
-  await shopRow.click();
+  const shopRow = page.locator('.list > .row:not(.th):not(.child)[aria-label^="shop, project"]');
+  if ((await shopRow.getAttribute("aria-expanded")) !== "true") await shopRow.click();
   await page.waitForTimeout(500);
   const childRows = page.locator(".list > .row.child");
   check(await childRows.count() === 7, "chromium design: 7 child rows when shop open");
@@ -243,7 +251,7 @@ async function rowNames(page) {
 {
   const page = await open("/?scenario=design#/containers", { engine: "chromium", width: 1280, height: 800 });
   await page.waitForTimeout(2000);
-  const kafkaMenu = page.locator("[aria-haspopup=menu]").filter({ hasText: "kafka, Running" }).locator("[aria-label='More actions for kafka']");
+  const kafkaMenu = page.locator('.list > .row[aria-label="kafka, Running"]').locator("[aria-label='More actions for kafka']");
   if ((await kafkaMenu.count()) > 0) {
     await kafkaMenu.click();
     await page.waitForTimeout(300);
@@ -304,8 +312,8 @@ async function rowNames(page) {
 {
   const page = await open("/?scenario=design#/containers", { engine: "chromium", width: 1280, height: 800 });
   await page.waitForTimeout(2000);
-  const shopRow = page.locator(".list > .row:not(.th):not(.child)").filter({ hasText: "shop, project" });
-  await shopRow.click();
+  const shopRow = page.locator('.list > .row:not(.th):not(.child)[aria-label^="shop, project"]');
+  if ((await shopRow.getAttribute("aria-expanded")) !== "true") await shopRow.click();
   await page.waitForTimeout(500);
   const childRows = page.locator(".list > .row.child");
   const ccount = await childRows.count();
