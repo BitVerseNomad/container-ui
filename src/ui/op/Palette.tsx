@@ -31,10 +31,10 @@ export function Palette(props: PaletteProps) {
   return (
     <Dialog.Root open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
       <Dialog.Portal container={usePortalContainer()}>
-        <Dialog.Overlay className="overlay" />
+        <Dialog.Overlay className="fixed inset-0 bg-bg-overlay" />
         <Dialog.Content className="palette" aria-label="Command palette">
           <Dialog.Title className="sr-only">Command palette</Dialog.Title>
-          <div className="q">
+          <div className="flex items-center gap-2 border-b border-line px-4 py-3">
             <Icon name="search" />
             <input
               role="combobox"
@@ -47,9 +47,9 @@ export function Palette(props: PaletteProps) {
               autoFocus
               onKeyDown={handleKeyDown}
             />
-            <span className="kbd">esc</span>
+            <span className="inline-flex min-w-5 items-center justify-center rounded-xs border border-edge bg-tile px-1.5 font-mono text-micro text-fg-muted">esc</span>
           </div>
-          <div className="results" id="palette-results" role="listbox">
+          <div className="max-h-[60vh] overflow-y-auto p-1" id="palette-results" role="listbox">
             {flatEntries.length === 0 && query.trim() !== "" && (
               <div className="empty"><div className="text">Nothing matches "{query}".</div></div>
             )}
@@ -74,9 +74,9 @@ export function Palette(props: PaletteProps) {
                       <span className="top">
                         {entry.dot && <Dot state={entry.dot} />}
                         <span>{entry.label}</span>
-                        {entry.hint && <span className="muted">{entry.hint}</span>}
-                        {entry.kbd && <span className="kbd">{entry.kbd}</span>}
-                        {isHighlighted && entry.enter && <span className="kbd">{entry.enter}</span>}
+                        {entry.hint && <span className="text-meta text-fg-muted">{entry.hint}</span>}
+                        {entry.kbd && <span className="inline-flex min-w-5 items-center justify-center rounded-xs border border-edge bg-tile px-1.5 font-mono text-micro text-fg-muted">{entry.kbd}</span>}
+                        {isHighlighted && entry.enter && <span className="inline-flex min-w-5 items-center justify-center rounded-xs border border-edge bg-tile px-1.5 font-mono text-micro text-fg-muted">{entry.enter}</span>}
                       </span>
                     </button>
                   );

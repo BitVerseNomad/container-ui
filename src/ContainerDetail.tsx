@@ -88,7 +88,7 @@ export default function ContainerDetail({ ctx, id, tab: routeTab, appProblems, o
     ...(c?.Config.Labels?.["com.docker.compose.project"] ? [{ label: "Project", value: c.Config.Labels["com.docker.compose.project"] }] : []),
     { label: "Started", value: (c as any)?.State?.StartedAt ? `Started ${new Date((c as any).State.StartedAt).toLocaleString()} ago` : "just now" },
     { label: "Restarts", value: `${(c as any)?.State?.RestartCount ?? 0} restarts` },
-    { label: "Ports", value: ports.length > 0 ? ports.map(p => <span key={p.host} className="port">{isWebPort(p.container, p.host) ? <button key={p.host} onClick={() => invoke("open_url", { url: `http://localhost:${p.host}` })}>:{p.host}</button> : <span>{`:${p.host}`}</span>}</span>).join("") : "-" },
+    { label: "Ports", value: ports.length > 0 ? ports.map(p => <span key={p.host} className="port">{isWebPort(p.container, p.host) ? <Button key={p.host} variant="ghost" size="xs" onClick={() => invoke("open_url", { url: `http://localhost:${p.host}` })}>:{p.host}</Button> : <span>{`:${p.host}`}</span>}</span>).join("") : "-" },
   ];
 
   const actions = problem ? (
@@ -104,7 +104,7 @@ export default function ContainerDetail({ ctx, id, tab: routeTab, appProblems, o
 
   return (
     <section className="detail">
-      <button className="back" onClick={onBack}>← Containers</button>
+      <Button className="back" variant="ghost" size="xs" onClick={onBack}>← Containers</Button>
       <header>
         <h2>{name}</h2>
         <span className={`dot ${state?.health?.status === "unhealthy" ? "bad" : state?.running ? "ok" : "off"}`} aria-hidden={true} />
@@ -127,7 +127,7 @@ export default function ContainerDetail({ ctx, id, tab: routeTab, appProblems, o
             <Button disabled={locked} onClick={() => act(["start", id])}>Start</Button>
           )}
           {c && !kube && (
-            <Button className="danger" disabled={locked} onClick={async () => !locked && (await confirm({ title: `Remove ${name}?`, body: `This deletes the container. Its image and volumes are kept, so you can run it again.`, confirm: "Remove", danger: true })) && act(["rm", "-f", id], () => go("#/containers"))}>Remove</Button>
+            <Button variant="danger" disabled={locked} onClick={async () => !locked && (await confirm({ title: `Remove ${name}?`, body: `This deletes the container. Its image and volumes are kept, so you can run it again.`, confirm: "Remove", danger: true })) && act(["rm", "-f", id], () => go("#/containers"))}>Remove</Button>
           )}
           {locked && <span className="hint">Waits for what is changing Docker now.</span>}
         </div>

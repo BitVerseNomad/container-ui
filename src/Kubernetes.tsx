@@ -67,11 +67,11 @@ export default function Kubernetes({ profile, ctx }: { profile: Profile; ctx: st
   }
 
   if (!env) return <p className="hint">Checking your setup…</p>;
-  if (!env.kubectl) return <Card className="install-card"><InstallTool title="kubectl isn't installed" name="kubectl" hasBrew={!!env.brew} onDone={recheck} /></Card>;
+  if (!env.kubectl) return <Card className="flex flex-col gap-3 p-4"><InstallTool title="kubectl isn't installed" name="kubectl" hasBrew={!!env.brew} onDone={recheck} /></Card>;
   if (contexts === null) return <p className="hint">Looking for your cluster…</p>;
   if (!kctx) {
     return (
-      <Card className="install-card">
+      <Card className="flex flex-col gap-3 p-4">
         <h2>Kubernetes isn't turned on for {profile.name}</h2>
         <p className="hint">Colima can run a small Kubernetes cluster (K3s) inside the VM. Turning it on restarts the VM, so running containers stop for a minute and start again.</p>
         <div className="actions-inline">
@@ -86,22 +86,22 @@ export default function Kubernetes({ profile, ctx }: { profile: Profile; ctx: st
   const running = (pods.data ?? []).filter((p) => p.status === "Running").length;
 
   return (
-    <section className="k8s">
+    <section className="flex min-h-0 flex-col gap-4">
       <div className="vm-strip k8s-summary">
         <span className={`sdot ${nodes.error ? "bad" : ready ? "on" : ""}`} aria-hidden="true" />
         <b>{ready} node{ready === 1 ? "" : "s"} ready</b>
         <span className="hint">{nodes.error ? "The cluster isn't answering yet" : (nodes.data ?? []).map((n) => n.version).filter(Boolean)[0] ?? ""}</span>
-        <span className="uses"><span>{running} of {(pods.data ?? []).length} pods running</span>{sick.length > 0 && <span className="plevel bad">{sick.length} need attention</span>}</span>
+        <span className="text-meta text-fg-muted"><span>{running} of {(pods.data ?? []).length} pods running</span>{sick.length > 0 && <span className="font-medium text-bad">{sick.length} need attention</span>}</span>
       </div>
 
       {sick.length > 0 && (
-        <div className="problems panel k8s-problems">
+        <div className="flex flex-col gap-2 rounded-lg border border-line bg-bg-raised p-3">
           <h2>Needs attention</h2>
           <ul>
             {sick.map(({ p, problems }) => (
               <li key={`${p.namespace}/${p.name}`} className="problem">
                 <div>
-                  <b>{p.name}</b> <span className="hint">{p.namespace}</span> <span className={`plevel ${problems[0].level}`}>{problems[0].title}</span>
+                  <b>{p.name}</b> <span className="hint">{p.namespace}</span> <span className={problems[0].level === "bad" ? "font-medium text-bad" : "font-medium text-warn"}>{problems[0].title}</span>
                 </div>
                 <button aria-label={`Open ${p.name}`} onClick={() => setOpen(p)}>Open</button>
               </li>
@@ -110,15 +110,15 @@ export default function Kubernetes({ profile, ctx }: { profile: Profile; ctx: st
         </div>
       )}
 
-      <div className="k8s-bar">
-        <label className="sort">
+      <div className="flex flex-wrap items-center gap-3 text-meta">
+        <label className="flex items-center gap-1.5 text-meta text-fg-muted">
           Namespace
           <select aria-label="Namespace" value={ns} onChange={(e) => setNs(e.target.value)}>
             <option value="">All namespaces</option>
             {(spaces.data ?? []).map((n) => <option key={n}>{n}</option>)}
           </select>
         </label>
-        <span className="k8s-tools">
+        <span className="flex items-center gap-2">
           {env.k9s ? (
             <button onClick={() => invoke("open_terminal", { kind: "k9s", context: kctx }).catch((e) => setError(String(e)))}><Icon name="cluster" size={14} /> Open in k9s</button>
           ) : (
@@ -142,11 +142,11 @@ export default function Kubernetes({ profile, ctx }: { profile: Profile; ctx: st
               .sort((a, b) => Number(podProblems(b, 0).length > 0) - Number(podProblems(a, 0).length > 0) || a.name.localeCompare(b.name))
               .map((p) => (
                 <tr key={`${p.namespace}/${p.name}`}>
-                  <td><button className="link-plain" onClick={() => setOpen(p)}><b>{p.name}</b></button></td>
+                  <td><button className="cursor-pointer text-left text-accent hover:underline" onClick={() => setOpen(p)}><b>{p.name}</b></button></td>
                   <td>{p.namespace}</td>
-                  <td className="mono">{p.ready}</td>
+                  <td className="font-mono">{p.ready}</td>
                   <td><Badge variant={STATUS_VARIANT[badge(p.status)]}>{p.status}</Badge></td>
-                  <td className="mono">{p.restarts}</td>
+                  <td className="font-mono">{p.restarts}</td>
                   <td>{age(p.ageMs)}</td>
                 </tr>
               ))}
@@ -173,7 +173,7 @@ export default function Kubernetes({ profile, ctx }: { profile: Profile; ctx: st
           <tbody>
             {inNs(services.data).map((s) => (
               <tr key={`${s.namespace}/${s.name}`}>
-                <td>{s.name}</td><td>{s.namespace}</td><td>{s.type}</td><td className="mono">{s.address}</td><td className="mono">{s.ports}</td>
+                <td>{s.name}</td><td>{s.namespace}</td><td>{s.type}</td><td className="font-mono">{s.address}</td><td className="font-mono">{s.ports}</td>
               </tr>
             ))}
           </tbody>
@@ -185,8 +185,8 @@ export default function Kubernetes({ profile, ctx }: { profile: Profile; ctx: st
           <tbody>
             {inNs(events.data).slice(0, 80).map((e, i) => (
               <tr key={i}>
-                <td>{ago(e.time, Date.now())}</td><td className="mono">{e.object}</td>
-                <td><span className={`hbadge ${e.warning ? "unhealthy" : "healthy"}`}>{e.reason}</span></td>
+                <td>{ago(e.time, Date.now())}</td><td className="font-mono">{e.object}</td>
+                <td><span className={`inline-flex rounded-xs px-1.5 text-micro ${e.warning ? "bg-bad-fill text-bad" : "bg-ok-fill text-ok"}`}>{e.reason}</span></td>
                 <td>{e.message}{e.count > 1 ? ` (${e.count}×)` : ""}</td>
               </tr>
             ))}

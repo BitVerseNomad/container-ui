@@ -20,12 +20,12 @@ export function Inspector(props: InspectorProps): React.JSX.Element {
   return (
     <Sheet open={open} onClose={onClose} title={title} hideTitle>
       <div className="ins">
-        <div className="crumb">{crumb}</div>
+        <div className="text-meta text-fg-muted">{crumb}</div>
         <h2>{title}</h2>
         <p>{lede}</p>
         {evidence && (
           <div>
-            <div className="lbl">What it said</div>
+            <div className="text-micro font-medium uppercase tracking-wide text-fg-faint">What it said</div>
             <pre>
               {evidence.map((line, index) => (
                 <React.Fragment key={index}>
@@ -38,7 +38,7 @@ export function Inspector(props: InspectorProps): React.JSX.Element {
         )}
         {findings && (
           <div>
-            <div className="lbl">What OpenPier found</div>
+            <div className="text-micro font-medium uppercase tracking-wide text-fg-faint">What OpenPier found</div>
             <div className="steps">
               {findings.map((text, index) => (
                 <div key={index}>
@@ -49,7 +49,7 @@ export function Inspector(props: InspectorProps): React.JSX.Element {
             </div>
           </div>
         )}
-        <div className="acts">{actions}</div>
+        <div className="acts flex flex-wrap gap-2 pt-2">{actions}</div>
         {command && <Command text={command} />}
       </div>
     </Sheet>

@@ -37,7 +37,7 @@ export default function EditPanel({ profile, onClose, onApplied }: Props) {
   }
 
   const field = (id: string, label: string, value: number, set: (n: number) => void, prev: number, unit: string, min: number) => (
-    <div className="field">
+    <div className="flex flex-col gap-1.5">
       <label htmlFor={id}>{label}</label>
       <input id={id} type="number" min={min} value={value || ""} disabled={busy} onChange={(e) => set(Number(e.target.value))} />
       <span className={value !== prev ? "delta changed" : "delta"}>
@@ -54,7 +54,7 @@ export default function EditPanel({ profile, onClose, onApplied }: Props) {
         {field("disk", "Disk (GiB)", disk, setDisk, was.disk, " GiB", was.disk)}
         <p className="hint">Disk can only grow. CPU and memory can go up or down.</p>
 
-        <p className="note">
+        <p className="text-meta text-fg-muted">
           {running
             ? "Containers in this profile will stop while the VM restarts."
             : "This profile is stopped. It will start with these values."}
