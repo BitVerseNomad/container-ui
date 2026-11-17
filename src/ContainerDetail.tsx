@@ -102,6 +102,14 @@ export default function ContainerDetail({ ctx, id, tab: routeTab, appProblems, o
     if (ok) await act(["rm", "-f", id], () => go("#/containers"));
   }
 
+  // "Run it yourself": the same command the list shows, in a dialog that can copy it.
+  async function runYourself() {
+    const verb = running ? "stop" : "start";
+    const command = `docker --context ${ctx} ${verb} ${name}`;
+    const yes = await confirm({ title: `Run ${name} yourself`, body: "This is what OpenPier runs. You can paste it in Terminal.", command, confirm: "Copy command" });
+    if (yes) await navigator.clipboard.writeText(command);
+  }
+
   const onBack = () => (window.history.length > 1 ? window.history.back() : go("#/containers"));
   const onTab = (next: string) => go(buildPath({ page: "containers", id, tab: next }));
 
@@ -164,6 +172,7 @@ export default function ContainerDetail({ ctx, id, tab: routeTab, appProblems, o
             <MenuItem label={paused ? "Unpause" : "Pause"} why="Freezes it without stopping it" disabled={frozen} onSelect={() => void act([paused ? "unpause" : "pause", id])} />
             <MenuSeparator />
             <MenuItem label="Copy name" onSelect={() => void navigator.clipboard.writeText(name)} />
+            <MenuItem label="Run it yourself" why="Shows the command, if you'd rather use Terminal" onSelect={() => void runYourself()} />
             <MenuSeparator />
             <MenuItem label="Remove…" danger disabled={frozen} onSelect={() => void remove()} />
           </Menu>
