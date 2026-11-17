@@ -9,9 +9,9 @@ export interface CardProps extends HTMLAttributes<HTMLDivElement> {
 export const Card = forwardRef<HTMLDivElement, CardProps>(
   ({ className, variant = "default", padding = "md", children, ...props }, ref) => {
     const variants = {
-      default: "bg-[var(--color-bg-elevated)] border border-[var(--color-border)]",
-      outlined: "bg-transparent border-2 border-[var(--color-border)]",
-      elevated: "bg-[var(--color-bg-elevated)] shadow-[var(--color-shadow-base)] border-none",
+      default: "bg-bg-raised border border-line",
+      outlined: "bg-transparent border-2 border-line",
+      elevated: "bg-bg-raised shadow-raised border-none",
     };
 
     const paddings = {
@@ -70,7 +70,7 @@ export const CardDescription = forwardRef<HTMLParagraphElement, HTMLAttributes<H
   ({ className, children, ...props }, ref) => (
     <p
       ref={ref}
-      className={clsx("text-[var(--color-fg-muted)] text-body-sm", className)}
+      className={clsx("text-fg-muted text-meta", className)}
       {...props}
     >
       {children}
@@ -92,7 +92,7 @@ export const CardFooter = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivEleme
   ({ className, children, ...props }, ref) => (
     <div
       ref={ref}
-      className={clsx("mt-4 pt-4 border-t border-[var(--color-border)] flex items-center gap-2", className)}
+      className={clsx("mt-4 pt-4 border-t border-line flex items-center gap-2", className)}
       {...props}
     >
       {children}

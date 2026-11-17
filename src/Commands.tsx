@@ -42,7 +42,7 @@ export function CommandToast({ onOpenLog }: { onOpenLog: () => void }) {
   const close = () => setGone(last.id);
   if (last.recall)
     return (
-      <div className="cmd-toast recall" role="status">
+      <div className="cmd-toast" role="status">
         <Icon name="info" size={14} />
         <span>
           <b>Quick one:</b> you just asked to {what(last.kind)} {last.what ?? "it"}. What would you type to do that yourself?
@@ -57,11 +57,11 @@ export function CommandToast({ onOpenLog }: { onOpenLog: () => void }) {
   return (
     <div className={`cmd-toast${last.ok === false ? " bad" : ""}`} role="status">
       <Icon name={last.ok === false ? "close" : last.ok ? "check" : "terminal"} size={14} />
-      {said(last) && <span className="cmd-said">{said(last)}</span>}
-      <code className="mono" title={last.cmd}>{last.cmd}</code>
+      {said(last) && <span className="text-meta text-fg-muted">{said(last)}</span>}
+      <code className="font-mono" title={last.cmd}>{last.cmd}</code>
       <span className="actions-inline">
         <Copy text={last.cmd} label="Copy the command" />
-        <button className="link" onClick={onOpenLog}>All commands</button>
+        <button className="text-accent-ink hover:underline" onClick={onOpenLog}>All commands</button>
         <button className="icon-btn" aria-label="Close" title="Close" onClick={close}><Icon name="close" size={13} /></button>
       </span>
     </div>

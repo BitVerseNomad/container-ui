@@ -27,7 +27,7 @@ export const Canvas = forwardRef<HTMLPreElement, CanvasProps>(function Canvas(
         ? lines.map((line, index) => (
             <div className={clsx("ln", line.level)} key={index}>
               {line.time && <span className="t">{line.time}</span>}
-              {line.service && <span className="svc">{line.service}</span>}
+              {line.service && <span className="ml-1.5 font-mono text-meta text-fg-faint">{line.service}</span>}
               {line.text}
             </div>
           ))

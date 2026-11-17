@@ -19,7 +19,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
         {label && (
           <label
             htmlFor={selectId}
-            className="text-sm font-medium text-[var(--color-fg-secondary)]"
+            className="text-sm font-medium text-fg-muted"
           >
             {label}
           </label>
@@ -28,13 +28,13 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
           ref={ref}
           id={selectId}
           className={clsx(
-            "w-full px-3 py-2 text-sm bg-[var(--color-bg-primary)]",
+            "w-full px-3 py-2 text-sm bg-bg",
             "border rounded-lg transition-colors duration-150 appearance-none",
             "focus:outline-none focus:ring-2 focus:ring-offset-0",
             "disabled:opacity-50 disabled:pointer-events-none",
             error
-              ? "border-[var(--color-brand-danger)] focus:ring-[var(--color-brand-danger)]"
-              : "border-[var(--color-border-medium)] focus:ring-[var(--color-brand-primary)]",
+              ? "border-bad focus:ring-bad"
+              : "border-edge focus:ring-accent",
             className
           )}
           aria-invalid={error ? "true" : "false"}
@@ -53,12 +53,12 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
           ))}
         </select>
         {error && (
-          <p id={`${selectId}-error`} className="text-xs text-[var(--color-brand-danger)]" role="alert">
+          <p id={`${selectId}-error`} className="text-xs text-bad" role="alert">
             {error}
           </p>
         )}
         {hint && !error && (
-          <p id={`${selectId}-hint`} className="text-xs text-[var(--color-fg-tertiary)]">
+          <p id={`${selectId}-hint`} className="text-xs text-fg-faint">
             {hint}
           </p>
         )}

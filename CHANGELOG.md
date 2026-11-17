@@ -2,21 +2,30 @@
 
 Newest first. Older entries record what was true when they were written; later entries supersede them (the Overview, for example, was replaced by the Containers home screen).
 
-## Unreleased
+## 0.3.0
 
 1. The app is now called OpenPier. Your saved settings are kept.
 2. macOS sees OpenPier as a new app (its identifier changed to `dev.openpier.desktop`). Remove the old app from Applications by hand.
+3. **Containers page rebuilt.** Containers with problems show first. Each container has one status dot and one plain word, such as Running or Stopped. Ports, CPU and memory sit in fixed columns, so the rows line up.
+4. **A clear view for each state.** The Containers page has its own view for each of its eight states, such as loading, empty and engine stopped.
+5. **Each container has its own page and address.** Logs, Stats, Settings, Folders, Network and History are tabs on that page. Back and forward work on every page.
+6. **Run and Compose open in side sheets.** A Compose project opens in a sheet with live logs.
+7. **The app picks its engine when it starts.** One engine switcher replaces the old profile box at the top of the sidebar.
+8. **Keyboard shortcuts in one place.** One list drives the shortcuts, the Help screen and the command palette.
+9. **New window layout.** The sidebar shows usage meters, and Doctor stays in view.
+10. **One design system.** The screens use Tailwind CSS (version 4), and every colour, size and shadow comes from one set of design tokens.
+11. **For contributors:** `npm run preview` runs the screens in a browser with simulated data. No Mac app or Rust is needed.
 
 ## Design system rollout: all tabs migrated to @ui/components
 
 All seven tabs (Containers, Images, Volumes, Networks, Doctor, Profiles, Kubernetes) now use the `@ui/components` design system instead of legacy `IconButton`/`Menu`/`Spinner` components.
 
-1. **Status is a labeled Badge** ("Running", "Stopped", "Error") instead of an icon-only dot — scannable at a glance, color paired with text so it's not color-only.
-2. **⋯ menus use Radix DropdownMenu** — keyboard navigation, focus trap, Escape-to-close, `aria-disabled` on disabled items, portal rendering.
+1. **Status is a labeled Badge** ("Running", "Stopped", "Error") instead of an icon-only dot. Scannable at a glance, color paired with text so it's not color-only.
+2. **⋯ menus use Radix DropdownMenu**: keyboard navigation, focus trap, Escape-to-close, `aria-disabled` on disabled items, portal rendering.
 3. **Every menu item has a hint** (AGENTS.md rule 3): a one-line "when you'd use it" on Doctor and ComposeProjects menus.
 4. **Buttons never wrap** (`whitespace-nowrap`), disabled states are visually distinct (opacity + no pointer events), loading states use `aria-busy` + spinner, focus rings on `:focus-visible`.
 5. **One main action per row**: the common action (Start/Stop) is on the row; everything else goes in the `⋯` menu.
-6. **Docs honesty**: SPEC.md, SUMMARY.md, and EXECUTION_PLAN.md updated to match reality — no false claims about completed phases.
+6. **Docs honesty**: SPEC.md, SUMMARY.md, and EXECUTION_PLAN.md updated to match reality. No false claims about completed phases.
 7. **All green**: `npm test` 98/98 (10 files), `tsc --noEmit` clean, `npm run build` succeeds, `cargo test` 137 passed / 0 failed / 2 ignored.
 
 ## Loop 5, round 43: copy-out commands never lose data

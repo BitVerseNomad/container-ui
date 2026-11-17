@@ -19,7 +19,7 @@ export default function InstallTool({ title, name, hasBrew, onDone }: { title: s
     }
   }
   return (
-    <div className="step">
+    <div className="flex items-start gap-3 py-2">
       <h4>{title}</h4>
       <p className="hint">This will run:</p>
       <pre className="cmd">brew install {name}</pre>

@@ -26,7 +26,7 @@ const Sidebar = ({
       data-collapsible={collapsible}
       data-collapsed={collapsed}
       className={cn(
-        "fixed left-0 top-0 z-40 h-screen border-r border-[var(--color-border)] bg-[var(--color-bg-elevated)] transition-all duration-200",
+        "fixed left-0 top-0 z-40 h-screen border-r border-line bg-bg-raised transition-all duration-200",
         {
           "w-64": !collapsed,
           "w-16": collapsed && variant === "sidebar",
@@ -89,7 +89,7 @@ const SidebarGroupLabel = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <div
     ref={ref}
-    className={cn("flex h-8 shrink-0 items-center rounded-sm px-2 text-xs font-medium text-[var(--color-fg-muted)]", className)}
+    className={cn("flex h-8 shrink-0 items-center rounded-sm px-2 text-xs font-medium text-fg-muted", className)}
     {...props}
   />
 ));
@@ -119,17 +119,17 @@ const SidebarMenuItem = React.forwardRef<
   HTMLLIElement,
   React.HTMLAttributes<HTMLLIElement>
 >(({ className, ...props }, ref) => (
-  <li ref={ref} className={cn("group/menu-item", className)} {...props} />
+  <li ref={ref} className={cn(className)} {...props} />
 ));
 SidebarMenuItem.displayName = "SidebarMenuItem";
 
 const sidebarMenuButtonVariants = cva(
-  "flex w-full items-center gap-2 overflow-hidden rounded-sm px-2 py-1.5 text-sm outline-none ring-[var(--color-focus)] transition-all duration-200 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-bg)] disabled:pointer-events-none disabled:opacity-50 group/menu-item",
+  "flex w-full items-center gap-2 overflow-hidden rounded-sm px-2 py-1.5 text-sm outline-none ring-focus transition-all duration-200 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-bg disabled:pointer-events-none disabled:opacity-50",
   {
     variants: {
       variant: {
-        default: "text-[var(--color-fg)] hover:bg-[var(--color-accent-muted)] hover:text-[var(--color-accent)]",
-        outline: "bg-transparent text-[var(--color-fg)] hover:bg-[var(--color-accent-muted)] hover:text-[var(--color-accent)]",
+        default: "text-fg hover:bg-accent-fill hover:text-accent",
+        outline: "bg-transparent text-fg hover:bg-accent-fill hover:text-accent",
       },
       size: {
         default: "h-9 text-sm",
@@ -160,7 +160,7 @@ const SidebarMenuButton = React.forwardRef<
       data-active={isActive}
       className={cn(
         sidebarMenuButtonVariants({ variant, size }),
-        isActive && "bg-[var(--color-accent-muted)] text-[var(--color-accent)] font-medium",
+        isActive && "bg-accent-fill text-accent font-medium",
         className
       )}
       {...props}
@@ -191,7 +191,7 @@ const SidebarMenuSubButton = React.forwardRef<
     <Comp
       ref={ref}
       className={cn(
-        "flex w-full items-center gap-2 overflow-hidden rounded-sm px-2 py-1.5 text-sm outline-none ring-[var(--color-focus)] transition-all duration-200 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-bg)] disabled:pointer-events-none disabled:opacity-50",
+        "flex w-full items-center gap-2 overflow-hidden rounded-sm px-2 py-1.5 text-sm outline-none ring-focus transition-all duration-200 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-bg disabled:pointer-events-none disabled:opacity-50",
         size === "sm" && "h-8 text-xs",
         size === "lg" && "h-10 text-base",
         className
@@ -211,7 +211,7 @@ const SidebarCollapse = React.forwardRef<
   <button
     ref={ref}
     className={cn(
-      "flex h-9 w-9 items-center justify-center rounded-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] text-[var(--color-fg-muted)] transition-colors hover:bg-[var(--color-accent-muted)] hover:text-[var(--color-accent)]",
+      "flex h-9 w-9 items-center justify-center rounded-sm border border-line bg-bg-raised text-fg-muted transition-colors hover:bg-accent-fill hover:text-accent",
       className
     )}
     {...props}

@@ -8,7 +8,7 @@ export function Meters(props: { meters: Meter[]; onOpen?: () => void }): React.J
   if (meters.length === 0) return null;
 
   return (
-    <button type="button" className="meters" aria-label="Machine use. Open machine settings" onClick={onOpen}>
+    <button type="button" className="flex w-full flex-col gap-1 rounded-sm p-1 text-left hover:bg-tile" aria-label="Machine use. Open machine settings" onClick={onOpen}>
       {meters.map((meter) => (
         <span
           key={meter.label}

@@ -64,6 +64,8 @@ Push a version tag and GitHub Actions runs the tests, builds the `.dmg` on an Ap
 Bump `version` in `package.json`, `src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml` first, so the file name matches the tag.
 
 ## Build from source
+Stack: Tauri 2 (Rust) for the app shell, React and TypeScript for the screens, and Tailwind CSS v4 for styling. Colours, sizes and shadows are design tokens in `src/ui/openpier.css`, and `src/ui/tailwind.css` maps them to Tailwind utilities.
+
 Prereqs: Node 22.6+, Rust (rustup), Colima and the Docker CLI (`brew install colima docker`).
 
     npm install

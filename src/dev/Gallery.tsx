@@ -112,7 +112,7 @@ function GalleryBody(): React.JSX.Element {
   return (
     <div className="content">
       <Section name="Icon">
-        <div className="fields">
+        <div className="flex flex-col gap-3">
           {ICONS.map((name) => (
             <React.Fragment key={name}>
               <Icon name={name} />
@@ -123,7 +123,7 @@ function GalleryBody(): React.JSX.Element {
       </Section>
 
       <Section name="Button">
-        <div className="fields">
+        <div className="flex flex-col gap-3">
           {BUTTON_VARIANTS.flatMap((variant) =>
             BUTTON_SIZES.map((size) => (
               <Button key={`${variant}-${size}`} variant={variant} size={size}>
@@ -132,7 +132,7 @@ function GalleryBody(): React.JSX.Element {
             )),
           )}
         </div>
-        <div className="fields">
+        <div className="flex flex-col gap-3">
           <Button icon="play">Start</Button>
           <Button busy>Start</Button>
           <Button disabled>Start</Button>
@@ -141,7 +141,7 @@ function GalleryBody(): React.JSX.Element {
       </Section>
 
       <Section name="Field">
-        <div className="fields">
+        <div className="flex flex-col gap-3">
           <Field placeholder="Search containers" aria-label="Search containers" />
           <Field icon="search" placeholder="Search containers" aria-label="Search containers" />
         </div>
@@ -151,9 +151,9 @@ function GalleryBody(): React.JSX.Element {
         </FormRow>
         <Fields>
           <Field defaultValue="5432" aria-label="Port on this Mac" />
-          <span className="muted nowrap">on this Mac, to</span>
+          <span className="text-fg-muted whitespace-nowrap">on this Mac, to</span>
           <Field defaultValue="5432" aria-label="Port in the container" />
-          <span className="muted nowrap">in the container</span>
+          <span className="text-fg-muted whitespace-nowrap">in the container</span>
         </Fields>
       </Section>
 
@@ -162,7 +162,7 @@ function GalleryBody(): React.JSX.Element {
       </Section>
 
       <Section name="Switch">
-        <div className="fields">
+        <div className="flex flex-col gap-3">
           <span id="gallery-switch-on">Running</span>
           <Switch checked={switchOn} onChange={setSwitchOn} aria-labelledby="gallery-switch-on" />
           <span id="gallery-switch-off">Stopped</span>
@@ -171,7 +171,7 @@ function GalleryBody(): React.JSX.Element {
       </Section>
 
       <Section name="Chip">
-        <div className="fields">
+        <div className="flex flex-col gap-3">
           <Chip>kafka</Chip>
           <Chip>shop</Chip>
           <ChipButton pressed>Follow</ChipButton>
@@ -182,14 +182,14 @@ function GalleryBody(): React.JSX.Element {
 
       <Section name="Tabs">
         <Tabs value={tab} onChange={setTab} items={TABS} aria-label="kafka" aside={<ChipButton pressed>Follow</ChipButton>}>
-          <TabPanel value="logs"><span className="muted">kafka</span></TabPanel>
-          <TabPanel value="stats"><span className="muted">2% · 512 MB</span></TabPanel>
-          <TabPanel value="settings"><span className="muted">kafka</span></TabPanel>
+          <TabPanel value="logs"><span className="text-fg-muted">kafka</span></TabPanel>
+          <TabPanel value="stats"><span className="text-fg-muted">2% · 512 MB</span></TabPanel>
+          <TabPanel value="settings"><span className="text-fg-muted">kafka</span></TabPanel>
         </Tabs>
       </Section>
 
       <Section name="Dot">
-        <div className="fields">
+        <div className="flex flex-col gap-3">
           <Dot state="ok" label="Running" />
           <Dot state="warn" label="Restarting" />
           <Dot state="bad" label="Unhealthy" />
@@ -199,7 +199,7 @@ function GalleryBody(): React.JSX.Element {
       </Section>
 
       <Section name="Sev">
-        <div className="fields">
+        <div className="flex flex-col gap-3">
           <Sev level="bad" />
           <Sev level="warn" />
           <Sev level="info" />
@@ -222,7 +222,7 @@ function GalleryBody(): React.JSX.Element {
           5 checks in a row failed. The last one said: "curl: (7) Failed to connect to localhost port 8080 after 0 ms: Connection refused"
         </Banner>
         <Banner tone="warn" actions={<Button size="xs">Use 5433 instead</Button>}>
-          Port 5432 on this Mac is already used by <span className="mono">db</span>.
+          Port 5432 on this Mac is already used by <span className="font-mono">db</span>.
         </Banner>
         <Banner
           tone="info"
@@ -305,7 +305,7 @@ function GalleryBody(): React.JSX.Element {
       </Section>
 
       <Section name="EngineButton">
-        <div className="fields">
+        <div className="flex flex-col gap-3">
           <EngineButton dot="ok" name="Colima · default" state="Running · 4 CPU · 8 GB" aria-label="Engine: Colima, default. Running" />
           <EngineButton dot="off" name="No engine" state="Not set up" aria-label="Engine: none" />
         </div>
@@ -339,7 +339,7 @@ function GalleryBody(): React.JSX.Element {
 
       <Section name="Portal">
         <PortalProvider container={null}>
-          <div className="muted">Sheet, ConfirmDialog and Toast</div>
+          <div className="text-fg-muted">Sheet, ConfirmDialog and Toast</div>
         </PortalProvider>
       </Section>
 
@@ -349,8 +349,8 @@ function GalleryBody(): React.JSX.Element {
             <span className="lead"></span>
             <span className="name">Name</span>
             <span className="meta grow">Image or folder</span>
-            <span className="col ports">Ports</span>
-            <span className="col stats mono">Now</span>
+            <span className="col">Ports</span>
+            <span className="col font-mono">Now</span>
             <span className="col state">State</span>
             <span className="act"></span>
           </RowHead>
@@ -458,7 +458,7 @@ function GalleryBody(): React.JSX.Element {
       </Section>
 
       <Section name="Sparkline">
-        <div className="fields">
+        <div className="flex flex-col gap-3">
           <Sparkline points={[2, 3, 5, 4, 6, 2, 5, 7, 4, 5, 6, 3]} label="CPU for kafka" />
           <Sparkline points={null} label="CPU for kafka" />
         </div>
@@ -502,7 +502,7 @@ function GalleryBody(): React.JSX.Element {
       </Section>
 
       <Section name="Palette">
-        <div className="fields">
+        <div className="flex flex-col gap-3">
           <Button onClick={() => setPaletteOpen(true)}>Open palette</Button>
           <Palette
             open={paletteOpen}
@@ -519,7 +519,7 @@ function GalleryBody(): React.JSX.Element {
       </Section>
 
       <Section name="ConfirmDialog">
-        <div className="fields">
+        <div className="flex flex-col gap-3">
           <Button
             onClick={() => {
               void confirm({

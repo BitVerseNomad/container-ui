@@ -9,11 +9,11 @@ export const Label = forwardRef<HTMLLabelElement, LabelProps>(
   ({ className, required, children, ...props }, ref) => (
     <label
       ref={ref}
-      className={clsx("text-sm font-medium text-[var(--color-fg-secondary)] flex items-center gap-1", className)}
+      className={clsx("text-sm font-medium text-fg-muted flex items-center gap-1", className)}
       {...props}
     >
       {children}
-      {required && <span className="text-[var(--color-brand-danger)]" aria-hidden="true">*</span>}
+      {required && <span className="text-bad" aria-hidden="true">*</span>}
     </label>
   )
 );

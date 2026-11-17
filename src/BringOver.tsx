@@ -362,12 +362,12 @@ export default function BringOver({ ctx, only, forVm, onClose, onDone, onProfile
     const Line = settled || (busy && r) ? "span" : "label";
     return (
       <li key={key(i)} className={`bring-item${r ? ` ${r.state}` : ""}${settled ? " settled" : ""}`}>
-        <Line className="check">
-          <span className="bring-mark mark">{mark ?? <input type="checkbox" checked={pick.has(key(i))} disabled={busy} aria-describedby={swap && !r ? `${ids.note}-${i.name}` : undefined} onChange={() => toggle(i)} />}</span>
+        <Line className="flex items-center gap-2">
+          <span className="mark flex w-4 shrink-0 items-center justify-center">{mark ?? <input type="checkbox" checked={pick.has(key(i))} disabled={busy} aria-describedby={swap && !r ? `${ids.note}-${i.name}` : undefined} onChange={() => toggle(i)} />}</span>
           <span className="bring-name" title={i.name}>{i.name}</span>
           <span className="hint bring-size">{r?.state === "failed" && <Icon name="close" size={12} />} {status}</span>
         </Line>
-        {streaming && <div className="bar" role="progressbar" aria-label={`Copying ${i.name}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} aria-valuetext={status}><i style={{ width: `${pct}%` }} /></div>}
+        {streaming && <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-tile [&>i]:block [&>i]:h-full [&>i]:rounded-full [&>i]:bg-accent" role="progressbar" aria-label={`Copying ${i.name}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} aria-valuetext={status}><i style={{ width: `${pct}%` }} /></div>}
         {/* Docker's own words stay in the code font; a message the app wrote does not. */}
         {r?.state === "failed" && <Why why={r.why ?? ""} />}
         {/* One note: picked, who stops where; not picked, what picking it would do. */}
@@ -447,18 +447,18 @@ export default function BringOver({ ctx, only, forVm, onClose, onDone, onProfile
           <div className="group">
             <h4 ref={firstHeading} tabIndex={-1}>Volumes</h4>
             <p className="hint">Databases and uploads live here. They can't be downloaded again.{unnamed ? ` ${unnamed} unnamed volume${unnamed === 1 ? "" : "s"} left out.` : ""}</p>
-            <ul className="bring-list" role="list">{vols.map(line)}</ul>
+            <ul className="m-0 flex list-none flex-col gap-1 p-0" role="list">{vols.map(line)}</ul>
           </div>
         )}
         {imgs.length > 0 && (
           <div className="group">
             <h4 ref={vols.length ? undefined : firstHeading} tabIndex={-1}>Images</h4>
             <p className="hint">Colima downloads these again when you need them. Pick only the ones you built yourself.</p>
-            <ul className="bring-list" role="list">{imgs.map(line)}</ul>
+            <ul className="m-0 flex list-none flex-col gap-1 p-0" role="list">{imgs.map(line)}</ul>
           </div>
         )}
         {!result && <p className="hint">Docker Desktop keeps its copy. {vols.some(replaceable) ? "Colima's copy is backed up before it is replaced." : "Nothing Colima already has is replaced."} A container that writes to a picked volume is stopped first.</p>}
-        {tight && !busy && free !== null && <p className="hint bring-room">These need about {formatBytes(total)}; Colima has about {formatBytes(free)} free.</p>}
+        {tight && !busy && free !== null && <p className="hint mt-2">These need about {formatBytes(total)}; Colima has about {formatBytes(free)} free.</p>}
         {result && (
           <div id={ids.result} className={`bring-result${result.failed.length ? " bad" : " ok"}`}>
             {[...resultLines(result), nextStep].filter(Boolean).map((l, n) => <p key={n}>{n === 0 && <Icon name={result.failed.length ? "alert" : "check"} size={14} />}<span><Ticks text={l} /></span></p>)}
@@ -471,7 +471,7 @@ export default function BringOver({ ctx, only, forVm, onClose, onDone, onProfile
         {late && !busy && !chosen.length && <p id={ids.late} className="bring-late"><Icon name="alert" size={14} /><span><Ticks text={late.text} /></span></p>}
         <div className="actions">
           {roomFirst && <button className="primary" onClick={onProfiles}>Open Profiles</button>}
-          <span id={ids.hint} className="hint bring-pick">{button.off ? "Pick a volume or an image." : ""}</span>
+          <span id={ids.hint} className="hint mr-auto">{button.off ? "Pick a volume or an image." : ""}</span>
           <button ref={action} className={button.primary ? "primary" : undefined} aria-disabled={button.off || undefined} aria-describedby={button.off ? ids.hint : result && !busy && !result.failed.length ? ids.result : doneWhy} onClick={() => !button.off && button.go()}>{button.label}</button>
         </div>
       </>
@@ -481,7 +481,7 @@ export default function BringOver({ ctx, only, forVm, onClose, onDone, onProfile
     <Drawer label="Bring over from Docker Desktop" title={<>Bring over from Docker Desktop</>} onClose={onClose} closeDisabled={busy} closeWhy="Stop the copy to close." noClose={oneWayOut}>
       <p className="sr-only" role="status" aria-live="polite">{said}</p>
       <p className="sr-only" role="alert">{alarm}</p>
-      {forVm && <p className="hint bring-for">This copy is for the VM &ldquo;{forVm}&rdquo;. Starting and retrying here act on it, not on the one you switched to.</p>}
+      {forVm && <p className="hint mt-2">This copy is for the VM &ldquo;{forVm}&rdquo;. Starting and retrying here act on it, not on the one you switched to.</p>}
       {body}
     </Drawer>
   );
@@ -491,11 +491,11 @@ export default function BringOver({ ctx, only, forVm, onClose, onDone, onProfile
 function Why({ why }: { why: string }) {
   const said = plainError(why);
   const raw = why.split("\n")[0];
-  if (said === raw) return <p className="hint bring-why raw">{said}</p>;
+  if (said === raw) return <p className="hint break-all font-mono text-micro">{said}</p>;
   return (
-    <div className="bring-why">
+    <div className="mt-2">
       <p className="hint">{said}</p>
-      <details className="how bring-output">
+      <details className="how mt-2">
         <summary><Icon name="chevron" size={12} />Show output</summary>
         <pre>{why}</pre>
       </details>

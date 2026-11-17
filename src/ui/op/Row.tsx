@@ -29,7 +29,7 @@ export function RowHead(props: { children: React.ReactNode; menuGap?: boolean })
   return (
     <div className="row th" role="row">
       {props.children}
-      {props.menuGap && <span className="more-gap" />}
+      {props.menuGap && <span className="ml-1 inline-block w-6" />}
     </div>
   );
 }
@@ -69,7 +69,7 @@ export function Row(props: RowProps): React.JSX.Element {
   const check = (
     <input
       type="checkbox"
-      className="check"
+      className="check size-3.5 accent-accent"
       aria-label={`Select ${textOf(name)}`}
       checked={selected === true}
       onChange={(event) => onSelect?.(event.target.checked)}
@@ -130,10 +130,10 @@ export function Row(props: RowProps): React.JSX.Element {
         <>
           <span className="grow">
             <div className="name">{name}</div>
-            <div className="meta selectable">{meta}</div>
+            <div className="meta select-text">{meta}</div>
           </span>
           {children}
-          <span className="side">{action}</span>
+          <span className="side flex shrink-0 items-center gap-2">{action}</span>
         </>
       ) : (
         <>
@@ -179,9 +179,9 @@ export function Col(props: { kind?: ColKind; mono?: boolean; children?: React.Re
 }
 
 export function Dim(props: { children: React.ReactNode }): React.JSX.Element {
-  return <span className="dim">{props.children}</span>;
+  return <span className="dim text-fg-faint">{props.children}</span>;
 }
 
 export function Members(props: { children: React.ReactNode }): React.JSX.Element {
-  return <span className="members grow">{props.children}</span>;
+  return <span className="grow min-w-0 truncate text-fg-muted">{props.children}</span>;
 }

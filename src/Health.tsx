@@ -13,9 +13,11 @@ import { ResizeOr, useResizeEnv } from "./Resize";
 
 export const stripHealth = (status: string) => status.replace(/\s*\((?:un)?healthy\)|\s*\(health: starting\)/, "");
 
+const HBADGE_TONE = { starting: "bg-warn-fill text-warn", healthy: "bg-ok-fill text-ok", unhealthy: "bg-bad-fill text-bad" } as const;
+
 export function HealthBadge({ status }: { status: "starting" | "healthy" | "unhealthy" | null }) {
   if (!status) return null;
-  return <span className={`hbadge ${status}`}>{status}</span>;
+  return <span className={`inline-flex items-center rounded-xs px-1.5 text-micro font-medium ${HBADGE_TONE[status]}`}>{status}</span>;
 }
 
 export function ActivityList({ lines, empty }: { lines: Line[]; empty: string }) {
@@ -24,10 +26,10 @@ export function ActivityList({ lines, empty }: { lines: Line[]; empty: string })
   return (
     <ul className="activity">
       {lines.map((l, i) => (
-        <li key={`${l.time}-${i}`} className={l.level}>
-          <span className="adot" aria-hidden="true" />
+        <li key={`${l.time}-${i}`} className={`flex items-baseline gap-2 ${l.level}`}>
+          <span className="mt-2 inline-block size-1.5 shrink-0 rounded-full bg-current" aria-hidden="true" />
           <span>{l.text}</span>
-          <span className="when">{ago(l.time, now)}</span>
+          <span className="ml-auto shrink-0 whitespace-nowrap text-meta text-fg-faint">{ago(l.time, now)}</span>
         </li>
       ))}
     </ul>
@@ -142,7 +144,7 @@ export function useOpenCompose(path: string, enabled: boolean, say: (s: Said) =>
   const name = (who: string) => (pending ? `${label}: ${file}` : app ? `${label}: ${file}, ${who}` : `${label}: ${who}`);
   // who: the service the line is about. cls: the button's size class.
   const button = (who: string, cls?: string) => (
-    <span className="limit-action" ref={box}>
+    <span className="inline-flex items-center gap-2" ref={box}>
       {failed?.finder
         ? <button key="finder" ref={finderRef} className={cls} aria-label={`Show in Finder: ${file}`} onClick={() => void reveal()}>Show in Finder</button>
         : <button key={`open:${app ?? ""}`} className={cls} aria-disabled={pending || undefined} aria-label={name(who)} onClick={() => void open()}>{label}</button>}
@@ -212,14 +214,14 @@ export function LimitActions({ fix, ctx, listed, fallback, small }: { fix: Probl
   );
   const raised = !!a && view.kind === "raised";
   return (
-    <div className="limit-actions">
+    <div className="limit-actions flex flex-col items-start gap-1 [&>.limit-note]:mt-1 [&>.limit-note]:text-meta">
       {raised && <p className="resize-result off limit-note"><Icon name="stop" size={14} /><span><Ticks text={raisedLine(a, view.now, view.waiting, p.name)} /></span></p>}
       {!raised && view.waiting.length > 0 && a && <p className="hint limit-note">Start {p.name} first: {a.service} needs {view.waiting.join(" and ")}.</p>}
       {opener.hint && !opener.failed && <p className="hint limit-note">{opener.hint}</p>}
-      {note.alert && <p className="resize-result warn limit-note" aria-hidden="true"><Icon name="alert" size={14} /><span><Ticks text={note.alert} /></span></p>}
+      {note.alert && <p className="resize-result warn limit-note text-warn" aria-hidden="true"><Icon name="alert" size={14} /><span><Ticks text={note.alert} /></span></p>}
       <span className="actions-inline">
         {opener.button(a?.service ?? "the project", cls)}
-        <span className="limit-action" ref={box}>{second}</span>
+        <span className="inline-flex items-center gap-2" ref={box}>{second}</span>
       </span>
       {waitWhy}
       <span className="sr-only" role="status">{plain(note.status)}</span>
@@ -234,8 +236,8 @@ export function HealthPanel({ state, extra = [], onLogs, ctx, onFixed, listed = 
   const vm = useResizeEnv()?.profile;
   const problems: Problem[] = [...problemsFor(state, vm?.status === "Running" ? vm.memory : undefined), ...extra];
   return (
-    <div className="health-panel panel">
-      <div className="hp-row">
+    <div className="health-panel flex flex-col gap-2 rounded-md border border-line bg-bg-raised p-3">
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <b>Health</b>
         {state.health ? (
           <>
@@ -246,7 +248,7 @@ export function HealthPanel({ state, extra = [], onLogs, ctx, onFixed, listed = 
           <span className="hint">No health check is defined for this image. Without one, Docker can tell a container is running but not whether it is working.</span>
         )}
       </div>
-      <div className="hp-row">
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <b>Restarts</b>
         <span>{state.restartCount}</span>
         <span className="hint">{state.running ? (state.startedAt ? `Started ${ago(Date.parse(state.startedAt), Date.now())}` : "Running") : `Exited with code ${state.exitCode}`}</span>

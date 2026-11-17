@@ -13,7 +13,7 @@ export function CopyPort({ label }: { label: string }) {
   const text = `localhost:${label}`;
   return (
     <button
-      className="port-link muted mono"
+      className="inline-flex items-center gap-1 rounded-xs px-1.5 py-0.5 font-mono text-meta text-fg-muted hover:bg-tile"
       aria-label={copied ? `Copied ${text}` : `Copy ${text}`}
       aria-live="polite"
       title={`Copy ${text}`}
@@ -31,7 +31,7 @@ export function CopyPort({ label }: { label: string }) {
 
 export function WebPort({ port, label, name }: { port: number; label: string; name: string }) {
   return (
-    <button className="port-link mono" aria-label={`Open ${name} at localhost:${port} in your browser`} title={`http://localhost:${port}`} onClick={() => openUrl(`http://localhost:${port}`)}>
+    <button className="inline-flex items-center gap-1 rounded-xs px-1.5 py-0.5 font-mono text-meta text-accent-ink hover:bg-accent-fill" aria-label={`Open ${name} at localhost:${port} in your browser`} title={`http://localhost:${port}`} onClick={() => openUrl(`http://localhost:${port}`)}>
       {label} <span aria-hidden="true">↗</span>
     </button>
   );
@@ -45,7 +45,7 @@ export default function PortLinks({ ports, running, name }: { ports: string; run
   if (!links.length) return <span className="hint" title={ports || undefined}>{ports && !running ? "stopped" : ""}</span>;
   const extra = links.length - SHOWN;
   return (
-    <span className="port-links" title={ports}>
+    <span className="inline-flex flex-wrap items-center gap-1" title={ports}>
       {links.slice(0, SHOWN).map((l) =>
         isWebPort(l.containerPort, l.port) ? <WebPort key={l.label} port={l.port} label={l.label} name={name} /> : <CopyPort key={l.label} label={l.label} />,
       )}

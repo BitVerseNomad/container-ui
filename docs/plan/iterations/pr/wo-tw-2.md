@@ -1,4 +1,4 @@
-wo-tw-2: WO-TW-2 step 1 — migrate the Button building block to Tailwind utilities
+wo-tw-2: WO-TW-2 step 1: migrate the Button building block to Tailwind utilities
 
 ## What changed
 
@@ -45,7 +45,7 @@ $ npx tsc --noEmit
 
 ## Contract differences
 
-None — Button's public props and names are unchanged.
+None: Button's public props and names are unchanged.
 
 ## Verify result (`sh docs/plan/iterations/verify-tailwind.sh`, preview on 4173)
 

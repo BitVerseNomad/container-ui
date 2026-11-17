@@ -43,8 +43,8 @@ export const Field = forwardRef<HTMLInputElement, FieldProps>(function Field(
 
 export function FormRow(props: { label: string; hint?: string; htmlFor: string; children: React.ReactNode }): React.JSX.Element {
   return (
-    <div className="form-row">
-      <label className="label" htmlFor={props.htmlFor}>{props.label}</label>
+    <div className="flex flex-col gap-1">
+      <label className="text-meta font-medium text-fg-muted" htmlFor={props.htmlFor}>{props.label}</label>
       {props.children}
       {props.hint && <div className="hint">{props.hint}</div>}
     </div>
@@ -52,5 +52,5 @@ export function FormRow(props: { label: string; hint?: string; htmlFor: string; 
 }
 
 export function Fields(props: { children: React.ReactNode }): React.JSX.Element {
-  return <div className="fields">{props.children}</div>;
+  return <div className="flex flex-col gap-3">{props.children}</div>;
 }

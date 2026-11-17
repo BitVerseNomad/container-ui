@@ -6,7 +6,7 @@ This is the design for OpenPier 1.0. It is written so that someone who has never
 
 There are three sources, in this order of authority:
 
-1. **`design/openpier.css`** is the design. Every colour, size, radius and shadow lives there and nowhere else. The app ships this file unchanged as `src/ui/openpier.css`.
+1. **`design/openpier.css`** is the design. Every colour, size, radius and shadow lives there and nowhere else. The app ships its tokens as `src/ui/openpier.css`, and its styles live in `src/ui/tailwind.css`: a Tailwind v4 `@theme` block that maps those tokens to utility classes.
 2. **`design/mockup.html`** shows every screen built with that stylesheet. Open it in a browser, pick a screen, toggle dark. `design/shots/` has a WebKit screenshot of each screen in light and dark (`node docs/plan/design/shoot.mjs` regenerates them).
 3. **This file** says what the mockup cannot show: behaviour, rules, states, words, keyboard.
 
@@ -16,7 +16,7 @@ Rules for the implementer:
 
 1. Never write a colour, a pixel size or a shadow in a component. Use a class from `openpier.css`. If the class you need does not exist, stop and add it to the CSS and the mockup first.
 2. No inline `style`. Every width, gap and colour is a class in `openpier.css` (section 11 holds the column widths and layout pieces). Three files may set a `style`, because their numbers come from data: `Meters` (the bar's share), `LogView` and `VirtualRows` (the position of the rows drawn).
-3. No Tailwind utilities, no CSS modules, no second stylesheet. One file.
+3. Styles are Tailwind utilities that read the tokens. No CSS modules and no second stylesheet: the only stylesheets are `src/ui/tailwind.css` and `src/ui/openpier.css`.
 4. Behaviour primitives (focus trap, menus, dialogs, select, tooltip) come from Radix, unstyled, with `className` set to the classes below.
 5. Icons come from `lucide-react` only, at 16px (`.icon`) or 14px (`.icon.sm`), stroke 1.5. Delete `src/ui/icons.tsx`.
 

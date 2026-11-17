@@ -37,7 +37,7 @@ export default function Images({ ctx, onRan, startPull = false, arch }: { ctx: s
   return (
     <section>
       <header>
-        <button className="primary icon-label" onClick={() => { setHubTerm(undefined); setPulling(true); }}><Icon name="download" size={13} /> Pull image</button>
+        <button className="primary inline-flex items-center gap-1.5" onClick={() => { setHubTerm(undefined); setPulling(true); }}><Icon name="download" size={13} /> Pull image</button>
       </header>
       <Banner error={error ?? err} onClose={() => setErr(null)} />
       <DiskCard ctx={ctx} onChanged={reload} />
@@ -45,20 +45,20 @@ export default function Images({ ctx, onRan, startPull = false, arch }: { ctx: s
         <Empty title="No images">Use <strong>Pull image</strong> to download one from Docker Hub.</Empty>
       )}
       {data && data.length > 0 && (
-        <label className="search-field image-search">
+        <label className="flex h-7 items-center gap-2 rounded-sm border border-line bg-bg-raised px-2 focus-within:ring-2 focus-within:ring-focus">
           <Icon name="search" size={14} />
           <input placeholder="Search your images" aria-label="Search your images" value={q} onChange={(e) => setQ(e.target.value)} />
         </label>
       )}
       {data && data.length > 0 && shown.length === 0 && (
-        <p className="hint pad">
-          No image here matches "{q.trim()}". <button className="link-plain inline-link" onClick={() => { setHubTerm(q.trim()); setPulling(true); }}>Find it on Docker Hub</button>
+        <p className="hint py-2">
+          No image here matches "{q.trim()}". <button className="inline cursor-pointer border-0 bg-transparent p-0 text-accent-ink hover:underline" onClick={() => { setHubTerm(q.trim()); setPulling(true); }}>Find it on Docker Hub</button>
         </p>
       )}
       {shown.length > 0 && (
         <table>
           <thead>
-            <tr><th scope="col">Repository</th><th scope="col">Tag</th><th scope="col">ID</th><th scope="col" className="num">Size</th><th scope="col">Created</th><th scope="col"><span className="sr-only">Actions</span></th></tr>
+            <tr><th scope="col">Repository</th><th scope="col">Tag</th><th scope="col">ID</th><th scope="col" className="text-right tabular-nums">Size</th><th scope="col">Created</th><th scope="col"><span className="sr-only">Actions</span></th></tr>
           </thead>
           <tbody>
             {shown.map((i) => {
@@ -66,11 +66,11 @@ export default function Images({ ctx, onRan, startPull = false, arch }: { ctx: s
               return (
                 <tr key={i.ID + ref}>
                   <td>{i.Repository}</td>
-                  <td className="mono">{i.Tag}</td>
-                  <td className="mono">{i.ID}</td>
-                  <td className="num">{parseBytes(i.Size) ? formatBytes(parseBytes(i.Size)) : i.Size}</td>
+                  <td className="font-mono">{i.Tag}</td>
+                  <td className="font-mono">{i.ID}</td>
+                  <td className="text-right tabular-nums">{parseBytes(i.Size) ? formatBytes(parseBytes(i.Size)) : i.Size}</td>
                   <td>{i.CreatedSince}</td>
-                  <td className="row-actions">
+                  <td className="whitespace-nowrap text-right">
                     <Button variant="ghost" size="sm" icon={<Icon name="play" size={13} />} aria-label={`Run ${ref}`} onClick={() => setRunning(ref)}>Run</Button>
                     <Button variant="destructive" size="sm" icon={<Icon name="trash" size={13} />} aria-label={`Remove ${ref}`} onClick={async () => (await confirm(`Remove image ${ref}?`)) && act(["rmi", ref])}>Remove</Button>
                   </td>
