@@ -1,12 +1,13 @@
 import { useCallback, useState } from "react";
-import { Sheet, Command, Sev, Empty, Button } from "./ui/op";
+import { Sheet, Command, Sev, Empty, Button, Checkbox } from "./ui/op";
+import { activity } from "./lib/activity";
 import { said, useActivity } from "./Commands";
 import { useFixRuns } from "./FixIt";
 
 const time = (at: number) => new Date(at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
 export default function Activity({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { entries } = useActivity();
+  const { entries, tips } = useActivity();
   const fixing = useFixRuns().some((r) => r.step != null);
   const [err, setErr] = useState<string | null>(null);
 
@@ -14,8 +15,10 @@ export default function Activity({ open, onClose }: { open: boolean; onClose: ()
 
   return (
     <Sheet open={open} onClose={onClose} title="Activity">
+      {/* The only way back after "Don't ask again" on a recall toast. */}
+      <Checkbox className="check-row" checked={tips} onChange={(on) => activity.setTips(on)}>Now and then, ask me to recall the command first</Checkbox>
       {!entries.length && <Empty icon="logs" title="Nothing yet">Every command the app runs shows up here.</Empty>}
-      {entries.length && (
+      {entries.length > 0 && (
         <ul className="list">
           {entries.map((e) => {
             const again = e.again && e.ok !== null && !fixing;
