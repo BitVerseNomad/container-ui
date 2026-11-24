@@ -140,11 +140,11 @@ export default function App() {
 
   // Which profiles run Kubernetes. Without kubectl there is no way to ask, so the answer stays "not known".
   const kube = usePoll<string[]>(async () => (env?.kubectl ? contextNames(await invoke<string>("kubectl", { context: null, args: ["config", "get-contexts", "-o", "name"] })) : []), [env?.kubectl], 10000, !!env);
-  // Profiles switched Kubernetes on this session; the tab shows up even if kubectl still has to be installed.
-  const [kubeAsked, setKubeAsked] = useState<string[]>([]);
+  // Profiles switched Kubernetes on or off this session; the tab shows up even if kubectl still has to be installed.
+  const [kubeAsked, setKubeAsked] = useState<Record<string, boolean>>({});
 
   const current = profiles.find((p) => p.name === active) ?? null;
-  const kubeOn = !!current && (kubernetesOn(ctxFor(current.name), kube.data) === true || kubeAsked.includes(current.name));
+  const kubeOn = !!current && (current.name in kubeAsked ? kubeAsked[current.name] : kubernetesOn(ctxFor(current.name), kube.data) === true);
   const engines = useMemo(() => profiles.map((p) => engineOfProfile(p, { busy: busyOf({ op: vm.op, name: opName(vm) }, p.name), kubernetes: p.name === active && kubeOn })), [profiles, vm, active, kubeOn]);
 
   useEffect(() => {
@@ -347,8 +347,8 @@ export default function App() {
           profiles={profiles}
           reload={() => { reloadProfiles(); kube.reload(); }}
           openNew={newProfileOnOpen}
-          kubeOn={(name) => (kubeAsked.includes(name) ? true : kubernetesOn(ctxFor(name), kube.data))}
-          onKubeAsked={(name) => setKubeAsked((l) => (l.includes(name) ? l : [...l, name]))}
+          kubeOn={(name) => (name in kubeAsked ? kubeAsked[name] : kubernetesOn(ctxFor(name), kube.data))}
+          onKubeAsked={(name, on) => setKubeAsked((m) => ({ ...m, [name]: on }))}
         />
       </div>
     ) : !ctx ? (

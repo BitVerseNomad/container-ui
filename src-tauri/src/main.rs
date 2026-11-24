@@ -53,8 +53,10 @@ fn start_args(o: &StartOpts) -> Vec<String> {
     if let Some(v) = &o.runtime {
         a.extend(["--runtime".into(), v.clone()]);
     }
-    if o.kubernetes == Some(true) {
-        a.push("--kubernetes".into());
+    match o.kubernetes {
+        Some(true) => a.push("--kubernetes".into()),
+        Some(false) => a.push("--kubernetes=false".into()),
+        None => {}
     }
     a
 }
@@ -3545,12 +3547,21 @@ mod tests {
     }
 
     #[test]
-    fn kubernetes_false_adds_nothing() {
+    fn kubernetes_false_adds_the_off_flag() {
         let o = StartOpts {
             kubernetes: Some(false),
             ..opts("dev")
         };
-        assert_eq!(start_args(&o), ["start", "dev"]);
+        assert_eq!(start_args(&o), ["start", "dev", "--kubernetes=false"]);
+    }
+
+    #[test]
+    fn kubernetes_true_adds_the_on_flag() {
+        let o = StartOpts {
+            kubernetes: Some(true),
+            ..opts("dev")
+        };
+        assert_eq!(start_args(&o), ["start", "dev", "--kubernetes"]);
     }
 
     #[test]

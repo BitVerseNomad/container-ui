@@ -474,7 +474,7 @@ export async function invoke<T>(cmd: string, a: Record<string, any> = {}): Promi
         Object.assign(p, { status: "Running" });
         if (a.opts.cpus) p.cpus = a.opts.cpus;
         if (a.opts.memory) p.memory = a.opts.memory * GB;
-        if (a.opts.kubernetes) k8sOn = true;
+        if (a.opts.kubernetes !== undefined) k8sOn = a.opts.kubernetes;
         // Docker starts again only the containers whose restart setting says so.
         wasUp.forEach((c) => { if (c.restart === "always" || c.restart === "unless-stopped") c.state = "running"; });
         return undefined as T;

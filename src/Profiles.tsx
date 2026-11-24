@@ -19,7 +19,7 @@ type Props = {
   openNew?: boolean;
   // whether a profile runs Kubernetes; null while that is not known yet
   kubeOn?: (name: string) => boolean | null;
-  onKubeAsked?: (name: string) => void;
+  onKubeAsked?: (name: string, on: boolean) => void;
 };
 
 export default function Profiles({ profiles, reload, openNew = false, kubeOn = () => null, onKubeAsked }: Props) {
@@ -68,7 +68,14 @@ export default function Profiles({ profiles, reload, openNew = false, kubeOn = (
   async function turnOnKubernetes(p: Profile) {
     const warn = p.status === "Running" ? " The VM restarts, so running containers stop for a minute and start again." : "";
     if (!(await confirm(`Turn on Kubernetes for "${p.name}"?${warn}`, "Turn on", { safe: true }))) return;
-    if (await act(p.name, "turning on Kubernetes", "apply_resources", { opts: { name: p.name, kubernetes: true } as StartOpts, restart: p.status === "Running" })) onKubeAsked?.(p.name);
+    if (await act(p.name, "turning on Kubernetes", "apply_resources", { opts: { name: p.name, kubernetes: true } as StartOpts, restart: p.status === "Running" })) onKubeAsked?.(p.name, true);
+  }
+
+  // Mirrors turnOnKubernetes: the VM restarts without Kubernetes, so running containers stop and start again.
+  async function turnOffKubernetes(p: Profile) {
+    const warn = p.status === "Running" ? " The machine restarts, so running containers stop for a minute and start again." : "";
+    if (!(await confirm(`Turn off Kubernetes for "${p.name}"?${warn} You can turn Kubernetes on again any time.`, "Turn off", { safe: true }))) return;
+    if (await act(p.name, "turning off Kubernetes", "apply_resources", { opts: { name: p.name, kubernetes: false } as StartOpts, restart: p.status === "Running" })) onKubeAsked?.(p.name, false);
   }
 
   return (
@@ -97,7 +104,12 @@ export default function Profiles({ profiles, reload, openNew = false, kubeOn = (
                   <td className="font-mono whitespace-nowrap">{gb(p.disk)}</td>
                   <td>{p.runtime}</td>
                   <td>
-                    {kubeOn(p.name) === true ? <Status level="on">On</Status> : kubeOn(p.name) === false ? <OpButton size="xs" className="whitespace-nowrap" disabled={!!busy} onClick={() => turnOnKubernetes(p)}>Turn on Kubernetes</OpButton> : <span className="hint">–</span>}
+                    {kubeOn(p.name) === true ? (
+                      <span className="inline-flex items-center gap-2 whitespace-nowrap">
+                        <Status level="on">On</Status>
+                        <OpButton size="xs" disabled={!!busy} aria-label={`Turn off Kubernetes for ${p.name}`} onClick={() => turnOffKubernetes(p)}>Turn off</OpButton>
+                      </span>
+                    ) : kubeOn(p.name) === false ? <OpButton size="xs" className="whitespace-nowrap" disabled={!!busy} onClick={() => turnOnKubernetes(p)}>Turn on Kubernetes</OpButton> : <span className="hint">–</span>}
                   </td>
                   <td className="whitespace-nowrap text-right">
                     {up ? (
