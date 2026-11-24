@@ -6,9 +6,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { Profile, StartOpts, gbOf } from "./api";
 import EditPanel from "./EditPanel";
 import { Empty } from "./ui";
-import { Button } from "@ui/components/Button";
-import { Button as OpButton } from "./ui/op";
-import { Icon } from "./ui/icons";
+import { Button as OpButton, Menu, MenuItem, MoreButton } from "./ui/op";
 import OutputLog from "./ui/OutputLog";
 import { useFixRuns } from "./FixIt";
 import { ranVm } from "./lib/activity";
@@ -33,6 +31,8 @@ export default function Profiles({ profiles, reload, openNew = false, kubeOn = (
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<Profile | null>(null);
   const dialog = useRef<HTMLDialogElement>(null);
+  // While the New profile dialog is open, the empty card behind it stays hidden.
+  const [dialogOpen, setDialogOpen] = useState(false);
   // "Customize first" on the first-run card lands here with the form already open.
   useEffect(() => {
     if (openNew) openForm();
@@ -43,6 +43,7 @@ export default function Profiles({ profiles, reload, openNew = false, kubeOn = (
   const newName = typedName ?? (["default", "dev", "work", "test"].find((n) => !profiles.some((p) => p.name === n)) ?? "profile2");
   function openForm() {
     setTypedName(null);
+    setDialogOpen(true);
     dialog.current?.showModal();
   }
   const taken = profiles.some((p) => p.name === newName.trim());
@@ -73,12 +74,12 @@ export default function Profiles({ profiles, reload, openNew = false, kubeOn = (
   return (
     <section>
       <header>
-        <OpButton variant="primary" size="sm" onClick={openForm}>New profile</OpButton>
+        <OpButton variant={profiles.length === 0 ? "primary" : "default"} size="sm" onClick={openForm}>New profile</OpButton>
         {busy && <span className="state">{busy}</span>}
       </header>
       <p className="hint lead">A profile is a separate Colima VM with its own containers, images and volumes. Most people only need <b>default</b>.</p>
       <OutputLog event="colima-progress" active={!!busy} failure={error} onClear={() => setError(null)} />
-      {profiles.length === 0 && <Empty title="No Colima profiles yet">Create one to start a container runtime on this machine.</Empty>}
+      {profiles.length === 0 && !dialogOpen && <Empty title="No Colima profiles yet">Create one to start a container runtime on this machine.</Empty>}
       {profiles.length > 0 && (
         <table>
           <thead>
@@ -93,22 +94,22 @@ export default function Profiles({ profiles, reload, openNew = false, kubeOn = (
                   <td><Status level={up ? "on" : "off"}>{p.status}</Status></td>
                   <td className="font-mono">{p.cpus}</td>
                   <td className="font-mono">{gb(p.memory)}</td>
-                  <td className="font-mono">{gb(p.disk)}</td>
+                  <td className="font-mono whitespace-nowrap">{gb(p.disk)}</td>
                   <td>{p.runtime}</td>
                   <td>
-                    {kubeOn(p.name) === true ? <Status level="on">On</Status> : kubeOn(p.name) === false ? <button disabled={!!busy} onClick={() => turnOnKubernetes(p)}>Turn on Kubernetes</button> : <span className="hint">–</span>}
+                    {kubeOn(p.name) === true ? <Status level="on">On</Status> : kubeOn(p.name) === false ? <OpButton size="xs" className="whitespace-nowrap" disabled={!!busy} onClick={() => turnOnKubernetes(p)}>Turn on Kubernetes</OpButton> : <span className="hint">–</span>}
                   </td>
-                  <td className="text-right">
+                  <td className="whitespace-nowrap text-right">
                     {up ? (
-                      <>
-                        <Button variant="default" size="sm" icon={<Icon name="stop" size={13} />} aria-label={`Stop ${p.name}`} disabled={!!busy || fixing} onClick={() => act(p.name, "stopping", "stop_profile", { name: p.name })}>Stop</Button>
-                        <Button variant="ghost" size="sm" icon={<Icon name="restart" size={13} />} aria-label={`Restart ${p.name}`} disabled={!!busy || fixing} onClick={() => act(p.name, "restarting", "restart_profile", { name: p.name })}>Restart</Button>
-                      </>
+                      <OpButton variant="default" size="sm" icon="stop" aria-label={`Stop ${p.name}`} disabled={!!busy || fixing} onClick={() => act(p.name, "stopping", "stop_profile", { name: p.name })}>Stop</OpButton>
                     ) : (
-                      <Button variant="default" size="sm" icon={<Icon name="play" size={13} />} aria-label={`Start ${p.name}`} disabled={!!busy} onClick={() => act(p.name, "starting", "start_profile", { opts: { name: p.name } as StartOpts })}>Start</Button>
+                      <OpButton variant="default" size="sm" icon="play" aria-label={`Start ${p.name}`} disabled={!!busy} onClick={() => act(p.name, "starting", "start_profile", { opts: { name: p.name } as StartOpts })}>Start</OpButton>
                     )}
-                    <Button variant="ghost" size="sm" icon={<Icon name="sliders" size={13} />} aria-label={`Edit ${p.name}`} disabled={!!busy || fixing} onClick={() => setEditing(p)}>Edit</Button>
-                    <Button variant="destructive" size="sm" icon={<Icon name="trash" size={13} />} aria-label={`Delete ${p.name}`} disabled={!!busy || fixing} onClick={async () => (await confirm(`Delete profile "${p.name}" and its VM? All its containers and images are removed.`, "Delete")) && act(p.name, "deleting", "delete_profile", { name: p.name })}>Delete</Button>
+                    <Menu label={`More actions for ${p.name}`} align="end" trigger={<MoreButton name={p.name} disabled={!!busy} />}>
+                      {up && <MenuItem label="Restart" why="Stops the machine and starts it again" icon="restart" disabled={!!busy || fixing} onSelect={() => act(p.name, "restarting", "restart_profile", { name: p.name })} />}
+                      <MenuItem label="Edit" why="Change CPUs, memory or disk" disabled={!!busy || fixing} onSelect={() => setEditing(p)} />
+                      <MenuItem label="Delete" why="Removes the machine with its containers and images" danger disabled={!!busy || fixing} onSelect={async () => { if (await confirm(`Delete profile "${p.name}" and its VM? All its containers and images are removed.`, "Delete")) void act(p.name, "deleting", "delete_profile", { name: p.name }); }} />
+                    </Menu>
                   </td>
                 </tr>
               );
@@ -128,7 +129,7 @@ export default function Profiles({ profiles, reload, openNew = false, kubeOn = (
         />
       )}
 
-      <dialog ref={dialog}>
+      <dialog ref={dialog} onClose={() => setDialogOpen(false)}>
         <form
           method="dialog"
           onSubmit={(e) => {
@@ -157,10 +158,10 @@ export default function Profiles({ profiles, reload, openNew = false, kubeOn = (
               <option>incus</option>
             </select>
           </label>
-          <label className="flex items-center gap-2"><input name="kubernetes" type="checkbox" /> Enable Kubernetes</label>
+          <label className="check w-full"><input name="kubernetes" type="checkbox" /> Enable Kubernetes</label>
           <div className="actions">
-            <button type="button" onClick={() => dialog.current?.close()}>Cancel</button>
-            <button className="primary" type="submit" disabled={taken}>Create and start</button>
+            <OpButton variant="default" onClick={() => dialog.current?.close()}>Cancel</OpButton>
+            <OpButton variant="primary" disabled={taken} onClick={(e) => e.currentTarget.form?.requestSubmit()}>Create and start</OpButton>
           </div>
         </form>
       </dialog>
