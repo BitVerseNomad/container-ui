@@ -6,13 +6,14 @@ import { hubLink } from "./lib/guided";
 import { Finding, ProbeResult, diagnose, parseContainerFacts, parseProbe, sharedNetworks } from "./lib/network";
 import { Banner } from "./ui";
 import Drawer from "./ui/Drawer";
-import { Icon } from "./ui/icons";
+import { Button, Field, Icon, Select } from "./ui/op";
 import OutputLog from "./ui/OutputLog";
 
 type Ctr = { Names: string; State: string };
 type Props = { ctx: string; from?: string; onClose: () => void };
 const HELPER = "nicolaka/netshoot:v0.16";
 const ICON = { ok: "check", warn: "alert", fail: "close", info: "info" } as const;
+const TONE = { ok: "text-ok", warn: "text-warn", fail: "text-bad", info: "text-fg-muted" } as const;
 
 export default function ConnectionTest({ ctx, from: initialFrom, onClose }: Props) {
   const [containers, setContainers] = useState<Ctr[]>([]);
@@ -101,25 +102,24 @@ export default function ConnectionTest({ ctx, from: initialFrom, onClose }: Prop
   return (
     <Drawer label="Connection doctor" title={<>Why can't one container reach another?</>} onClose={onClose} closeDisabled={busy}>
       <p className="hint">Pick the container that can't connect (From) and the one it should reach (To). The checks run from From's side.</p>
-      <div className="group">
-        <label>From
-          <select aria-label="From container" value={from} disabled={busy} onChange={(e) => setFrom(e.target.value)}>
-            <option value="">Choose…</option>
-            {names.map((n) => <option key={n}>{n}</option>)}
-          </select>
-        </label>
-        <label>To
-          <select aria-label="To container" value={to} disabled={busy} onChange={(e) => { setTo(e.target.value); setPort(""); }}>
-            <option value="">Choose…</option>
-            {names.filter((n) => n !== from).map((n) => <option key={n}>{n}</option>)}
-          </select>
-        </label>
-        <label>Port
-          <input aria-label="Port" list="doctor-ports" inputMode="numeric" placeholder="like 9092" value={port} disabled={busy} onChange={(e) => setPort(e.target.value.trim())} />
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-1">
+          <span className="text-meta font-medium text-fg-muted">From</span>
+          <Select aria-label="From container" value={from} disabled={busy} onChange={setFrom}
+            options={names.map((n) => ({ value: n, label: n }))} />
+        </div>
+        <div className="flex flex-col gap-1">
+          <span className="text-meta font-medium text-fg-muted">To</span>
+          <Select aria-label="To container" value={to} disabled={busy} onChange={(v) => { setTo(v); setPort(""); }}
+            options={names.filter((n) => n !== from).map((n) => ({ value: n, label: n }))} />
+        </div>
+        <div className="flex flex-col gap-1">
+          <span className="text-meta font-medium text-fg-muted">Port</span>
+          <Field aria-label="Port" width="port" list="doctor-ports" inputMode="numeric" placeholder="like 9092" value={port} disabled={busy} onChange={(e) => setPort(e.target.value.trim())} />
           <datalist id="doctor-ports">{ports.map((p) => <option key={p} value={p} />)}</datalist>
-        </label>
-        <div className="actions">
-          <button className="primary" disabled={busy || !from || !to || !port} onClick={check}>{busy ? "Checking…" : "Check"}</button>
+        </div>
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button variant="primary" disabled={busy || !from || !to || !port} onClick={check}>{busy ? "Checking…" : "Check"}</Button>
         </div>
       </div>
 
@@ -132,17 +132,17 @@ export default function ConnectionTest({ ctx, from: initialFrom, onClose }: Prop
           {findings.map((f) => {
             const connectFix = f.fix?.kind === "connect" && f.fix.containers.length > 0 ? f.fix : null;
             return (
-            <li key={f.id + f.title} className={`finding ${f.status}`}>
-              <Icon name={ICON[f.status]} size={16} />
-              <div>
-                <b>{f.title}</b>
-                <div className="hint">{f.detail}</div>
+            <li key={f.id + f.title} className="grid grid-cols-[16px_minmax(0,1fr)] items-start gap-2 border-b border-line py-2">
+              <Icon name={ICON[f.status]} size="sm" className={TONE[f.status]} />
+              <div className="flex min-w-0 max-w-prose flex-col items-start gap-1">
+                <b className="break-words text-body font-semibold">{f.title}</b>
+                <div className="hint break-words">{f.detail}</div>
                 {connectFix && (
-                  <button className="primary" disabled={busy} onClick={() => connect(connectFix.network, connectFix.containers)}>
+                  <Button variant="primary" disabled={busy} onClick={() => connect(connectFix.network, connectFix.containers)}>
                     Connect {connectFix.containers.join(" and ")} to {connectFix.network}
-                  </button>
+                  </Button>
                 )}
-                {f.fix?.kind === "copy" && <button onClick={() => navigator.clipboard.writeText((f.fix as { text: string }).text)}>{f.fix.label}</button>}
+                {f.fix?.kind === "copy" && <Button onClick={() => navigator.clipboard.writeText((f.fix as { text: string }).text)}>{f.fix.label}</Button>}
               </div>
             </li>
             );
@@ -151,7 +151,7 @@ export default function ConnectionTest({ ctx, from: initialFrom, onClose }: Prop
       )}
       {findings && hub && (
         <p className="hint">Setup notes for {image}:{" "}
-          <button className="text-accent-ink hover:underline" onClick={() => openUrl(hub.url)}>Docker Hub page <span className="text-fg-muted">({hub.host})</span></button>
+          <Button variant="ghost" size="xs" onClick={() => openUrl(hub.url)}>Docker Hub page <span className="text-fg-muted">({hub.host})</span></Button>
         </p>
       )}
     </Drawer>

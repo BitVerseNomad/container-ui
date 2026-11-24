@@ -1,5 +1,6 @@
 import { KeyboardEvent, ReactNode, useEffect, useId, useRef, useState } from "react";
 import { openerNow } from "../lib/opener";
+import { Button } from "./op";
 
 // closeWhy: said with a Close that waits, so the reason is heard, not only a dimmed button.
 // noClose: the panel's own footer button is the way out (Done); the header Close goes, and Escape still closes.
@@ -59,7 +60,7 @@ export default function Drawer({ label, title, onClose, closeDisabled = false, c
         <div className="drawer-head">
           <h3>{title}</h3>
           {/* aria-disabled keeps Close in the Tab order while it waits, so focus has a place to stay. */}
-          {!noClose && <button aria-disabled={closeDisabled || undefined} aria-describedby={closeDisabled && closeWhy ? whyId : undefined} title={closeDisabled ? closeWhy : undefined} onClick={() => !closeDisabled && onClose()}>Close</button>}
+          {!noClose && <Button aria-disabled={closeDisabled || undefined} aria-describedby={closeDisabled && closeWhy ? whyId : undefined} title={closeDisabled ? closeWhy : undefined} onClick={() => !closeDisabled && onClose()}>Close</Button>}
           {closeDisabled && closeWhy && <span id={whyId} className="sr-only">{closeWhy}</span>}
         </div>
         {children}
