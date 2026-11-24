@@ -94,6 +94,7 @@ export function EntryRow(props: EntryProps): JSX.Element {
       lead={lead}
       dot={rowDot}
       name={name}
+      nameClass="shrink-0"
       meta={meta}
       ariaLabel={ariaLabel}
       onOpen={isGroup ? onToggle ?? onOpen : onOpen}
@@ -144,6 +145,7 @@ export function ChildRow(props: RowCommon & { id: string }): JSX.Element {
     <Row
       lead={<Dot state={dot} label={stateWord} />}
       name={name}
+      nameClass="shrink-0"
       meta={meta}
       ariaLabel={ariaLabel}
       onOpen={onOpen}
