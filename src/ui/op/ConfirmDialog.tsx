@@ -83,6 +83,7 @@ export function ConfirmProvider(props: { children: React.ReactNode }): React.JSX
                     ref={confirmRef}
                     size="md"
                     variant={options.danger ? "danger" : "primary"}
+                    className={options.danger ? "!bg-bad-solid !text-on-bad-solid" : undefined}
                     onClick={() => finish(true)}
                   >
                     {options.confirm}

@@ -44,6 +44,8 @@
   --color-bad-fill: var(--bad-fill);
   --color-info-fill: var(--info-fill);
   --color-bad-edge: var(--bad-edge);
+  --color-bad-solid: var(--bad-solid);
+  --color-on-bad-solid: var(--on-bad-solid);
   /* depth */
   --shadow-control: var(--shadow-control);
   --shadow-btn: var(--shadow-btn);

@@ -48,7 +48,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
             ) : <p id="confirm-title"><Ticks text={req.message} /></p>}
             <div className="actions">
               <button autoFocus onClick={() => close(false)}>Cancel</button>
-              <button className={req.safe ? "primary" : "primary danger-fill"} onClick={() => close(true)}>{req.label}</button>
+              <button className={req.safe ? "primary" : "danger-fill"} onClick={() => close(true)}>{req.label}</button>
             </div>
           </div>
         </div>
