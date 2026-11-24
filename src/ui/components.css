@@ -49,6 +49,9 @@ a:hover { text-decoration: underline; }
 .btn.primary { background: var(--accent); color: var(--on-accent); box-shadow: var(--shadow-control); }
 .btn.primary:hover { background: color-mix(in srgb, var(--accent) 88%, var(--fg)); }
 .btn.danger { background: var(--bad-fill); color: var(--bad); box-shadow: 0 0 0 0.5px var(--bad-edge), var(--shadow-control); }
+/* A row's quiet destructive action: red text, a light red tint on hover. Solid red is only for the confirm. */
+.danger-quiet { color: var(--bad); }
+.danger-quiet:hover:not(:disabled) { background: var(--bad-fill); }
 .btn.ghost { background: none; box-shadow: none; color: var(--fg-muted); }
 .btn.ghost:hover { background: var(--tile-hover); color: var(--fg); }
 .btn.icon-only { width: var(--h-sm); padding: 0; }
