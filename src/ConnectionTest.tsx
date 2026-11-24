@@ -10,12 +10,12 @@ import { Button, Field, Icon, Select } from "./ui/op";
 import OutputLog from "./ui/OutputLog";
 
 type Ctr = { Names: string; State: string };
-type Props = { ctx: string; from?: string; onClose: () => void };
+type Props = { ctx: string; from?: string; onClose?: () => void; inline?: boolean };
 const HELPER = "nicolaka/netshoot:v0.16";
 const ICON = { ok: "check", warn: "alert", fail: "close", info: "info" } as const;
 const TONE = { ok: "text-ok", warn: "text-warn", fail: "text-bad", info: "text-fg-muted" } as const;
 
-export default function ConnectionTest({ ctx, from: initialFrom, onClose }: Props) {
+export default function ConnectionTest({ ctx, from: initialFrom, onClose = () => undefined, inline = false }: Props) {
   const [containers, setContainers] = useState<Ctr[]>([]);
   const [from, setFrom] = useState(initialFrom ?? "");
   const [to, setTo] = useState("");
@@ -99,8 +99,8 @@ export default function ConnectionTest({ ctx, from: initialFrom, onClose }: Prop
   const hub = image ? hubLink(image) : null;
   const names = containers.map((c) => c.Names);
 
-  return (
-    <Drawer label="Connection doctor" title={<>Why can't one container reach another?</>} onClose={onClose} closeDisabled={busy}>
+  const body = (
+    <>
       <p className="hint">Pick the container that can't connect (From) and the one it should reach (To). The checks run from From's side.</p>
       <div className="flex flex-col gap-3">
         <div className="flex flex-col gap-1">
@@ -154,6 +154,10 @@ export default function ConnectionTest({ ctx, from: initialFrom, onClose }: Prop
           <Button variant="ghost" size="xs" onClick={() => openUrl(hub.url)}>Docker Hub page <span className="text-fg-muted">({hub.host})</span></Button>
         </p>
       )}
-    </Drawer>
+    </>
   );
+
+  // Inline on a container's Network tab: a modal drawer there would dim the page with no way to close it.
+  if (inline) return <section className="flex flex-col gap-3 pt-3"><h2 className="text-body font-semibold">Why can't one container reach another?</h2>{body}</section>;
+  return <Drawer label="Connection doctor" title={<>Why can't one container reach another?</>} onClose={onClose} closeDisabled={busy}>{body}</Drawer>;
 }

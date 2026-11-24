@@ -21,6 +21,12 @@ describe("ConnectionTest", () => {
     expect(container.querySelectorAll("button:not([data-op]):not([role=combobox]), select")).toHaveLength(0);
   });
 
+  it("Given it is shown inline on a Network tab, When it renders, Then it is not a modal dialog", async () => {
+    render(<ConnectionTest ctx="colima" inline />);
+    await screen.findByRole("button", { name: "Check" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
   it("Given the From container starts running, When the doctor opens, Then it is chosen by default", async () => {
     render(<ConnectionTest ctx="colima" onClose={() => undefined} />);
     await waitFor(() => expect(screen.getByRole("combobox", { name: "From container" })).toHaveTextContent("api"));

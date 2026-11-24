@@ -190,7 +190,7 @@ export default function ContainerDetail({ ctx, id, tab: routeTab, appProblems, o
 
       <Facts items={facts} />
 
-      <Tabs value={tab} items={TABS.map((t) => ({ value: t, label: LABEL[t] }))} onChange={onTab} aria-label="Container" aside={logsAside} className="flex-wrap gap-y-2">
+      <Tabs value={tab} items={TABS.map((t) => ({ value: t, label: LABEL[t] }))} onChange={onTab} aria-label="Container" aside={logsAside} className="!h-auto min-h-9 flex-wrap gap-y-2 py-1">
         <TabPanel value="logs">
           <Logs ctx={ctx} id={id} name={name} filter={filter} follow={follow} onFollowChange={setFollow} registerCopy={registerCopy} />
         </TabPanel>
@@ -234,7 +234,7 @@ export default function ContainerDetail({ ctx, id, tab: routeTab, appProblems, o
               ))}
             </List>
           )}
-          <ConnectionTest ctx={ctx} from={name} onClose={() => undefined} />
+          <ConnectionTest ctx={ctx} from={name} inline />
         </TabPanel>
         <TabPanel value="history">
           <ActivityList lines={activity.data ?? []} empty="Nothing notable has happened to this container recently." />
