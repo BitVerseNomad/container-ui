@@ -62,7 +62,7 @@ export function CommandToast({ onOpenLog }: { onOpenLog: () => void }) {
       <Icon name={last.ok === false ? "close" : last.ok ? "check" : "terminal"} size={14} />
       <span className="flex min-w-0 flex-1 flex-col items-start gap-1">
         {said(last) && <span className="cmd-said break-words text-fg-muted">{said(last)}</span>}
-        <code className="cmd-pill max-w-full break-words rounded-sm bg-bg-canvas px-1.5 py-0.5 font-mono" title={last.cmd}>{last.cmd}</code>
+        <code className="max-w-full break-words rounded-sm bg-bg-canvas px-1.5 py-0.5 font-mono" title={last.cmd}>{last.cmd}</code>
       </span>
       <span className="flex shrink-0 items-center gap-1">
         <Copy text={last.cmd} label="Copy the command" />

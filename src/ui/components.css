@@ -159,10 +159,12 @@ button.chip:hover, a.chip:hover { background: var(--tile-hover); color: var(--fg
 .menu-cap { font-size: var(--text-micro); color: var(--fg-muted); padding: 6px 8px 2px; }
 .overlay { position: absolute; inset: 0; background: var(--bg-overlay); }
 .sheet.sheet-wide { width: var(--sheet-wide); }
-/* The command notice stops at an open sheet's left edge, so it never sits on the sheet's content or buttons. */
+/* The command notice stops at an open sheet's or drawer's left edge, so it never sits on their content or buttons.
+   The drawer is 400px wide (.legacy .drawer in legacy.css). */
 .cmd-toast { right: 1rem; }
 body:has(.sheet) .cmd-toast { right: calc(var(--sheet) + 1rem); }
 body:has(.sheet.sheet-wide) .cmd-toast { right: calc(var(--sheet-wide) + 1rem); }
+body:has(.drawer) .cmd-toast { right: calc(400px + 1rem); }
 .sheet { z-index: 50; position: absolute; top: 0; right: 0; bottom: 0; width: var(--sheet); max-width: 100%; background: var(--bg); box-shadow: var(--shadow-floating); display: flex; flex-direction: column; }
 .sheet-head { height: var(--header); flex: none; display: flex; align-items: center; gap: 8px; padding: 0 12px 0 var(--gutter); }
 .sheet-head h2 { font-size: var(--text-title); font-weight: 600; }

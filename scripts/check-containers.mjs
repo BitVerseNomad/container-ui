@@ -431,6 +431,27 @@ async function rowNames(page) {
   await page.close();
 }
 
+// The notice also stops at the Edit machine drawer, so its Save row is never under the notice.
+{
+  const page = await open("/?scenario=running#/containers", { width: 1180, height: 760 });
+  await page.getByRole("button", { name: "New" }).click();
+  await page.getByRole("menuitem", { name: /^Start a Compose project/ }).click();
+  await page.getByRole("dialog", { name: "Start a Compose project" }).getByRole("button", { name: "Start orders-api" }).click();
+  await page.locator(".cmd-toast .cmd-said").waitFor({ timeout: 3000 }).catch(() => {});
+  await page.keyboard.press("Escape");
+  await page.evaluate(() => { location.hash = "#/settings/machines"; });
+  await page.getByRole("button", { name: "More actions for default" }).click();
+  await page.getByRole("menuitem", { name: "Edit" }).click();
+  await page.getByRole("dialog", { name: "Edit profile default" }).waitFor({ timeout: 3000 }).catch(() => {});
+  const clear = await page.evaluate(() => {
+    const toast = document.querySelector(".cmd-toast")?.getBoundingClientRect();
+    const drawer = document.querySelector(".drawer")?.getBoundingClientRect();
+    return !!toast && !!drawer && toast.right <= drawer.left + 1;
+  });
+  check(clear, "running notice: left of the open Edit machine drawer, so its buttons stay clear");
+  await page.close();
+}
+
 // ============ Scenario: design - each row has a name column ============
 {
   const page = await open("/?scenario=design#/containers", { engine: "chromium", width: 1280, height: 800 });

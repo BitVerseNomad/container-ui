@@ -8,9 +8,11 @@ export function Problem(props: {
   title?: string;
   action?: React.ReactNode;
   child?: boolean;
+  // A long reason wraps instead of cutting off with an ellipsis.
+  wrap?: boolean;
   onOpen?: () => void;
 }): React.JSX.Element {
-  const { level, text, title, action, child, onOpen } = props;
+  const { level, text, title, action, child, wrap, onOpen } = props;
 
   function handleClick(event: React.MouseEvent<HTMLDivElement>): void {
     if ((event.target as HTMLElement).closest(".act")) return;
@@ -36,7 +38,7 @@ export function Problem(props: {
       onKeyDown={handleKeyDown}
     >
       {mark}
-      <span className="what truncate min-w-0 flex-1" title={title}>{text}</span>
+      <span className={clsx("what min-w-0 flex-1", wrap ? "break-words" : "truncate")} title={title}>{text}</span>
       <span className="act">{action}</span>
     </div>
   );

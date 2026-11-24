@@ -22,6 +22,9 @@ const sign = drawer.getByRole("button", { name: "Sign in to AWS registry" });
 await sign.waitFor({ timeout: 5000 }).catch(() => {});
 check(await sign.count() === 1, "a failed start offers Sign in to AWS registry");
 check(/needs a sign-in to 123456789012\.dkr\.ecr\.us-west-2\.amazonaws\.com/.test(await drawer.innerText()), "it says which registry needs the sign-in");
+const signLine = await drawer.getByText(/needs a sign-in to/).first().boundingBox({ timeout: 1000 }).catch(() => null);
+const banner = await drawer.getByText(/Docker couldn't start orders-api/).first().boundingBox({ timeout: 1000 }).catch(() => null);
+check(signLine && banner && signLine.y < banner.y, "the sign-in line sits directly above the failure banner");
 
 await sign.click();
 const ask = p.getByRole("alertdialog");

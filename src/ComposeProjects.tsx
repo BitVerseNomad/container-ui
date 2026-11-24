@@ -63,8 +63,10 @@ export async function runCompose(ctx: string, p: Pick<ComposeProject, "dir" | "f
     const text = refused ?? String(e);
     const why = NO_COMPOSE.test(text) ? "docker compose isn't installed, so nothing ran. The Doctor can install it." : refused ? `${text}. Nothing was started.` : whyFailed(text, containers);
     // Compose may have created a network or some services before it failed; Remove containers clears what it left.
-    const left = action === "up" && !refused ? " Part of the project may have been created; Remove containers (under More actions) clears what was left." : "";
-    setRun({ failed: { dir: p.dir, action, text, why: why ? `${why}${left}` : left.trim() || null, holder: portHolder(text, containers), service } });
+    const left = action === "up" && !refused ? "Part of the project may have been created; Remove containers (under More actions) clears what was left." : "";
+    // The banner always names a reason, even when none is known: the raw error waits under Show details.
+    const reason = why ?? `Docker couldn't start ${p.name}.`;
+    setRun({ failed: { dir: p.dir, action, text, why: left ? `${reason} ${left}` : reason, holder: portHolder(text, containers), service } });
   } finally {
     setRun({ busy: null });
   }
@@ -215,16 +217,26 @@ export default function ComposeProjects({ ctx, scan, containers, attention, onCl
                 <Col kind="state"><span className="flex items-center gap-1.5"><Dot state={up ? "ok" : "off"} /><span className="status">{p.total ? `${p.running} of ${p.total} running` : "Not running"}</span></span></Col>
               </Row>
               {sick.length > 0 && <Problem level="warn" text={sick.length === 1 ? "1 needs attention" : `${sick.length} need attention`} />}
+              {failed?.dir === p.dir && !mine && <RegistryLoginFix text={failed.text} />}
               {failed?.dir === p.dir && failed.why && !mine && (
                 <Problem
                   level="bad"
+                  wrap
                   text={failed.why}
                   action={failed.holder ? <Button size="xs" className="primary" disabled={!!busy || fixing} onClick={() => freePortAndStart(p, failed.holder!)}>Stop {failed.holder} and start {p.name}</Button> : undefined}
                 />
               )}
-              {failed?.dir === p.dir && !mine && <RegistryLoginFix text={failed.text} />}
+              {failed?.dir === p.dir && !mine && (
+                <details className="mt-1 px-3 pb-2 text-meta text-fg-muted">
+                  <summary className="cursor-pointer select-none hover:text-fg">Show details</summary>
+                  <div className="mt-2 flex flex-col items-start gap-2">
+                    <pre className="max-h-40 w-full overflow-auto whitespace-pre-wrap break-words rounded-md bg-bg-canvas p-3 font-mono text-meta text-fg">{failed.text}</pre>
+                    <Button size="xs" icon="copy" aria-label={`Copy the error for ${p.name}`} onClick={() => navigator.clipboard.writeText(failed.text)}>Copy</Button>
+                  </div>
+                </details>
+              )}
               {logsHere && <ComposeLogs ctx={ctx} file={`${p.dir}/${p.files[0]}`} project={p.name} />}
-              {(mine || failed?.dir === p.dir) && <OutputLog event="compose-progress" active={mine} failure={failed?.dir === p.dir ? failed.text : null} />}
+              {(mine || failed?.dir === p.dir) && <OutputLog event="compose-progress" active={mine} />}
               {cmdsOpen.has(p.dir) && (
                 <div className="mt-2 flex flex-col gap-1.5" role="group" aria-label={`Commands for ${p.name}`}>
                   {(up ? (["up", "restart", "stop", "down", "build", "pull"] as Action[]) : (["up", "build", "pull"] as Action[])).map((a) => (

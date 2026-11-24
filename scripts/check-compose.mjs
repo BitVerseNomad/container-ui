@@ -83,7 +83,13 @@ check(/1 of 1 running/.test(await drawer.locator(ITEM, { hasText: "orders-api" }
 await drawer.getByRole("button", { name: "Start blog" }).click();
 await p.waitForTimeout(800);
 const blog = await drawer.locator(CARD, { hasText: "~/code/blog" }).innerText();
-check(/port is already allocated/.test(blog), "running: a failed start keeps docker's own error under that project");
+const blogFolder = drawer.locator(CARD, { hasText: "~/code/blog" });
+// Docker's own error is folded under Show details, closed, so it is in the card's text but not its visible text.
+check(/port is already allocated/.test(await blogFolder.textContent()), "running: a failed start keeps docker's own error under that project");
+const blogDetails = blogFolder.locator("details", { hasText: "Show details" });
+check(await blogDetails.evaluateAll((ds) => ds.length === 1 && !ds[0].open), "running: the raw error sits under Show details, closed by default");
+check(!/daemon/i.test(await blogFolder.locator(".subrow").first().innerText()), "running: the banner states the reason without the raw daemon text");
+check(await blogDetails.locator("pre").evaluateAll((es) => es.length === 1 && Number(getComputedStyle(es[0]).fontWeight) <= 400), "running: the raw error is normal weight, not bold red");
 check(/Port 8080 is already used by web \(in shop\)/.test(blog) && /Remove containers \(under More actions\) clears what was left/.test(blog), "running: a failed start says who holds the port and how to clean up");
 check(await menuHas(drawer, "blog", "Remove containers") === 1, "running: after a failed start, the Remove containers the note points to is in the card's menu");
 check(await drawer.getByRole("button", { name: "Stop web and start blog" }).count() === 1, "running: a port clash offers to stop the holder and start again, in one click");
