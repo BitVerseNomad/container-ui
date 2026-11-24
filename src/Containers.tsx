@@ -10,6 +10,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { Profile, docker, dockerJson } from "./api";
 import { usePoll } from "./hooks";
 import VmStrip from "./VmStrip";
+import OutputLog from "./ui/OutputLog";
+import { Icon } from "./ui/icons";
 import { kubeName } from "./lib/compose";
 import { appStoppedVersion, subscribeAppStopped } from "./lib/appStopped";
 import { App, appState, appsFrom, downLine, finished, lastRunOver, listed, runInfo, startWhat, withAppStop } from "./lib/homeRows";
@@ -354,24 +356,31 @@ export default function Containers({ profile, ctx, vm, onVm, reload, setDetailId
   }, [checked, q]);
 
   if (!profile) {
-    const busy = vm.op !== null;
+    const starting = vm.op === "starting";
     return (
       <>
         <Header title="Containers" />
-        <Empty
-          icon="box"
-          title="Start your first VM"
-          actions={
-            <>
-              <Button variant="primary" size="md" disabled={busy} onClick={start}>
-                {busy ? "Starting…" : size ? `Start Colima (${size.cpus} CPUs, ${size.memory} GiB)` : "Start Colima"}
-              </Button>
-              <Button variant="ghost" size="md" onClick={onProfiles}>Customize first</Button>
-            </>
-          }
-        >
-          Colima needs a small Linux VM to run containers. The defaults work for most people.
-        </Empty>
+        {starting ? (
+          <StartingCard name="default" />
+        ) : (
+          <Empty
+            icon="box"
+            title="Start your first machine"
+            actions={
+              <>
+                <div className="flex flex-col items-center gap-2">
+                  <div className="flex flex-wrap justify-center gap-2">
+                    <Button variant="primary" size="md" disabled={vm.op !== null} onClick={start}>Set up and start</Button>
+                    <Button variant="ghost" size="md" onClick={onProfiles}>Choose size first</Button>
+                  </div>
+                  <p className="hint">{size ? `Uses ${size.cpus} CPUs and ${size.memory} GiB of memory. You can change this later.` : "You can change this later."}</p>
+                </div>
+              </>
+            }
+          >
+            Containers run inside a small Linux machine. The defaults work for most people.
+          </Empty>
+        )}
         {vm.failure && <Banner tone="bad">{vm.failure}</Banner>}
       </>
     );
@@ -759,7 +768,9 @@ export default function Containers({ profile, ctx, vm, onVm, reload, setDetailId
   const inspectFix = inspect?.f.fix ? fixAction(inspect.f.fix, ctx ?? undefined, oldConfirm, runs, fixed) : null;
   const inspector = inspect ? inspectorContent(inspect.f, inspect.c.Names, projectOf(inspect.c), inspectFix?.label ?? null, inspect.f.fix?.text ?? null) : null;
 
-  const showStrip = !!vm.op || !!vm.failure;
+  // A start shows its own card (StartingCard) in place of the stopped one, so the strip only covers the other operations and failures.
+  const starting = vm.op === "starting";
+  const showStrip = (!!vm.op && !starting) || !!vm.failure;
   return (
     <>
       <div className="sr-only" role="status" aria-live="polite">{plain(said.status)}</div>
@@ -797,19 +808,20 @@ export default function Containers({ profile, ctx, vm, onVm, reload, setDetailId
       {/* A change that stopped the VM and couldn't start it again (a folder, the proxy): what happened comes first. While
           it shows, the card's Start VM is hidden: it would start the same saved list that just failed. The one filled
           button is "Start with the folders you had". */}
-      {failedChange && <ResizeStatus from={rs.from!} title={`The VM ${profile.name} is stopped`} after={() => setTimeout(() => document.querySelector<HTMLElement>("[data-stopped-primary]")?.focus(), 0)} />}
+      {failedChange && <ResizeStatus from={rs.from!} title={`${profile.name} is stopped`} after={() => setTimeout(() => document.querySelector<HTMLElement>("[data-stopped-primary]")?.focus(), 0)} />}
+      {!running && !failedChange && starting && <StartingCard name={profile.name} />}
       {!running && !vm.op && !vm.failure && !failedChange && (
         <Empty
           icon="box"
-          title={`The VM "${profile.name}" is stopped`}
+          title={`${profile.name} is stopped`}
           actions={
             <>
-              <Button variant={back ? "ghost" : "primary"} size="md" data-stopped-primary={back ? undefined : ""} onClick={start}>Start VM</Button>
+              <Button variant={back ? "ghost" : "primary"} size="md" data-stopped-primary={back ? undefined : ""} onClick={start}>Start</Button>
               {back && env && <Button variant="primary" size="md" data-stopped-primary="" onClick={() => void startWayBack(env)}>{undoLabel(back)}</Button>}
             </>
           }
         >
-          <p className="hint">Your containers, images and volumes are kept inside it.</p>
+          <p className="hint">Your containers and data are kept. Start the machine to see them.</p>
           {back && <p className="hint"><Ticks text={wayBackNote(back)} /></p>}
         </Empty>
       )}
@@ -873,17 +885,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, setDetailId
             </Empty>
           )}
         </>
-      ) : failedChange ? null : (
-        // Engine stopped: header shows only the title (no search, no New). A failed change has its own card above, and its
-        // Start button would start the same saved list that just failed, so this card waits.
-        <Empty
-          icon="box"
-          title={`${profile.name} is stopped`}
-          actions={<Button variant="primary" size="md" onClick={start}>Start {profile.name}</Button>}
-        >
-          Your containers and data are kept. Start the machine to see them.
-        </Empty>
-      )}
+      ) : null}
 
       <ProblemInspector
         content={inspector}
@@ -909,6 +911,25 @@ export default function Containers({ profile, ctx, vm, onVm, reload, setDetailId
       {picking && ctx && <RunPicker ctx={ctx} onClose={() => setPicking(false)} onPick={(ref) => { setPicking(false); setRunImage(ref); }} />}
       {runImage && ctx && <RunPanel ctx={ctx} arch={profile.arch} image={runImage} onClose={() => setRunImage(null)} onRan={(_id, name) => { setRunImage(null); focusWhenShown(name); toast({ text: `Started ${name}` }); }} />}
     </>
+  );
+}
+
+// The one card while the VM starts, in the place of the stopped card. The command and Colima's output sit under Details.
+function StartingCard({ name }: { name: string }) {
+  return (
+    <Empty
+      icon="box"
+      title="Starting your machine"
+      actions={<Button size="md" onClick={() => void invoke("cancel_vm_op").catch(() => {})}>Cancel</Button>}
+    >
+      <span className="spinner mx-auto mb-3 inline-block size-4 shrink-0 animate-spin rounded-full border-2 border-line border-t-accent" aria-hidden="true" />
+      <p className="hint">The first start downloads about 1 GB and can take a few minutes.</p>
+      <details className="how mt-2 text-left text-meta text-fg-muted">
+        <summary><Icon name="chevron" size={12} />Details</summary>
+        <pre className="cmd">colima start {name}</pre>
+        <OutputLog event="colima-progress" active />
+      </details>
+    </Empty>
   );
 }
 

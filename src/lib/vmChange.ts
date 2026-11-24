@@ -100,4 +100,4 @@ export function stillFailed(c: VmChange, saved: { mounts: { location: string; wr
   return false;
 }
 // The line on the stopped card while the way back is offered: what is still saved, and that a plain start tries it.
-export const wayBackNote = (c: VmChange) => `The last change didn't start. ${c.kind === "mounts" ? `\`${c.what}\` is still saved in the profile` : "The Mac's proxy is still saved in the profile"}, so Start VM tries it again.`;
+export const wayBackNote = (c: VmChange) => `The last change didn't start. ${c.kind === "mounts" ? `\`${c.what}\` is still saved in the profile` : "The Mac's proxy is still saved in the profile"}, so Start tries it again.`;

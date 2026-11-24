@@ -9,9 +9,9 @@ const WAIT = 5000;
   const page = await open("/?scenario=running#/containers", { width: 1280, height: 800 });
   await page.locator(".list .row .name").filter({ hasText: "web" }).waitFor({ state: "attached", timeout: 10000 }).catch(() => {});
   const webRow = await page.locator(".list .row .name").filter({ hasText: "web" }).count() > 0;
-  const onboarding = await page.locator("text=Start your first VM").count() > 0;
+  const onboarding = await page.locator("text=Start your first machine").count() > 0;
   check(webRow, "running: a row named web shows");
-  check(!onboarding, "running: Start your first VM does not show");
+  check(!onboarding, "running: Start your first machine does not show");
   await page.close();
 }
 
@@ -19,8 +19,8 @@ const WAIT = 5000;
 {
   const page = await open("/?scenario=none#/containers", { width: 1280, height: 800 });
   await page.waitForTimeout(300);
-  const onboarding = await page.locator("text=Start your first VM").count() > 0;
-  check(onboarding, "none: Start your first VM shows");
+  const onboarding = await page.locator("text=Start your first machine").count() > 0;
+  check(onboarding, "none: Start your first machine shows");
   await page.close();
 }
 
@@ -29,9 +29,9 @@ const WAIT = 5000;
   const page = await open("/?scenario=stopped#/containers", { width: 1280, height: 800 });
   await page.waitForTimeout(300);
   const title = await page.locator("text=default is stopped").count() > 0;
-  const button = await page.locator("text=Start default").count() > 0;
+  const button = await page.getByRole("button", { name: "Start", exact: true }).count() > 0;
   check(title, "stopped: default is stopped shows");
-  check(button, "stopped: Start default button shows");
+  check(button, "stopped: Start button shows");
   await page.close();
 }
 
@@ -52,9 +52,9 @@ const WAIT = 5000;
   const installBtn = page.getByRole("button", { name: /Install with Homebrew/ });
   if (await installBtn.count() > 0) {
     await installBtn.click();
-    // Wait for the install to finish and the "Start Colima" button to appear.
-    await page.getByRole("button", { name: /^Start Colima/ }).waitFor({ state: "attached", timeout: 15000 }).catch(() => {});
-    await page.getByRole("button", { name: /^Start Colima/ }).click().catch(() => {});
+    // Wait for the install to finish and the "Set up and start" button to appear.
+    await page.getByRole("button", { name: /^Set up and start/ }).waitFor({ state: "attached", timeout: 15000 }).catch(() => {});
+    await page.getByRole("button", { name: /^Set up and start/ }).click().catch(() => {});
     // Wait up to 5 s for the default machine to show.
     await page.locator("text=Colima · default").waitFor({ state: "attached", timeout: WAIT }).then(() => true).catch(() => false);
   }

@@ -334,7 +334,7 @@ describe("Containers", () => {
       <Containers profile={profile} ctx={null} live={{}} history={{}} vm={{ op: null, failure: null }} onVm={() => {}} reload={() => {}} detailId={null} setDetailId={() => {}} onPull={() => {}} onProfiles={() => {}} compose={scan} onImages={() => {}} report={null} onReport={() => {}} inspected={undefined} />
     ));
     expect(screen.getByText("default is stopped")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Start default" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Start" })).toBeInTheDocument();
     expect(screen.queryByRole("textbox", { name: "Search containers" })).not.toBeInTheDocument();
   });
 

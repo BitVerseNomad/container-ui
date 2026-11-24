@@ -102,7 +102,7 @@ const browser = await engine.launch();
   const names = await page.locator(".resize-status button").evaluateAll((bs) => bs.map((x) => x.getAttribute("aria-label") ?? x.textContent));
   check(names.some((n) => /^Try again: /.test(n)) && names.some((n) => /^Start with the folders you had: /.test(n)) && names.some((n) => /^Show the log: /.test(n)) && names.includes("Dismiss"), `failed: buttons named with row`);
   check(await page.getByRole("button", { name: /^Start it as it was/ }).count() === 0 && await page.getByRole("button", { name: /^Try \d/ }).count() === 0, "failed: no size buttons");
-  check(await page.locator(".empty").count() === 0 && await page.getByRole("button", { name: "Start VM" }).count() === 0, "failed: stopped card and Start VM hidden");
+  check(await page.locator(".empty").count() === 0 && await page.getByRole("button", { name: "Start", exact: true }).count() === 0, "failed: stopped card and Start hidden");
   const prim = page.locator(".content button.primary");
   check(await prim.count() === 1 && await prim.innerText() === "Start with the folders you had", "failed: one filled button is Start with the folders you had");
   const lay = await page.evaluate(() => { const t = document.querySelector(".resize-status .resize-result"); const a = document.querySelector(".resize-status .resize-actions"); const tr = t.getBoundingClientRect(); const ar = a.getBoundingClientRect(); const card = document.querySelector(".resize-status").getBoundingClientRect(); const lh = parseFloat(getComputedStyle(t).lineHeight) || 18; return { lines: Math.round(tr.height / lh), below: ar.top >= tr.bottom - 1, wide: tr.width > card.width * 0.8, right: ar.right > card.right - 24 }; });
@@ -125,7 +125,7 @@ const browser = await engine.launch();
   await page.close();
 }
 
-// 5. Dismiss: stopped card says what Start VM will do
+// 5. Dismiss: stopped card says what Start will do
 {
   const page = await browser.newPage({ viewport: { width: 980, height: 700 } });
   page.errors = [];
@@ -137,17 +137,17 @@ const browser = await engine.launch();
   await page.waitForSelector(".resize-result.bad", { timeout: 20000 });
   await page.getByRole("button", { name: "Dismiss" }).click();
   await page.waitForTimeout(300);
-  const startBtn = page.getByRole("button", { name: "Start VM", exact: true });
+  const startBtn = page.getByRole("button", { name: "Start", exact: true });
   const backBtn = page.getByRole("button", { name: "Start with the folders you had", exact: true });
-  check(await startBtn.count() === 1 && await backBtn.count() === 1, "way back: stopped card offers Start VM and way back");
+  check(await startBtn.count() === 1 && await backBtn.count() === 1, "way back: stopped card offers Start and way back");
   const noteText = (await page.locator(".empty .hint").allInnerTexts()).join(" | ");
-  check(noteText.includes("The last change didn't start. ~/code/web is still saved in the profile, so Start VM tries it again."), `way back: card says what Start VM will do`);
-  const sides = await page.evaluate(() => { const bs = [...document.querySelectorAll(".empty button")]; const a = bs.find((b) => b.textContent === "Start VM")?.getBoundingClientRect(); const c = bs.find((b) => b.textContent === "Start with the folders you had")?.getBoundingClientRect(); return a && c ? { startLeft: a.left, backLeft: c.left, backPrimary: bs.find((b) => b.textContent === "Start with the folders you had").classList.contains("primary"), startPrimary: bs.find((b) => b.textContent === "Start VM").classList.contains("primary") } : null; });
-  check(sides && sides.backLeft > sides.startLeft && sides.backPrimary && !sides.startPrimary, `way back: filled way back on right of Start VM`);
+  check(noteText.includes("The last change didn't start. ~/code/web is still saved in the profile, so Start tries it again."), `way back: card says what Start will do`);
+  const sides = await page.evaluate(() => { const bs = [...document.querySelectorAll(".empty button")]; const a = bs.find((b) => b.textContent === "Start")?.getBoundingClientRect(); const c = bs.find((b) => b.textContent === "Start with the folders you had")?.getBoundingClientRect(); return a && c ? { startLeft: a.left, backLeft: c.left, backPrimary: bs.find((b) => b.textContent === "Start with the folders you had").classList.contains("primary"), startPrimary: bs.find((b) => b.textContent === "Start").classList.contains("primary") } : null; });
+  check(sides && sides.backLeft > sides.startLeft && sides.backPrimary && !sides.startPrimary, `way back: filled way back on right of Start`);
   check(await page.evaluate(() => document.activeElement?.textContent) === "Start with the folders you had", "way back: Dismiss moved focus to filled way back");
   await startBtn.click();
   await page.waitForFunction(() => { try { return localStorage.getItem("openpier:wayBack") === null; } catch { return true; } }, null, { timeout: 30000 }).catch(() => {});
-  check(await page.evaluate(() => window.__vmChange === undefined), "way back: plain Start VM ran plain start");
+  check(await page.evaluate(() => window.__vmChange === undefined), "way back: plain Start ran plain start");
   check(await page.evaluate(() => { try { return localStorage.getItem("openpier:wayBack"); } catch { return null; } }) === null, "way back: start that works clears saved way back");
   await page.close();
 }

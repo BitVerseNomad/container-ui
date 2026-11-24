@@ -80,7 +80,7 @@ test("Given the saved list and the one that failed, when compared, then only an 
   assert.equal(stillFailed({ kind: "restart", why: "dns" }, { mounts: [], env: {} }, home), false);
 });
 
-test("Given the way back is offered, when the card line is written, then it names the saved folder and what Start VM does", () => {
+test("Given the way back is offered, when the card line is written, then it names the saved folder and what Start does", () => {
   const c: VmChange = { kind: "mounts", mounts: [], before: [], what: "~/code/web", makeWritable: false };
-  assert.equal(wayBackNote(c), "The last change didn't start. `~/code/web` is still saved in the profile, so Start VM tries it again.");
+  assert.equal(wayBackNote(c), "The last change didn't start. `~/code/web` is still saved in the profile, so Start tries it again.");
 });
