@@ -71,6 +71,9 @@ const NOUN: Record<string, string> = { Images: "images", Volumes: "volumes", Net
 export default function App() {
   const { route } = useRoute();
   const tab: Tab = tabOfRoute(route);
+  // Settings tabs other than Machines have no page yet (see the Settings branch below).
+  const unbuiltTab = route.page === "settings" && route.tab && route.tab !== "machines" ? route.tab : null;
+  const unbuiltSettings = unbuiltTab !== null;
   const setTab = useCallback((t: Tab) => go(pathOfTab(t)), []);
   const [appError, setAppError] = useState<string | null>(null);
   const [activeRuntimeId, setActiveRuntimeId] = useState<string | null>(null);
@@ -340,11 +343,10 @@ export default function App() {
       ) : (
         <Doctor ctx={ctx} composePaths={compose.paths ?? []} setup={setup} doc={doc} onProfiles={() => setTab("Profiles")} onBring={(only) => openBring(only)} onGo={(page) => setTab(page)} onOpen={(name) => { setDetailId(name); setTab("Containers"); }} />
       )
-    ) : route.page === "settings" && route.tab && route.tab !== "machines" ? (
+    ) : unbuiltSettings ? (
       // Only Machines exists under Settings. Other Settings tabs say so, instead of showing Machines under their name.
       <>
-        <Header title="Settings" />
-        <Empty title={`${route.tab.charAt(0).toUpperCase()}${route.tab.slice(1)} is not here yet`} action={<Button variant="primary" onClick={() => go("#/settings/machines")}>Open Machines</Button>}>
+        <Empty title={`${unbuiltTab!.charAt(0).toUpperCase()}${unbuiltTab!.slice(1)} is not here yet`} action={<Button variant="primary" onClick={() => go("#/settings/machines")}>Open Machines</Button>}>
           Machines is the only Settings page for now.
         </Empty>
       </>
@@ -501,7 +503,7 @@ export default function App() {
             <Banner error={appError} onClose={() => setAppError(null)} />
             <MachineUsageProvider value={usage}>
               {tab !== "Containers" ? (
-                <Header title={tab === "Profiles" ? "Machines" : tab} />
+                <Header title={unbuiltSettings ? "Settings" : tab === "Profiles" ? "Machines" : tab} />
               ) : null}
               {/* Screens not yet on the op components keep their v0.2.1 look (src/ui/legacy.css). */}
               <div className={tab === "Containers" && ctx ? undefined : "legacy"}>{page}</div>

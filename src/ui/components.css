@@ -193,7 +193,7 @@ button.chip:hover, a.chip:hover { background: var(--tile-hover); color: var(--fg
 .sheet-body .group-cap, .settings .group-cap { padding-left: 0; }
 .sheet-body .lede { color: var(--fg-muted); margin: 0 0 4px; }
 .settings .nav { margin-top: 0; }
-.sidebar-foot .btn[aria-current="page"] { background: var(--tile-active); color: var(--fg); }
+.sidebar-foot [aria-current="page"] { color: var(--accent) !important; }
 .app.folded .nav-item > span, .app.folded .engine .grow, .app.folded .engine .chev, .app.folded .caption { display: none; }
 .app.folded .nav-item, .app.folded .engine { justify-content: center; padding: 0; }
 .app.folded .sidebar-foot { flex-direction: column; }
