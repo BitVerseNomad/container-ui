@@ -84,13 +84,13 @@ for (const [width, height] of [[1180, 760]]) {
   await page.waitForTimeout(200);
   check(page.url() === beforeHash, `[${width}x${height}] Cmd+1 does nothing`);
 
-  // 9. Cmd+D -> #/doctor; Cmd+, -> #/settings/general.
+  // 9. Cmd+D -> #/doctor; Cmd+, -> #/settings/machines.
   await pressKey(page, "d", { meta: true });
   await page.waitForTimeout(200);
   check(page.url().includes("#/doctor"), `[${width}x${height}] Cmd+D -> #/doctor`);
   await pressKey(page, ",", { meta: true });
   await page.waitForTimeout(200);
-  check(page.url().includes("#/settings/general"), `[${width}x${height}] Cmd+, -> #/settings/general`);
+  check(page.url().includes("#/settings/machines"), `[${width}x${height}] Cmd+, -> #/settings/machines`);
 
   // 10. Cmd+E opens engine menu; Escape closes it.
   await pressKey(page, "e", { meta: true });
@@ -117,7 +117,7 @@ for (const [width, height] of [[1180, 760]]) {
   await page.waitForTimeout(300);
   await page.goForward();
   await page.waitForTimeout(300);
-  check(page.url().includes("#/settings/general"), `[${width}x${height}] Cmd+[ then Cmd+] moves history`);
+  check(page.url().includes("#/settings/machines"), `[${width}x${height}] Cmd+[ then Cmd+] moves history`);
 
   // 13. Cmd+R dispatches refresh, page does not reload.
   await page.evaluate(() => { window.__marker = true; });

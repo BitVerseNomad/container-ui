@@ -81,6 +81,7 @@
   --spacing-12: var(--spacing-12);
   --spacing-header: var(--header);
   --spacing-sheet: var(--sheet);
+  --spacing-sheet-wide: var(--sheet-wide);
   --spacing-dialog: var(--dialog);
   --spacing-palette: var(--palette);
   --spacing-gutter: var(--gutter);

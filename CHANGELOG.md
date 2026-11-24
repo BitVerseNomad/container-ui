@@ -2,18 +2,6 @@
 
 Newest first. Older entries record what was true when they were written; later entries supersede them (the Overview, for example, was replaced by the Containers home screen).
 
-## Unreleased
-
-1. **The output window stays small.** While a machine starts or stops, its output is at most about 14 rows tall and scrolls by itself, so the list below stays on screen. When the run ends without an error, the output folds to Show output (N lines).
-2. **Buttons look like buttons.** Copy raw output, Clear, Cancel, Start, Stop VM and Restart are push buttons, and icons sit on the same line as their words.
-3. **Dark mode follows your Mac.** When macOS is in dark mode, OpenPier is dark too, and switches while it runs.
-4. **Easier to read.** Hints, placeholders and timestamps are darker in light mode and lighter in dark mode.
-5. **Menus always fit.** A menu that is taller than the window scrolls instead of cutting off its top.
-6. **The Containers search box shows its whole placeholder.** The usage meters hide on narrow windows (under 1240 px) so New stays on screen.
-7. **The command notice shows the whole command.** The sentence wraps instead of cutting off, the command sits in a mono pill that wraps, and the notice stops at an open sheet's edge instead of hiding under it.
-8. **One colour per state.** A running machine's dot is the same green in the Machines table and the sidebar. Starting shows the blue accent with a solid dot, and stopped stays grey.
-9. **A failed Compose start reads calmly.** One line gives the reason and the next step. Docker's raw error is under Show details, closed, with a copy button.
-
 ## 0.3.0
 
 1. The app is now called OpenPier. Your saved settings are kept.
@@ -29,7 +17,16 @@ Newest first. Older entries record what was true when they were written; later e
 11. **A stopped Colima no longer crashes the app.** The Machines list loads a machine that is not running, and New machine opens centred.
 12. **First start is one card.** A stopped engine shows one card with a single Start button and a plain way to choose the size first. While it starts, one card shows the command and its output.
 13. **Buttons and messages look finished.** Primary buttons are solid, Delete is red, and the command notice has proper spacing.
-14. **For contributors:** `npm run preview` runs the screens in a browser with simulated data. No Mac app or Rust is needed.
+14. **The output window stays small.** While a machine starts or stops, its output is at most about 14 rows tall and scrolls by itself, so the list below stays on screen. When the run ends without an error, the output folds to Show output (N lines).
+15. **Buttons look like buttons.** Copy raw output, Clear, Cancel, Start, Stop VM and Restart are push buttons, and icons sit on the same line as their words.
+16. **Dark mode follows your Mac.** When macOS is in dark mode, OpenPier is dark too, and switches while it runs.
+17. **Easier to read.** Hints, placeholders and timestamps are darker in light mode and lighter in dark mode.
+18. **Menus always fit.** A menu that is taller than the window scrolls instead of cutting off its top.
+19. **The Containers search box shows its whole placeholder.** The usage meters hide on narrow windows (under 1240 px) so New stays on screen.
+20. **The command notice shows the whole command.** The sentence wraps instead of cutting off, the command sits in a mono pill that wraps, and the notice stops at an open sheet's edge instead of hiding under it.
+21. **One colour per state.** A running machine's dot is the same green in the Machines table and the sidebar. Starting shows the blue accent with a solid dot, and stopped stays grey.
+22. **A failed Compose start reads calmly.** One line gives the reason and the next step. Docker's raw error is under Show details, closed, with a copy button.
+23. **For contributors:** `npm run preview` runs the screens in a browser with simulated data. No Mac app or Rust is needed.
 
 ## Design system rollout: all tabs migrated to @ui/components
 

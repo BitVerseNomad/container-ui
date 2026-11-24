@@ -132,8 +132,8 @@ export default function ConnectionTest({ ctx, from: initialFrom, onClose = () =>
           {findings.map((f) => {
             const connectFix = f.fix?.kind === "connect" && f.fix.containers.length > 0 ? f.fix : null;
             return (
-            <li key={f.id + f.title} className="grid grid-cols-[16px_minmax(0,1fr)] items-start gap-2 border-b border-line py-2">
-              <Icon name={ICON[f.status]} size="sm" className={TONE[f.status]} />
+            <li key={f.id + f.title} className="flex items-start gap-2 border-b border-line py-2">
+              <Icon name={ICON[f.status]} size="sm" className={`shrink-0 ${TONE[f.status]}`} />
               <div className="flex min-w-0 max-w-prose flex-col items-start gap-1">
                 <b className="break-words text-body font-semibold">{f.title}</b>
                 <div className="hint break-words">{f.detail}</div>
