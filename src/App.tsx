@@ -298,7 +298,12 @@ export default function App() {
         />
       ) : (
         env && toolsMissing ? (
-          <InstallCard env={env} onDone={recheck} />
+          <>
+            <Header title="Containers" />
+            <div className="flex justify-center py-16">
+              <InstallCard env={env} onDone={recheck} />
+            </div>
+          </>
         ) : (
           <Containers
             key={ctx ?? "none"}
