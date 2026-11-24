@@ -353,11 +353,11 @@ export default function App() {
         </Empty>
       ) : current ? (
         <Empty title={`${current.name} is stopped`} action={<button className="primary" disabled={vm.op !== null} onClick={startFromAnywhere}>{`Start ${current.name}`}</button>}>
-          Start the VM to see its {NOUN[tab] ?? "contents"}.
+          Start the machine to see its {NOUN[tab] ?? "contents"}.
         </Empty>
       ) : (
-        <Empty title="No VM yet" action={<button className="primary" onClick={() => setTab("Containers")}>Create your first VM</button>}>
-          OpenPier creates a small Linux VM for you.
+        <Empty title="No machine yet" action={<button className="primary" onClick={() => setTab("Containers")}>Create your first machine</button>}>
+          OpenPier creates a small Linux machine for you.
         </Empty>
       )
     ) : tab === "Images" ? (

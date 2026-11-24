@@ -83,7 +83,7 @@ async function rowNames(page) {
   const page = await open("/?scenario=stopped#/containers", { engine: "chromium", width: 1280, height: 800 });
   await page.waitForTimeout(1000);
   check(await page.getByText("default is stopped").count() > 0, "chromium stopped: default is stopped");
-  check(await page.getByRole("button", { name: "Start default" }).count() > 0, "chromium stopped: Start default");
+  check(await page.getByRole("button", { name: "Start" }).count() > 0, "chromium stopped: Start");
   check(await page.getByRole("button", { name: "New", exact: true }).count() === 0, "chromium stopped: no New");
   check(await page.getByRole("textbox", { name: "Search containers" }).count() === 0, "chromium stopped: no search");
   await page.close();
