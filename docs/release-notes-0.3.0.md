@@ -13,6 +13,11 @@ OpenPier is a Mac app for running containers without Docker Desktop. It works wi
 7. **Keyboard shortcuts in one place.** The shortcut list, the Help screen and the command palette all use the same list.
 8. **New window layout.** The sidebar shows usage meters, and Doctor stays in view.
 9. **One design system.** Every colour, size and shadow comes from one set of design tokens.
+10. **A stopped Colima no longer crashes the app.** Machines loads a machine that is not running, and New machine opens centred.
+11. **Turn Kubernetes on and off** from the Machines page.
+12. **Sign in to Amazon ECR from the app.** When an image needs a login, OpenPier asks first, then runs the sign-in for you.
+13. **Easier to read.** Dark mode follows your Mac, text contrast is higher, and names are no longer cut off in lists.
+14. **Calmer output.** The command output window stays small, failed starts show one short reason with the full error under Show details, and buttons look like buttons.
 
 ## Install
 
