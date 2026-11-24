@@ -113,7 +113,7 @@ export default function Kubernetes({ profile, ctx }: { profile: Profile; ctx: st
       <div className="flex flex-wrap items-center gap-3 text-meta">
         <div className="flex items-center gap-1.5 text-meta text-fg-muted">
           <span>Namespace</span>
-          <Select aria-label="Namespace" value={ns} onChange={setNs} options={[{ value: "", label: "All namespaces" }, ...(spaces.data ?? []).map((n) => ({ value: n, label: n }))]} />
+          <Select aria-label="Namespace" value={ns || "all"} onChange={(v) => setNs(v === "all" ? "" : v)} options={[{ value: "all", label: "All namespaces" }, ...(spaces.data ?? []).map((n) => ({ value: n, label: n }))]} />
         </div>
         <span className="flex items-center gap-2">
           {env.k9s ? (
