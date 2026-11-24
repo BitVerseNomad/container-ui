@@ -2,6 +2,7 @@ import { openUrl } from "./api";
 import { useState } from "react";
 import { score } from "./lib/fuzzy";
 import { Icon } from "./ui/icons";
+import { Button as OpButton } from "./ui/op/Button";
 import { docker, dockerJson } from "./api";
 import { usePoll } from "./hooks";
 import { NetInfo, parseNetworks } from "./lib/network";
@@ -97,7 +98,7 @@ export default function Networks({ ctx }: { ctx: string }) {
                     )}
                   </td>
                   <td className="whitespace-nowrap text-right">
-                    {!builtin && <Button variant="destructive" size="sm" icon={<Icon name="trash" size={13} />} aria-label={n.members.length ? `Remove network ${n.name} (still has containers)` : `Remove network ${n.name}`} disabled={n.members.length > 0} onClick={async () => (await confirm(`Remove network ${n.name}?`)) && act(["network", "rm", n.name])}>Remove</Button>}
+                    {!builtin && <OpButton variant="danger-quiet" size="sm" icon="trash" aria-label={n.members.length ? `Remove network ${n.name} (still has containers)` : `Remove network ${n.name}`} disabled={n.members.length > 0} onClick={async () => (await confirm(`Remove network ${n.name}?`)) && act(["network", "rm", n.name])}>Remove</OpButton>}
                   </td>
                 </tr>
               );

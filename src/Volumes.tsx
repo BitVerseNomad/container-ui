@@ -13,6 +13,7 @@ const WAIT = "Waits for what is changing Docker now.";
 import { parseVolumeSizes } from "./lib/events";
 import { formatBytes } from "./containerInfo";
 import { Icon } from "./ui/icons";
+import { Button as OpButton } from "./ui/op/Button";
 
 type V = { Name: string; Driver: string };
 
@@ -167,7 +168,7 @@ export default function Volumes({ ctx }: { ctx: string }) {
                   </td>
                   <td className="font-mono">{sizes.data?.has(v.Name) ? formatBytes(sizes.data.get(v.Name)!) : "—"}</td>
                   <td className="flex items-center justify-end gap-1">
-                    <Button variant="destructive" size="sm" icon={<Icon name="trash" size={13} />} aria-label={locked ? `${removeLabel}. ${WAIT}` : removeLabel} disabled={by.length > 0 || locked} loading={locked} onClick={async () => (await confirm(`Remove volume ${v.Name}? Its data is lost.`)) && act(["volume", "rm", v.Name])}>Remove</Button>
+                    <OpButton variant="danger-quiet" size="sm" icon="trash" aria-label={locked ? `${removeLabel}. ${WAIT}` : removeLabel} disabled={by.length > 0 || locked} busy={locked} onClick={async () => (await confirm(`Remove volume ${v.Name}? Its data is lost.`)) && act(["volume", "rm", v.Name])}>Remove</OpButton>
                   </td>
                 </tr>
               );

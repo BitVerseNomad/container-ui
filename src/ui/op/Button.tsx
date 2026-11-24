@@ -4,7 +4,7 @@ import { cn } from "../utils";
 import { Icon, type IconName } from "./Icon";
 
 export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: "default" | "primary" | "danger" | "ghost";
+  variant?: "default" | "primary" | "danger" | "danger-quiet" | "ghost";
   size?: "xs" | "sm" | "md";
   icon?: IconName;
   iconOnly?: boolean;
@@ -17,6 +17,7 @@ const variants = {
     default: "bg-bg-raised text-fg !text-fg shadow-btn",
     primary: "primary bg-accent text-on-accent !text-on-accent shadow-control",
     danger: "bg-bad-fill text-bad !text-bad shadow-danger",
+    "danger-quiet": "text-bad !text-bad hover:bg-bad-fill",
     ghost: "text-fg-muted !text-fg-muted hover:bg-tile-hover",
   },
   size: {

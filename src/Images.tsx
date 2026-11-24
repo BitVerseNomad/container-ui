@@ -73,7 +73,7 @@ export default function Images({ ctx, onRan, startPull = false, arch }: { ctx: s
                   <td>{i.CreatedSince}</td>
                   <td className="whitespace-nowrap text-right">
                     <Button variant="ghost" size="sm" icon={<Icon name="play" size={13} />} aria-label={`Run ${ref}`} onClick={() => setRunning(ref)}>Run</Button>
-                    <Button variant="destructive" size="sm" icon={<Icon name="trash" size={13} />} aria-label={`Remove ${ref}`} onClick={async () => (await confirm(`Remove image ${ref}?`)) && act(["rmi", ref])}>Remove</Button>
+                    <OpButton variant="danger-quiet" size="sm" icon="trash" aria-label={`Remove ${ref}`} onClick={async () => (await confirm(`Remove image ${ref}?`)) && act(["rmi", ref])}>Remove</OpButton>
                   </td>
                 </tr>
               );

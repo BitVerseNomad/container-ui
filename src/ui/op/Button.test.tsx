@@ -45,3 +45,10 @@ it("given a ref, when rendered, then it points at the button", () => {
   render(<Button ref={ref}>Start</Button>);
   expect(ref.current).toBe(screen.getByRole("button", { name: "Start" }));
 });
+
+it("given variant danger-quiet, when rendered, then it has red text and no solid red fill", () => {
+  render(<Button variant="danger-quiet">Remove</Button>);
+  const button = screen.getByRole("button", { name: "Remove" });
+  expect(button).toHaveClass("text-bad", "!text-bad");
+  expect(button).not.toHaveClass("bg-bad-solid", "bg-bad-fill", "shadow-danger");
+});
