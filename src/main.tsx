@@ -4,9 +4,11 @@ import App from "./App";
 import { ConfirmProvider } from "./ui";
 import { ToastProvider, TooltipProvider } from "./ui/op";
 import { migrateStorage } from "./lib/migrateStorage";
+import { followSystemTheme } from "./lib/theme";
 import "./ui/tailwind.css";
 
 migrateStorage(window.localStorage);
+followSystemTheme(document.documentElement, (query) => window.matchMedia(query));
 const root = ReactDOM.createRoot(document.getElementById("root")!);
 if (import.meta.env.DEV && window.location.hash === "#/dev/gallery") {
   void import("./dev/Gallery").then(({ default: Gallery }) => root.render(<Gallery />));
