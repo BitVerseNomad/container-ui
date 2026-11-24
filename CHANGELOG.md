@@ -2,6 +2,11 @@
 
 Newest first. Older entries record what was true when they were written; later entries supersede them (the Overview, for example, was replaced by the Containers home screen).
 
+## Unreleased
+
+1. **The output window stays small.** While a machine starts or stops, its output is at most about 14 rows tall and scrolls by itself, so the list below stays on screen. When the run ends without an error, the output folds to Show output (N lines).
+2. **Buttons look like buttons.** Copy raw output, Clear, Cancel, Start, Stop VM and Restart are push buttons, and icons sit on the same line as their words.
+
 ## 0.3.0
 
 1. The app is now called OpenPier. Your saved settings are kept.

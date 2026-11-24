@@ -6,7 +6,8 @@ import { formatBytes } from "./containerInfo";
 import { fraction } from "./lib/usage";
 import OutputLog from "./ui/OutputLog";
 import { explainStartFailure } from "./lib/startFailure";
-import { Icon } from "./ui/icons";
+import { Button } from "./ui/op/Button";
+import { Icon } from "./ui/op/Icon";
 
 export type Totals = { cores: number; memBytes: number; diskBytes: number } | null;
 type Props = {
@@ -60,8 +61,8 @@ export default function VmStrip({ profile, totals, op, failure, failedOp, onStar
   const state = op === "starting" ? "Starting…" : op === "restarting" ? "Restarting…" : op === "stopping" ? "Stopping…" : failure && !stopFailed ? "Failed" : profile.status;
   const dot = stopFailed ? "warn" : running && !failure ? "on" : failure ? "bad" : "";
   return (
-    <div className="vm-strip-wrap">
-      <div className="vm-strip">
+    <div className="vm-strip-wrap flex flex-col gap-1.5">
+      <div className="vm-strip flex min-h-8 flex-wrap items-center gap-2.5">
         {op ? <span className="mark" aria-hidden="true"><span className="spin" /></span> : <span className={`sdot ${dot}`} aria-hidden="true" />}
         <span className="hint whitespace-nowrap">{state}</span>
         {busy && line && <span className="hint vm-line">{line}</span>}
@@ -74,28 +75,28 @@ export default function VmStrip({ profile, totals, op, failure, failedOp, onStar
         )}
         <span className="inline-flex items-center gap-2">
           {busy && line ? null : busy ? (
-            <button onClick={() => invoke("cancel_vm_op").catch(() => {})}>Cancel</button>
+            <Button size="sm" onClick={() => invoke("cancel_vm_op").catch(() => {})}>Cancel</Button>
           ) : running && !failure ? (
             <>
-              <button className="rounded-sm px-2 py-1 text-meta text-fg-muted hover:bg-tile-hover hover:text-fg" aria-label={`Restart the ${profile.name} VM`} title={fixing ? "Wait for the fix to finish" : `Restart the ${profile.name} VM`} disabled={busy || fixing} onClick={onRestart}>Restart</button>
-              <button className="rounded-sm px-2 py-1 text-meta text-fg-muted hover:bg-tile-hover hover:text-fg" aria-label={`Stop the ${profile.name} VM`} title={fixing ? "Wait for the fix to finish" : `Stop the ${profile.name} VM`} disabled={busy || fixing} onClick={onStop}>Stop VM</button>
+              <Button size="sm" aria-label={`Restart the ${profile.name} VM`} title={fixing ? "Wait for the fix to finish" : `Restart the ${profile.name} VM`} disabled={busy || fixing} onClick={onRestart}>Restart</Button>
+              <Button size="sm" aria-label={`Stop the ${profile.name} VM`} title={fixing ? "Wait for the fix to finish" : `Stop the ${profile.name} VM`} disabled={busy || fixing} onClick={onStop}>Stop VM</Button>
             </>
           ) : failure || startInCard ? null : (
-            <button className="primary" disabled={busy} onClick={onStart}>Start</button>
+            <Button variant="primary" size="sm" disabled={busy} onClick={onStart}>Start</Button>
           )}
         </span>
       </div>
       {!busy && note}
       {why && !busy && (
         <div className="problem-line text-bad">
-          <b><Icon name="alert" size={14} /> {why.title}</b>
+          <b><Icon name="alert" size="sm" /> {why.title}</b>
           <span className="hint">{why.detail}</span>
           {why.line && <pre className="cmd">{why.line}</pre>}
           <span className="actions-inline">
-            {why.fix === "force_restart" && <button className="primary" onClick={onForce}>Force stop, then start</button>}
-            {why.fix === "force_stop" && <button className="primary" onClick={onForceStop}>Force stop</button>}
-            <button className={why.fix === "retry" ? "primary" : ""} onClick={onRetry}>{stopFailed ? "Try stopping again" : "Try starting again"}</button>
-            <button onClick={() => navigator.clipboard.writeText(`colima ${stopFailed ? "stop" : "start"} failed (profile ${profile.name}, ${profile.arch})\n\n--- colima output\n${failure}\n\n--- VM log (last lines)\n${log || "(empty)"}`)}><Icon name="copy" size={14} /> Copy details</button>
+            {why.fix === "force_restart" && <Button variant="primary" size="sm" onClick={onForce}>Force stop, then start</Button>}
+            {why.fix === "force_stop" && <Button variant="primary" size="sm" onClick={onForceStop}>Force stop</Button>}
+            <Button variant={why.fix === "retry" ? "primary" : "default"} size="sm" onClick={onRetry}>{stopFailed ? "Try stopping again" : "Try starting again"}</Button>
+            <Button size="sm" icon="copy" onClick={() => navigator.clipboard.writeText(`colima ${stopFailed ? "stop" : "start"} failed (profile ${profile.name}, ${profile.arch})\n\n--- colima output\n${failure}\n\n--- VM log (last lines)\n${log || "(empty)"}`)}>Copy details</Button>
           </span>
         </div>
       )}
