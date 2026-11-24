@@ -2,6 +2,7 @@
 // session in one list. Now and then the toast hides the command and asks you to recall it first.
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { Icon } from "./ui/icons";
+import { Button } from "./ui/op/Button";
 import { activity } from "./lib/activity";
 import type { Entry } from "./lib/activity";
 
@@ -19,12 +20,13 @@ export const said = (e: Entry) => {
   return e.ok ? `${PAST[e.kind] ?? "Done:"} ${e.what}` : `${e.what}…`;
 };
 
+// Fixed at the bottom, centred, with room between its parts. The width is the text's, capped at max-w-xl.
+const toastShell = "cmd-toast fixed inset-x-4 bottom-4 z-50 mx-auto flex w-fit max-w-xl items-center gap-3 rounded-md border border-line bg-bg-raised py-2 pl-3 pr-2 text-meta text-fg shadow-floating";
+
 function Copy({ text, label }: { text: string; label: string }) {
   const [done, setDone] = useState(false);
   return (
-    <button className="icon-btn" aria-label={label} title={done ? "Copied" : "Copy"} onClick={() => navigator.clipboard.writeText(text).then(() => { setDone(true); setTimeout(() => setDone(false), 1200); }, () => {})}>
-      <Icon name={done ? "check" : "copy"} size={13} />
-    </button>
+    <Button variant="ghost" size="xs" iconOnly icon={done ? "check" : "copy"} aria-label={label} title={done ? "Copied" : "Copy"} onClick={() => navigator.clipboard.writeText(text).then(() => { setDone(true); setTimeout(() => setDone(false), 1200); }, () => {})} />
   );
 }
 
@@ -42,27 +44,27 @@ export function CommandToast({ onOpenLog }: { onOpenLog: () => void }) {
   const close = () => setGone(last.id);
   if (last.recall)
     return (
-      <div className="cmd-toast" role="status">
+      <div className={toastShell} role="status">
         <Icon name="info" size={14} />
-        <span>
+        <span className="min-w-0">
           <b>Quick one:</b> you just asked to {what(last.kind)} {last.what ?? "it"}. What would you type to do that yourself?
         </span>
-        <span className="actions-inline">
-          <button onClick={() => activity.reveal(last.id)}>Show me</button>
-          <button className="small" onClick={() => { activity.setTips(false); close(); }}>Don't ask again</button>
-          <button className="icon-btn" aria-label="Close" title="Close" onClick={close}><Icon name="close" size={13} /></button>
+        <span className="flex shrink-0 items-center gap-1">
+          <Button variant="primary" size="xs" onClick={() => activity.reveal(last.id)}>Show me</Button>
+          <Button variant="ghost" size="xs" onClick={() => { activity.setTips(false); close(); }}>Don't ask again</Button>
+          <Button variant="ghost" size="xs" iconOnly icon="close" aria-label="Close" title="Close" onClick={close} />
         </span>
       </div>
     );
   return (
-    <div className={`cmd-toast${last.ok === false ? " bad" : ""}`} role="status">
+    <div className={`${toastShell}${last.ok === false ? " border-bad" : ""}`} role="status">
       <Icon name={last.ok === false ? "close" : last.ok ? "check" : "terminal"} size={14} />
-      {said(last) && <span className="text-meta text-fg-muted">{said(last)}</span>}
-      <code className="font-mono" title={last.cmd}>{last.cmd}</code>
-      <span className="actions-inline">
+      {said(last) && <span className="min-w-0 truncate text-fg-muted">{said(last)}</span>}
+      <code className="min-w-0 truncate font-mono" title={last.cmd}>{last.cmd}</code>
+      <span className="flex shrink-0 items-center gap-1">
         <Copy text={last.cmd} label="Copy the command" />
-        <button className="text-accent-ink hover:underline" onClick={onOpenLog}>All commands</button>
-        <button className="icon-btn" aria-label="Close" title="Close" onClick={close}><Icon name="close" size={13} /></button>
+        <Button variant="ghost" size="xs" onClick={onOpenLog}>All commands</Button>
+        <Button variant="ghost" size="xs" iconOnly icon="close" aria-label="Close" title="Close" onClick={close} />
       </span>
     </div>
   );

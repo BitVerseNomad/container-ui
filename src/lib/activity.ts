@@ -32,7 +32,7 @@ export const colimaLine = (cmd: string, args: Record<string, unknown>): string |
 // Logs a VM button's command when it has one; otherwise just runs it.
 export const ranVm = <T,>(cmd: string, args: Record<string, unknown>, work: () => Promise<T>, quiet = false) => {
   const line = colimaLine(cmd, args);
-  return line ? activity.ran(cmd.replace(/_profile$/, ""), line, work, `the ${String(args.name ?? (args.opts as Opts | undefined)?.name)} VM`, quiet) : work();
+  return line ? activity.ran(cmd.replace(/_profile$/, ""), line, work, `the ${String(args.name ?? (args.opts as Opts | undefined)?.name)} VM`, quiet || cmd === "start_profile") : work();
 };
 const KEEP = 100;
 

@@ -6,7 +6,7 @@
 .legacy button:not([data-op]):hover:not(:disabled) { border-color: var(--fg-muted); }
 .legacy button:not([data-op]):disabled { opacity: .5; cursor: default; }
 .legacy button:not([data-op]):focus-visible, .legacy input:focus-visible, .legacy select:focus-visible { outline: 2px solid var(--accent-fill); outline-offset: 2px; }
-.legacy .primary:not([data-op]) { background: var(--accent-fill); color: var(--on-accent); border-color: var(--accent-fill); }
+.legacy .primary:not([data-op]) { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
 .legacy .danger:not([data-op]) { color: var(--bad); }
 .legacy .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; }
 .legacy section:not(.detail) > header { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin: 0 0 8px; }
@@ -101,7 +101,7 @@
 .legacy .modal p { margin: 0 0 16px; line-height: 1.45; }
 .legacy .modal .actions { display: flex; gap: 8px; justify-content: flex-end; }
 .legacy .scrim-top { z-index: 20; }
-.legacy .danger-fill { background: var(--bad); border-color: var(--bad); color: #fff; }
+.legacy button:not([data-op]).danger-fill { background: var(--bad-solid); border-color: var(--bad-solid); color: var(--on-bad-solid); }
 .legacy .out { margin-bottom: 18px; }
 .legacy .out .pull-log { max-height: 200px; }
 .legacy .err { color: var(--bad); }
