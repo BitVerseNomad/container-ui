@@ -54,7 +54,7 @@ export default function Drawer({ label, title, onClose, closeDisabled = false, c
 
   return (
     <>
-      <div className="fixed inset-0 z-40 bg-bg-overlay" onClick={() => !closeDisabled && onClose()} />
+      <div className="fixed inset-0 z-10 bg-bg-overlay" onClick={() => !closeDisabled && onClose()} />
       <div ref={ref} className="drawer" role="dialog" aria-modal="true" aria-label={label} onKeyDown={onKeyDown}>
         <div className="drawer-head">
           <h3>{title}</h3>
