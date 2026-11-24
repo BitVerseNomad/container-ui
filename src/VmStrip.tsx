@@ -96,7 +96,7 @@ export default function VmStrip({ profile, totals, op, failure, failedOp, onStar
             {why.fix === "force_restart" && <Button variant="primary" size="sm" onClick={onForce}>Force stop, then start</Button>}
             {why.fix === "force_stop" && <Button variant="primary" size="sm" onClick={onForceStop}>Force stop</Button>}
             <Button variant={why.fix === "retry" ? "primary" : "default"} size="sm" onClick={onRetry}>{stopFailed ? "Try stopping again" : "Try starting again"}</Button>
-            <Button size="sm" icon="copy" onClick={() => navigator.clipboard.writeText(`colima ${stopFailed ? "stop" : "start"} failed (profile ${profile.name}, ${profile.arch})\n\n--- colima output\n${failure}\n\n--- VM log (last lines)\n${log || "(empty)"}`)}>Copy details</Button>
+            <Button size="sm" icon="copy" onClick={() => navigator.clipboard.writeText(`colima ${stopFailed ? "stop" : "start"} failed (machine ${profile.name}, ${profile.arch})\n\n--- colima output\n${failure}\n\n--- VM log (last lines)\n${log || "(empty)"}`)}>Copy details</Button>
           </span>
         </div>
       )}

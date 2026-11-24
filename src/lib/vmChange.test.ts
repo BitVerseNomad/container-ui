@@ -44,7 +44,7 @@ test("Given a failed start after a folder change, when the failure is worded, th
   const t = changeFail(share, "exit status 1", "work");
   assert.match(t, /^Colima couldn't start the VM with `\/Volumes\/data` shared\./);
   assert.match(t, /The VM is stopped\./);
-  assert.match(t, /`\/Volumes\/data` stays saved in the profile/);
+  assert.match(t, /`\/Volumes\/data` stays saved in the machine/);
   assert.ok(!/new size/.test(t));
   assert.match(changeFail({ kind: "restart", why: "dns" }, "exit status 1", "work"), /^Colima couldn't restart the VM\. The VM is stopped\.$/);
   assert.match(changeFail(share, "address already in use", "work"), /A port Colima needs is taken/);
@@ -82,5 +82,5 @@ test("Given the saved list and the one that failed, when compared, then only an 
 
 test("Given the way back is offered, when the card line is written, then it names the saved folder and what Start does", () => {
   const c: VmChange = { kind: "mounts", mounts: [], before: [], what: "~/code/web", makeWritable: false };
-  assert.equal(wayBackNote(c), "The last change didn't start. `~/code/web` is still saved in the profile, so Start tries it again.");
+  assert.equal(wayBackNote(c), "The last change didn't start. `~/code/web` is still saved in the machine, so Start tries it again.");
 });

@@ -77,7 +77,7 @@ export function changeFail(c: VmChange, error: string, profile: string): string 
   const cause = e.kind === "unknown" ? "" : e.kind === "memory" ? " The Mac couldn't give the VM memory right now." : ` ${e.title}. ${e.detail}`;
   if (isUndo(c)) return `Colima couldn't start the VM the way it was.${cause} The VM is stopped.`;
   const head = c.kind === "mounts" ? `Colima couldn't start the VM with \`${c.what}\` ${c.makeWritable ? "writable" : "shared"}.` : c.kind === "proxy" ? "Colima couldn't start the VM with the Mac's proxy." : "Colima couldn't restart the VM.";
-  const saved = c.kind === "mounts" ? ` \`${c.what}\` stays saved in the profile, so a plain start tries it again.` : c.kind === "proxy" ? " The proxy stays saved in the profile, so a plain start tries it again." : "";
+  const saved = c.kind === "mounts" ? ` \`${c.what}\` stays saved in the machine, so a plain start tries it again.` : c.kind === "proxy" ? " The proxy stays saved in the machine, so a plain start tries it again." : "";
   return `${head}${cause} The VM is stopped.${saved}`;
 }
 
@@ -100,4 +100,4 @@ export function stillFailed(c: VmChange, saved: { mounts: { location: string; wr
   return false;
 }
 // The line on the stopped card while the way back is offered: what is still saved, and that a plain start tries it.
-export const wayBackNote = (c: VmChange) => `The last change didn't start. ${c.kind === "mounts" ? `\`${c.what}\` is still saved in the profile` : "The Mac's proxy is still saved in the profile"}, so Start tries it again.`;
+export const wayBackNote = (c: VmChange) => `The last change didn't start. ${c.kind === "mounts" ? `\`${c.what}\` is still saved in the machine` : "The Mac's proxy is still saved in the machine"}, so Start tries it again.`;

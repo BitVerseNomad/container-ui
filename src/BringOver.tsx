@@ -470,7 +470,7 @@ export default function BringOver({ ctx, only, forVm, onClose, onDone, onProfile
         )}
         {late && !busy && !chosen.length && <p id={ids.late} className="bring-late"><Icon name="alert" size={14} /><span><Ticks text={late.text} /></span></p>}
         <div className="actions">
-          {roomFirst && <button className="primary" onClick={onProfiles}>Open Profiles</button>}
+          {roomFirst && <button className="primary" onClick={onProfiles}>Open Machines</button>}
           <span id={ids.hint} className="hint mr-auto">{button.off ? "Pick a volume or an image." : ""}</span>
           <button ref={action} className={button.primary ? "primary" : undefined} aria-disabled={button.off || undefined} aria-describedby={button.off ? ids.hint : result && !busy && !result.failed.length ? ids.result : doneWhy} onClick={() => !button.off && button.go()}>{button.label}</button>
         </div>

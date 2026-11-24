@@ -46,15 +46,15 @@ for (const { width, height } of SIZES) {
   await page.close();
 }
 
-// Settings page explains what a machine profile is; Stop streams into .out-log.
+// Settings page explains what a machine is; Stop streams into .out-log.
 for (const { width, height } of SIZES) {
   const page = await open("/?scenario=design#/settings/machines", { width, height });
   check(await page.locator(".content").innerText().then((t) => /separate Colima VM/i.test(t)),
-    `[${width}x${height}] profiles: explains what a profile is`);
+    `[${width}x${height}] machines: explains what a machine is`);
   await page.getByRole("button", { name: /^Stop default/ }).click().catch(() => {});
   await page.waitForSelector(".out-log", { state: "attached", timeout: 5000 });
   check(await page.locator(".out-log").count() === 1,
-    `[${width}x${height}] profiles: streamed output uses OutputLog`);
+    `[${width}x${height}] machines: streamed output uses OutputLog`);
   await page.close();
 }
 

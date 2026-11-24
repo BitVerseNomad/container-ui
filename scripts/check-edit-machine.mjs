@@ -5,7 +5,7 @@ import { open, check, done } from "./lib/check.mjs";
 const page = await open("/?scenario=stopped#/settings/machines");
 await page.getByRole("button", { name: /More actions for/ }).first().click();
 await page.getByRole("menuitem", { name: "Edit" }).click();
-const cpus = page.getByRole("dialog", { name: /Edit profile/ }).locator("#cpus");
+const cpus = page.getByRole("dialog", { name: /Edit machine/ }).locator("#cpus");
 await cpus.waitFor({ timeout: 3000 });
 const clicked = await cpus.click({ timeout: 2000 }).then(() => true, () => false);
 check(clicked, "Edit machine: the CPUs field takes a mouse click (nothing covers the panel)");

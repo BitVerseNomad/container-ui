@@ -64,7 +64,7 @@ test("given a running Docker Desktop container uses a volume, when read, then th
 });
 
 test("given a full disk, when the error is shown, then it says what to do instead of Docker's words", () => {
-  assert.match(plainError("docker: Error response from daemon: no space left on device"), /^Colima's disk is full\. Give the VM a bigger disk in Profiles/);
+  assert.match(plainError("docker: Error response from daemon: no space left on device"), /^Colima's disk is full\. Give the VM a bigger disk in Machines/);
   assert.equal(plainError("first\nsecond"), "first");
 });
 

@@ -373,7 +373,7 @@ const CHECKS: Check[] = [
     run: ({ colima, apps }) => {
       const type = colima!.config.mountType;
       if (!slowMountType(colima!.config) || !binds(apps).length) return [];
-      return [{ id: "mount-slow", key: "mount-slow", area: "Storage", severity: "know", level: "warn", title: `Folders are shared the slow way (${type})`, detail: `A running container uses a Mac folder, and this VM shares folders with ${type}. virtiofs is faster and works with this VM type, but Colima can't change the sharing type of a VM that already exists. A new profile starts with virtiofs; moving there means running your containers again.` }];
+      return [{ id: "mount-slow", key: "mount-slow", area: "Storage", severity: "know", level: "warn", title: `Folders are shared the slow way (${type})`, detail: `A running container uses a Mac folder, and this VM shares folders with ${type}. virtiofs is faster and works with this VM type, but Colima can't change the sharing type of a VM that already exists. A new machine starts with virtiofs; moving there means running your containers again.` }];
     },
   },
   {

@@ -248,7 +248,7 @@ export default function Doctor({ ctx, setup, doc, onProfiles, onBring, onGo, onO
             <VmChangeOr from={`doctor:${f.key}`} change={f.fix.vm} title={f.title} noStatus />
           ) : f.fix?.resize ? (
             <ResizeOr from={`doctor:${f.key}`} title={f.title} need="memory" alsoStart={f.subject ? [f.subject] : []} noStatus noProfiles vmWords
-              fallback={f.subject ? <button className="small" onClick={() => onOpen(f.subject!)}>Open {f.subject}</button> : <button className="small" onClick={() => onGo("Profiles")}>Open Profiles</button>} />
+              fallback={f.subject ? <button className="small" onClick={() => onOpen(f.subject!)}>Open {f.subject}</button> : <button className="small" onClick={() => onGo("Profiles")}>Open Machines</button>} />
           ) : limitRow && !isListed(f.fix!.reveal!, composePaths) ? (
             f.subject ? <button className="small" onClick={() => onOpen(f.subject!)}>Open {f.subject}</button> : null
           ) : limitRow ? null : f.fix ? <DoctorFix fix={f.fix} title={f.title} ctx={ctx} onGo={onGo} onFixed={() => doc.reload()} /> : f.subject ? <button className="small" onClick={() => onOpen(f.subject!)}>Open {f.subject}</button> : null}

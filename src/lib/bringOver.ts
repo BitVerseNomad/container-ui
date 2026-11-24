@@ -195,7 +195,7 @@ export function whatText(items: Item[]): string {
 
 // Docker's own words for the failures people hit, said as what to do.
 export function plainError(why: string): string {
-  if (/no space left on device/i.test(why)) return "Colima's disk is full. Give the VM a bigger disk in Profiles.";
+  if (/no space left on device/i.test(why)) return "Colima's disk is full. Give the VM a bigger disk in Machines.";
   if (writeError(why)) return "Colima's disk had a write error partway through.";
   return why.split("\n")[0];
 }

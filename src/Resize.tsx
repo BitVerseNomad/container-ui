@@ -415,7 +415,7 @@ export function ResizeStatus({ from, after, title, okElsewhere, plainRetry }: { 
         <span className="actions-inline resize-actions justify-end">
           {o.kind === "done" && o.failed.map((f) => [
             // Out of memory again: Start would fail the same way, so the way to more memory comes first.
-            f.memory ? (next ? <ResizeButton key={`more:${f.name}`} from={from} size={next} title={`${f.name} didn't start`} alsoStart={[f.name]} vmWords /> : <button key={`prof:${f.name}`} className="small" aria-label={`Change in Profiles: ${f.name} didn't start`} onClick={env.onProfiles}>Change in Profiles</button>)
+            f.memory ? (next ? <ResizeButton key={`more:${f.name}`} from={from} size={next} title={`${f.name} didn't start`} alsoStart={[f.name]} vmWords /> : <button key={`prof:${f.name}`} className="small" aria-label={`Change in Machines: ${f.name} didn't start`} onClick={env.onProfiles}>Change in Machines</button>)
               : btn(`start:${f.name}`, `Start ${f.name}`, "Starting…", () => void startOne(f.name)),
             f.long && <button key={`why:${f.name}`} className="small" aria-expanded={whyOpen === f.name} aria-controls={`resize-why-${f.name}`} aria-label={`See why ${f.name} didn't start`} onClick={() => setWhyOpen((x) => (x === f.name ? null : f.name))}>See why</button>,
           ])}
@@ -485,20 +485,20 @@ export function ResizeOr({ from, title, need = "any", alsoStart, fallback, prima
     <span className="text-meta text-fg-faint">
       <span className="actions-inline">
         {!(s.from === from && s.outcome) && <ResizeButton from={from} size={shown} title={title} alsoStart={alsoStart} primary={primary} vmWords={vmWords} />}
-        {!noProfiles && <button className="cursor-pointer border-0 bg-transparent p-0 text-accent-ink hover:underline" aria-label={`Change in Profiles: ${title}`} onClick={env.onProfiles}>Change in Profiles</button>}
+        {!noProfiles && <button className="cursor-pointer border-0 bg-transparent p-0 text-accent-ink hover:underline" aria-label={`Change in Machines: ${title}`} onClick={env.onProfiles}>Change in Machines</button>}
       </span>
       {!noStatus && <ResizeStatus from={from} />}
     </span>
   );
 }
 
-// The quiet way to other numbers, in a row's body text beside a one-click size ("Other numbers? Change in Profiles"),
+// The quiet way to other numbers, in a row's body text beside a one-click size ("Other numbers? Change in Machines"),
 // so the row's actions hold one button. Shown only when ResizeOr offers a size.
 export function ResizeOther({ title, need = "any" }: { title: string; need?: "any" | "memory" }) {
   const env = useResizeEnv();
   const size = useResizeTarget(need);
   if (!size || !env) return null;
-  return <span className="hint">Other numbers? <button className="cursor-pointer border-0 bg-transparent p-0 text-accent-ink hover:underline" aria-label={`Change in Profiles: ${title}`} onClick={env.onProfiles}>Change in Profiles</button></span>;
+  return <span className="hint">Other numbers? <button className="cursor-pointer border-0 bg-transparent p-0 text-accent-ink hover:underline" aria-label={`Change in Machines: ${title}`} onClick={env.onProfiles}>Change in Machines</button></span>;
 }
 
 // App's announcements for a run whose page is closed (the user went to another tab): each step, then the result.

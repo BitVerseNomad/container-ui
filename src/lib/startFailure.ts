@@ -34,7 +34,7 @@ export function explainStartFailure(cli: string, profile: string, log = ""): Sta
   if (PORT.test(text))
     return { kind: "port", title: "A port Colima needs is taken", detail: "Another app (often an old Docker Desktop or Kubernetes) is using it. Quit that app, then try again.", fix: "retry" };
   if (MEMORY.test(text))
-    return { kind: "memory", title: "The Mac doesn't have that much free memory", detail: "Close some apps, or give the VM less memory in Profiles.", fix: "retry" };
+    return { kind: "memory", title: "The Mac doesn't have that much free memory", detail: "Close some apps, or give the VM less memory in Machines.", fix: "retry" };
   const line = log.split("\n").filter((l) => ERRORISH.test(l)).pop();
   return { kind: "unknown", title: "Colima couldn't start the VM", detail: `The VM log is ${limaLogPath(profile)}. Copy the details if you ask for help.`, fix: "retry", line };
 }

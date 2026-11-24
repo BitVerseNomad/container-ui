@@ -40,7 +40,7 @@ export default function Profiles({ profiles, reload, openNew = false, kubeOn = (
   // The form opens on a name that is free, so it never starts with an error showing. The free name follows the list of
   // profiles (it may still be arriving when the form opens) until the user types their own.
   const [typedName, setTypedName] = useState<string | null>(null);
-  const newName = typedName ?? (["default", "dev", "work", "test"].find((n) => !profiles.some((p) => p.name === n)) ?? "profile2");
+  const newName = typedName ?? (["default", "dev", "work", "test"].find((n) => !profiles.some((p) => p.name === n)) ?? "machine2");
   function openForm() {
     setTypedName(null);
     setDialogOpen(true);
@@ -81,16 +81,16 @@ export default function Profiles({ profiles, reload, openNew = false, kubeOn = (
   return (
     <section>
       <header>
-        <OpButton variant={profiles.length === 0 ? "primary" : "default"} size="sm" onClick={openForm}>New profile</OpButton>
+        <OpButton variant={profiles.length === 0 ? "primary" : "default"} size="sm" onClick={openForm}>New machine</OpButton>
         {busy && <span className="state">{busy}</span>}
       </header>
-      <p className="hint lead">A profile is a separate Colima VM with its own containers, images and volumes. Most people only need <b>default</b>.</p>
+      <p className="hint lead">A machine is a separate Colima VM with its own containers, images and volumes. Most people only need <b>default</b>.</p>
       <OutputLog event="colima-progress" active={!!busy} failure={error} onClear={() => setError(null)} />
-      {profiles.length === 0 && !dialogOpen && <Empty title="No Colima profiles yet">Create one to start a container runtime on this machine.</Empty>}
+      {profiles.length === 0 && !dialogOpen && <Empty title="No Colima machines yet">Create one to start a container runtime on this machine.</Empty>}
       {profiles.length > 0 && (
         <table>
           <thead>
-            <tr><th scope="col">Profile</th><th scope="col">Status</th><th scope="col">CPUs</th><th scope="col">Memory</th><th scope="col">Disk</th><th scope="col">Runtime</th><th scope="col">Kubernetes</th><th scope="col"><span className="sr-only">Actions</span></th></tr>
+            <tr><th scope="col">Machine</th><th scope="col">Status</th><th scope="col">CPUs</th><th scope="col">Memory</th><th scope="col">Disk</th><th scope="col">Runtime</th><th scope="col">Kubernetes</th><th scope="col"><span className="sr-only">Actions</span></th></tr>
           </thead>
           <tbody>
             {profiles.map((p) => {
@@ -120,7 +120,7 @@ export default function Profiles({ profiles, reload, openNew = false, kubeOn = (
                     <Menu label={`More actions for ${p.name}`} align="end" trigger={<MoreButton name={p.name} disabled={!!busy} />}>
                       {up && <MenuItem label="Restart" why="Stops the machine and starts it again" icon="restart" disabled={!!busy || fixing} onSelect={() => act(p.name, "restarting", "restart_profile", { name: p.name })} />}
                       <MenuItem label="Edit" why="Change CPUs, memory or disk" disabled={!!busy || fixing} onSelect={() => setEditing(p)} />
-                      <MenuItem label="Delete" why="Removes the machine with its containers and images" danger disabled={!!busy || fixing} onSelect={async () => { if (await confirm(`Delete profile "${p.name}" and its VM? All its containers and images are removed.`, "Delete")) void act(p.name, "deleting", "delete_profile", { name: p.name }); }} />
+                      <MenuItem label="Delete" why="Removes the machine with its containers and images" danger disabled={!!busy || fixing} onSelect={async () => { if (await confirm(`Delete machine "${p.name}" and its VM? All its containers and images are removed.`, "Delete")) void act(p.name, "deleting", "delete_profile", { name: p.name }); }} />
                     </Menu>
                   </td>
                 </tr>
@@ -157,9 +157,9 @@ export default function Profiles({ profiles, reload, openNew = false, kubeOn = (
             act(opts.name, "starting", "start_profile", { opts });
           }}
         >
-          <h3>New profile</h3>
+          <h3>New machine</h3>
           <label>Name<input name="name" value={newName} onChange={(e) => setTypedName(e.target.value)} required pattern="[a-zA-Z0-9_-]+" /></label>
-          {taken && <p className="hint text-bad">A profile named "{newName}" already exists. Use Edit on it instead.</p>}
+          {taken && <p className="hint text-bad">A machine named "{newName}" already exists. Use Edit on it instead.</p>}
           <label>CPUs<input key={size?.cpus} name="cpus" type="number" min={1} defaultValue={size?.cpus ?? 2} /></label>
           <label>Memory (GiB)<input key={size?.memory} name="memory" type="number" min={1} defaultValue={size?.memory ?? 4} /></label>
           <label>Disk (GiB)<input name="disk" type="number" min={10} defaultValue={60} /></label>

@@ -158,13 +158,13 @@ export function setupFindings(r: SetupReport, vm: VmSize, profile = "default", b
     const detail = to
       ? `That is Colima's default. ${mac ? `${mac}, so` : "On this Mac"} the VM can have ${sizeWords(to)} and leave the rest for macOS.`
       : mac
-        ? `That is Colima's default. ${mac}, so a bigger VM would slow the Mac down. Change it in Profiles if a build or database needs more.`
+        ? `That is Colima's default. ${mac}, so a bigger VM would slow the Mac down. Change it in Machines if a build or database needs more.`
         : "That is Colima's default. Builds and databases often need 4 CPUs and 8 GiB.";
     const warn = { id: "resources", status: "warn", title: `The VM has ${vm.cpus} CPUs and ${gib} GiB`, detail } as const;
     if (vm.cpus <= 2 || vm.memory <= 2 * GIB)
       out.push(to
-        ? { ...warn, command: `colima stop ${profile}\ncolima start ${profile} --cpu ${to.cpus} --memory ${to.memory}`, fix: { kind: "resize", ...to, label: `Give it ${to.cpus} CPUs and ${to.memory} GiB…` }, more: { kind: "profiles", label: "Change in Profiles" } }
-        : { ...warn, fix: { kind: "profiles", label: "Change in Profiles" } });
+        ? { ...warn, command: `colima stop ${profile}\ncolima start ${profile} --cpu ${to.cpus} --memory ${to.memory}`, fix: { kind: "resize", ...to, label: `Give it ${to.cpus} CPUs and ${to.memory} GiB…` }, more: { kind: "profiles", label: "Change in Machines" } }
+        : { ...warn, fix: { kind: "profiles", label: "Change in Machines" } });
     else out.push({ id: "resources", status: "ok", title: `The VM has ${vm.cpus} CPUs and ${gib} GiB`, detail: "Enough for most local stacks." });
   }
 

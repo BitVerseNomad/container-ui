@@ -47,7 +47,7 @@ export default function EditPanel({ profile, onClose, onApplied }: Props) {
   );
 
   return (
-    <Drawer label={`Edit profile ${profile.name}`} title={<>Edit profile: {profile.name}</>} onClose={onClose} closeDisabled={busy}>
+    <Drawer label={`Edit machine ${profile.name}`} title={<>Edit machine: {profile.name}</>} onClose={onClose} closeDisabled={busy}>
 
         {field("cpus", "CPUs", cpus, setCpus, was.cpus, "", 1)}
         {field("memory", "Memory (GiB)", memory, setMemory, was.memory, " GiB", 1)}
@@ -56,8 +56,8 @@ export default function EditPanel({ profile, onClose, onApplied }: Props) {
 
         <p className="text-meta text-fg-muted">
           {running
-            ? "Containers in this profile will stop while the VM restarts."
-            : "This profile is stopped. It will start with these values."}
+            ? "Containers in this machine will stop while the VM restarts."
+            : "This machine is stopped. It will start with these values."}
         </p>
 
         <Banner error={error} />

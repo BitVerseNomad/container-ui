@@ -79,7 +79,7 @@ test("given the default 2 CPU, 2 GiB VM and no bigger size to offer, when checke
   const f = byId(HEALTHY, { cpus: 2, memory: 2 * 1024 ** 3 }).get("resources")!;
   assert.equal(f.status, "warn");
   assert.match(f.title, /2 CPUs and 2 GiB/);
-  assert.deepEqual(f.fix, { kind: "profiles", label: "Change in Profiles" });
+  assert.deepEqual(f.fix, { kind: "profiles", label: "Change in Machines" });
   assert.equal(f.more, undefined);
   assert.match(setupFindings(HEALTHY, { cpus: 2, memory: 2 * 1024 ** 3 }, "default", false, { cpus: 2, memory: 2 }, 8 * 1024 ** 3).find((x) => x.id === "resources")!.detail, /Your Mac has 8 GB, so a bigger VM would slow the Mac down/);
 });
@@ -89,7 +89,7 @@ test("given the default 2 CPU, 2 GiB VM on a Mac that can give it 6 and 8, when 
   assert.equal(f.status, "warn");
   assert.equal(f.detail, "That is Colima's default. Your Mac has 32 GB, so the VM can have 6 CPUs and 8 GiB and leave the rest for macOS.");
   assert.deepEqual(f.fix, { kind: "resize", cpus: 6, memory: 8, label: "Give it 6 CPUs and 8 GiB…" });
-  assert.deepEqual(f.more, { kind: "profiles", label: "Change in Profiles" });
+  assert.deepEqual(f.more, { kind: "profiles", label: "Change in Machines" });
   assert.equal(f.command, "colima stop work\ncolima start work --cpu 6 --memory 8");
 });
 

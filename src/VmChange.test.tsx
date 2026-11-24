@@ -107,7 +107,7 @@ describe("VmChangeButton", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Share and restart" }));
     const line = await screen.findByText(/The VM is stopped\./);
     expect(line).toHaveTextContent("Colima couldn't start the VM with /Volumes/data shared.");
-    expect(line).toHaveTextContent("/Volumes/data stays saved in the profile");
+    expect(line).toHaveTextContent("/Volumes/data stays saved in the machine");
     expect(line).not.toHaveTextContent("new size");
     expect(screen.getByRole("button", { name: "Try again: Sees an empty /Volumes/data (not shared with Colima), web" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Start with the folders you had: / })).toBeInTheDocument();
