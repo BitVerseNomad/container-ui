@@ -12,7 +12,7 @@
   /* ink */
   --fg: #14181f;
   --fg-muted: #5b6472;
-  --fg-faint: #8a93a1;
+  --fg-faint: #626b79;
   /* lines */
   --line: #dde1e7;
   /* accent */
@@ -94,7 +94,7 @@
   /* ink */
   --fg: #e6e9ee;
   --fg-muted: #9aa3b0;
-  --fg-faint: #6b7482;
+  --fg-faint: #8a93a1;
   /* lines */
   --line: #262b33;
   --edge: rgb(230 233 238 / 0.14);

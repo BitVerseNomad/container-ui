@@ -19,7 +19,7 @@ const lum = (hex) => {
 };
 const ratio = (a, b) => { const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x); return (hi + 0.05) / (lo + 0.05); };
 
-const TEXT = ["--fg", "--fg-muted", "--accent-ink"];
+const TEXT = ["--fg", "--fg-muted", "--fg-faint", "--accent-ink"];
 const STATE = ["--ok", "--warn", "--bad", "--info"];
 const SURFACES = ["--bg", "--bg-sidebar", "--bg-raised"];
 let failed = 0;
