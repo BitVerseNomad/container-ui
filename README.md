@@ -8,7 +8,7 @@ OpenPier is a native Mac app for container runtimes: [Colima](https://github.com
 
 ## Install in one line
 
-    curl -fsSL https://raw.githubusercontent.com/OWNER/REPO/main/scripts/install.sh | sh
+    curl -fsSL https://raw.githubusercontent.com/BitVerseNomad/container-ui/main/scripts/install.sh | sh
 
 That's it. The line downloads the app, puts it in Applications and opens it. Is Colima missing? The app installs it for you. Run the same line again to update.
 

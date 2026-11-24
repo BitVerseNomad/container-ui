@@ -1,11 +1,11 @@
 #!/bin/sh
 # Installs the latest OpenPier release into /Applications (Apple Silicon only).
-# Usage: curl -fsSL https://raw.githubusercontent.com/OWNER/REPO/main/scripts/install.sh | sh
+# Usage: curl -fsSL https://raw.githubusercontent.com/BitVerseNomad/container-ui/main/scripts/install.sh | sh
 # The app is not signed, so the quarantine flag is cleared on the copy this script installs, nothing else.
 set -eu
 
 # The GitHub repo releases come from. Set once when the repo is published.
-REPO="OWNER/REPO"
+REPO="BitVerseNomad/container-ui"
 
 [ "$(uname -m)" = "arm64" ] || { echo "OpenPier is built for Apple Silicon Macs only." >&2; exit 1; }
 

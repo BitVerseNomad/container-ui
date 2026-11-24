@@ -14,7 +14,10 @@ Newest first. Older entries record what was true when they were written; later e
 8. **Keyboard shortcuts in one place.** One list drives the shortcuts, the Help screen and the command palette.
 9. **New window layout.** The sidebar shows usage meters, and Doctor stays in view.
 10. **One design system.** The screens use Tailwind CSS (version 4), and every colour, size and shadow comes from one set of design tokens.
-11. **For contributors:** `npm run preview` runs the screens in a browser with simulated data. No Mac app or Rust is needed.
+11. **A stopped Colima no longer crashes the app.** The Machines list loads a machine that is not running, and New machine opens centred.
+12. **First start is one card.** A stopped engine shows one card with a single Start button and a plain way to choose the size first. While it starts, one card shows the command and its output.
+13. **Buttons and messages look finished.** Primary buttons are solid, Delete is red, and the command notice has proper spacing.
+14. **For contributors:** `npm run preview` runs the screens in a browser with simulated data. No Mac app or Rust is needed.
 
 ## Design system rollout: all tabs migrated to @ui/components
 

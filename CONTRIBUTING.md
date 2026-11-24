@@ -6,7 +6,7 @@ Thanks for wanting to help. OpenPier is a Tauri 2 (Rust + React/TypeScript) desk
 
 ```bash
 # Clone and install
-git clone https://github.com/OWNER/REPO.git
+git clone https://github.com/BitVerseNomad/container-ui.git
 cd openpier
 npm install
 
