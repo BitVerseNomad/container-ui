@@ -83,7 +83,7 @@ button.chip:hover, a.chip:hover { background: var(--tile-hover); color: var(--fg
 .dot.ok { background: var(--ok); }
 .dot.warn { background: var(--warn); }
 .dot.bad { background: var(--bad); }
-.dot.busy { background: var(--info); animation: pulse 1.2s ease-in-out infinite; }
+.dot.busy { background: var(--accent); animation: pulse 1.2s ease-in-out infinite; }
 @keyframes pulse { 50% { opacity: 0.35; } }
 .sev { flex: none; }
 .sev.bad { color: var(--bad); }
