@@ -4,7 +4,7 @@ import { useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import OutputLog from "./ui/OutputLog";
 import ComposeLogs from "./ComposeLogs";
-import { Banner, Button, Col, Empty, Field, Icon, List, Menu, MenuItem, MenuSeparator, MoreButton, Problem, Row, Sheet, useConfirm } from "./ui/op";
+import { Banner, Button, Col, Dot, Empty, Field, Icon, List, Menu, MenuItem, MenuSeparator, MoreButton, Problem, Row, Sheet, useConfirm } from "./ui/op";
 import { ComposeScan } from "./useComposeScan";
 import { cdPath, portHolder, projectName, projectsFrom, shellQuote, whyFailed } from "./lib/composeScan";
 import { docker, pinComposeStop } from "./api";
@@ -20,6 +20,9 @@ export type Action = "up" | "stop" | "restart" | "down" | "build" | "pull";
 // The backend sends one path past this cap when the list was cut.
 const SHOWN_MAX = 300;
 const tilde = (dir: string) => dir.replace(/^\/Users\/[^/]+/, "~");
+// A long folder path keeps its start and its end, so the folder's own name shows. The full path is in the title.
+const PATH_SHOWN = 48;
+const middle = (s: string) => (s.length <= PATH_SHOWN ? s : `${s.slice(0, 20)}…${s.slice(-26)}`);
 const VERB: Record<Action, [string, string]> = { up: ["Start", "Starting…"], stop: ["Stop", "Stopping…"], restart: ["Restart", "Restarting…"], down: ["Remove containers", "Removing containers…"], build: ["Rebuild", "Rebuilding…"], pull: ["Update images", "Updating images…"] };
 const TAIL: Record<Action, string> = { up: "up -d", stop: "stop", restart: "restart", down: "down", build: "up -d --build", pull: "up -d --pull always" };
 const tail = (a: Action) => TAIL[a];
@@ -138,7 +141,7 @@ export default function ComposeProjects({ ctx, scan, containers, attention, onCl
   }
 
   return (
-    <Sheet open={true} onClose={onClose} title="Start a Compose project">
+    <Sheet open={true} onClose={onClose} title="Start a Compose project" wide>
       <p className="hint">Every folder in your home with a Compose file. Missing one? Add its folder.</p>
       {fixing && <p className="hint">{bringing ? "Wait for the copy from Docker Desktop to finish" : "Wait for the fix to finish"} before starting or stopping a project.</p>}
       <div className="flex flex-wrap items-center gap-2">
@@ -200,14 +203,15 @@ export default function ComposeProjects({ ctx, scan, containers, attention, onCl
           return (
             <div key={p.dir} className="border-b border-line">
               <Row
+                tall
                 lead={<Icon name="folder" size="sm" />}
-                name={p.name}
+                name={<span className="font-semibold">{p.name}</span>}
                 title={full}
-                meta={<span className="path font-mono text-meta" title={full}>{tilde(p.dir)}</span>}
+                meta={<span className="path font-mono text-meta" title={full}>{middle(tilde(p.dir))}</span>}
                 action={mine ? <Button size="xs" onClick={() => invoke("cancel_compose").catch(() => {})}>Cancel</Button> : up && stopped === 0 ? btn("stop") : btn("up")}
                 menu={!mine ? menu : undefined}
               >
-                <Col kind="state"><span className="status">{p.total ? `${p.running} of ${p.total} running` : "Not running"}</span></Col>
+                <Col kind="state"><span className="flex items-center gap-1.5"><Dot state={up ? "ok" : "off"} /><span className="status">{p.total ? `${p.running} of ${p.total} running` : "Not running"}</span></span></Col>
               </Row>
               {sick.length > 0 && <Problem level="warn" text={sick.length === 1 ? "1 needs attention" : `${sick.length} need attention`} />}
               {failed?.dir === p.dir && failed.why && !mine && (

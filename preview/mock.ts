@@ -108,6 +108,8 @@ if (scenario === "doctor") db.ctrs.push(
 // &vmfail=1: a start with a folder the profile did not have fails (the new list stays saved, as Colima does); starting
 // with the folders it had works. &stuckdns=1 (with &dns=1): a restart does not fix the name lookup.
 const flag = (k: string) => typeof location !== "undefined" && new URLSearchParams(location.search).get(k) === "1";
+// ?manyprojects=1: twenty Compose folders with long, similar names, for the readable-names check.
+const MANY_PROJECTS = ["pd-advance-agent", "pd-advance-api", "pd-advance-web", "pd-java-service-a", "pd-java-service-b", "pd-java-service-c", "pd-java-service-d", "pd-python-worker-a", "pd-python-worker-b", "permissions-api", "permissions-worker", "global-search-indexer", "global-search-service", "service-search-service", "service-search-indexer", "incident-timeline-service", "incident-timeline-web", "status-page-renderer", "status-page-api", "audit-trail-exporter"].map((name) => `/Users/me/Dev/${name}/compose.yaml`);
 const cfgMock = { mountType: flag("sshfs") ? "sshfs" : "virtiofs", mounts: [] as { path: string; writable: boolean }[], env: {} as Record<string, string> };
 let dnsBroken = flag("dns") || flag("vpn");
 // &lock=1: a "Bring them over" copy is holding Docker, so every container button waits. Set the same store Bring over sets (src/bringBusy.ts), which dockerLock.ts reads.
@@ -492,7 +494,7 @@ export async function invoke<T>(cmd: string, a: Record<string, any> = {}): Promi
       return undefined as T;
     }
     case "cancel_vm_op": return true as T;
-    case "find_compose_files": await sleep(150); return (scenario === "nocompose" ? [] : ["/Users/me/code/blog/docker-compose.yml", "/Users/me/code/shop/compose.yaml", "/Users/me/My Apps/orders-api/compose.yaml", "/Users/me/Dev/global-search-service/docker-compose.yml", "/Users/me/Dev/service-search-service/docker-compose.yml"]) as T;
+    case "find_compose_files": await sleep(150); if (flag("manyprojects")) return MANY_PROJECTS as T; return (scenario === "nocompose" ? [] : ["/Users/me/code/blog/docker-compose.yml", "/Users/me/code/shop/compose.yaml", "/Users/me/My Apps/orders-api/compose.yaml", "/Users/me/Dev/global-search-service/docker-compose.yml", "/Users/me/Dev/service-search-service/docker-compose.yml"]) as T;
     case "reveal_compose": ((window as any).__revealed ??= []).push(a.path); return undefined as T;
     // &textedit=1: no editor is registered for YAML, so TextEdit opens it. &openfail=1: macOS refuses to open it in Cursor.
     // &app=Cursor: the app Open names. A check sets window.__editorApp to change it, as a new default in Finder would.

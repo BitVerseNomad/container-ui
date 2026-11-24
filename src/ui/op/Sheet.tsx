@@ -12,10 +12,12 @@ export function Sheet(props: {
   fact?: string;
   busy?: boolean;
   stack?: boolean;
+  // Opt-in wider sheet for lists with long names. Other sheets keep the default width.
+  wide?: boolean;
   footer?: React.ReactNode;
   children: React.ReactNode;
 }): React.JSX.Element {
-  const { open, onClose, title, hideTitle, fact, busy, stack, footer, children } = props;
+  const { open, onClose, title, hideTitle, fact, busy, stack, wide, footer, children } = props;
   const bodyRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const restoreRef = useRef<HTMLElement | null>(null);
@@ -37,7 +39,7 @@ export function Sheet(props: {
       <Dialog.Portal container={container}>
         <Dialog.Overlay className="fixed inset-0 z-40 bg-bg-overlay" />
         <Dialog.Content
-          className="sheet z-50"
+          className={clsx("sheet z-50", wide && "sheet-wide")}
           aria-describedby={undefined}
           onEscapeKeyDown={(event) => {
             if (busy) event.preventDefault();

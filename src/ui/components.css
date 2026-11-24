@@ -155,6 +155,7 @@ button.chip:hover, a.chip:hover { background: var(--tile-hover); color: var(--fg
 .menu-sep { height: 1px; background: var(--line); margin: 4px 0; }
 .menu-cap { font-size: var(--text-micro); color: var(--fg-muted); padding: 6px 8px 2px; }
 .overlay { position: absolute; inset: 0; background: var(--bg-overlay); }
+.sheet.sheet-wide { width: var(--sheet-wide); }
 .sheet { z-index: 50; position: absolute; top: 0; right: 0; bottom: 0; width: var(--sheet); max-width: 100%; background: var(--bg); box-shadow: var(--shadow-floating); display: flex; flex-direction: column; }
 .sheet-head { height: var(--header); flex: none; display: flex; align-items: center; gap: 8px; padding: 0 12px 0 var(--gutter); }
 .sheet-head h2 { font-size: var(--text-title); font-weight: 600; }
