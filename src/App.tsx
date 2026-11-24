@@ -493,7 +493,7 @@ export default function App() {
             <Banner error={appError} onClose={() => setAppError(null)} />
             <MachineUsageProvider value={usage}>
               {tab !== "Containers" ? (
-                <Header title={tab === "Profiles" ? "Settings" : tab} />
+                <Header title={tab === "Profiles" ? "Machines" : tab} />
               ) : null}
               {/* Screens not yet on the op components keep their v0.2.1 look (src/ui/legacy.css). */}
               <div className={tab === "Containers" && ctx ? undefined : "legacy"}>{page}</div>
