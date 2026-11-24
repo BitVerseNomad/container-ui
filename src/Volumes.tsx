@@ -156,7 +156,7 @@ export default function Volumes({ ctx }: { ctx: string }) {
               return (
                 <tr key={v.Name}>
                   <td><input type="checkbox" aria-label={`Select ${v.Name}`} checked={selected.has(v.Name)} onChange={() => toggleSelect(v.Name)} /></td>
-                  <td className="font-mono max-w-xs truncate" title={v.Name}>
+                  <td className="font-mono max-w-xs break-words" title={v.Name}>
                     {isAnonymous(v.Name) ? `${v.Name.slice(0, 12)}… (anonymous)` : v.Name}
                     {/* A backup Bring over made: easy to find, and to remove once the data is checked. */}
                     {backupOf(v.Name) && <span className="volume-backup">{backupOf(v.Name)}</span>}
