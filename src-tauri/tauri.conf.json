@@ -28,7 +28,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDdENzdERTZDN0U1NDJDNTQKUldSVUxGUitiTjUzZlVXcFB0K3NzL2xwN2krZzZXMStGR1daeitUdGJ4ajdDZ2NEdWhwYnB0RFIK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDAxOEI1MEZFMkJDOUM4NzMKUldSenlNa3IvbENMQVVLaWRIQXd0aUJKaHJPK0pzRHhxYnpqS3BaY1NzcHJuLy9ySkVLSDByV3QK",
       "endpoints": [
         "https://github.com/BitVerseNomad/openpier/releases/latest/download/{{target}}/{{current_version}}.json"
       ],
