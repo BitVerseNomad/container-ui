@@ -408,6 +408,29 @@ async function rowNames(page) {
   await page.close();
 }
 
+// ============ Scenario: the command notice reads in full and stays clear of an open sheet ============
+{
+  const page = await open("/?scenario=running#/containers", { width: 1180, height: 760 });
+  await page.getByRole("button", { name: "New" }).click();
+  await page.getByRole("menuitem", { name: /^Start a Compose project/ }).click();
+  await page.getByRole("dialog", { name: "Start a Compose project" }).getByRole("button", { name: "Start orders-api" }).click();
+  await page.locator(".cmd-toast .cmd-said").waitFor({ timeout: 3000 }).catch(() => {});
+  // Not cut with an ellipsis: everything it holds fits, or wraps to the next line.
+  const notCut = (sel) => page.locator(sel).first().evaluate((e) => e.scrollWidth <= e.clientWidth + 1 && getComputedStyle(e).textOverflow !== "ellipsis", null, { timeout: 1000 }).catch(() => false);
+  check(await page.locator(".cmd-toast .cmd-said").count() === 1, "running notice: the sentence is shown");
+  check(await notCut(".cmd-toast .cmd-said"), "running notice: the sentence is not cut with an ellipsis");
+  check(await notCut(".cmd-toast code"), "running notice: the command is not cut with an ellipsis");
+  check(await page.locator(".cmd-toast code").getAttribute("title").then((t) => /compose up -d$/.test(t ?? "")), "running notice: the command's full text is in its title");
+  // The notice sits at the bottom, left of the open sheet, so it covers none of the sheet's content or buttons.
+  const clear = await page.evaluate(() => {
+    const toast = document.querySelector(".cmd-toast").getBoundingClientRect();
+    const sheet = document.querySelector(".sheet").getBoundingClientRect();
+    return toast.right <= sheet.left + 1 && toast.bottom <= window.innerHeight && toast.left >= 0;
+  });
+  check(clear, "running notice: left of the open sheet and inside the window");
+  await page.close();
+}
+
 // ============ Scenario: design - each row has a name column ============
 {
   const page = await open("/?scenario=design#/containers", { engine: "chromium", width: 1280, height: 800 });

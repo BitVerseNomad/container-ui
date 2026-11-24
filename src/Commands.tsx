@@ -21,7 +21,8 @@ export const said = (e: Entry) => {
 };
 
 // Fixed at the bottom, centred, with room between its parts. The width is the text's, capped at max-w-xl.
-const toastShell = "cmd-toast fixed inset-x-4 bottom-4 z-50 mx-auto flex w-fit max-w-xl items-center gap-3 rounded-md border border-line bg-bg-raised py-2 pl-3 pr-2 text-meta text-fg shadow-floating";
+// Its right edge is set in components.css, so an open sheet pushes it left of the sheet instead of under it.
+const toastShell = "cmd-toast fixed left-4 bottom-4 z-50 mx-auto flex w-fit max-w-xl items-center gap-3 rounded-md border border-line bg-bg-raised py-2 pl-3 pr-2 text-meta text-fg shadow-floating";
 
 function Copy({ text, label }: { text: string; label: string }) {
   const [done, setDone] = useState(false);
@@ -59,8 +60,10 @@ export function CommandToast({ onOpenLog }: { onOpenLog: () => void }) {
   return (
     <div className={`${toastShell}${last.ok === false ? " border-bad" : ""}`} role="status">
       <Icon name={last.ok === false ? "close" : last.ok ? "check" : "terminal"} size={14} />
-      {said(last) && <span className="min-w-0 truncate text-fg-muted">{said(last)}</span>}
-      <code className="min-w-0 truncate font-mono" title={last.cmd}>{last.cmd}</code>
+      <span className="flex min-w-0 flex-1 flex-col items-start gap-1">
+        {said(last) && <span className="cmd-said break-words text-fg-muted">{said(last)}</span>}
+        <code className="cmd-pill max-w-full break-words rounded-sm bg-bg-canvas px-1.5 py-0.5 font-mono" title={last.cmd}>{last.cmd}</code>
+      </span>
       <span className="flex shrink-0 items-center gap-1">
         <Copy text={last.cmd} label="Copy the command" />
         <Button variant="ghost" size="xs" onClick={onOpenLog}>All commands</Button>

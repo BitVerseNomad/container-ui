@@ -10,6 +10,7 @@ Newest first. Older entries record what was true when they were written; later e
 4. **Easier to read.** Hints, placeholders and timestamps are darker in light mode and lighter in dark mode.
 5. **Menus always fit.** A menu that is taller than the window scrolls instead of cutting off its top.
 6. **The Containers search box shows its whole placeholder.** The usage meters hide on narrow windows (under 1240 px) so New stays on screen.
+7. **The command notice shows the whole command.** The sentence wraps instead of cutting off, the command sits in a mono pill that wraps, and the notice stops at an open sheet's edge instead of hiding under it.
 
 ## 0.3.0
 
