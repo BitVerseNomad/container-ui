@@ -74,8 +74,8 @@ export default function Kubernetes({ profile, ctx }: { profile: Profile; ctx: st
       <Card className="flex flex-col gap-3 p-4">
         <h2>Kubernetes isn't turned on for {profile.name}</h2>
         <p className="hint">Colima can run a small Kubernetes cluster (K3s) inside the VM. Turning it on restarts the VM, so running containers stop for a minute and start again.</p>
-        <div className="actions-inline">
-          <button className="primary" disabled={enabling} onClick={enable}>{enabling ? "Turning on…" : "Turn on Kubernetes"}</button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="primary" disabled={enabling} onClick={enable}>{enabling ? "Turning on…" : "Turn on Kubernetes"}</Button>
         </div>
         <OutputLog event="colima-progress" active={enabling} failure={failure} />
       </Card>
