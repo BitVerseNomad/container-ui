@@ -2,7 +2,7 @@ import React, { ReactNode, useState, useEffect, useMemo, useCallback } from "rea
 import { Profile, openUrl } from "./api";
 import { Icon, IconName } from "./ui/op";
 import { Menu, MenuItem, MenuSeparator, MenuCaption, MoreButton } from "./ui/op";
-import { NavItem, Button, Dot } from "./ui/op";
+import { NavItem, Button, Dot, Tooltip, TooltipProvider } from "./ui/op";
 import { PortalProvider, ToastProvider } from "./ui/op";
 import { ConfirmProvider as OpConfirmProvider } from "./ui/op";
 
@@ -110,13 +110,23 @@ export default function Shell({ nav, onNav, badges = {}, hidden = [], counts = {
             />
           ))}
         </nav>
-        <div className="sidebar-foot">
-          <Button variant="ghost" iconOnly icon="settings" aria-label="Settings" aria-current={settingsActive ? "page" : undefined} onClick={onSettings} />
-          <Button variant="ghost" iconOnly icon="activity" aria-label="Activity: commands the app ran" onClick={onActivity} />
-          <Button variant="ghost" iconOnly icon="help" aria-label="Help and shortcuts" onClick={onHelp} />
-          <span className="grow" />
-          <Button variant="ghost" iconOnly icon="sidebar" aria-label={folded ? "Show the sidebar" : "Fold sidebar"} onClick={fold} />
-        </div>
+        <TooltipProvider>
+          <div className="sidebar-foot">
+            <Tooltip text="Settings">
+              <Button variant="ghost" iconOnly icon="settings" aria-label="Settings" aria-current={settingsActive ? "page" : undefined} onClick={onSettings} />
+            </Tooltip>
+            <Tooltip text="Commands the app ran">
+              <Button variant="ghost" iconOnly icon="activity" aria-label="Activity: commands the app ran" onClick={onActivity} />
+            </Tooltip>
+            <Tooltip text="Help and shortcuts">
+              <Button variant="ghost" iconOnly icon="help" aria-label="Help and shortcuts" onClick={onHelp} />
+            </Tooltip>
+            <span className="grow" />
+            <Tooltip text={folded ? "Show the sidebar" : "Fold sidebar"}>
+              <Button variant="ghost" iconOnly icon="sidebar" aria-label={folded ? "Show the sidebar" : "Fold sidebar"} onClick={fold} />
+            </Tooltip>
+          </div>
+        </TooltipProvider>
       </aside>
       <main className="main content" ref={setMainEl}>
         <PortalProvider container={mainEl}>

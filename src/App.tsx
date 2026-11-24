@@ -340,6 +340,14 @@ export default function App() {
       ) : (
         <Doctor ctx={ctx} composePaths={compose.paths ?? []} setup={setup} doc={doc} onProfiles={() => setTab("Profiles")} onBring={(only) => openBring(only)} onGo={(page) => setTab(page)} onOpen={(name) => { setDetailId(name); setTab("Containers"); }} />
       )
+    ) : route.page === "settings" && route.tab && route.tab !== "machines" ? (
+      // Only Machines exists under Settings. Other Settings tabs say so, instead of showing Machines under their name.
+      <>
+        <Header title="Settings" />
+        <Empty title={`${route.tab.charAt(0).toUpperCase()}${route.tab.slice(1)} is not here yet`} action={<Button variant="primary" onClick={() => go("#/settings/machines")}>Open Machines</Button>}>
+          Machines is the only Settings page for now.
+        </Empty>
+      </>
     ) : tab === "Profiles" ? (
       // The machines table is wider than a small window; it scrolls inside its own box, not the page.
       <div className="min-w-0 overflow-x-auto">
@@ -397,7 +405,7 @@ export default function App() {
     "go-networks": () => setTab("Networks"),
     "go-kubernetes": () => { if (kubeOn) setTab("Kubernetes"); },
     "go-doctor": () => setTab("Doctor"),
-    "go-settings": () => go("#/settings/general"),
+    "go-settings": () => go("#/settings/machines"),
     engine: () => setEngineOpen(true),
     fold: () => window.dispatchEvent(new Event("openpier:fold")),
     run: () => setRunPicker(true),
@@ -468,7 +476,7 @@ export default function App() {
       ];
       if (kubeOn) goTo.push({ id: "go-kubernetes", group: "Go to", label: "Kubernetes", kbd: showKeys({ key: "6", meta: true }), run: () => setTab("Kubernetes") });
       goTo.push({ id: "go-doctor", group: "Go to", label: "Doctor", kbd: showKeys({ key: "d", meta: true }), run: () => setTab("Doctor") });
-      goTo.push({ id: "go-settings", group: "Go to", label: "Settings", kbd: showKeys({ key: ",", meta: true }), run: () => go("#/settings/general") });
+      goTo.push({ id: "go-settings", group: "Go to", label: "Settings", kbd: showKeys({ key: ",", meta: true }), run: () => go("#/settings/machines") });
       setPaletteItems([...containers, ...general, ...goTo]);
     };
     void build();
@@ -484,8 +492,8 @@ export default function App() {
             counts={{ containers: containerCount }}
             hidden={kubeOn ? [] : ["Kubernetes"]}
             engine={<div data-slot="engine"><EngineSwitcher engines={engines} selectedId={active} open={engineOpen} onOpenChange={setEngineOpen} onSelect={switchTo} onStart={(id) => { switchTo(id); setTab("Containers"); void vmFromAnywhere(id, "starting"); }} onStop={(id) => void vmFromAnywhere(id, "stopping")} onMachines={() => go("#/settings/machines")} /></div>}
-            onSettings={() => go("#/settings/general")}
-            settingsActive={tab === "Profiles"}
+            onSettings={() => go("#/settings/machines")}
+            settingsActive={route.page === "settings"}
             onActivity={() => setLogOpen(true)}
             onHelp={() => setHelpOpen(true)}
           >
