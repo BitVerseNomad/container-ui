@@ -10,6 +10,7 @@ use std::time::{Duration, Instant};
 use tauri::Emitter;
 
 mod desktop;
+mod registry;
 mod setup;
 
 #[derive(Serialize, Deserialize)]
@@ -2559,6 +2560,9 @@ fn main() {
             docker,
             docker_check,
             docker_pull,
+            registry::registry_login,
+            registry::aws_profiles,
+            registry::aws_sso_login,
             env_check,
             install_tools,
             network_probe,

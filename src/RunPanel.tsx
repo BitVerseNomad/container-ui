@@ -4,6 +4,7 @@ import { docker, dockerJson, openUrl } from "./api";
 import { ImageInfo, Link, checkImage, docsLinks, hostArch, nameWarning, nextFreePort, parseImageInfo, peers, suggestVolumes, usedHostPorts } from "./lib/guided";
 import { PortRow, VolRow, buildRunArgs, defaultName, folderProblem, hintFor, isHostFolder, presetEnv, repoName, shouldCleanup } from "./runArgs";
 import { rememberWritable, wasWritable } from "./lib/folderMemory";
+import RegistryLoginFix from "./RegistryLoginFix";
 import { Banner, Button, Canvas, Checkbox, ChipButton, Command, Field, Fields, FormRow, Select, Sheet, useConfirm } from "./ui/op";
 import { useDockerLocked } from "./dockerLock";
 
@@ -350,6 +351,7 @@ export default function RunPanel({ ctx, image, arch, onClose, onRan }: Props) {
 
       {errors.length > 0 && <Banner tone="bad">{errors.join(" ")}</Banner>}
 
+      {failure && dockerError && <RegistryLoginFix text={dockerError} />}
       {failure && dockerError && (
         <Banner
           tone="bad"

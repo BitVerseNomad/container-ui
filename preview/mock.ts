@@ -287,6 +287,19 @@ const MB = (s: string) => parseFloat(s) * (s.endsWith("GB") ? 1e9 : 1e6);
 
 async function progress(event: string, steps: [string, number][]) { for (const [l, ms] of steps) { await sleep(ms); emit(event, l); } }
 
+// ?ecrfail=1: the registry wants a sign-in until registry_login has run once. Fake account, nothing real is touched.
+const ECR = "123456789012.dkr.ecr.us-west-2.amazonaws.com";
+let ecrSignedIn = false;
+const ecrDenied = (image: string) => `Error response from daemon: failed to resolve reference "${image}": pull access denied, repository does not exist or may require authorization: authorization failed: no basic auth credentials`;
+const ecrNeedsLogin = () => flag("ecrfail") && !ecrSignedIn;
+async function registryMock(cmd: string, a: Record<string, any>): Promise<unknown> {
+  if (cmd === "aws_profiles") return ["default"];
+  if (cmd === "aws_sso_login") return undefined;
+  await sleep(300);
+  ecrSignedIn = a.registry === ECR;
+  return undefined;
+}
+
 export async function invoke<T>(cmd: string, a: Record<string, any> = {}): Promise<T> {
   ((window as any).__calls ??= []).push(cmd);
   (window as any).__mock = { setStatus: (s: string) => { db.profiles[0].status = s; }, state: () => JSON.parse(JSON.stringify(db)), failRunOnce: (name: string) => { failRun = name; }, openDesktop: () => { desktop.running = true; } };
@@ -346,7 +359,9 @@ export async function invoke<T>(cmd: string, a: Record<string, any> = {}): Promi
       if (a.kind === "volume") { db.volumes.push(a.name); colimaSizes[a.name] = ddVolumes.find(([n]) => n === a.name)![1]; } else { const [repo, tag] = a.name.split(":"); db.images.unshift({ Repository: repo, Tag: tag, Size: "142MB", ID: hex(12), CreatedSince: "1 second ago" }); }
       return size as T;
     }
+    case "registry_login": case "aws_profiles": case "aws_sso_login": return registryMock(cmd, a) as Promise<T>;
     case "docker_pull": {
+      if (ecrNeedsLogin() && a.image.startsWith(ECR)) throw ecrDenied(a.image);
       if (flag("pullfail")) { await progress("pull-progress", [["Using default tag: latest", 150]]); throw `Error response from daemon: Get "https://registry-1.docker.io/v2/": net/http: request canceled while waiting for connection (Client.Timeout exceeded)`; }
       if (a.image === "ghcr.io/acme/private:1") {
         await progress("pull-progress", [["1: Pulling from acme/private", 200]]);
@@ -532,6 +547,7 @@ export async function invoke<T>(cmd: string, a: Record<string, any> = {}): Promi
       }
       const dir: string = a.file.slice(0, a.file.lastIndexOf("/"));
       const project = dir.slice(dir.lastIndexOf("/") + 1);
+      if (project === "orders-api" && a.action !== "stop" && a.action !== "down" && ecrNeedsLogin()) throw ecrDenied(`${ECR}/orders-api:latest`);
       await progress("compose-progress", [[`[+] Running 2/2 (${a.action})`, 150], [` ✔ Network ${project}_default  Created`, 200]]);
       // blog's web port is taken, so its start fails the way docker compose reports it.
       if (project === "blog" && a.action !== "stop" && a.action !== "down" && db.ctrs.some((c) => c.name === "web" && c.state === "running")) throw "Error response from daemon: driver failed programming external connectivity on endpoint blog-web-1: Bind for 0.0.0.0:8080 failed: port is already allocated";

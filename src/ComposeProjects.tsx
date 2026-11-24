@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import OutputLog from "./ui/OutputLog";
+import RegistryLoginFix from "./RegistryLoginFix";
 import ComposeLogs from "./ComposeLogs";
 import { Banner, Button, Col, Dot, Empty, Field, Icon, List, Menu, MenuItem, MenuSeparator, MoreButton, Problem, Row, Sheet, useConfirm } from "./ui/op";
 import { ComposeScan } from "./useComposeScan";
@@ -221,6 +222,7 @@ export default function ComposeProjects({ ctx, scan, containers, attention, onCl
                   action={failed.holder ? <Button size="xs" className="primary" disabled={!!busy || fixing} onClick={() => freePortAndStart(p, failed.holder!)}>Stop {failed.holder} and start {p.name}</Button> : undefined}
                 />
               )}
+              {failed?.dir === p.dir && !mine && <RegistryLoginFix text={failed.text} />}
               {logsHere && <ComposeLogs ctx={ctx} file={`${p.dir}/${p.files[0]}`} project={p.name} />}
               {(mine || failed?.dir === p.dir) && <OutputLog event="compose-progress" active={mine} failure={failed?.dir === p.dir ? failed.text : null} />}
               {cmdsOpen.has(p.dir) && (

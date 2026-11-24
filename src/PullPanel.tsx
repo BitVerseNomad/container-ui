@@ -6,6 +6,7 @@ import { pullProgress } from "./lib/pullProgress";
 import { Hit, SortKey, isOfficial, sortHits } from "./lib/hub";
 import { PRESETS, checkRef, isAuthError, loginCommand, needsLogin, presetFor } from "./lib/registry";
 import { useBringBusy } from "./bringBusy";
+import RegistryLoginFix from "./RegistryLoginFix";
 import { Banner, Button, Canvas, Chip, ChipButton, Col, Command, Field, FormRow, Icon, List, Progress, Row, Sev, Sheet } from "./ui/op";
 
 type Props = { ctx: string; onClose: () => void; onPulled: () => void; onRun: (image: string) => void; searchFor?: string };
@@ -178,6 +179,7 @@ export default function PullPanel({ ctx, onClose, onPulled, onRun, searchFor }: 
         </>
       )}
 
+      {failure && <RegistryLoginFix text={failure} />}
       {failure && (
         <Banner tone="bad" title={authFailure && login !== null ? `Sign in to ${host.trim()} first` : "The pull did not finish"}>
           {authFailure && login !== null ? <Command text={login} /> : <span>Check the name and try again.</span>}
