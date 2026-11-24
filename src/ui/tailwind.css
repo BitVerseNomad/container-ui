@@ -89,3 +89,8 @@
   --normal: var(--normal);
   --ease: var(--ease);
 }
+
+/* Below this window width the header hides its usage meters (the roomy: variant). At 1100px the meters pushed New off screen. */
+@theme {
+  --breakpoint-roomy: 1240px;
+}

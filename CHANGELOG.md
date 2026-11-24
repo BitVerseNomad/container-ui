@@ -6,6 +6,10 @@ Newest first. Older entries record what was true when they were written; later e
 
 1. **The output window stays small.** While a machine starts or stops, its output is at most about 14 rows tall and scrolls by itself, so the list below stays on screen. When the run ends without an error, the output folds to Show output (N lines).
 2. **Buttons look like buttons.** Copy raw output, Clear, Cancel, Start, Stop VM and Restart are push buttons, and icons sit on the same line as their words.
+3. **Dark mode follows your Mac.** When macOS is in dark mode, OpenPier is dark too, and switches while it runs.
+4. **Easier to read.** Hints, placeholders and timestamps are darker in light mode and lighter in dark mode.
+5. **Menus always fit.** A menu that is taller than the window scrolls instead of cutting off its top.
+6. **The Containers search box shows its whole placeholder.** The usage meters hide on narrow windows (under 1240 px) so New stays on screen.
 
 ## 0.3.0
 

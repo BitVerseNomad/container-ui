@@ -175,4 +175,24 @@ for (const { width, height } of SIZES) {
   await logPage.close();
 }
 
+// The Containers search box shows its whole placeholder, and New stays on screen, at 900x600 and 1180x740.
+for (const { width, height } of [{ width: 900, height: 600 }, { width: 1180, height: 740 }]) {
+  const page = await open("/?scenario=running#/containers", { width, height });
+  await page.waitForSelector("[data-page-search]", { timeout: 10000 });
+  const fit = await page.evaluate(() => {
+    const input = document.querySelector("[data-page-search]");
+    const style = getComputedStyle(input);
+    const canvas = document.createElement("canvas").getContext("2d");
+    canvas.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+    const textWidth = canvas.measureText(input.placeholder).width;
+    const room = input.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+    const newButton = [...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "New");
+    return { overflow: input.scrollWidth - input.clientWidth, textWidth, room, newRight: newButton.getBoundingClientRect().right, viewport: innerWidth };
+  });
+  check(fit.overflow <= 0, `[${width}x${height}] the search box does not overflow (scrollWidth <= clientWidth)`);
+  check(fit.textWidth <= fit.room, `[${width}x${height}] the whole placeholder "Search containers" fits (${Math.round(fit.textWidth)}px in ${Math.round(fit.room)}px)`);
+  check(fit.newRight <= fit.viewport, `[${width}x${height}] New stays inside the window`);
+  await page.close();
+}
+
 await done();

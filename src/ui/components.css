@@ -223,7 +223,7 @@ button.field { border: 0; text-align: left; justify-content: space-between; }
 .field.pick { width: 170px; }
 .field.port { width: 110px; }
 .field.num { width: 90px; }
-@media (max-width: 1040px) { .header .field.search { width: 140px; } }
+.header .field.search { min-width: 160px; }
 .fields { display: flex; gap: 8px; align-items: center; }
 .fields > .field { flex: 1 1 0; }
 .fields > .field.port, .fields > .field.num, .fields > .btn { flex: none; }
@@ -246,6 +246,8 @@ button.field { border: 0; text-align: left; justify-content: space-between; }
 .skeleton.short { width: 70px; }
 button.meters { border: 0; background: none; padding: 0; font-family: inherit; }
 .pop.wide { width: 280px; }
+/* A menu taller than the window scrolls inside itself; Radix sets the available height. */
+.pop.menu-fit { max-height: var(--radix-dropdown-menu-content-available-height); overflow-y: auto; }
 .pop.engines { width: 300px; }
 .dialog .cmd { margin-top: 12px; }
 .dialog .checkline { margin-top: 10px; }

@@ -42,9 +42,10 @@ export function Menu(props: {
       <DropdownMenu.Trigger asChild>{trigger}</DropdownMenu.Trigger>
       <DropdownMenu.Portal>
         <DropdownMenu.Content
-          className={clsx("pop", wide && "wide", contentClassName)}
+          className={clsx("pop menu-fit z-50", wide && "wide", contentClassName)}
           aria-label={label}
-          collisionPadding={8}
+          avoidCollisions
+          collisionPadding={12}
           align={align}
         >
           {children}

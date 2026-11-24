@@ -37,4 +37,38 @@ for (const engine of ["chromium", "webkit"]) {
   await page.close();
 }
 
+// A menu is never clipped by the window: at 900x600 every item of New and of each row menu sits inside the viewport.
+const inside = (box, viewport) => box !== null && box.x >= 0 && box.y >= 0 && box.x + box.width <= viewport.width && box.y + box.height <= viewport.height;
+{
+  const size = { width: 900, height: 600 };
+  const page = await open("/?scenario=running#/containers", size);
+  await page.getByRole("button", { name: "New", exact: true }).click();
+  const newItems = page.locator("[role=menu] [role^=menuitem]");
+  const newCount = await newItems.count();
+  let newInside = newCount > 0;
+  for (let i = 0; i < newCount; i++) newInside &&= inside(await newItems.nth(i).boundingBox(), size);
+  check(newInside, `${process.env.PW_ENGINE || "chromium"}: [900x600] every item of New is inside the window (${newCount} items)`);
+  await page.keyboard.press("Escape");
+
+  const openers = await page.locator("[aria-haspopup=menu]").all();
+  for (let i = 0; i < openers.length; i++) {
+    const opener = openers[i];
+    const name = (await opener.getAttribute("aria-label")) ?? `menu ${i}`;
+    if (!(await opener.isVisible()) || (await opener.isDisabled())) continue;
+    await opener.click();
+    const items = page.locator("[role=menu] [role^=menuitem]");
+    const count = await items.count();
+    let rowInside = count > 0;
+    // A tall row menu scrolls inside itself (the window is too short for all of it under the row), so each item is scrolled into view first.
+    for (let j = 0; j < count; j++) {
+      await items.nth(j).scrollIntoViewIfNeeded();
+      rowInside &&= inside(await items.nth(j).boundingBox(), size);
+    }
+    const menuBox = await page.locator("[role=menu]").boundingBox();
+    if (count) check(rowInside && inside(menuBox, size), `${process.env.PW_ENGINE || "chromium"}: [900x600] the menu "${name}" and each of its items are inside the window once scrolled to`);
+    await page.keyboard.press("Escape");
+  }
+  await page.close();
+}
+
 await done();
