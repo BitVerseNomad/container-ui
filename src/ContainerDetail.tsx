@@ -106,7 +106,7 @@ export default function ContainerDetail({ ctx, id, tab: routeTab, appProblems, o
   async function runYourself() {
     const verb = running ? "stop" : "start";
     const command = `docker --context ${ctx} ${verb} ${name}`;
-    const yes = await confirm({ title: `Run ${name} yourself`, body: "This is what OpenPier runs. You can paste it in Terminal.", command, confirm: "Copy command" });
+    const yes = await confirm({ title: `Run ${name} yourself`, body: "This is what Container UI runs. You can paste it in Terminal.", command, confirm: "Copy command" });
     if (yes) await navigator.clipboard.writeText(command);
   }
 

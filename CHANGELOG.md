@@ -4,8 +4,8 @@ Newest first. Older entries record what was true when they were written; later e
 
 ## 0.3.0
 
-1. The app is now called OpenPier. Your saved settings are kept.
-2. macOS sees OpenPier as a new app (its identifier changed to `dev.openpier.desktop`). Remove the old app from Applications by hand.
+1. The app is now called Container UI. Your saved settings are kept.
+2. macOS sees Container UI as a new app (its identifier changed to `dev.openpier.desktop`). Remove the old app from Applications by hand.
 3. **Containers page rebuilt.** Containers with problems show first. Each container has one status dot and one plain word, such as Running or Stopped. Ports, CPU and memory sit in fixed columns, so the rows line up.
 4. **A clear view for each state.** The Containers page has its own view for each of its eight states, such as loading, empty and engine stopped.
 5. **Each container has its own page and address.** Logs, Stats, Settings, Folders, Network and History are tabs on that page. Back and forward work on every page.
@@ -19,7 +19,7 @@ Newest first. Older entries record what was true when they were written; later e
 13. **Buttons and messages look finished.** Primary buttons are solid, Delete is red, and the command notice has proper spacing.
 14. **The output window stays small.** While a machine starts or stops, its output is at most about 14 rows tall and scrolls by itself, so the list below stays on screen. When the run ends without an error, the output folds to Show output (N lines).
 15. **Buttons look like buttons.** Copy raw output, Clear, Cancel, Start, Stop VM and Restart are push buttons, and icons sit on the same line as their words.
-16. **Dark mode follows your Mac.** When macOS is in dark mode, OpenPier is dark too, and switches while it runs.
+16. **Dark mode follows your Mac.** When macOS is in dark mode, Container UI is dark too, and switches while it runs.
 17. **Easier to read.** Hints, placeholders and timestamps are darker in light mode and lighter in dark mode.
 18. **Menus always fit.** A menu that is taller than the window scrolls instead of cutting off its top.
 19. **The Containers search box shows its whole placeholder.** The usage meters hide on narrow windows (under 1240 px) so New stays on screen.

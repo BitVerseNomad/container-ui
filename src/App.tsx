@@ -367,7 +367,7 @@ export default function App() {
     ) : !ctx ? (
       toolsMissing ? (
         <Empty title="No container runtime yet" action={<Button variant="primary" onClick={() => setTab("Containers")}>Install one</Button>}>
-          OpenPier installs Colima, OrbStack, Rancher Desktop, Podman Desktop, or Docker Desktop with one click.
+          Container UI installs Colima, OrbStack, Rancher Desktop, Podman Desktop, or Docker Desktop with one click.
         </Empty>
       ) : current ? (
         <Empty title={`${current.name} is stopped`} action={<Button variant="primary" disabled={vm.op !== null} onClick={startFromAnywhere}>{`Start ${current.name}`}</Button>}>
@@ -375,7 +375,7 @@ export default function App() {
         </Empty>
       ) : (
         <Empty title="No machine yet" action={<Button variant="primary" onClick={() => setTab("Containers")}>Create your first machine</Button>}>
-          OpenPier creates a small Linux machine for you.
+          Container UI creates a small Linux machine for you.
         </Empty>
       )
     ) : tab === "Images" ? (

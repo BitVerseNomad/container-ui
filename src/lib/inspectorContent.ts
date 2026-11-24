@@ -6,7 +6,7 @@ export type InspectorContent = {
   title: string;               // one sentence: the problem
   lede: string;                // one paragraph in plain words
   evidence?: { text: string; bad?: boolean }[];   // "What it said"; a finding with none passes none
-  findings?: string[];         // "What OpenPier found"; a finding with none passes none
+  findings?: string[];         // "What Container UI found"; a finding with none passes none
   primary: { kind: "fix" | "logs"; label: string };
   also: ("logs" | "shell")[];  // secondary buttons, in this order, without the primary
   command?: string;            // what the fix will run

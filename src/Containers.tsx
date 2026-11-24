@@ -474,7 +474,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, setDetailId
 
   // "Run it yourself": the exact command, in a dialog that can copy it (spec 6.8).
   const runYourself = async (title: string, command: string) => {
-    const yes = await confirm({ title, body: "This is what OpenPier runs. You can paste it in Terminal.", command, confirm: "Copy command" });
+    const yes = await confirm({ title, body: "This is what Container UI runs. You can paste it in Terminal.", command, confirm: "Copy command" });
     if (yes) await navigator.clipboard.writeText(command);
   };
 

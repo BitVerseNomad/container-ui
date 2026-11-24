@@ -1,10 +1,10 @@
-# OpenPier
+# Container UI
 
 **Docker on your Mac, without Docker Desktop.** Free, fast, and it tells you what's wrong before you go digging.
 
 ![Containers: every app on one screen, with what's broken and the button that fixes it](docs/screenshots/home.png)
 
-OpenPier is a native Mac app for container runtimes: [Colima](https://github.com/abiosoft/colima), OrbStack, Rancher Desktop, Podman Desktop, and Docker Desktop. You get a unified interface for containers, images, volumes, networks, and Compose projects. No license, no sign-in, no heavy background app.
+Container UI is a native Mac app for container runtimes: [Colima](https://github.com/abiosoft/colima), OrbStack, Rancher Desktop, Podman Desktop, and Docker Desktop. You get a unified interface for containers, images, volumes, networks, and Compose projects. No license, no sign-in, no heavy background app.
 
 ## Install in one line
 
@@ -51,7 +51,7 @@ This is early, and your feedback shapes it.
 
 ## Install by hand
 
-1. Download the `.dmg` from the [latest release](../../releases/latest), open it, and drag OpenPier to Applications.
+1. Download the `.dmg` from the [latest release](../../releases/latest), open it, and drag Container UI to Applications.
 2. The app isn't signed by Apple, so the first time you open it macOS says it can't check it. Open System Settings, then Privacy & Security, and click **Open Anyway**. You only do this once.
 
 **For contributors:** `docs/plan/README.md` (the reviews, design and plan, in reading order), `docs/research/verify-on-your-mac.md` (15-minute real-machine check), `docs/research/evaluation-kit.md` (comparison with other tools), `CHANGELOG.md`.

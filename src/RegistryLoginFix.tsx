@@ -42,7 +42,7 @@ function Fix({ found }: { found: RegistryAuth }) {
   async function signIn() {
     const ok = await confirm({
       title: `Sign in to ${found.registry}?`,
-      body: "OpenPier asks AWS for a sign-in and gives it to Docker. Docker keeps the login, valid for about 12 hours. Nothing else changes.",
+      body: "Container UI asks AWS for a sign-in and gives it to Docker. Docker keeps the login, valid for about 12 hours. Nothing else changes.",
       command: `aws ecr get-login-password --region ${found.region}${profileWords} | docker login --username AWS --password-stdin ${found.registry}`,
       confirm: "Sign in",
     });

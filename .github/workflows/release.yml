@@ -53,7 +53,7 @@ jobs:
           tag_name: v${{ steps.get_version.outputs.version }}
           draft: true
           generate_release_notes: true
-          name: OpenPier v${{ steps.get_version.outputs.version }}
+          name: Container UI v${{ steps.get_version.outputs.version }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -100,9 +100,9 @@ jobs:
           TAURI_APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
           tagName: v${{ needs.create-release.outputs.version }}
-          releaseName: OpenPier v${{ needs.create-release.outputs.version }}
+          releaseName: Container UI v${{ needs.create-release.outputs.version }}
           releaseBody: |
-            ## OpenPier v${{ needs.create-release.outputs.version }}
+            ## Container UI v${{ needs.create-release.outputs.version }}
 
             ### Features
             - Project management with auto-detection (devcontainer, compose, Dockerfile)
@@ -173,10 +173,10 @@ jobs:
           platforms:
             darwin-x86_64:
               signature: ""
-              url: https://github.com/${GITHUB_REPOSITORY}/releases/download/v${VERSION}/OpenPier_${VERSION}_x64.dmg
+              url: https://github.com/${GITHUB_REPOSITORY}/releases/download/v${VERSION}/Container.UI_${VERSION}_x64.dmg
             darwin-arm64:
               signature: ""
-              url: https://github.com/${GITHUB_REPOSITORY}/releases/download/v${VERSION}/OpenPier_${VERSION}_arm64.dmg
+              url: https://github.com/${GITHUB_REPOSITORY}/releases/download/v${VERSION}/Container.UI_${VERSION}_arm64.dmg
           EOF
 
       - name: Upload all assets to release
@@ -185,8 +185,8 @@ jobs:
           tag_name: v${{ needs.create-release.outputs.version }}
           draft: false
           files: |
-            artifacts/arm64/OpenPier_*.dmg
-            artifacts/x64/OpenPier_*.dmg
+            artifacts/arm64/*.dmg
+            artifacts/x64/*.dmg
             artifacts/latest.yml
             artifacts/latest-arm64.yml
         env:

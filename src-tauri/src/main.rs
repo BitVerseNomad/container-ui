@@ -2617,7 +2617,7 @@ fn main() {
             desktop::open_docker_desktop,
         ])
         .run(tauri::generate_context!())
-        .expect("error while running OpenPier");
+        .expect("error while running Container UI");
 }
 
 #[cfg(test)]

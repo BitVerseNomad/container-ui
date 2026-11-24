@@ -1,5 +1,5 @@
 #!/bin/sh
-# Installs the latest OpenPier release into /Applications (Apple Silicon only).
+# Installs the latest Container UI release into /Applications (Apple Silicon only).
 # Usage: curl -fsSL https://raw.githubusercontent.com/BitVerseNomad/container-ui/main/scripts/install.sh | sh
 # The app is not signed, so the quarantine flag is cleared on the copy this script installs, nothing else.
 set -eu
@@ -7,9 +7,9 @@ set -eu
 # The GitHub repo releases come from. Set once when the repo is published.
 REPO="BitVerseNomad/container-ui"
 
-[ "$(uname -m)" = "arm64" ] || { echo "OpenPier is built for Apple Silicon Macs only." >&2; exit 1; }
+[ "$(uname -m)" = "arm64" ] || { echo "Container UI is built for Apple Silicon Macs only." >&2; exit 1; }
 
-app="/Applications/OpenPier.app"
+app="/Applications/Container UI.app"
 tmp="$(mktemp -d)"
 trap 'hdiutil detach "$tmp/mnt" -quiet 2>/dev/null || true; rm -rf "$tmp"' EXIT
 
@@ -26,16 +26,16 @@ if [ -z "$dmg" ]; then
 fi
 hdiutil attach "$dmg" -nobrowse -quiet -mountpoint "$tmp/mnt"
 
-if pgrep -f "OpenPier.app/Contents/MacOS" >/dev/null 2>&1; then
-  osascript -e 'tell application "OpenPier" to quit' >/dev/null 2>&1 || true
+if pgrep -f "Container UI.app/Contents/MacOS" >/dev/null 2>&1; then
+  osascript -e 'tell application "Container UI" to quit' >/dev/null 2>&1 || true
   sleep 2
 fi
 if [ -d "$app" ]; then
-  old="$HOME/.Trash/OpenPier $(date +%Y%m%d-%H%M%S).app"
+  old="$HOME/.Trash/Container UI $(date +%Y%m%d-%H%M%S).app"
   mv "$app" "$old" && echo "Moved the old app to the Trash."
 fi
 
-ditto "$tmp/mnt/OpenPier.app" "$app"
+ditto "$tmp/mnt/Container UI.app" "$app"
 xattr -dr com.apple.quarantine "$app" 2>/dev/null || true
 echo "Installed $app."
 

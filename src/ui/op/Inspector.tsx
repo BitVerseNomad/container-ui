@@ -38,7 +38,7 @@ export function Inspector(props: InspectorProps): React.JSX.Element {
         )}
         {findings && (
           <div>
-            <div className="text-micro font-medium uppercase tracking-wide text-fg-faint">What OpenPier found</div>
+            <div className="text-micro font-medium uppercase tracking-wide text-fg-faint">What Container UI found</div>
             <div className="steps">
               {findings.map((text, index) => (
                 <div key={index}>
