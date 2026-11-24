@@ -4,12 +4,12 @@ import { LogLine, applyFrame, cleanFrame, summarizeFailure } from "../lib/logCle
 import { Button } from "./op/Button";
 import { Icon } from "./op/Icon";
 
-type Props = { event: string; failure?: string | null; active?: boolean; onClear?: () => void; collapsed?: boolean };
+type Props = { event: string; failure?: string | null; active?: boolean; status?: string; onClear?: () => void; collapsed?: boolean };
 
 // Live, cleaned view of a streamed command. The parent passes `failure` (the error string from the
 // invoke call) and `active` (an operation is running; starting a new one clears old output).
 // The log has a fixed height and scrolls itself, so it never pushes the page below it off screen.
-export default function OutputLog({ event, failure = null, active = false, onClear, collapsed = false }: Props) {
+export default function OutputLog({ event, failure = null, active = false, status = "Working…", onClear, collapsed = false }: Props) {
   const [lines, setLines] = useState<LogLine[]>([]);
   const box = useRef<HTMLPreElement>(null);
 
@@ -50,7 +50,7 @@ export default function OutputLog({ event, failure = null, active = false, onCle
     <div className="out flex min-w-0 flex-col gap-2">
       {failure && <p className="out-fail" role="alert">{headline || "Something went wrong."}</p>}
       <div className="flex flex-wrap items-center gap-2 text-meta">
-        <span className="state mr-auto text-fg-muted">{active ? "Working…" : "Output"}</span>
+        <span className="state mr-auto text-fg-muted">{active ? status : "Output"}</span>
         <Button size="xs" icon="copy" onClick={() => navigator.clipboard.writeText(lines.map((l) => l.raw).join("\n"))}>Copy raw output</Button>
         {onClear && !active && (
           <Button size="xs" onClick={() => { setLines([]); onClear(); }}>Clear</Button>

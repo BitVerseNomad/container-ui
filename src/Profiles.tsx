@@ -13,6 +13,7 @@ import { useFixRuns } from "./FixIt";
 import { ranVm } from "./lib/activity";
 
 const gb = (bytes: number) => `${gbOf(bytes)} GiB`;
+const sentence = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 
 type Props = {
   profiles: Profile[];
@@ -51,7 +52,7 @@ export default function Profiles({ profiles, reload, openNew = false, kubeOn = (
 
 
   async function act(name: string, label: string, cmd: string, args: Record<string, unknown>): Promise<boolean> {
-    setBusy(`${name}: ${label}`);
+    setBusy(`${sentence(label)} ${name}…`);
     setError(null);
     try {
       await ranVm(cmd, args, () => invoke(cmd, args));
@@ -69,24 +70,23 @@ export default function Profiles({ profiles, reload, openNew = false, kubeOn = (
   async function turnOnKubernetes(p: Profile) {
     const warn = p.status === "Running" ? " The VM restarts, so running containers stop for a minute and start again." : "";
     if (!(await confirm(`Turn on Kubernetes for "${p.name}"?${warn}`, "Turn on", { safe: true }))) return;
-    if (await act(p.name, "turning on Kubernetes", "apply_resources", { opts: { name: p.name, kubernetes: true } as StartOpts, restart: p.status === "Running" })) onKubeAsked?.(p.name, true);
+    if (await act(p.name, "turning on Kubernetes for", "apply_resources", { opts: { name: p.name, kubernetes: true } as StartOpts, restart: p.status === "Running" })) onKubeAsked?.(p.name, true);
   }
 
   // Mirrors turnOnKubernetes: the VM restarts without Kubernetes, so running containers stop and start again.
   async function turnOffKubernetes(p: Profile) {
     const warn = p.status === "Running" ? " The machine restarts, so running containers stop for a minute and start again." : "";
     if (!(await confirm(`Turn off Kubernetes for "${p.name}"?${warn} You can turn Kubernetes on again any time.`, "Turn off", { safe: true }))) return;
-    if (await act(p.name, "turning off Kubernetes", "apply_resources", { opts: { name: p.name, kubernetes: false } as StartOpts, restart: p.status === "Running" })) onKubeAsked?.(p.name, false);
+    if (await act(p.name, "turning off Kubernetes for", "apply_resources", { opts: { name: p.name, kubernetes: false } as StartOpts, restart: p.status === "Running" })) onKubeAsked?.(p.name, false);
   }
 
   return (
     <>
       <Header title="Machines">
         <OpButton variant={profiles.length === 0 ? "primary" : "default"} size="sm" onClick={openForm}>New machine</OpButton>
-        {busy && <span className="state">{busy}</span>}
       </Header>
       <p className="hint lead">A machine is a separate Colima VM with its own containers, images and volumes. Most people only need <b>default</b>.</p>
-      <OutputLog event="colima-progress" active={!!busy} failure={error} onClear={() => setError(null)} />
+      <OutputLog event="colima-progress" active={!!busy} status={busy ?? undefined} failure={error} onClear={() => setError(null)} />
       {profiles.length === 0 && !dialogOpen && <Empty title="No Colima machines yet">Create one to start a container runtime on this machine.</Empty>}
       {profiles.length > 0 && (
         <table>
