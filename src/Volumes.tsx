@@ -169,8 +169,8 @@ export default function Volumes({ ctx }: { ctx: string }) {
                   <td className={by.length ? "in-use" : ""}>
                     {usage.data === null ? "…" : by.length ? `In use by ${by.length} container${by.length > 1 ? "s" : ""}: ${by.join(", ")}` : "Not used"}
                   </td>
-                  <td className="font-mono">{sizes.data?.has(v.Name) ? formatBytes(sizes.data.get(v.Name)!) : "—"}</td>
-                  <td className="flex items-center justify-end gap-1">
+                  <td className="font-mono whitespace-nowrap">{sizes.data?.has(v.Name) ? formatBytes(sizes.data.get(v.Name)!) : "—"}</td>
+                  <td className="whitespace-nowrap text-right align-middle">
                     <OpButton variant="danger-quiet" size="sm" icon="trash" aria-label={locked ? `${removeLabel}. ${WAIT}` : removeLabel} disabled={by.length > 0 || locked} busy={locked} onClick={async () => (await confirm(`Remove volume ${v.Name}? Its data is lost.`)) && act(["volume", "rm", v.Name])}>Remove</OpButton>
                   </td>
                 </tr>
