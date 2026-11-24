@@ -7,9 +7,8 @@ import PodDrawer from "./PodDrawer";
 import { K8sEvent, Pod, parseDeployments, parseK8sEvents, parseNamespaces, parseNodes, parsePods, parseServices, podProblems } from "./lib/k8s";
 import { ago } from "./lib/events";
 import { Banner } from "./ui";
-import { Button } from "./ui/op";
+import { Button, Select, TabPanel, Tabs } from "./ui/op";
 import Card from "./ui/Card";
-import { Icon } from "./ui/icons";
 import { Badge } from "@ui/components/Badge";
 import OutputLog from "./ui/OutputLog";
 import { useEnv } from "./useEnv";
@@ -104,7 +103,7 @@ export default function Kubernetes({ profile, ctx }: { profile: Profile; ctx: st
                 <div>
                   <b>{p.name}</b> <span className="hint">{p.namespace}</span> <span className={problems[0].level === "bad" ? "font-medium text-bad" : "font-medium text-warn"}>{problems[0].title}</span>
                 </div>
-                <button aria-label={`Open ${p.name}`} onClick={() => setOpen(p)}>Open</button>
+                <Button size="xs" aria-label={`Open ${p.name}`} onClick={() => setOpen(p)}>Open</Button>
               </li>
             ))}
           </ul>
@@ -112,13 +111,10 @@ export default function Kubernetes({ profile, ctx }: { profile: Profile; ctx: st
       )}
 
       <div className="flex flex-wrap items-center gap-3 text-meta">
-        <label className="flex items-center gap-1.5 text-meta text-fg-muted">
-          Namespace
-          <select aria-label="Namespace" value={ns} onChange={(e) => setNs(e.target.value)}>
-            <option value="">All namespaces</option>
-            {(spaces.data ?? []).map((n) => <option key={n}>{n}</option>)}
-          </select>
-        </label>
+        <div className="flex items-center gap-1.5 text-meta text-fg-muted">
+          <span>Namespace</span>
+          <Select aria-label="Namespace" value={ns} onChange={setNs} options={[{ value: "", label: "All namespaces" }, ...(spaces.data ?? []).map((n) => ({ value: n, label: n }))]} />
+        </div>
         <span className="flex items-center gap-2">
           {env.k9s ? (
             <Button size="sm" variant="default" icon="cluster" onClick={() => invoke("open_terminal", { kind: "k9s", context: kctx }).catch((e) => setError(String(e)))}>Open in k9s</Button>
@@ -129,32 +125,28 @@ export default function Kubernetes({ profile, ctx }: { profile: Profile; ctx: st
       </div>
       <Banner error={error ?? pods.error} onClose={() => setError(null)} />
 
-      <div className="tabs" role="tablist" aria-label="Kubernetes resources">
-        {VIEWS.map((v) => (
-          <button key={v} role="tab" aria-selected={v === view} className={v === view ? "tab active" : "tab"} onClick={() => setView(v)}>{v}</button>
-        ))}
-      </div>
-
-      {view === "Pods" && (
+      <Tabs value={view} onChange={(v) => setView(v as (typeof VIEWS)[number])} items={VIEWS.map((v) => ({ value: v, label: v }))} aria-label="Kubernetes resources">
+      <TabPanel value="Pods">
         <table>
-          <thead><tr><th scope="col">Name</th><th scope="col">Namespace</th><th scope="col">Ready</th><th scope="col">Status</th><th scope="col">Restarts</th><th scope="col">Age</th></tr></thead>
+          <thead><tr><th scope="col">Name</th><th scope="col">Namespace</th><th scope="col">Ready</th><th scope="col">Status</th><th scope="col">Restarts</th><th scope="col">Age</th><th scope="col"><span className="sr-only">Actions</span></th></tr></thead>
           <tbody>
             {inNs(pods.data)
               .sort((a, b) => Number(podProblems(b, 0).length > 0) - Number(podProblems(a, 0).length > 0) || a.name.localeCompare(b.name))
               .map((p) => (
                 <tr key={`${p.namespace}/${p.name}`}>
-                  <td><button className="cursor-pointer text-left text-accent hover:underline" onClick={() => setOpen(p)}><b>{p.name}</b></button></td>
+                  <td><b>{p.name}</b></td>
                   <td>{p.namespace}</td>
                   <td className="font-mono">{p.ready}</td>
                   <td><Badge variant={STATUS_VARIANT[badge(p.status)]}>{p.status}</Badge></td>
                   <td className="font-mono">{p.restarts}</td>
                   <td>{age(p.ageMs)}</td>
+                  <td className="text-right"><Button size="xs" aria-label={`Open ${p.name}`} onClick={() => setOpen(p)}>Open</Button></td>
                 </tr>
               ))}
           </tbody>
         </table>
-      )}
-      {view === "Deployments" && (
+      </TabPanel>
+      <TabPanel value="Deployments">
         <table>
           <thead><tr><th scope="col">Name</th><th scope="col">Namespace</th><th scope="col">Ready</th></tr></thead>
           <tbody>
@@ -167,8 +159,8 @@ export default function Kubernetes({ profile, ctx }: { profile: Profile; ctx: st
             ))}
           </tbody>
         </table>
-      )}
-      {view === "Services" && (
+      </TabPanel>
+      <TabPanel value="Services">
         <table>
           <thead><tr><th scope="col">Name</th><th scope="col">Namespace</th><th scope="col">Type</th><th scope="col">Address</th><th scope="col">Ports</th></tr></thead>
           <tbody>
@@ -179,8 +171,8 @@ export default function Kubernetes({ profile, ctx }: { profile: Profile; ctx: st
             ))}
           </tbody>
         </table>
-      )}
-      {view === "Events" && (
+      </TabPanel>
+      <TabPanel value="Events">
         <table>
           <thead><tr><th scope="col">When</th><th scope="col">Object</th><th scope="col">Reason</th><th scope="col">Message</th></tr></thead>
           <tbody>
@@ -193,7 +185,8 @@ export default function Kubernetes({ profile, ctx }: { profile: Profile; ctx: st
             ))}
           </tbody>
         </table>
-      )}
+      </TabPanel>
+      </Tabs>
 
       {open && <PodDrawer kctx={kctx} pod={open} problems={podProblems(open, Date.now())} events={events.data ?? []} onClose={() => setOpen(null)} />}
     </section>
