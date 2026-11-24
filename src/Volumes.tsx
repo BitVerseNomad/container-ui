@@ -14,6 +14,7 @@ import { parseVolumeSizes } from "./lib/events";
 import { formatBytes } from "./containerInfo";
 import { Icon } from "./ui/icons";
 import { Button as OpButton } from "./ui/op/Button";
+import { Header } from "./Header";
 
 type V = { Name: string; Driver: string };
 
@@ -81,10 +82,11 @@ export default function Volumes({ ctx }: { ctx: string }) {
   const selectedUnused = [...selected].filter((n) => (used.get(n)?.length ?? 0) === 0);
 
   return (
-    <section>
-      <div className="table-tools">
-        <button
-          className="text-bad hover:bg-bad-fill"
+    <>
+      <Header title="Volumes">
+        <OpButton
+          variant="danger-quiet"
+          size="sm"
           disabled={loose.length === 0}
           aria-disabled={locked || undefined}
           aria-describedby={locked ? "volumes-wait" : undefined}
@@ -96,10 +98,11 @@ export default function Volumes({ ctx }: { ctx: string }) {
           }
         >
           Remove unused anonymous ({loose.length})
-        </button>
+        </OpButton>
         {selectedUnused.length > 0 && (
-          <button
-            className="text-bad hover:bg-bad-fill"
+          <OpButton
+            variant="danger-quiet"
+            size="sm"
             aria-disabled={locked || undefined}
             onClick={async () =>
               !locked && (await confirm(
@@ -109,10 +112,10 @@ export default function Volumes({ ctx }: { ctx: string }) {
             }
           >
             Remove selected ({selectedUnused.length})
-          </button>
+          </OpButton>
         )}
         {locked && <span id="volumes-wait" className="hint">{WAIT}</span>}
-      </div>
+      </Header>
       <Banner error={error ?? usage.error ?? err} onClose={() => setErr(null)} />
       {data && data.length === 0 && <Empty title="No volumes">Volumes created by your containers will show up here.</Empty>}
       {data && data.length > 0 && (
@@ -178,6 +181,6 @@ export default function Volumes({ ctx }: { ctx: string }) {
       )}
       </>
     )}
-    </section>
+    </>
   );
 }

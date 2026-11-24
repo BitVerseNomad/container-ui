@@ -68,6 +68,9 @@ const opName = (vm: VmState) => { const a = vm.last?.args as { name?: string; op
 // Written out by hand: "its kubernetes" reads wrong.
 const NOUN: Record<string, string> = { Images: "images", Volumes: "volumes", Networks: "networks", Kubernetes: "cluster" };
 
+// Pages that draw their own title row, with their actions in it, so App does not add the shared Header.
+const PAGES_WITH_OWN_HEADER: readonly string[] = ["Containers", "Images", "Volumes", "Networks", "Profiles"];
+
 export default function App() {
   const { route } = useRoute();
   const tab: Tab = tabOfRoute(route);
@@ -502,7 +505,7 @@ export default function App() {
             <Banner error={profilesError} />
             <Banner error={appError} onClose={() => setAppError(null)} />
             <MachineUsageProvider value={usage}>
-              {tab !== "Containers" ? (
+              {unbuiltSettings || !PAGES_WITH_OWN_HEADER.includes(tab) ? (
                 <Header title={unbuiltSettings ? "Settings" : tab === "Profiles" ? "Machines" : tab} />
               ) : null}
               {/* Screens not yet on the op components keep their v0.2.1 look (src/ui/legacy.css). */}

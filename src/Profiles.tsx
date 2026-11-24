@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import Status from "./ui/Status";
+import { Header } from "./Header";
 import { useHostSize } from "./useHostSize";
 import { useConfirm } from "./ui";
 import { invoke } from "@tauri-apps/api/core";
@@ -79,11 +80,11 @@ export default function Profiles({ profiles, reload, openNew = false, kubeOn = (
   }
 
   return (
-    <section>
-      <header>
+    <>
+      <Header title="Machines">
         <OpButton variant={profiles.length === 0 ? "primary" : "default"} size="sm" onClick={openForm}>New machine</OpButton>
         {busy && <span className="state">{busy}</span>}
-      </header>
+      </Header>
       <p className="hint lead">A machine is a separate Colima VM with its own containers, images and volumes. Most people only need <b>default</b>.</p>
       <OutputLog event="colima-progress" active={!!busy} failure={error} onClear={() => setError(null)} />
       {profiles.length === 0 && !dialogOpen && <Empty title="No Colima machines yet">Create one to start a container runtime on this machine.</Empty>}
@@ -177,6 +178,6 @@ export default function Profiles({ profiles, reload, openNew = false, kubeOn = (
           </div>
         </form>
       </dialog>
-    </section>
+    </>
   );
 }

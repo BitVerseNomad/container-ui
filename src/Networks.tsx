@@ -3,6 +3,7 @@ import { useState } from "react";
 import { score } from "./lib/fuzzy";
 import { Icon } from "./ui/icons";
 import { Button as OpButton } from "./ui/op/Button";
+import { Header } from "./Header";
 import { docker, dockerJson } from "./api";
 import { usePoll } from "./hooks";
 import { NetInfo, parseNetworks } from "./lib/network";
@@ -41,7 +42,10 @@ export default function Networks({ ctx }: { ctx: string }) {
   const valid = NAME.test(newName.trim()) && !BUILTIN.has(newName.trim());
 
   return (
-    <section>
+    <>
+      <Header title="Networks">
+        <OpButton variant="default" size="sm" onClick={() => setTesting(true)}>Test a connection…</OpButton>
+      </Header>
       <p className="hint lead">
         Containers on the same network reach each other by name, like <code>http://db:5432</code>. The built-in <b>bridge</b> network doesn't do name lookup, so put containers that talk to each other on a network of your own.{" "}
         <button className="cursor-pointer border-0 bg-transparent p-0 text-accent-ink hover:underline" onClick={() => openUrl(BRIDGE_DOCS)}>Learn more <span className="font-mono text-fg-muted">(docs.docker.com)</span></button>
@@ -49,7 +53,6 @@ export default function Networks({ ctx }: { ctx: string }) {
       <div className="flex items-center gap-2">
         <input aria-label="New network name" placeholder="New network name, like devnet" value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && valid && act(["network", "create", newName.trim()]).then(() => setNewName(""))} />
         <button className="primary" disabled={!valid} onClick={async () => { await act(["network", "create", newName.trim()]); setNewName(""); }}>Create network</button>
-        <button className="ml-auto" onClick={() => setTesting(true)}>Test a connection…</button>
       </div>
       <Banner error={nets.error ?? err} onClose={() => setErr(null)} />
       {nets.data && nets.data.length === 0 && <Empty title="No networks">Docker creates a few built-in ones when it starts.</Empty>}
@@ -109,6 +112,6 @@ export default function Networks({ ctx }: { ctx: string }) {
       </>
     )}
       {testing && <ConnectionTest ctx={ctx} onClose={() => setTesting(false)} />}
-    </section>
+    </>
   );
 }

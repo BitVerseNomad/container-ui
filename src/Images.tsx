@@ -11,6 +11,7 @@ import RunPanel from "./RunPanel";
 import DiskCard from "./DiskCard";
 import { Icon } from "./ui/icons";
 import { Button as OpButton } from "./ui/op/Button";
+import { Header } from "./Header";
 import { activity, dockerLine } from "./lib/activity";
 
 type I = { ID: string; Repository: string; Tag: string; Size: string; CreatedSince: string };
@@ -36,10 +37,10 @@ export default function Images({ ctx, onRan, startPull = false, arch }: { ctx: s
   }
 
   return (
-    <section>
-      <header>
+    <>
+      <Header title="Images">
         <OpButton variant="primary" icon="download" onClick={() => { setHubTerm(undefined); setPulling(true); }}>Pull image</OpButton>
-      </header>
+      </Header>
       <Banner error={error ?? err} onClose={() => setErr(null)} />
       <DiskCard ctx={ctx} onChanged={reload} />
       {data && data.length === 0 && (
@@ -94,6 +95,6 @@ export default function Images({ ctx, onRan, startPull = false, arch }: { ctx: s
         />
       )}
       {running && <RunPanel ctx={ctx} arch={arch} image={running} onClose={() => setRunning(null)} onRan={onRan} />}
-    </section>
+    </>
   );
 }
