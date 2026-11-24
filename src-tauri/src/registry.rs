@@ -107,6 +107,9 @@ fn sign_in(registry: &str, profile: Option<&str>) -> Result<(), LoginError> {
     }
     // aws prints the password with a trailing newline; docker wants it bare.
     let password = String::from_utf8_lossy(&password).trim().to_string();
+    if password.is_empty() {
+        return Err(err("login", "AWS returned no password for this registry."));
+    }
     let (ok, _, docker_err) = run("docker", &login_args(registry), Some(password.as_bytes()))
         .map_err(|e| err("login", format!("Could not run docker: {e}. Is it installed?")))?;
     if ok {
