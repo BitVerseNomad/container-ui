@@ -232,11 +232,12 @@ export function LimitActions({ fix, ctx, listed, fallback, small }: { fix: Probl
 
 // Health, restarts and anything wrong with a container, in plain words.
 // ctx and onFixed let a problem with a fix run it here; onFixed gets the name of the replaced container.
-export function HealthPanel({ state, extra = [], onLogs, ctx, onFixed, listed = [] }: { state: State; extra?: Problem[]; onLogs?: () => void; ctx?: string; onFixed?: (name: string) => void; listed?: string[] }): ReactNode {
+// flat: drawn inside a card the caller already provides (no border or fill of its own).
+export function HealthPanel({ state, extra = [], onLogs, ctx, onFixed, listed = [], flat = false }: { state: State; extra?: Problem[]; onLogs?: () => void; ctx?: string; onFixed?: (name: string) => void; listed?: string[]; flat?: boolean }): ReactNode {
   const vm = useResizeEnv()?.profile;
   const problems: Problem[] = [...problemsFor(state, vm?.status === "Running" ? vm.memory : undefined), ...extra];
   return (
-    <div className="health-panel flex flex-col gap-2 rounded-md border border-line bg-bg-raised p-3">
+    <div className={`health-panel flex flex-col gap-2 p-3 ${flat ? "" : "rounded-md border border-line bg-bg-raised"}`}>
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <b>Health</b>
         {state.health ? (

@@ -142,11 +142,11 @@ export default function ContainerDetail({ ctx, id, tab: routeTab, appProblems, o
   ) : null;
 
   const logsAside = tab === "logs" ? (
-    <>
+    <div className="flex flex-wrap items-center gap-2">
       <LogFilter value={filter} onChange={setFilter} />
       <ChipButton pressed={follow} onClick={() => setFollow((f) => !f)}>Follow</ChipButton>
       <Button variant="ghost" iconOnly icon="copy" aria-label="Copy logs" onClick={() => copyLogs.current()} />
-    </>
+    </div>
   ) : undefined;
 
   return (
@@ -190,7 +190,7 @@ export default function ContainerDetail({ ctx, id, tab: routeTab, appProblems, o
 
       <Facts items={facts} />
 
-      <Tabs value={tab} items={TABS.map((t) => ({ value: t, label: LABEL[t] }))} onChange={onTab} aria-label="Container" aside={logsAside}>
+      <Tabs value={tab} items={TABS.map((t) => ({ value: t, label: LABEL[t] }))} onChange={onTab} aria-label="Container" aside={logsAside} className="flex-wrap gap-y-2">
         <TabPanel value="logs">
           <Logs ctx={ctx} id={id} name={name} filter={filter} follow={follow} onFollowChange={setFollow} registerCopy={registerCopy} />
         </TabPanel>
@@ -198,16 +198,18 @@ export default function ContainerDetail({ ctx, id, tab: routeTab, appProblems, o
           <StatsTab ctx={ctx} id={id} running={running} />
         </TabPanel>
         <TabPanel value="settings">
-          <HealthPanel state={state ?? { name: "", running: false, status: "", exitCode: 0, oomKilled: false, restartCount: 0, startedAt: "", health: null, memLimit: 0, composeFile: null, composeFiles: [], service: null, restart: "" }} extra={extra} ctx={ctx} onFixed={onReplaced} listed={listed} />
-          {c && (
-            <List aria-label="Settings">
-              <Row lead={<span />} name="Image" meta={c.Config.Image} metaSelectable />
-              <Row lead={<span />} name="Command" meta={[c.Path ?? "", ...(c.Args ?? [])].join(" ")} metaSelectable />
-              <Row lead={<span />} name="Restart policy" meta={c.HostConfig?.RestartPolicy?.Name || "no"} />
-              <Row lead={<span />} name="Environment" meta={`${c.Config.Env?.length ?? 0} variables`} />
-            </List>
-          )}
-          {c && <Canvas aria-label="Environment" wrap>{(c.Config.Env ?? []).join("\n")}</Canvas>}
+          <div className="flex flex-col overflow-hidden rounded-md border border-line bg-bg-raised">
+            <HealthPanel flat state={state ?? { name: "", running: false, status: "", exitCode: 0, oomKilled: false, restartCount: 0, startedAt: "", health: null, memLimit: 0, composeFile: null, composeFiles: [], service: null, restart: "" }} extra={extra} ctx={ctx} onFixed={onReplaced} listed={listed} />
+            {c && (
+              <List aria-label="Settings">
+                <Row lead={<span />} name="Image" meta={c.Config.Image} metaSelectable />
+                <Row lead={<span />} name="Command" meta={[c.Path ?? "", ...(c.Args ?? [])].join(" ")} metaSelectable />
+                <Row lead={<span />} name="Restart policy" meta={c.HostConfig?.RestartPolicy?.Name || "no"} />
+                <Row lead={<span />} name="Environment" meta={`${c.Config.Env?.length ?? 0} variables`} />
+              </List>
+            )}
+            {c && <div className="border-t border-line p-3"><Canvas aria-label="Environment" wrap>{(c.Config.Env ?? []).join("\n")}</Canvas></div>}
+          </div>
         </TabPanel>
         <TabPanel value="folders">
           {mounts.length === 0 ? (

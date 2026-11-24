@@ -37,6 +37,15 @@ describe("ContainerDetail", () => {
     window.location.hash = "#/containers";
   });
 
+  it("Given the Settings tab, When it renders, Then the health panel and the settings rows sit in one card", async () => {
+    show({ inspect: runningInspect, tab: "settings" });
+    const rows = await screen.findByRole("table", { name: "Settings" });
+    const health = document.querySelector(".health-panel");
+    expect(health).not.toBeNull();
+    expect(rows.parentElement).toBe(health!.parentElement);
+    expect(rows.parentElement).toHaveClass("rounded-md", "border");
+  });
+
   it("Given the route tab settings, When the page renders, Then the Settings tab is selected and shows the image", async () => {
     show({ inspect: runningInspect, tab: "settings" });
     await waitFor(() => expect(screen.getByRole("tab", { name: "Settings" })).toHaveAttribute("aria-selected", "true"));
