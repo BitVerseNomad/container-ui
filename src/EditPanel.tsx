@@ -40,9 +40,7 @@ export default function EditPanel({ profile, onClose, onApplied }: Props) {
     <div className="flex flex-col gap-1.5">
       <label htmlFor={id}>{label}</label>
       <input id={id} type="number" min={min} value={value || ""} disabled={busy} onChange={(e) => set(Number(e.target.value))} />
-      <span className={value !== prev ? "delta changed" : "delta"}>
-        {value !== prev ? `${prev}${unit} → ${value || "?"}${unit}` : "Current"}
-      </span>
+      {value !== prev && <span className="delta changed">{`${prev}${unit} → ${value || "?"}${unit}`}</span>}
     </div>
   );
 
