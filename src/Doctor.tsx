@@ -282,7 +282,7 @@ export default function Doctor({ ctx, setup, doc, onProfiles, onBring, onGo, onO
   const onScreen = onHome.length ? ` ${onHome.length} ${todo ? "more" : onHome.length === 1 ? "container problem" : "container problems"} ${onHome.length === 1 ? "is" : "are"} on the Containers screen.` : "";
   const summary = `${todo === 0 && onHome.length ? "Nothing needs action here." : summaryOf(todo)}${onScreen}`;
   return (
-    <div className="setup doctor" onFocus={onFocusIn} onMouseDown={(e) => controlAt(e.target) && noteRow(e.target)}>
+    <div className="setup doctor !max-w-none pt-4" onFocus={onFocusIn} onMouseDown={(e) => controlAt(e.target) && noteRow(e.target)}>
       <div className="doctor-head">
         <p className="hint">
           {summary}{ctx || resizing(rs) ? "" : " Start the VM to also check containers, networks, images and storage."}
