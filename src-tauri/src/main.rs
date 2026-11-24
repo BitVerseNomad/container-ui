@@ -20,6 +20,8 @@ struct Profile {
     cpus: u32,
     memory: u64,
     disk: u64,
+    // A stopped profile has no runtime in `colima list --json`.
+    #[serde(default)]
     runtime: String,
     #[serde(default)]
     address: String,
@@ -2614,6 +2616,13 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn given_a_stopped_profile_without_runtime_when_parsed_then_it_loads() {
+        let line = r#"{"name":"default","status":"Stopped","arch":"aarch64","cpus":6,"memory":8589934592,"disk":53687091200}"#;
+        let p: Profile = serde_json::from_str(line).unwrap();
+        assert_eq!(p.runtime, "");
+    }
 
     #[test]
     fn given_spotlight_output_when_filtered_then_only_compose_files_in_ordinary_home_folders_stay()
