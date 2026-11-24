@@ -11,7 +11,7 @@ import { Profile, docker, dockerJson } from "./api";
 import { usePoll } from "./hooks";
 import VmStrip from "./VmStrip";
 import OutputLog from "./ui/OutputLog";
-import { Icon } from "./ui/icons";
+import { Icon } from "./ui/op/Icon";
 import { kubeName } from "./lib/compose";
 import { appStoppedVersion, subscribeAppStopped } from "./lib/appStopped";
 import { App, appState, appsFrom, downLine, finished, lastRunOver, listed, runInfo, startWhat, withAppStop } from "./lib/homeRows";
@@ -925,7 +925,7 @@ function StartingCard({ name }: { name: string }) {
       <span className="spinner mx-auto mb-3 inline-block size-4 shrink-0 animate-spin rounded-full border-2 border-line border-t-accent" aria-hidden="true" />
       <p className="hint">The first start downloads about 1 GB and can take a few minutes.</p>
       <details className="how mt-2 text-left text-meta text-fg-muted">
-        <summary><Icon name="chevron" size={12} />Details</summary>
+        <summary><Icon name="chev-right" size="sm" />Details</summary>
         <pre className="cmd">colima start {name}</pre>
         <OutputLog event="colima-progress" active />
       </details>

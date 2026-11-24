@@ -28,6 +28,9 @@
   --ok: #1b7f50;
   --warn: #8f5d0e;
   --bad: #c42b23;
+  /* a solid red fill with white text (a danger confirm); darker in dark mode so white text stays readable */
+  --bad-solid: #c42b23;
+  --on-bad-solid: #ffffff;
   --info: #1f5fc4;
   --ok-fill: rgb(27 127 80 / 0.10);
   --warn-fill: rgb(183 121 31 / 0.12);
@@ -113,6 +116,8 @@
   --ok: #3ccb86;
   --warn: #e5a93b;
   --bad: #ff6b61;
+  --bad-solid: #b3261e;
+  --on-bad-solid: #ffffff;
   --info: #6fa8ff;
   --ok-fill: rgb(60 203 134 / 0.12);
   --warn-fill: rgb(229 169 59 / 0.12);

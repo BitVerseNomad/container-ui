@@ -175,7 +175,7 @@ has "WO-2.6: check-engine-start opens the stopped scenario" scripts/check-engine
 has "WO-2.6: check-engine-start opens the none scenario" scripts/check-engine-start.mjs "scenario=none"
 has "WO-2.6: check-engine-start opens the unreachable scenario" scripts/check-engine-start.mjs "scenario=unreachable"
 has "WO-2.6: check-engine-start opens the missing scenario" scripts/check-engine-start.mjs "scenario=missing"
-has "WO-2.6: check-engine-start looks for the onboarding words" scripts/check-engine-start.mjs "Start your first VM"
+has "WO-2.6: check-engine-start looks for the onboarding words" scripts/check-engine-start.mjs "Start your first machine"
 lacks "WO-2.6: check-engine-start has no empty check" scripts/check-engine-start.mjs "check(true"
 chk "WO-2.6: check-engine-start passes in Chromium" node scripts/check-engine-start.mjs
 chk "WO-2.6: check-engine-start passes in WebKit" env PW_ENGINE=webkit node scripts/check-engine-start.mjs
