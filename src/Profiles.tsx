@@ -83,7 +83,7 @@ export default function Profiles({ profiles, reload, openNew = false, kubeOn = (
   return (
     <>
       <Header title="Machines">
-        <OpButton variant={profiles.length === 0 ? "primary" : "default"} size="sm" onClick={openForm}>New machine</OpButton>
+        <OpButton variant="primary" size="sm" onClick={openForm}>New machine</OpButton>
       </Header>
       <p className="hint lead">A machine is a separate Colima VM with its own containers, images and volumes. Most people only need <b>default</b>.</p>
       <OutputLog event="colima-progress" active={!!busy} status={busy ?? undefined} failure={error} onClear={() => setError(null)} />
