@@ -106,7 +106,7 @@ for (const [width, height] of [[1180, 760]]) {
   check(await page.locator(".app.folded").count() > 0, `[${width}x${height}] Cmd+B folds sidebar`);
   await page.reload();
   await page.waitForTimeout(500);
-  const foldedAfterReload = await page.evaluate(() => localStorage.getItem("openpier:sidebar-folded"));
+  const foldedAfterReload = await page.evaluate(() => localStorage.getItem("container-ui:sidebar-folded"));
   check(foldedAfterReload === "1", `[${width}x${height}] fold survives reload`);
   await pressKey(page, "b", { meta: true });
   await page.waitForTimeout(200);
@@ -121,12 +121,12 @@ for (const [width, height] of [[1180, 760]]) {
 
   // 13. Cmd+R dispatches refresh, page does not reload.
   await page.evaluate(() => { window.__marker = true; });
-  await page.evaluate(() => { window.addEventListener("openpier:refresh", () => { window.__refreshCalled = true; }); });
+  await page.evaluate(() => { window.addEventListener("container-ui:refresh", () => { window.__refreshCalled = true; }); });
   await pressKey(page, "r", { meta: true });
   await page.waitForTimeout(300);
   const refreshCalled = await page.evaluate(() => window.__refreshCalled);
   const markerStill = await page.evaluate(() => window.__marker);
-  check(refreshCalled, `[${width}x${height}] Cmd+R dispatches openpier:refresh`);
+  check(refreshCalled, `[${width}x${height}] Cmd+R dispatches container-ui:refresh`);
   check(markerStill, `[${width}x${height}] page does not reload on Cmd+R`);
 
   // 14. "?" opens Help; lists "Command palette" with "⌘K"; has "Docs" and "Give feedback"; no Portuguese.

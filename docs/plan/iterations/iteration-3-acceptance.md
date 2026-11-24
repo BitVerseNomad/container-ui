@@ -10,7 +10,7 @@ Setup for every screen: run `npm run preview`, open `http://localhost:4173/?scen
 2. Open `scripts/dropped-checks.json`. Each entry has a reason that is a changed word or a removed feature, never "flaky" or "slow". More than three for one work order is a weakened check.
 3. For each ported check, compare `scripts/check-baselines/<name>.messages.txt` with the new script. Spot-check five conditions: none is `true`, none is commented out, none was loosened from an exact match to `.test(...)` of a vague word.
 4. `scripts/mockup-pairs.json`: every row for this iteration has `threshold` 0.005. A masked row names only the live text in `why` (the one other mask is the Settings pair's machine name and facts, because the preview machine is `colima`). Masks do not cover rows or buttons.
-5. No colour, size, shadow or icon that is not in `src/ui/openpier.css`. `git diff main -- src/ui/openpier.css` is empty (the stylesheet is the design; only the author changes it).
+5. No colour, size, shadow or icon that is not in `src/ui/container-ui.css`. `git diff main -- src/ui/container-ui.css` is empty (the stylesheet is the design; only the author changes it).
 6. No `TODO`, `FIXME`, commented-out code, or `skip` in tests. `git diff main | grep -nE '^\+.*(\.skip|it\.todo|xit\()'` prints nothing.
 7. Every new `.test.ts` and `.test.tsx` name reads Given, When, Then. Tests were committed before the code (the commit order shows the failing tests first).
 8. The PR text file `docs/plan/iterations/pr/wo-<id>.md` exists, has all six headings, lists "Not done or changed" honestly, and has screenshots in both themes.

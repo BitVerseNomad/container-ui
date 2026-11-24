@@ -40,8 +40,8 @@ describe("useRoute", () => {
     await waitFor(() => expect(window.location.hash).toBe("#/containers"));
   });
 
-  it("Given localStorage 'openpier:last-route' is '#/images' and the hash is empty, when useRoute runs, then the hash becomes '#/images'", async () => {
-    window.localStorage.setItem("openpier:last-route", "#/images");
+  it("Given localStorage 'container-ui:last-route' is '#/images' and the hash is empty, when useRoute runs, then the hash becomes '#/images'", async () => {
+    window.localStorage.setItem("container-ui:last-route", "#/images");
     window.location.hash = "";
     render(<RouteReader />);
     await waitFor(() => expect(window.location.hash).toBe("#/images"));

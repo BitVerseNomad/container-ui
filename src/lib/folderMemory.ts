@@ -1,7 +1,7 @@
 // Remembers, per host folder, that the user let a container change files there. Anything not remembered is read-only.
 // Storage can be blocked or missing, so every access is guarded and the safe answer (read-only) wins.
 type Store = Pick<Storage, "getItem" | "setItem" | "removeItem">;
-const key = (folder: string) => `openpier:writable:${folder}`;
+const key = (folder: string) => `container-ui:writable:${folder}`;
 const defaultStore = (): Store | null => {
   try {
     return typeof localStorage === "undefined" ? null : localStorage;

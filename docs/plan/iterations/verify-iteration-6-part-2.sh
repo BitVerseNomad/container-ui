@@ -63,12 +63,12 @@ echo "== WO-8.11 settings store =="
 exists "8.11: settings files exist" src/lib/settings.ts src/lib/settings.test.ts src/lib/useSetting.ts src/lib/useSetting.test.tsx scripts/check-settings.mjs
 node_min "8.11: settings tests" 12 src/lib/settings.test.ts
 vitest_min "8.11: useSetting component test" 1 src/lib/useSetting.test.tsx
-left=$(grep -rn "localStorage" src --include=*.ts --include=*.tsx | grep -v "\.test\." | grep -v "src/lib/settings.ts" | grep -v "openpier:migrated" | wc -l | tr -d ' ')
+left=$(grep -rn "localStorage" src --include=*.ts --include=*.tsx | grep -v "\.test\." | grep -v "src/lib/settings.ts" | grep -v "container-ui:migrated" | wc -l | tr -d ' ')
 if [ "${left:-1}" -le 3 ]; then ok "8.11: only the one-time key copy still uses localStorage ($left lines)"; else bad "8.11: $left lines outside the store use localStorage"; fi
 has "8.11: eslint blocks localStorage outside the store" eslint.config.js "Use getSetting and setSetting"
-if [ -f scripts/check-layout.mjs ]; then hasnt "8.11: check-layout.mjs no longer reads the old fold key" scripts/check-layout.mjs "openpier:sidebar-folded"; else bad "8.11: scripts/check-layout.mjs is missing"; fi
-if [ -f scripts/check-notify.mjs ]; then hasnt "8.11: check-notify.mjs no longer seeds the old notify key" scripts/check-notify.mjs 'setItem("openpier:notify"'; else bad "8.11: scripts/check-notify.mjs is missing"; fi
-has "8.11: index.html inline theme script still reads openpier:theme" index.html "openpier:theme"
+if [ -f scripts/check-layout.mjs ]; then hasnt "8.11: check-layout.mjs no longer reads the old fold key" scripts/check-layout.mjs "container-ui:sidebar-folded"; else bad "8.11: scripts/check-layout.mjs is missing"; fi
+if [ -f scripts/check-notify.mjs ]; then hasnt "8.11: check-notify.mjs no longer seeds the old notify key" scripts/check-notify.mjs 'setItem("container-ui:notify"'; else bad "8.11: scripts/check-notify.mjs is missing"; fi
+has "8.11: index.html inline theme script still reads container-ui:theme" index.html "container-ui:theme"
 has "8.11: check-settings.mjs asserts the settings file holds the theme" scripts/check-settings.mjs "values.theme"
 
 echo "== WO-8.12 login item and window state =="

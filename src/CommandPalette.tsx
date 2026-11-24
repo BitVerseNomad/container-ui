@@ -8,7 +8,7 @@ type CommandPaletteProps = { open: boolean; onClose: () => void; items: PaletteI
 
 export default function CommandPalette({ open, onClose, items }: CommandPaletteProps) {
   const [query, setQuery] = useState("");
-  const [recentRaw] = useState(() => { try { return JSON.parse(localStorage.getItem("openpier:recent-actions") ?? "[]"); } catch { return []; } });
+  const [recentRaw] = useState(() => { try { return JSON.parse(localStorage.getItem("container-ui:recent-actions") ?? "[]"); } catch { return []; } });
   const recent = Array.isArray(recentRaw) ? recentRaw.filter((x: unknown) => typeof x === "string") as string[] : [];
 
   const sections = useMemo(() => rank(query, items, recent), [query, items, recent]);
@@ -17,7 +17,7 @@ export default function CommandPalette({ open, onClose, items }: CommandPaletteP
     const item = items.find((i) => i.id === id);
     if (!item) return;
     const next = pushRecent(recent, id);
-    try { localStorage.setItem("openpier:recent-actions", JSON.stringify(next)); } catch { /* not remembered */ }
+    try { localStorage.setItem("container-ui:recent-actions", JSON.stringify(next)); } catch { /* not remembered */ }
     onClose();
     item.run();
   }, [items, recent, onClose]);

@@ -3,13 +3,13 @@ wo-1.1: the app ships the design's stylesheet and nothing else
 ## What changed
 
 The app looks worse after this change. Screens lose their old styling until iterations 2 and 3 rebuild them. This is planned.
-`src/ui/openpier.css` is now the only stylesheet, copied unchanged from `docs/plan/design/openpier.css`.
+`src/ui/container-ui.css` is now the only stylesheet, copied unchanged from `docs/plan/design/container-ui.css`.
 Tailwind and the bundled fonts are gone; the design uses system fonts.
 
 ## Steps done
 
-- [x] 1. Copied `docs/plan/design/openpier.css` to `src/ui/openpier.css`.
-- [x] 2. Replaced the two imports in `src/main.tsx` with `import "./ui/openpier.css";`.
+- [x] 1. Copied `docs/plan/design/container-ui.css` to `src/ui/container-ui.css`.
+- [x] 2. Replaced the two imports in `src/main.tsx` with `import "./ui/container-ui.css";`.
 - [x] 3. Removed the `Shell.css` import from `src/Shell.tsx` and the `home.css` import from `src/Containers.tsx`.
 - [x] 4. Deleted `src/styles.css`, `src/home.css`, `src/Shell.css` and `src/ui/tokens.css`.
 - [x] 5. Uninstalled `tailwindcss`, `@tailwindcss/vite`, `@fontsource/inter` and `@fontsource/jetbrains-mono`.
@@ -24,12 +24,12 @@ Done when checks:
 
 ```text
 $ grep -rn 'import .*\.css' src | grep -v test
-src/main.tsx:6:import "./ui/openpier.css";
+src/main.tsx:6:import "./ui/container-ui.css";
 ```
 
 ```text
 $ find src -name "*.css"
-src/ui/openpier.css
+src/ui/container-ui.css
 ```
 
 ```text
@@ -39,7 +39,7 @@ $ grep -c "tailwindcss\|fontsource" package.json
 
 ```text
 $ node scripts/check-design-sync.mjs
-ok design sync: src/ui/openpier.css equals docs/plan/design/openpier.css
+ok design sync: src/ui/container-ui.css equals docs/plan/design/container-ui.css
 ```
 
 ```text

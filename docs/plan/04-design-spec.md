@@ -6,7 +6,7 @@ This is the design for OpenPier 1.0. It is written so that someone who has never
 
 There are three sources, in this order of authority:
 
-1. **`design/openpier.css`** is the design. Every colour, size, radius and shadow lives there and nowhere else. The app ships its tokens as `src/ui/openpier.css`, and its styles live in `src/ui/tailwind.css`: a Tailwind v4 `@theme` block that maps those tokens to utility classes.
+1. **`design/container-ui.css`** is the design. Every colour, size, radius and shadow lives there and nowhere else. The app ships its tokens as `src/ui/container-ui.css`, and its styles live in `src/ui/tailwind.css`: a Tailwind v4 `@theme` block that maps those tokens to utility classes.
 2. **`design/mockup.html`** shows every screen built with that stylesheet. Open it in a browser, pick a screen, toggle dark. `design/shots/` has a WebKit screenshot of each screen in light and dark (`node docs/plan/design/shoot.mjs` regenerates them).
 3. **This file** says what the mockup cannot show: behaviour, rules, states, words, keyboard.
 
@@ -14,9 +14,9 @@ If the built app and the mockup differ, the app is wrong. If you think the mocku
 
 Rules for the implementer:
 
-1. Never write a colour, a pixel size or a shadow in a component. Use a class from `openpier.css`. If the class you need does not exist, stop and add it to the CSS and the mockup first.
-2. No inline `style`. Every width, gap and colour is a class in `openpier.css` (section 11 holds the column widths and layout pieces). Three files may set a `style`, because their numbers come from data: `Meters` (the bar's share), `LogView` and `VirtualRows` (the position of the rows drawn).
-3. Styles are Tailwind utilities that read the tokens. No CSS modules and no second stylesheet: the only stylesheets are `src/ui/tailwind.css` and `src/ui/openpier.css`.
+1. Never write a colour, a pixel size or a shadow in a component. Use a class from `container-ui.css`. If the class you need does not exist, stop and add it to the CSS and the mockup first.
+2. No inline `style`. Every width, gap and colour is a class in `container-ui.css` (section 11 holds the column widths and layout pieces). Three files may set a `style`, because their numbers come from data: `Meters` (the bar's share), `LogView` and `VirtualRows` (the position of the rows drawn).
+3. Styles are Tailwind utilities that read the tokens. No CSS modules and no second stylesheet: the only stylesheets are `src/ui/tailwind.css` and `src/ui/container-ui.css`.
 4. Behaviour primitives (focus trap, menus, dialogs, select, tooltip) come from Radix, unstyled, with `className` set to the classes below.
 5. Icons come from `lucide-react` only, at 16px (`.icon`) or 14px (`.icon.sm`), stroke 1.5. Delete `src/ui/icons.tsx`.
 
@@ -37,14 +37,14 @@ The direction is **Manifest**, picked by the owner on 2026-11-12 from three work
 
 ## 2. Reference
 
-1. The source of truth is `design/openpier.css` and `design/mockup.html`. `design/prototype.html` shows the behaviour (open a problem, fix it, start a project next to others) and the two directions that were not picked, B and C. Do not build from B or C.
+1. The source of truth is `design/container-ui.css` and `design/mockup.html`. `design/prototype.html` shows the behaviour (open a problem, fix it, start a project next to others) and the two directions that were not picked, B and C. Do not build from B or C.
 2. Kept from OpenChamber (`github.com/openchamber/openchamber`, MIT): the type sizes, the density, one action per row, bare-word captions, quiet row buttons.
 3. Dropped on 2026-11-12: its warm cream palette and burnt-orange accent (the owner found the result had no identity), the tinted primary button, the borderless rows.
 4. The palette is cool grey with one cobalt accent. Contrast was computed for both themes when the tokens were set: body text 12:1 or more, muted text 5.2:1 or more, state colours 4.3:1 or more, text on the accent 6.6:1 or more. Task 1.2 turns that into a check.
 
 ## 3. Tokens
 
-All in `design/openpier.css` section 1. This table is the meaning of each group, not a second copy of the values.
+All in `design/container-ui.css` section 1. This table is the meaning of each group, not a second copy of the values.
 
 | Group | Tokens | Use |
 |---|---|---|

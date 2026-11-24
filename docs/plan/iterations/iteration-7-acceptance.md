@@ -11,7 +11,7 @@ Nothing in this iteration has been run on GitHub. "Not verified: never run" stay
 3. A TODO, "coming soon", or a placeholder such as `<OWNER>`, `<BUILDER_FILE>` left in a file: `grep -rn "<OWNER>\|<BUILDER_FILE>\|TODO" LICENSE SECURITY.md CODE_OF_CONDUCT.md ROADMAP.md CONTRIBUTING.md README.md docs/signing.md docs/plan/launch-checklist.md .github scripts/install.sh scripts/bump.mjs scripts/release-check.mjs` prints nothing.
 4. A key, token or password anywhere: `git diff main | grep -iE "BEGIN .*PRIVATE|ghp_|TAURI_SIGNING_PRIVATE_KEY[:=] *[A-Za-z0-9]"` prints nothing (the workflow only refers to `secrets.`).
 5. A push, a tag or a release made by the implementer: `git tag --list 'v*'` is unchanged, and `git log origin/main..HEAD` is the local work only.
-6. Invented design: any colour, size or class in the Settings Updates change that is not in `docs/plan/design/openpier.css`. Any `style=` or native `<button>` there.
+6. Invented design: any colour, size or class in the Settings Updates change that is not in `docs/plan/design/container-ui.css`. Any `style=` or native `<button>` there.
 
 ## WO-6.1 Community files
 

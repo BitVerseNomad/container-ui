@@ -30,8 +30,8 @@ export function usePoll<T>(load: () => Promise<T>, deps: unknown[], ms = 3000, e
   }, deps);
   useEffect(() => {
     const again = () => { void reload(); };
-    window.addEventListener("openpier:refresh", again);
-    return () => window.removeEventListener("openpier:refresh", again);
+    window.addEventListener("container-ui:refresh", again);
+    return () => window.removeEventListener("container-ui:refresh", again);
   }, [reload]);
   useEffect(() => {
     if (!enabled) return;

@@ -6,7 +6,7 @@ Walk this by eye after `sh docs/plan/iterations/verify-iteration-6-part-2.sh` pr
 
 1. A test weakened or deleted so it passes (compare test names with the work order).
 2. `scripts/not-migrated.json` or `scripts/checks-pending/` growing.
-3. `style=` attributes, new colours, a new CSS file or edits to `src/ui/openpier.css`.
+3. `style=` attributes, new colours, a new CSS file or edits to `src/ui/container-ui.css`.
 4. Words on screen that differ from the "Words" lists.
 5. A TODO, `skip`, `.only`, or `eslint-disable` added.
 6. A threshold raised in `scripts/mockup-pairs.json` instead of the screen fixed.

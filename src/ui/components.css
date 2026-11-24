@@ -1,4 +1,4 @@
-/* Component classes from the pre-Tailwind stylesheet (ad6ef71^), on the openpier.css tokens.
+/* Component classes from the pre-Tailwind stylesheet (ad6ef71^), on the container-ui.css tokens.
    Loaded by tailwind.css inside @layer components, so utilities still win. */
 *, *::before, *::after { box-sizing: border-box; }
 button, input, select, textarea { font: inherit; color: inherit; }
@@ -320,13 +320,13 @@ button.meters { border: 0; background: none; padding: 0; font-family: inherit; }
 .ext { display: inline-flex; align-items: center; gap: 4px; font-size: var(--text-micro); color: var(--fg-muted); }
 .host { color: var(--fg-muted); font-size: var(--text-meta); }
 
-/* Rules dropped before ad6ef71^, recovered from openpier.css history (check-tw-classes). */
+/* Rules dropped before ad6ef71^, recovered from container-ui.css history (check-tw-classes). */
 
 
 /* Rules dropped before ad6ef71^, recovered from the stylesheet history (check-tw-classes). */
 
 
-/* Rules dropped when styles.css became openpier.css, recovered from 5defa01^:src/styles.css (check-tw-classes). */
+/* Rules dropped when styles.css became container-ui.css, recovered from 5defa01^:src/styles.css (check-tw-classes). */
 .finding .how { margin-top: 4px; font-size: 12px; }
 details.how > summary, details.out-more > summary { cursor: pointer; color: var(--fg-muted); list-style: none; display: inline-flex; align-items: center; gap: 4px; }
 details.how > summary::-webkit-details-marker, details.out-more > summary::-webkit-details-marker { display: none; }

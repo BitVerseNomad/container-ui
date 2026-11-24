@@ -146,9 +146,9 @@ const browser = await engine.launch();
   check(sides && sides.backLeft > sides.startLeft && sides.backPrimary && !sides.startPrimary, `way back: filled way back on right of Start`);
   check(await page.evaluate(() => document.activeElement?.textContent) === "Start with the folders you had", "way back: Dismiss moved focus to filled way back");
   await startBtn.click();
-  await page.waitForFunction(() => { try { return localStorage.getItem("openpier:wayBack") === null; } catch { return true; } }, null, { timeout: 30000 }).catch(() => {});
+  await page.waitForFunction(() => { try { return localStorage.getItem("container-ui:wayBack") === null; } catch { return true; } }, null, { timeout: 30000 }).catch(() => {});
   check(await page.evaluate(() => window.__vmChange === undefined), "way back: plain Start ran plain start");
-  check(await page.evaluate(() => { try { return localStorage.getItem("openpier:wayBack"); } catch { return null; } }) === null, "way back: start that works clears saved way back");
+  check(await page.evaluate(() => { try { return localStorage.getItem("container-ui:wayBack"); } catch { return null; } }) === null, "way back: start that works clears saved way back");
   await page.close();
 }
 

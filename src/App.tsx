@@ -99,7 +99,7 @@ export default function App() {
     return () => window.removeEventListener("app-error", on);
   }, []);
   const [active, setActive] = useState<string | null>(null);
-  const [stored] = useState(() => { try { return localStorage.getItem("openpier:engine"); } catch { return null; } });
+  const [stored] = useState(() => { try { return localStorage.getItem("container-ui:engine"); } catch { return null; } });
   const [engineOpen, setEngineOpen] = useState(false);
   const detailId = route.page === "containers" ? route.id ?? null : null;
   // Closing the detail only navigates when a detail page is open; effects that clear it on startup must not bounce every page to Containers.
@@ -285,7 +285,7 @@ export default function App() {
   const switchTo = (name: string) => {
     if (name !== active && vm.op === null) setVm({ op: null, failure: null });
     setActive(name);
-    try { localStorage.setItem("openpier:engine", name); } catch { /* not remembered */ }
+    try { localStorage.setItem("container-ui:engine", name); } catch { /* not remembered */ }
   };
 
   const page =
@@ -412,14 +412,14 @@ export default function App() {
     "go-doctor": () => setTab("Doctor"),
     "go-settings": () => go("#/settings/machines"),
     engine: () => setEngineOpen(true),
-    fold: () => window.dispatchEvent(new Event("openpier:fold")),
+    fold: () => window.dispatchEvent(new Event("container-ui:fold")),
     run: () => setRunPicker(true),
     pull: () => { setPullOnOpen(true); setTab("Images"); },
     search: focusPageSearch,
     "search-slash": focusPageSearch,
     back: () => window.history.back(),
     forward: () => window.history.forward(),
-    refresh: () => window.dispatchEvent(new Event("openpier:refresh")),
+    refresh: () => window.dispatchEvent(new Event("container-ui:refresh")),
     help: () => setHelpOpen(true),
   };
   const keyboardShortcuts = useMemo(
@@ -433,7 +433,7 @@ export default function App() {
     const onEscape = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       const hasLayer = !!document.querySelector("[role=dialog], [role=alertdialog], [role=menu]");
-      if (!hasLayer) window.dispatchEvent(new Event("openpier:escape"));
+      if (!hasLayer) window.dispatchEvent(new Event("container-ui:escape"));
     };
     window.addEventListener("keydown", onEscape);
     return () => window.removeEventListener("keydown", onEscape);
@@ -454,14 +454,14 @@ export default function App() {
           containers.push({ id: c.ID, group: "Containers", label: name, hint: c.Image, dot, kbd: undefined, run: () => go(`#/containers/${c.ID}/logs`) });
           containers.push({ id: `logs-${c.ID}`, group: "Actions", label: `Logs of ${name}`, run: () => go(`#/containers/${c.ID}/logs`) });
           if (c.State === "running") {
-            containers.push({ id: `restart-${c.ID}`, group: "Actions", label: `Restart ${name}`, run: () => { void docker(ctx, ["restart", c.ID]); void window.dispatchEvent(new Event("openpier:refresh")); } });
-            containers.push({ id: `stop-${c.ID}`, group: "Actions", label: `Stop ${name}`, run: () => { void docker(ctx, ["stop", c.ID]); void window.dispatchEvent(new Event("openpier:refresh")); } });
+            containers.push({ id: `restart-${c.ID}`, group: "Actions", label: `Restart ${name}`, run: () => { void docker(ctx, ["restart", c.ID]); void window.dispatchEvent(new Event("container-ui:refresh")); } });
+            containers.push({ id: `stop-${c.ID}`, group: "Actions", label: `Stop ${name}`, run: () => { void docker(ctx, ["stop", c.ID]); void window.dispatchEvent(new Event("container-ui:refresh")); } });
           } else {
-            containers.push({ id: `start-${c.ID}`, group: "Actions", label: `Start ${name}`, run: () => { void docker(ctx, ["start", c.ID]); void window.dispatchEvent(new Event("openpier:refresh")); } });
+            containers.push({ id: `start-${c.ID}`, group: "Actions", label: `Start ${name}`, run: () => { void docker(ctx, ["start", c.ID]); void window.dispatchEvent(new Event("container-ui:refresh")); } });
           }
           containers.push({ id: `remove-${c.ID}`, group: "Actions", label: `Remove ${name}…`, run: async () => {
             const ok = await confirm(`Remove ${name}?`, "Remove");
-            if (ok) { void docker(ctx, ["rm", "-f", c.ID]); void window.dispatchEvent(new Event("openpier:refresh")); }
+            if (ok) { void docker(ctx, ["rm", "-f", c.ID]); void window.dispatchEvent(new Event("container-ui:refresh")); }
           } });
         }
       } catch { /* group stays empty */ }

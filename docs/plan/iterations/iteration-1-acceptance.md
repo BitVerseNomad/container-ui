@@ -14,7 +14,7 @@ For the plan's author. Walk this after `sh docs/plan/iterations/verify-iteration
 1. A test made weaker: `git diff 0bdafcf -- 'src/**/*.test.*' 'scripts/checks-pending' 'src-tauri/src'` and read every removed `assert`, `expect`, `check(` and `#[test]`. A removed one needs a reason in the pull request text.
 2. A check moved to `scripts/checks-pending/` that passed before (the report must paste the failing line for each one moved).
 3. `#[allow(...)]`, `eslint-disable`, `as any`, `@ts-ignore`, `.skip` added to get to green.
-4. A value changed in `docs/plan/design/openpier.css` (the script checks this; if it changed, the design changed without the author).
+4. A value changed in `docs/plan/design/container-ui.css` (the script checks this; if it changed, the design changed without the author).
 5. A step skipped: each pull request text has the steps as a ticked list, and "Not done" says "nothing" or says why.
 
 ## Per work order
@@ -57,7 +57,7 @@ For the plan's author. Walk this after `sh docs/plan/iterations/verify-iteration
 
 ### WO-1.1
 
-1. The preview looks unstyled in most places. That is correct. What must be true: the page background, the text colour and the font come from `openpier.css` (inspect `body`).
+1. The preview looks unstyled in most places. That is correct. What must be true: the page background, the text colour and the font come from `container-ui.css` (inspect `body`).
 2. The pull request text says in its first line that the app looks worse and why.
 
 ### WO-1.2
@@ -84,7 +84,7 @@ Open `http://localhost:4173/#/dev/gallery`, light and dark (set `document.docume
 ### WO-1.4
 
 1. The pull request text shows the `chipp` proof: the check failed on the planted mistake.
-2. `openpier.css` gained no class.
+2. `container-ui.css` gained no class.
 
 ### WO-1.5
 

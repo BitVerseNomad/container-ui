@@ -87,7 +87,7 @@ ok   0.4 migrateStorage is called at startup
 ok   0.6 ci.yml is valid YAML with jobs web and rust
 ok   0.6 ci.yml uses Node 22
 == WO-1.1 one stylesheet
-ok   1.1 the only CSS file is src/ui/openpier.css
+ok   1.1 the only CSS file is src/ui/container-ui.css
 ok   1.1 the shipped stylesheet equals the design
 ok   1.1 no tailwindcss or fontsource in package.json
 ok   1.1 the design folder is as the author left it (docs/plan/design/SHA256SUMS)

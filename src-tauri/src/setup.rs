@@ -766,7 +766,8 @@ mod tests {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        let d = std::env::temp_dir().join(format!("openpier-{name}-{}-{n}", std::process::id()));
+        let d =
+            std::env::temp_dir().join(format!("container-ui-{name}-{}-{n}", std::process::id()));
         std::fs::create_dir_all(&d).unwrap();
         d
     }

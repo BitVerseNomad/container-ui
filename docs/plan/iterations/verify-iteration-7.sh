@@ -71,8 +71,8 @@ check "release.yml: draft, tauri-action, max-parallel 1" sh -c 'grep -q "release
 check "release.yml uses Node 22, like ci.yml" sh -c 'grep -q "node-version: 22" .github/workflows/release.yml && grep -q "node-version: 22" .github/workflows/ci.yml'
 check "release.yml: 9 steps" sh -c 'ruby -ryaml -e "exit(YAML.load_file(%q(.github/workflows/release.yml))[%q(jobs)][%q(build)][%q(steps)].length == 9 ? 0 : 1)"'
 check "actionlint is clean when installed" sh -c 'if command -v actionlint >/dev/null 2>&1; then actionlint .github/workflows/*.yml; else true; fi'
-check "tauri.conf.json: updater artifacts, app+dmg, endpoint" sh -c 'node -e "const c=require(\"./src-tauri/tauri.conf.json\"); process.exit(c.bundle.createUpdaterArtifacts===true && c.bundle.targets.join()===\"app,dmg\" && c.plugins.updater.endpoints[0]===\"https://github.com/BitVerseNomad/openpier/releases/latest/download/latest.json\" ? 0 : 1)"'
-check "bundle identifier is dev.openpier.desktop" sh -c 'node -e "process.exit(require(\"./src-tauri/tauri.conf.json\").identifier===\"dev.openpier.desktop\"?0:1)"'
+check "tauri.conf.json: updater artifacts, app+dmg, endpoint" sh -c 'node -e "const c=require(\"./src-tauri/tauri.conf.json\"); process.exit(c.bundle.createUpdaterArtifacts===true && c.bundle.targets.join()===\"app,dmg\" && c.plugins.updater.endpoints[0]===\"https://github.com/BitVerseNomad/container-ui/releases/latest/download/latest.json\" ? 0 : 1)"'
+check "bundle identifier is dev.containerui.desktop" sh -c 'node -e "process.exit(require(\"./src-tauri/tauri.conf.json\").identifier===\"dev.containerui.desktop\"?0:1)"'
 check "three versions agree" node scripts/check-version-sync.mjs
 check "bump.mjs refuses a bad version" sh -c '! node scripts/bump.mjs 1.0 >/dev/null 2>&1'
 check "changelog-section.mjs needs a version" sh -c '! node scripts/changelog-section.mjs >/dev/null 2>&1'
@@ -92,14 +92,14 @@ check "the app is ad-hoc signed with the hardened runtime" sh -c 'node -e "const
 echo "== WO-6.4 README and pictures"
 check "README starts with OpenPier and has 3 badges" sh -c 'head -1 README.md | grep -qx "# OpenPier" && [ "$(grep -cE "^\[!\[(CI|Latest release|License: MIT)\]" README.md)" = 3 ]'
 check "README sections are in the planned order" sh -c 'a=$(grep -n "^## " README.md | sed "s/^[0-9]*:## //" | tr "\n" "|"); [ "$a" = "Install|What it does|Works with|How it compares|Development|More|" ]'
-check "README has 7 picture elements and the one-line install" sh -c '[ "$(grep -c "<picture>" README.md)" = 7 ] && grep -qF "curl -fsSL https://raw.githubusercontent.com/BitVerseNomad/openpier/main/scripts/install.sh | sh" README.md'
+check "README has 7 picture elements and the one-line install" sh -c '[ "$(grep -c "<picture>" README.md)" = 7 ] && grep -qF "curl -fsSL https://raw.githubusercontent.com/BitVerseNomad/container-ui/main/scripts/install.sh | sh" README.md'
 check "README says Open Anyway and keeps the comparison caveat" sh -c 'grep -q "Open Anyway" README.md && grep -q "It is not proof that it has none" README.md'
 check "README has no old name, no coming soon" sh -c '! grep -qiE "Wharf|Container UI|colima-ui|coming soon" README.md'
 check "readme-shots uses the setup-installing scenario and has no mockup-pairs dependency" sh -c 'grep -q "scenario=setup-installing" scripts/readme-shots.mjs && ! grep -q "mockup-pairs" scripts/readme-shots.mjs'
 check "14 README pictures exist, and the old ones are gone" sh -c 'n=0; for name in hero containers doctor run networks engine-switcher setup; do for t in light dark; do test -s docs/screenshots/$name-$t.png && n=$((n+1)); done; done; [ $n = 14 ] && ! test -e docs/screenshots/home.png && ! test -e docs/screenshots/profiles.png'
 check "every picture the README names exists (first-open.png is an owner step)" sh -c 'for f in $(grep -o "docs/screenshots/[a-z-]*\.png" README.md | sort -u); do [ "$f" = docs/screenshots/first-open.png ] || test -s "$f" || exit 1; done'
 check "no README-script file name is picked up by check-all.sh by mistake" sh -c '! ls scripts/check-*.mjs | grep -E "draft|shots|release-check"'
-check "a fresh run of readme-shots matches the committed pictures" sh -c 'rm -rf /tmp/openpier-verify-shots && node scripts/readme-shots.mjs --out /tmp/openpier-verify-shots >/dev/null 2>&1 && node scripts/shots-fresh.mjs /tmp/openpier-verify-shots'
+check "a fresh run of readme-shots matches the committed pictures" sh -c 'rm -rf /tmp/container-ui-verify-shots && node scripts/readme-shots.mjs --out /tmp/container-ui-verify-shots >/dev/null 2>&1 && node scripts/shots-fresh.mjs /tmp/container-ui-verify-shots'
 check "ci.yml has the shots-fresh job and parses" sh -c 'grep -q "shots-fresh:" .github/workflows/ci.yml && ruby -ryaml -e "YAML.load_file(%q(.github/workflows/ci.yml))"'
 
 echo "== WO-6.6 launch checklist"

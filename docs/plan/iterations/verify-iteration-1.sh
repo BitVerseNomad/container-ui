@@ -52,7 +52,7 @@ pending=$(ls scripts/checks-pending/*.mjs 2>/dev/null | wc -l | tr -d ' ')
 rows=$(grep -c '^| `check-' scripts/checks-pending/README.md 2>/dev/null || echo 0)
 if [ "$pending" = "$rows" ]; then ok "0.3 checks-pending: $pending files, $rows rows in its README"; else no "0.3 checks-pending: $pending files but $rows rows in its README"; fi
 for f in check-entitlements.mjs check-icon.mjs check-version-sync.mjs; do t "0.3 $f was not moved to pending" test -f "scripts/$f"; done
-empty "0.3 pending checks were moved, not edited (only the address and storage keys may differ)" "for f in scripts/checks-pending/*.mjs; do [ -e \"\$f\" ] || continue; b=\$(basename \$f); git show 0bdafcf:scripts/\$b 2>/dev/null | sed 's#file://\${root}/preview/index.html#http://localhost:4173/#g; s#colima-ui\\.wayBack#openpier:wayBack#g; s#colima-ui:compose-folders#openpier:compose-folders#g' | cmp -s - \$f || echo \"\$b was edited\"; done"
+empty "0.3 pending checks were moved, not edited (only the address and storage keys may differ)" "for f in scripts/checks-pending/*.mjs; do [ -e \"\$f\" ] || continue; b=\$(basename \$f); git show 0bdafcf:scripts/\$b 2>/dev/null | sed 's#file://\${root}/preview/index.html#http://localhost:4173/#g; s#colima-ui\\.wayBack#container-ui:wayBack#g; s#colima-ui:compose-folders#container-ui:compose-folders#g' | cmp -s - \$f || echo \"\$b was edited\"; done"
 
 echo "== WO-0.5 the repo root"
 empty "0.5 only expected names at the root" "git ls-files | awk -F/ '{print \$1}' | sort -u | grep -vxE '\.github|\.gitignore|AGENTS\.md|CHANGELOG\.md|CONTRIBUTING\.md|README\.md|docs|eslint\.config\.js|index\.html|package-lock\.json|package\.json|preview|scripts|src|src-tauri|test-baselines|tsconfig\.json|vite\.config\.ts|vite\.preview\.config\.ts|vitest\.config\.ts|private\.key|private\.key\.pub'"
@@ -61,9 +61,9 @@ if git ls-files | grep -qE '\.key(\.pub)?$'; then echo "note the signing key fil
 
 echo "== WO-0.4 the name"
 empty "0.4 no old name outside the migration" "git grep -niE 'wharf|container ui|container-ui|colima-ui|colima_ui' -- . ':!docs' ':!CHANGELOG.md' | grep -vE '^src/lib/migrateStorage(\.test)?\.ts:|^scripts/eval-setup\.sh:'"
-t "0.4 identifier is dev.openpier.desktop" grep -q '"identifier": "dev.openpier.desktop"' src-tauri/tauri.conf.json
-t "0.4 Cargo package is openpier" grep -q '^name = "openpier"' src-tauri/Cargo.toml
-t "0.4 REPO_URL exists" grep -q 'https://github.com/BitVerseNomad/openpier' src/lib/links.ts
+t "0.4 identifier is dev.containerui.desktop" grep -q '"identifier": "dev.containerui.desktop"' src-tauri/tauri.conf.json
+t "0.4 Cargo package is container-ui" grep -q '^name = "container-ui"' src-tauri/Cargo.toml
+t "0.4 REPO_URL exists" grep -q 'https://github.com/BitVerseNomad/container-ui' src/lib/links.ts
 t "0.4 migrateStorage is called at startup" grep -q 'migrateStorage(window.localStorage)' src/main.tsx
 
 echo "== WO-0.6 CI"
@@ -72,8 +72,8 @@ t "0.6 ci.yml uses Node 22" grep -q 'node-version: 22' .github/workflows/ci.yml
 
 echo "== WO-1.1 one stylesheet"
 css=$(find src -name '*.css' | tr '\n' ' ')
-if [ "$css" = "src/ui/openpier.css " ]; then ok "1.1 the only CSS file is src/ui/openpier.css"; else no "1.1 CSS files found: $css"; fi
-t "1.1 the shipped stylesheet equals the design" cmp -s src/ui/openpier.css docs/plan/design/openpier.css
+if [ "$css" = "src/ui/container-ui.css " ]; then ok "1.1 the only CSS file is src/ui/container-ui.css"; else no "1.1 CSS files found: $css"; fi
+t "1.1 the shipped stylesheet equals the design" cmp -s src/ui/container-ui.css docs/plan/design/container-ui.css
 empty "1.1 no tailwindcss or fontsource in package.json" "grep -nE 'tailwindcss|fontsource' package.json"
 t "1.1 the design folder is as the author left it (docs/plan/design/SHA256SUMS)" sh -c "cd docs/plan/design && shasum -a 256 -c SHA256SUMS"
 

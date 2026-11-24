@@ -74,7 +74,7 @@ The fix is not a rewrite. It is: close the security holes, finish one runtime mo
 1. Fact: `src/styles.css` was 60,656 bytes at commit `e103e1e` (2026-10-31). Commit `5defa01` ("Phase 8 Task 1 - Onboarding Tour", 2026-11-05) removed 887 lines. It is 2,696 bytes today.
 2. Fact: the screens still use the old class names (1,181 `className="…"` strings in `src/**/*.tsx`). With no rules behind them, the browser draws native grey buttons, unstyled tables and overlapping text. See `02-review-ux.md` for the screenshots.
 3. Fact: `src/ui/components/Table.css` (248 lines) is not imported anywhere.
-4. Prescription: do not restore the old CSS. Rebuild on the one design system in `04-design-spec.md`. The implementation plan (`05-implementation-plan.md`) migrates screen by screen and ends with a check that fails the build when a `className` string has no rule in `src/ui/openpier.css`.
+4. Prescription: do not restore the old CSS. Rebuild on the one design system in `04-design-spec.md`. The implementation plan (`05-implementation-plan.md`) migrates screen by screen and ends with a check that fails the build when a `className` string has no rule in `src/ui/container-ui.css`.
 
 ### E7. The profile list never loads at startup
 

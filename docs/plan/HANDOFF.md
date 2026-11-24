@@ -37,7 +37,7 @@ The whole implementation is written as work orders, grouped in seven iterations,
 When two things disagree, the higher one wins, and you report the disagreement.
 
 1. The work order you are on.
-2. `design/openpier.css` (every colour, size and shadow). The app maps these tokens to Tailwind utilities in `src/ui/tailwind.css`.
+2. `design/container-ui.css` (every colour, size and shadow). The app maps these tokens to Tailwind utilities in `src/ui/tailwind.css`.
 3. `design/mockup.html` (what each screen looks like; open it in a browser).
 4. `04-design-spec.md` (component names, props, behaviour, words).
 5. `07-projects-spec.md`, `08-feature-gaps.md`, `06-open-source-launch.md` for their topics.

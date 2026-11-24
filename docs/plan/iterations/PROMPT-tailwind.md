@@ -15,6 +15,6 @@ How to work:
 There is no "stop and report". You do not decide when the work ends; the loop does. When a FAIL looks blocked:
 1. A check expects a text, a file or a behaviour: make the app match the check. The check is right.
 2. You think a guarded file is wrong: write why in `docs/plan/iterations/pr/questions.md`, then go on with the next FAIL. Never edit the guarded file.
-3. A class or token you need is missing: add the token to `src/ui/openpier.css` section 1, copy the file over `docs/plan/design/openpier.css`, map it in `src/ui/tailwind.css`.
+3. A class or token you need is missing: add the token to `src/ui/container-ui.css` section 1, copy the file over `docs/plan/design/container-ui.css`, map it in `src/ui/tailwind.css`.
 
 Never: write "pre-existing", "already on main", "out of scope" or "mutually exclusive" about a FAIL (the Facts say who made it; two checks that seem to clash go to questions.md and you go on), use `[var(--x)]` or a class that is not a real Tailwind utility, commit on `main` directly, leave uncommitted files, edit a guarded file (listed in the plan), rename or skip a test, run docker, colima, brew, kubectl or limactl, push, tag or create a release.

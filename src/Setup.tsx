@@ -43,7 +43,7 @@ const ICON = { ok: "check", warn: "alert", fail: "close", info: "info" } as cons
 
 // The last answer the Bring over panel saw: nothing left to bring. Used only while Docker Desktop can't be asked
 // (closed or removed); when it can, what is still missing in Colima decides (desktopOffer).
-const BROUGHT = "openpier:broughtOver";
+const BROUGHT = "container-ui:broughtOver";
 export const broughtOver = () => { try { return localStorage.getItem(BROUGHT) === "1"; } catch { return false; } };
 export const markBroughtOver = (done: boolean) => { try { if (done) localStorage.setItem(BROUGHT, "1"); else localStorage.removeItem(BROUGHT); } catch { /* the row just stays */ } };
 

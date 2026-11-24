@@ -1209,7 +1209,7 @@ Starting state:
 8. `grep -n "design" preview/mock.ts` prints the `scenario === "design"` data (WO-1.5). Write the postgres image row's `ID` and `Size`.
 9. `grep -n "function dockerCmd" preview/mock.ts` prints one line.
 
-Do not touch: the Images list layout (only its row click, step 8). The Run sheet. `src/ui/openpier.css`.
+Do not touch: the Images list layout (only its row click, step 8). The Run sheet. `src/ui/container-ui.css`.
 
 Words (do not change; all other words are from the mockup or spec section 9):
 1. Header buttons: `Look inside`, `Check for a newer one`, `Run`. More menu `More actions for {name}`: `Pull again` (hint "To get the newest build of this tag"), `Copy name`, separator, `Remove…` (disabled with the hint "Used by {names}. Remove {names} first" when in use).
@@ -1225,7 +1225,7 @@ Words (do not change; all other words are from the mockup or spec section 9):
 
 Scope (decided, not a gap): the mockup's `Overview` and `Files` tabs and the "Files added by step 3" list are not built in this release. They need an image export (`../08-feature-gaps.md` G17 item 5, after the first release). The route `#/images/<id>/overview` and `#/images/<id>/files` show the Layers tab. The `image-detail` mockup row says so in its `why`.
 
-Layout (from `openpier.css` section 11): the page body is `<div className="content stack top">`. Nothing else sets spacing. No `style=` anywhere on the page.
+Layout (from `container-ui.css` section 11): the page body is `<div className="content stack top">`. Nothing else sets spacing. No `style=` anywhere on the page.
 
 Tests to write first: steps 1 and 2.
 
@@ -2167,9 +2167,9 @@ Starting state:
 1. `ls scripts/check-keyboard.mjs docs/accessibility-pass.md` prints "No such file" twice.
 2. `grep -n "go(\|#/" src/lib/router.ts | head -20` prints the route list. Write the routes that exist. The route list in Step 2 below must match them; remove from the script the ones that do not exist at your start and say which.
 3. `ls scripts/checks-pending 2>/dev/null` prints nothing or an empty folder (it must be empty after iteration 3). If it holds files, stop and report.
-4. `grep -c "focus-visible" src/ui/openpier.css` prints a number above 0 (the focus ring is in the stylesheet).
+4. `grep -c "focus-visible" src/ui/container-ui.css` prints a number above 0 (the focus ring is in the stylesheet).
 
-Do not touch: `openpier.css` and its copy. If a fix needs a style change, stop at that fix and report it as "needs a CSS change first" (spec section 0, rule 1).
+Do not touch: `container-ui.css` and its copy. If a fix needs a style change, stop at that fix and report it as "needs a CSS change first" (spec section 0, rule 1).
 
 Tests to write first: `scripts/check-keyboard.mjs` itself (step 1). Run it. It will probably fail: those failures are the work.
 

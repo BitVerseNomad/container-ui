@@ -134,7 +134,7 @@ if (scenario === "nonet") { db.networks = ["bridge", "host", "none"]; db.ctrs.fo
 // empty=1: no containers yet, as on the first day after switching (with scenario=desktop: Docker Desktop's data is still there).
 // brought=1: an earlier run already brought the data over.
 if (typeof location !== "undefined" && new URLSearchParams(location.search).get("empty") === "1") db.ctrs = [];
-if (typeof location !== "undefined" && new URLSearchParams(location.search).get("brought") === "1") { try { localStorage.setItem("openpier:broughtOver", "1"); } catch { /* the preview just shows the offer */ } }
+if (typeof location !== "undefined" && new URLSearchParams(location.search).get("brought") === "1") { try { localStorage.setItem("container-ui:broughtOver", "1"); } catch { /* the preview just shows the offer */ } }
 if (["stopped", "failed", "stuck"].includes(scenario)) db.profiles[0].status = "Stopped";
 if (["none", "missing", "partial", "nobrew"].includes(scenario)) db.profiles = [];
 const ipOf = (c: Ctr, net: string) => `172.${net === "bridge" ? 17 : 18 + Math.max(0, db.networks.indexOf(net) - 3)}.0.${2 + db.ctrs.indexOf(c)}`;

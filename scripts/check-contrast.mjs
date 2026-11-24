@@ -2,11 +2,11 @@
 import fs from "node:fs";
 import path from "node:path";
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
-const css = fs.readFileSync(path.join(root, "docs/plan/design/openpier.css"), "utf8");
+const css = fs.readFileSync(path.join(root, "docs/plan/design/container-ui.css"), "utf8");
 
 const block = (selector) => {
   const at = css.indexOf(selector + " {");
-  if (at < 0) throw new Error(`contrast: no block "${selector}" in openpier.css`);
+  if (at < 0) throw new Error(`contrast: no block "${selector}" in container-ui.css`);
   return css.slice(at, css.indexOf("\n}", at));
 };
 const tokens = (text) => Object.fromEntries([...text.matchAll(/(--[a-z0-9-]+):\s*(#[0-9a-fA-F]{6})\b/g)].map((m) => [m[1], m[2]]));

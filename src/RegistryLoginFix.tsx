@@ -8,7 +8,7 @@ import { detectRegistryAuth, type RegistryAuth } from "./lib/registryAuth";
 type LoginError = { kind: "aws-session" | "no-aws" | "login"; message: string };
 type Step = "ask" | "running" | "done" | "aws-session" | "aws-running" | "aws-done" | "no-aws" | "failed";
 
-const PROFILE_KEY = "openpier:awsProfile";
+const PROFILE_KEY = "container-ui:awsProfile";
 const rememberedProfile = () => { try { return localStorage.getItem(PROFILE_KEY); } catch { return null; } };
 const remember = (p: string) => { try { localStorage.setItem(PROFILE_KEY, p); } catch { /* the choice just isn't kept */ } };
 const asError = (e: unknown): LoginError => (e && typeof e === "object" && "kind" in e ? (e as LoginError) : { kind: "login", message: String(e) });

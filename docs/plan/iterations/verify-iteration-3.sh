@@ -34,7 +34,7 @@ echo "== Iteration-wide"
 count_is "scripts/checks-pending holds no check-*.mjs" "0" "ls scripts/checks-pending/check-*.mjs 2>/dev/null | wc -l"
 run "check-not-migrated passes (the list only shrinks)" node scripts/check-not-migrated.mjs
 run "check-messages-kept passes (no old check message lost)" node scripts/check-messages-kept.mjs
-run "check-design-sync passes (src/ui/openpier.css equals the design copy)" node scripts/check-design-sync.mjs
+run "check-design-sync passes (src/ui/container-ui.css equals the design copy)" node scripts/check-design-sync.mjs
 run "check-classes passes" node scripts/check-classes.mjs
 count_is "dropped-checks.json has at most 12 entries in total" "ok" "node -e 'const d=require(\"./scripts/dropped-checks.json\");const n=Object.values(d).reduce((a,b)=>a+b.length,0);console.log(n<=12?\"ok\":n)'"
 count_is "every dropped check has a reason" "0" "node -e 'const d=require(\"./scripts/dropped-checks.json\");console.log(Object.values(d).flat().filter(x=>!x.why||!x.message).length)'"
@@ -130,7 +130,7 @@ for f in src/Profiles.tsx src/Resize.tsx src/EditPanel.tsx src/VmStrip.tsx; do n
 sh_ok "Profiles.tsx and EditPanel.tsx are gone" "test ! -e src/Profiles.tsx && test ! -e src/EditPanel.tsx"
 sh_ok "Settings files exist" "test -f src/Settings.tsx && test -f src/settings/General.tsx && test -f src/settings/Machines.tsx && test -f src/settings/Engines.tsx && test -f src/settings/Updates.tsx && test -f src/settings/About.tsx"
 clean_markup src/Resize.tsx src/VmStrip.tsx src/Settings.tsx src/settings/*.tsx
-sh_ok "index.html sets data-theme before first paint" "grep -q 'data-theme' index.html && grep -q 'openpier:theme' index.html && grep -q 'prefers-color-scheme' index.html"
+sh_ok "index.html sets data-theme before first paint" "grep -q 'data-theme' index.html && grep -q 'container-ui:theme' index.html && grep -q 'prefers-color-scheme' index.html"
 sh_ok "theme and version helpers and tests exist" "test -f src/lib/theme.ts && test -f src/lib/theme.test.ts && test -f src/lib/version.ts"
 count_is "no user-visible Profile or Profiles left" "0" "grep -rnE '\"[^\"]*\\bProfiles?\\b[^\"]*\"|>[^<{]*\\bProfiles?\\b[^<]*<' src --include=*.tsx | grep -v 'import\\|from \"\\|test\\.' | wc -l"
 count_is "no old storage key prefix is left anywhere in src" "0" "grep -rn 'colima-ui\\.\\|wharf:' src --include=*.ts --include=*.tsx | grep -v 'test\\.' | wc -l"

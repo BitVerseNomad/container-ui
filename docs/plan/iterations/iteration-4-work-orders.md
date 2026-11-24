@@ -1672,17 +1672,17 @@ const facts = useQuery({
 
 If any differs, stop and report.
 
-**Do not touch:** `src/ui/op/` (WO-5.1b moves it), `src/ui/openpier.css`, `src/dev/`.
+**Do not touch:** `src/ui/op/` (WO-5.1b moves it), `src/ui/container-ui.css`, `src/dev/`.
 
 **Steps:**
 
 1. List what will be deleted, before deleting. Write the output into the pull request file:
 
 ```sh
-git ls-files src/ui src/ui.tsx | grep -v "^src/ui/op/" | grep -v "^src/ui/openpier.css$"
+git ls-files src/ui src/ui.tsx | grep -v "^src/ui/op/" | grep -v "^src/ui/container-ui.css$"
 ```
 
-   The expected list is: `src/ui.tsx`, `src/ui/index.ts`, `src/ui/icons.tsx`, everything under `src/ui/components/`, and the old `src/ui/*.tsx` and `src/ui/*.ts` files (for example `Button`, `Card`, `Dialog`, `Drawer`, `Menu`, `PageHeader`, `Ticks`, `OutputLog`, `tokens.css`). It must not hold `openpier.css`.
+   The expected list is: `src/ui.tsx`, `src/ui/index.ts`, `src/ui/icons.tsx`, everything under `src/ui/components/`, and the old `src/ui/*.tsx` and `src/ui/*.ts` files (for example `Button`, `Card`, `Dialog`, `Drawer`, `Menu`, `PageHeader`, `Ticks`, `OutputLog`, `tokens.css`). It must not hold `container-ui.css`.
 
 2. Keep what is still imported. For each file of that list, run `grep -rn "<name>" src --include='*.ts' --include='*.tsx' | grep -v "^src/ui/" | grep -v "\.test\."` with the file's base name in the import path. A file imported from outside `src/ui/` (for example `src/ui/Ticks.tsx` or `src/ui/OutputLog.tsx` if a screen still uses it) stays: write its name in the pull request file. Starting state 3 already says the barrel and the old components have no importer; this step finds any other.
 
@@ -1752,11 +1752,11 @@ grep -rn "tailwind-merge\|class-variance-authority\|from \"clsx\"" src --include
 
 **Starting state:**
 1. `git status --short` prints nothing; `ls src/ui/index.ts 2>&1` says no such file (WO-5.1a deleted it); `ls src/ui/op/index.ts` lists it.
-2. `ls src/ui | grep -v "^op$" | grep -v "^openpier.css$"` prints only files that WO-5.1a step 2 said to keep (possibly nothing). If a file there has the same base name as a file of `src/ui/op/`, stop and report (the move would overwrite it).
+2. `ls src/ui | grep -v "^op$" | grep -v "^container-ui.css$"` prints only files that WO-5.1a step 2 said to keep (possibly nothing). If a file there has the same base name as a file of `src/ui/op/`, stop and report (the move would overwrite it).
 3. `grep -rln "ui/op" src scripts eslint.config.js vitest.config.ts tsconfig.json knip.json AGENTS.md package.json 2>/dev/null | wc -l` prints a number; write it down (it is the number of files the codemod touches, plus config files).
 4. `grep -c "tabOfRoute\|pathOfTab" src/App.tsx` prints at least `2`.
 
-**Do not touch:** `docs/plan/` (the plan and the work orders keep naming `src/ui/op` for the time they were written; step 6 makes the doc check skip that folder), `src/ui/openpier.css`.
+**Do not touch:** `docs/plan/` (the plan and the work orders keep naming `src/ui/op` for the time they were written; step 6 makes the doc check skip that folder), `src/ui/container-ui.css`.
 
 **The map from the old `Tab` to the page of the route** (used by step 4; the left column is a value of `Tab` in `src/Shell.tsx`, the middle is `route.page` in `src/lib/routes.ts`, the right is the address that `src/lib/tabRoutes.ts` gave it):
 
@@ -2434,7 +2434,7 @@ console.log(`wrote ${Object.keys(out).length} files`);
 ```md
 ## The design
 
-The design is `docs/plan/design/`: `openpier.css` (every colour, size and class), `mockup.html` (every screen) and the pictures in `docs/plan/design/shots/`. The rules for each screen are in `docs/plan/04-design-spec.md`. `src/ui/openpier.css` is a copy of the stylesheet, kept equal by `scripts/check-design-sync.mjs`. Change the design there first, never in a component.
+The design is `docs/plan/design/`: `container-ui.css` (every colour, size and class), `mockup.html` (every screen) and the pictures in `docs/plan/design/shots/`. The rules for each screen are in `docs/plan/04-design-spec.md`. `src/ui/container-ui.css` is a copy of the stylesheet, kept equal by `scripts/check-design-sync.mjs`. Change the design there first, never in a component.
 
 Components come from `src/ui`, one file each, exported from `src/ui/index.ts`. Screens do not write `<button`, `<select`, `<table`, inline styles or colours: ESLint and `scripts/check-classes.mjs` refuse them. Lists are read with TanStack Query (`src/lib/queries.ts`): a key starts with the engine id, and an action refreshes the lists it changed.
 ```

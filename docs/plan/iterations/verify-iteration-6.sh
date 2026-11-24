@@ -165,10 +165,10 @@ browser_ok "8.8: check-big passes in both engines" check-big.mjs
 echo "== WO-8.7 nightly engine job (not run here: it needs a runner)"
 exists "8.7: workflow and scripts exist" .github/workflows/nightly-engine.yml scripts/real-engine-test.sh scripts/real-doctor.mjs scripts/real-events-shape.mjs
 chk "8.7: the script has valid shell syntax" sh -n scripts/real-engine-test.sh
-out=$(env -u CI -u OPENPIER_ENGINE_TEST sh scripts/real-engine-test.sh 2>&1); code=$?
-if [ "$code" = "2" ]; then ok "8.7: the script refuses to run without CI or OPENPIER_ENGINE_TEST"; else bad "8.7: expected exit 2 without the opt-in, got $code"; fi
-out=$(OPENPIER_NO_ENGINE=1 node --experimental-strip-types --no-warnings scripts/real-doctor.mjs 2>&1); case "$out" in *"skip: no engine"*) ok "8.7: real-doctor skips without an engine";; *) bad "8.7: real-doctor did not skip";; esac
-out=$(OPENPIER_NO_ENGINE=1 node --experimental-strip-types --no-warnings scripts/real-events-shape.mjs 2>&1); case "$out" in *"skip: no engine"*) ok "8.7: real-events-shape skips without an engine";; *) bad "8.7: real-events-shape did not skip";; esac
+out=$(env -u CI -u CONTAINER_UI_ENGINE_TEST sh scripts/real-engine-test.sh 2>&1); code=$?
+if [ "$code" = "2" ]; then ok "8.7: the script refuses to run without CI or CONTAINER_UI_ENGINE_TEST"; else bad "8.7: expected exit 2 without the opt-in, got $code"; fi
+out=$(CONTAINER_UI_NO_ENGINE=1 node --experimental-strip-types --no-warnings scripts/real-doctor.mjs 2>&1); case "$out" in *"skip: no engine"*) ok "8.7: real-doctor skips without an engine";; *) bad "8.7: real-doctor did not skip";; esac
+out=$(CONTAINER_UI_NO_ENGINE=1 node --experimental-strip-types --no-warnings scripts/real-events-shape.mjs 2>&1); case "$out" in *"skip: no engine"*) ok "8.7: real-events-shape skips without an engine";; *) bad "8.7: real-events-shape did not skip";; esac
 has "8.7: the workflow is nightly" .github/workflows/nightly-engine.yml 'cron:'
 has "8.7: the workflow can be started by hand" .github/workflows/nightly-engine.yml 'workflow_dispatch'
 has "8.7: the workflow runs on macOS" .github/workflows/nightly-engine.yml 'runs-on: macos'

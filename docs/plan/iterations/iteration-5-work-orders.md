@@ -30,7 +30,7 @@ Iteration 3's common rules C1 to C7 (`iteration-3-work-orders.md`, section "Comm
 
 1. **Imports.** Components come from `src/ui` (`import { Button, Row } from "./ui"`; from a file in a folder, `"../ui"`). Never `src/ui/op`. The old `src/ui/op` folder does not exist any more.
 2. **Eight states.** Use C4 of iteration 3 (the table and the words). `checkStates` of `scripts/lib/states.mjs` is not used here: a project list has its own states, listed in each work order.
-3. **No inline `style`** outside `Meters.tsx`, `LogView.tsx` and `VirtualRows.tsx`. No class that is not in `src/ui/openpier.css`. `npm run lint` and `node scripts/check-classes.mjs` enforce it.
+3. **No inline `style`** outside `Meters.tsx`, `LogView.tsx` and `VirtualRows.tsx`. No class that is not in `src/ui/container-ui.css`. `npm run lint` and `node scripts/check-classes.mjs` enforce it.
 4. **The mockup is the design** (C1 step 1): the screens are the JavaScript functions `prow`, `projectsHead`, `projectsList`, `portRow`, `projectDetail`, `startFinding`, `startCheck`, `projectsEmpty` in `docs/plan/design/mockup.html`. Quoted words in a work order are the design. Where a work order adds a sentence the mockup does not hold, it says "words added here" and lists them in the pull request file.
 5. **Mockup rows.** `scripts/mockup-pairs.json` rows use `"threshold": 0.005`. A row over `0.02` needs a `"why"`. The pair tool only navigates, so a sheet or an open menu is compared by eye.
 6. **Merging and the PR text** are C7: branch `wo-<id>`, `git merge --no-ff wo-<id>` into local `main`, the text in `docs/plan/iterations/pr/wo-<id>.md` (screenshots under `docs/plan/iterations/pr/wo-<id>/`). The "Pull request title" part of each work order is the first line of that file.
@@ -1585,7 +1585,7 @@ type Props = {
   onCancel: () => void;
 };
 ```
-   The tree (the mockup's, as components; every class is in `openpier.css`):
+   The tree (the mockup's, as components; every class is in `container-ui.css`):
 
 ```
 <Sheet open={!!request} onClose={onCancel} title={`Start ${project.name}`} stack busy={busy}

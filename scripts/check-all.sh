@@ -8,12 +8,12 @@ url="${PREVIEW_URL:-http://localhost:4173/}"
 started=""
 if ! curl -s -o /dev/null "$url"; then
   port=$(echo "$url" | sed -E "s#.*:([0-9]+).*#\1#")
-  npx vite --config vite.preview.config.ts --port "$port" --strictPort >/tmp/openpier-preview.log 2>&1 &
+  npx vite --config vite.preview.config.ts --port "$port" --strictPort >/tmp/container-ui-preview.log 2>&1 &
   started=$!
   i=0
   until curl -s -o /dev/null "$url"; do
     i=$((i + 1))
-    if [ "$i" -gt 60 ]; then echo "FAIL the preview did not start; see /tmp/openpier-preview.log"; kill "$started" 2>/dev/null; exit 1; fi
+    if [ "$i" -gt 60 ]; then echo "FAIL the preview did not start; see /tmp/container-ui-preview.log"; kill "$started" 2>/dev/null; exit 1; fi
     sleep 1
   done
 fi

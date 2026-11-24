@@ -26,8 +26,8 @@ echo "== Tailwind, the holes of round 2 =="
 chk "every class in src produces CSS (check-tw-classes)" node scripts/check-tw-classes.mjs
 chk "no arbitrary var() value in src: use the mapped name (text-warn, not text-[var(--warn)])" \
   sh -c '! grep -rnE "\[var\(--" src --include="*.tsx" --include="*.ts"'
-chk "every :root token of openpier.css has a mapping in tailwind.css @theme" sh -c '
-  for t in $(sed -n "/^:root *{/,/^}/p" src/ui/openpier.css | grep -oE "^ *--[a-z0-9-]+" | tr -d " "); do
+chk "every :root token of container-ui.css has a mapping in tailwind.css @theme" sh -c '
+  for t in $(sed -n "/^:root *{/,/^}/p" src/ui/container-ui.css | grep -oE "^ *--[a-z0-9-]+" | tr -d " "); do
     grep -qF "var($t)" src/ui/tailwind.css || { echo "unmapped $t"; exit 1; }
   done'
 

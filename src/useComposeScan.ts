@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 
 // Folders you added by hand, because Spotlight skips some (not indexed, or just created). Kept on this Mac only.
-const ADDED = "openpier:compose-folders";
+const ADDED = "container-ui:compose-folders";
 const readAdded = (): string[] => {
   try {
     const v = JSON.parse(localStorage.getItem(ADDED) ?? "[]");

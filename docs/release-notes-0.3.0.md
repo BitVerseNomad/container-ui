@@ -25,7 +25,7 @@ Container UI is a Mac app for running containers without Docker Desktop. It work
 2. Open the `.dmg` and drag Container UI to Applications.
 3. Open Container UI from Applications.
 
-If you used the old app before, remove it from Applications by hand. macOS sees Container UI as a new app, because its identifier changed to `dev.openpier.desktop`.
+If you used the old app before, remove it from Applications by hand. macOS sees Container UI as a new app, because its identifier changed to `dev.containerui.desktop`.
 
 ### Opening the app the first time
 

@@ -225,7 +225,7 @@ describe("VmChangeButton", () => {
     expect(runVm).toHaveBeenCalledTimes(1);
     calls.yaml = FAILED_YAML;
     expect(await wayBackApplies("work")).toBeNull();
-    expect(localStorage.getItem("openpier:wayBack")).toBeNull();
+    expect(localStorage.getItem("container-ui:wayBack")).toBeNull();
   });
 
   it("given the app was closed after a failed start, when it opens again, then the way back comes back from storage, and a changed file still drops it", async () => {
@@ -233,18 +233,18 @@ describe("VmChangeButton", () => {
     calls.yaml = FAILED_YAML;
     const runVm = vi.fn(async (_op: string, _cmd: string) => (runVm.mock.calls.length === 1 ? "FATA error starting vm: exit status 1" : null));
     await failAndDismiss(runVm);
-    expect(localStorage.getItem("openpier:wayBack")).toContain("/Volumes/data");
+    expect(localStorage.getItem("container-ui:wayBack")).toContain("/Volumes/data");
     vi.resetModules();
     const again = await import("./Resize");
     expect(await again.wayBackApplies("work")).toMatchObject({ kind: "mounts", what: "/Volumes/data" });
     expect(await again.wayBackApplies("other")).toBeNull();
     calls.yaml = "mounts: []\n";
     expect(await again.wayBackApplies("work")).toBeNull();
-    expect(localStorage.getItem("openpier:wayBack")).toBeNull();
+    expect(localStorage.getItem("container-ui:wayBack")).toBeNull();
   });
 
   it("given storage that throws or holds junk, when the app starts, then there is simply no way back", async () => {
-    localStorage.setItem("openpier:wayBack", "{not json");
+    localStorage.setItem("container-ui:wayBack", "{not json");
     vi.resetModules();
     const again = await import("./Resize");
     expect(await again.wayBackApplies("work")).toBeNull();

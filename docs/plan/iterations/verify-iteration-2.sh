@@ -83,7 +83,7 @@ has "WO-2.1: parseRoute exported" src/lib/routes.ts "export function parseRoute"
 has "WO-2.1: buildPath exported" src/lib/routes.ts "export function buildPath"
 has "WO-2.1: useRoute exported" src/lib/router.ts "export function useRoute"
 has "WO-2.1: go exported" src/lib/router.ts "export function go"
-has "WO-2.1: last route is remembered under openpier:last-route" src/lib/router.ts "openpier:last-route"
+has "WO-2.1: last route is remembered under container-ui:last-route" src/lib/router.ts "container-ui:last-route"
 # Comment lines may name the gallery (router.ts says where it lives); code lines may not.
 chk "WO-2.1: router has no gallery logic (the gallery lives in main.tsx)" sh -c '! grep -v "^[[:space:]]*//" src/lib/router.ts | grep -q gallery'
 lacks "WO-2.1: App no longer keeps the tab in useState" src/App.tsx "useState<Tab>"
@@ -103,7 +103,7 @@ has "WO-2.2: the shell mounts the toast provider inside .main" src/Shell.tsx "To
 has "WO-2.2: the shell mounts the portal provider" src/Shell.tsx "PortalProvider"
 has "WO-2.2: sidebar items are NavItem components" src/Shell.tsx "NavItem"
 absent "WO-2.2: no AppProviders file" src/AppProviders.tsx
-has "WO-2.2: sidebar fold key is openpier:sidebar-folded" src/Shell.tsx "openpier:sidebar-folded"
+has "WO-2.2: sidebar fold key is container-ui:sidebar-folded" src/Shell.tsx "container-ui:sidebar-folded"
 lacks "WO-2.2: no Runtime select left in the shell" src/Shell.tsx "Runtime"
 lacks "WO-2.2: no Switch profile in the shell" src/Shell.tsx "Switch profile"
 present "WO-2.2: check-layout and check-restyle are back in scripts/" scripts/check-layout.mjs scripts/check-restyle.mjs
@@ -119,7 +119,7 @@ echo "== WO-2.3 engine switcher =="
 present "WO-2.3: files and tests exist" src/lib/engineModel.ts src/lib/engineModel.test.ts src/EngineSwitcher.tsx src/EngineSwitcher.test.tsx
 absent "WO-2.3: the legacy profile switch is gone" src/LegacyProfileSwitch.tsx
 chk "WO-2.3: no profile picker left (Switch profile, profile-switch)" sh -c '! grep -rnE "Switch profile|profile-switch" src --include=*.tsx --include=*.ts'
-has "WO-2.3: choice kept under openpier:engine" src/App.tsx "openpier:engine"
+has "WO-2.3: choice kept under container-ui:engine" src/App.tsx "container-ui:engine"
 present "WO-2.3: Menu radio item, EngineButton and their tests exist" src/ui/op/EngineButton.tsx src/ui/op/EngineButton.test.tsx
 has "WO-2.3: Menu has a radio item" src/ui/op/Menu.tsx "MenuRadioItem"
 has "WO-2.3: Menu can be controlled" src/ui/op/Menu.tsx "onOpenChange"
@@ -141,7 +141,7 @@ has "WO-2.4: Projects shortcut is pending until WO-7.5" src/lib/shortcuts.ts "pe
 chk "WO-2.4: no Cmd+0 to Cmd+7 style entries left in App" sh -c '! grep -nE "key: \"(0|7)\", meta: true" src/App.tsx'
 chk "WO-2.4: Help has no Portuguese text" sh -c '! grep -nE "Atalhos|Fechar" src/HelpModal.tsx'
 has "WO-2.4: Help links to feedback" src/HelpModal.tsx "Give feedback"
-has "WO-2.4: Cmd+R refresh event listened in usePoll" src/hooks.ts "openpier:refresh"
+has "WO-2.4: Cmd+R refresh event listened in usePoll" src/hooks.ts "container-ui:refresh"
 lacks "WO-2.4: Commands.tsx has no Drawer" src/Commands.tsx "<Drawer"
 chk "WO-2.4: check-palette passes in Chromium" node scripts/check-palette.mjs
 chk "WO-2.4: check-palette passes in WebKit" env PW_ENGINE=webkit node scripts/check-palette.mjs

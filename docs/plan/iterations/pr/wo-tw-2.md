@@ -2,18 +2,18 @@ wo-tw-2: WO-TW-2 step 1: migrate the Button building block to Tailwind utilities
 
 ## What changed
 
-- `src/ui/op/Button.tsx`: replaced its `openpier.css` `.btn`/variant/size classes with Tailwind utilities mapped to the design tokens in `src/ui/tailwind.css`. Variants live in a small `variants` map joined with `cn()`/`clsx` from `tailwind-merge`/`clsx`. Public props and the `Icon`/`Spinner` usage are unchanged; screens keep importing from `./ui/op`.
+- `src/ui/op/Button.tsx`: replaced its `container-ui.css` `.btn`/variant/size classes with Tailwind utilities mapped to the design tokens in `src/ui/tailwind.css`. Variants live in a small `variants` map joined with `cn()`/`clsx` from `tailwind-merge`/`clsx`. Public props and the `Icon`/`Spinner` usage are unchanged; screens keep importing from `./ui/op`.
 - `src/ui/op/Button.test.tsx`: updated the class assertions to the new Tailwind classes (same five test scenarios, same coverage).
-- `src/ui/openpier.css` section 1: added spacing tokens `--spacing-6/8/10/12` and shadow tokens `--shadow-btn`/`--shadow-danger` needed by the migrated components (the Tailwind migration adds tokens when a value is missing from the design system).
-- `docs/plan/design/openpier.css`: synced to `src/ui/openpier.css` (the two files stay equal, per the plan rule).
+- `src/ui/container-ui.css` section 1: added spacing tokens `--spacing-6/8/10/12` and shadow tokens `--shadow-btn`/`--shadow-danger` needed by the migrated components (the Tailwind migration adds tokens when a value is missing from the design system).
+- `docs/plan/design/container-ui.css`: synced to `src/ui/container-ui.css` (the two files stay equal, per the plan rule).
 - `src/ui/tailwind.css`: mapped the new spacing and shadow tokens in the `@theme inline` block.
 
-`openpier.css` still keeps the `.btn` rule and all other component rules until the screens that use them are migrated in WO-TW-3 and the rules are removed in WO-TW-4.
+`container-ui.css` still keeps the `.btn` rule and all other component rules until the screens that use them are migrated in WO-TW-3 and the rules are removed in WO-TW-4.
 
 ## Steps done
 
-- [x] Added the missing spacing/shadow tokens to `src/ui/openpier.css` section 1.
-- [x] Synced `src/ui/openpier.css` over `docs/plan/design/openpier.css`.
+- [x] Added the missing spacing/shadow tokens to `src/ui/container-ui.css` section 1.
+- [x] Synced `src/ui/container-ui.css` over `docs/plan/design/container-ui.css`.
 - [x] Mapped the new tokens in `src/ui/tailwind.css`.
 - [x] Migrated `Button` to Tailwind utilities + `cn()`/`clsx` variants map.
 - [x] Updated `Button.test.tsx` class assertions.
@@ -40,7 +40,7 @@ $ npx tsc --noEmit
 ## Not done or changed from the work order
 
 - WO-TW-2 continues with the remaining `src/ui/op/` components (Field, Select, Checkbox, Switch, Tabs, Chip, Dot, Sev, Tile, Row, Menu, Tooltip, Sheet, ConfirmDialog, Toast, Banner, Empty, Problem, Progress, Meters, Sparkline, Facts, Inspector, Canvas, Command, Palette, NavItem, GroupCaption, EngineButton, Blocks, SkeletonRows, Icon, Portal).
-- `openpier.css` still holds component rules; they are removed in WO-TW-4 once no file in `src/` uses them.
+- `container-ui.css` still holds component rules; they are removed in WO-TW-4 once no file in `src/` uses them.
 - The `check-classes` guard now reports Button's Tailwind classes as undefined (expected: Tailwind classes are not in a CSS file; verify-tailwind.sh drops that line from its display).
 
 ## Contract differences

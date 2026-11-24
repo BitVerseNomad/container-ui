@@ -6,17 +6,17 @@ OpenPier moves to Tailwind CSS v4. The look stays "Manifest"; only the way style
 
 - `npm install -D tailwindcss@4 @tailwindcss/vite@4` (dev dependencies).
 - Added the `@tailwindcss/vite` plugin to `vite.config.ts` and `vite.preview.config.ts`.
-- New file `src/ui/tailwind.css`: `@import "tailwindcss"`, one `@theme inline` block mapping every token of `src/ui/openpier.css` section 1 (`:root`) to a Tailwind name (`--color-*`, `--radius-*`, `--shadow-*`, `--font-*`, `--text-*`, `--spacing-*`), and `--color-*: initial` at the top to turn the built-in palette off.
-- `src/main.tsx` loads `./ui/tailwind.css` before `./ui/openpier.css`; both stay for now.
+- New file `src/ui/tailwind.css`: `@import "tailwindcss"`, one `@theme inline` block mapping every token of `src/ui/container-ui.css` section 1 (`:root`) to a Tailwind name (`--color-*`, `--radius-*`, `--shadow-*`, `--font-*`, `--text-*`, `--spacing-*`), and `--color-*: initial` at the top to turn the built-in palette off.
+- `src/main.tsx` loads `./ui/tailwind.css` before `./ui/container-ui.css`; both stay for now.
 
-The op components still use their `openpier.css` classes, so nothing on screen changes.
+The op components still use their `container-ui.css` classes, so nothing on screen changes.
 
 ## Steps done
 
 - [x] Step 1: `npm install -D tailwindcss@4 @tailwindcss/vite@4`
 - [x] Step 2: `@tailwindcss/vite` plugin in `vite.config.ts` and `vite.preview.config.ts`
 - [x] Step 3: created `src/ui/tailwind.css` (`@import "tailwindcss"`, `@theme inline` token mappings, `--color-*: initial`)
-- [x] Step 4: `src/main.tsx` imports `tailwind.css` before `openpier.css`
+- [x] Step 4: `src/main.tsx` imports `tailwind.css` before `container-ui.css`
 - [x] Step 5: proof: `check-mockup` unchanged from its pre-round state (the screen did not change)
 
 ## Evidence
@@ -50,7 +50,7 @@ Nothing on screen changes; nothing to capture.
 
 ## Not done or changed from the work order
 
-The remaining 60 FAILs are pre-existing iteration-2 failures (mockup comparison in WebKit, WO-2.2 / WO-2.4 / WO-2.5 / WO-3.x browser checks) plus this PR file itself being missing, which WO-TW-5 will group and fix. `openpier.css` still holds its class selectors (WO-TW-4 removes them once no file in `src/` uses them).
+The remaining 60 FAILs are pre-existing iteration-2 failures (mockup comparison in WebKit, WO-2.2 / WO-2.4 / WO-2.5 / WO-3.x browser checks) plus this PR file itself being missing, which WO-TW-5 will group and fix. `container-ui.css` still holds its class selectors (WO-TW-4 removes them once no file in `src/` uses them).
 
 ## Contract differences
 

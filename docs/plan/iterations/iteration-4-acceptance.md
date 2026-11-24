@@ -10,7 +10,7 @@ Setup: run `npm run preview`, open `http://localhost:4173/?scenario=design#/<rou
 2. `scripts/dropped-checks.json` and `scripts/mockup-pairs.json` have no new entry. Any new row has a reason that is a changed word or a removed feature, never "flaky" or "slow".
 3. No test was deleted or weakened to make the code pass. `git diff main --stat -- 'src/**/*.test.*' 'scripts/*.test.*'` shows no file with more lines removed than added, except the tests that WO-4.3c and WO-5.1a name for deletion (`hooks`, `pollPace`, `latest`). For each changed test, read the diff: no assertion became `true`, no `expect` was removed, no exact text became a loose match.
 4. Test counts only grew. `cargo test` passes at least 162 tests, and the node and vitest counts are not lower than the end of iteration 3.
-5. `git diff main -- src/ui/openpier.css` is empty. No colour, size, shadow or icon that is not in that file. No inline `style` outside `Meters.tsx`, `LogView.tsx`, `VirtualRows.tsx`.
+5. `git diff main -- src/ui/container-ui.css` is empty. No colour, size, shadow or icon that is not in that file. No inline `style` outside `Meters.tsx`, `LogView.tsx`, `VirtualRows.tsx`.
 6. No `TODO`, `FIXME`, commented-out code, or `skip` in tests. `git diff main | grep -nE '^\+.*(TODO|FIXME|\.skip|it\.todo|xit\()'` prints nothing.
 7. No ignore entry was added to `knip.json` to make it pass (`git diff main -- knip.json` shows only the first version of the file, and `ignore` lists nothing under `src/`).
 8. Every new test name reads Given, When, Then. Tests were committed before the code (the commit order shows the failing tests first).
@@ -75,7 +75,7 @@ Cheats: a `usePoll` wrapper renamed and kept; `refetchInterval: 3000` copied to 
 
 ## WO-5.1a and WO-5.1b The old UI is deleted
 
-1. `ls src/ui` shows the moved files at the top level (`Button.tsx`, `Row.tsx`, `Menu.tsx`, `index.ts`, `openpier.css` and the rest) and no `op` folder. `src/ui.tsx` and `src/ui/icons.tsx` do not exist.
+1. `ls src/ui` shows the moved files at the top level (`Button.tsx`, `Row.tsx`, `Menu.tsx`, `index.ts`, `container-ui.css` and the rest) and no `op` folder. `src/ui.tsx` and `src/ui/icons.tsx` do not exist.
 2. `npx knip` prints nothing. Open `knip.json`: it has `entry` and `project` only, with no `ignore` lists that name a source file.
 3. `package.json` has no `tailwind-merge`, `class-variance-authority` or `clsx` (unless a file still imports it, in which case the work order says why).
 4. `grep -rn "ui/op" src scripts` prints nothing. `grep -rn "from \"./ui\"" src | head` shows the new import path.

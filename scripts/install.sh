@@ -13,15 +13,15 @@ app="/Applications/Container UI.app"
 tmp="$(mktemp -d)"
 trap 'hdiutil detach "$tmp/mnt" -quiet 2>/dev/null || true; rm -rf "$tmp"' EXIT
 
-# OPENPIER_DMG installs a .dmg you already have (a local build) instead of downloading one.
-dmg="${OPENPIER_DMG:-}"
+# CONTAINER_UI_DMG installs a .dmg you already have (a local build) instead of downloading one.
+dmg="${CONTAINER_UI_DMG:-}"
 if [ -z "$dmg" ]; then
-  repo="${OPENPIER_REPO:-$REPO}"
+  repo="${CONTAINER_UI_REPO:-$REPO}"
   echo "Finding the latest release of $repo…"
   url="$(curl -fsSL "https://api.github.com/repos/$repo/releases/latest" | grep -o '"browser_download_url": *"[^"]*\.dmg"' | head -1 | sed 's/.*"\(http[^"]*\)"/\1/')"
   [ -n "$url" ] || { echo "No .dmg found on the latest release of $repo." >&2; exit 1; }
   echo "Downloading $(basename "$url")…"
-  dmg="$tmp/openpier.dmg"
+  dmg="$tmp/container-ui.dmg"
   curl -fL --progress-bar "$url" -o "$dmg"
 fi
 hdiutil attach "$dmg" -nobrowse -quiet -mountpoint "$tmp/mnt"

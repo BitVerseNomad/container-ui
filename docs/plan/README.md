@@ -11,7 +11,7 @@ Written on 2026-11-12. This folder is the brief for turning today's app into Ope
 | `03-review-product.md` | Positioning, scope for 1.0, name, risks, and the owner's open decisions (P9) | Before deciding what to build |
 | `04-design-spec.md` | The design in words: tokens, shell, components, every screen, states, words, keyboard | While building anything on screen |
 | `design/mockup.html` | The design you can open. 25 screens, light and dark | Same. Open it in a browser |
-| `design/openpier.css` | The stylesheet. Ships unchanged as `src/ui/openpier.css` | Same |
+| `design/container-ui.css` | The stylesheet. Ships unchanged as `src/ui/container-ui.css` | Same |
 | `design/prototype.html` | A working prototype of three visual directions. A (Manifest) was picked. Click problems, fix them, start projects | To feel how the app should behave |
 | `design/shots/` | Screenshots of the mockup (WebKit). Remake with `node docs/plan/design/shoot.mjs` | To compare your screen with the design |
 | `05-implementation-plan.md` | The tasks, in order, one PR each | To pick up work |
@@ -39,7 +39,7 @@ The owner wanted a name in the "Open…" family. Alternatives and why they were 
 
 Electron with Tailwind and Base UI (OpenChamber's stack) was on the table. We stay because:
 
-1. **The look is CSS, not the shell.** Everything that makes OpenChamber feel clean (flat layout, quiet colour, dense rows) is in `design/openpier.css` and renders the same in a Tauri webview. The mockup proves it in WebKit, which is the engine Tauri uses on macOS.
+1. **The look is CSS, not the shell.** Everything that makes OpenChamber feel clean (flat layout, quiet colour, dense rows) is in `design/container-ui.css` and renders the same in a Tauri webview. The mockup proves it in WebKit, which is the engine Tauri uses on macOS.
 2. **The backend would be rewritten.** About 6,500 lines of Rust with command allowlists and its tests do the risky work (running `docker`, `colima`, `kubectl`). Electron would mean porting that to Node and re-proving it.
 3. **Size.** The current `.dmg` is about 6 MB. An Electron app starts above 100 MB. "Light" is one of the three claims in the positioning.
 
@@ -79,6 +79,6 @@ In `03-review-product.md`, P9. Decided on 2026-11-12: rotate the leaked key only
 
 ## Rules for this folder
 
-1. The mockup and `openpier.css` are the source for the design. If they and the spec disagree, the mockup wins and the spec gets fixed.
+1. The mockup and `container-ui.css` are the source for the design. If they and the spec disagree, the mockup wins and the spec gets fixed.
 2. When a task changes a decision here, change this folder in the same PR.
 3. Things found on the way that are out of a task's scope go in `FOUND.md`.

@@ -49,11 +49,11 @@ describe("Shell", () => {
     expect(screen.getByRole("link", { name: /Containers/ })).not.toHaveAttribute("aria-current", "page");
   });
 
-  it("Given the Fold sidebar button is pressed, when pressed, then localStorage 'openpier:sidebar-folded' is '1' and the button is labelled 'Show the sidebar'", () => {
+  it("Given the Fold sidebar button is pressed, when pressed, then localStorage 'container-ui:sidebar-folded' is '1' and the button is labelled 'Show the sidebar'", () => {
     render(<Harness />);
     const fold = screen.getByRole("button", { name: /Fold sidebar/ });
     fireEvent.click(fold);
-    expect(window.localStorage.getItem("openpier:sidebar-folded")).toBe("1");
+    expect(window.localStorage.getItem("container-ui:sidebar-folded")).toBe("1");
     expect(fold).toHaveAttribute("aria-label", "Show the sidebar");
   });
 

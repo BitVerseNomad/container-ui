@@ -10,7 +10,7 @@ The Containers screen is rebuilt from legacy markup (Card, DropdownMenu, WebPort
 - [x] Step 8: Rewrote src/Containers.tsx replacing legacy Card/DropdownMenu/WebPort/Blank/Badge markup with ui/op components and containers/* components.
 - [x] Step 9: Verified tsc, lint pass.
 - [x] Step 10: Removed src/Containers.tsx from scripts/not-migrated.json.
-- [x] Step 11: Added missing layout classes to src/ui/openpier.css and synced to docs/plan/design/openpier.css.
+- [x] Step 11: Added missing layout classes to src/ui/container-ui.css and synced to docs/plan/design/container-ui.css.
 - [x] Step 12-18: Verified check-classes passes, check-not-migrated passes, no button/table/small/style= in Containers.tsx or containers/*.tsx.
 - [x] Wrote PR file as last commit.
 

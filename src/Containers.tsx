@@ -59,7 +59,7 @@ type C = { ID: string; Names: string; Image: string; State: string; Status: stri
 // A Start or Stop that the poll never confirms stops saying "Starting…" after this long.
 const PENDING_MS = 30_000;
 // The projects the user folded or unfolded, kept across visits.
-const OPEN_KEY = "openpier:containers-open";
+const OPEN_KEY = "container-ui:containers-open";
 // ids: when only some of a project's containers are started (its stopped ones), the wait ends once those run; the
 // project as a whole may stay partly running (a crashed job), which is not the target.
 type Pending = { target: "running" | "stopped"; word: string; since: number; ids?: string[] };
@@ -351,8 +351,8 @@ export default function Containers({ profile, ctx, vm, onVm, reload, setDetailId
       if (checked.size) { setChecked(new Set()); return; }
       if (q) setQ("");
     };
-    window.addEventListener("openpier:escape", onEscape);
-    return () => window.removeEventListener("openpier:escape", onEscape);
+    window.addEventListener("container-ui:escape", onEscape);
+    return () => window.removeEventListener("container-ui:escape", onEscape);
   }, [checked, q]);
 
   if (!profile) {

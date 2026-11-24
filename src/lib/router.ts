@@ -4,7 +4,7 @@ import { DEFAULT_PATH, Route, buildPath, parseRoute } from "./routes.ts";
 export { buildPath, parseRoute } from "./routes.ts";
 export type { Page, Route } from "./routes.ts";
 
-const LAST_ROUTE_KEY = "openpier:last-route";
+const LAST_ROUTE_KEY = "container-ui:last-route";
 
 const subscribe = (notify: () => void) => {
   window.addEventListener("hashchange", notify);

@@ -8,7 +8,7 @@ Preview: `npm run preview`, then `http://localhost:4173/?scenario=<name>#/<route
 
 1. A test that was weakened, skipped (`.skip`, `#[ignore]`, `xit`) or deleted. `git diff main --stat -- '*.test.*' src-tauri/src` should only show new or longer tests.
 2. `scripts/not-migrated.json` longer than before.
-3. A colour, size or shadow written in a component, a `style=` outside `Meters.tsx`, `LogView.tsx` and `VirtualRows.tsx` and the `Meters.tsx` block, a class that `openpier.css` does not define.
+3. A colour, size or shadow written in a component, a `style=` outside `Meters.tsx`, `LogView.tsx` and `VirtualRows.tsx` and the `Meters.tsx` block, a class that `container-ui.css` does not define.
 4. A new `localStorage` key that is not `openpier:...`.
 5. A `TODO`, `FIXME`, `unimplemented!()` or `todo!()` left in. `grep -rn "todo!()\|unimplemented!()" src-tauri/src` prints nothing.
 6. A widened `src-tauri/capabilities/default.json` or a changed CSP in `tauri.conf.json`. Both must be byte for byte as before this part.

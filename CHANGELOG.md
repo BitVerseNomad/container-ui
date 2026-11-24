@@ -5,7 +5,7 @@ Newest first. Older entries record what was true when they were written; later e
 ## 0.3.0
 
 1. The app is now called Container UI. Your saved settings are kept.
-2. macOS sees Container UI as a new app (its identifier changed to `dev.openpier.desktop`). Remove the old app from Applications by hand.
+2. macOS sees Container UI as a new app (its identifier changed to `dev.containerui.desktop`). Remove the old app from Applications by hand.
 3. **Containers page rebuilt.** Containers with problems show first. Each container has one status dot and one plain word, such as Running or Stopped. Ports, CPU and memory sit in fixed columns, so the rows line up.
 4. **A clear view for each state.** The Containers page has its own view for each of its eight states, such as loading, empty and engine stopped.
 5. **Each container has its own page and address.** Logs, Stats, Settings, Folders, Network and History are tabs on that page. Back and forward work on every page.

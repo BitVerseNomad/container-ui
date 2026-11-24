@@ -7,7 +7,7 @@ Thanks for wanting to help. Container UI is a Tauri 2 (Rust + React/TypeScript) 
 ```bash
 # Clone and install
 git clone https://github.com/BitVerseNomad/container-ui.git
-cd openpier
+cd container-ui
 npm install
 
 # Prereqs: Node 22.6+, Rust (rustup), Colima and Docker CLI

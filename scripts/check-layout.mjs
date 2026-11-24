@@ -148,7 +148,7 @@ check(tw.url().includes("#/settings/machines"), "[1180x760] Machines… changes 
 
 await tw.close();
 
-// 13. Reload: the selected engine is still the one picked (openpier:engine).
+// 13. Reload: the selected engine is still the one picked (container-ui:engine).
 await sw.reload();
 await sw.waitForTimeout(500);
 check(await sw.locator("button.engine").getAttribute("aria-label") === "Engine: Colima, default. Running",

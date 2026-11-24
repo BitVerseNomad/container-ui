@@ -22,7 +22,7 @@ This file is the plan. `iterations/` holds the same work as recipes, written aft
 
 1. **One task, one branch, one PR.** Branch name `task-<id>` (for example `task-1.3`). Do not start a task whose "Needs" are not merged.
 2. **Do exactly the task.** If you find something else that is wrong, add a line to `docs/plan/FOUND.md` and carry on. Do not fix it in the same PR.
-3. **The mockup is the design.** No colour, size or shadow outside `src/ui/openpier.css`. If the mockup lacks what you need, stop and say so in the PR; do not invent.
+3. **The mockup is the design.** No colour, size or shadow outside `src/ui/container-ui.css`. If the mockup lacks what you need, stop and say so in the PR; do not invent.
 4. **Every task ends green**: `npm run lint && npx tsc --noEmit && npm test && (cd src-tauri && cargo test)`. From task 0.3 on, also `npm run check`.
 5. **Never weaken a test to make it pass.** If a test is wrong, say why in the PR and change it in its own commit.
 6. **Do not run commands that change the developer's machine**: no `docker rm`, `colima delete`, `brew install` and so on outside the `eval-*` sandbox (`scripts/eval-setup.sh`). The browser preview with the mocked backend is the place to see screens.
@@ -111,17 +111,17 @@ Nothing visible changes in this phase. It unblocks everything else.
 
 1. Needs: 0.3.
 2. Steps:
-   1. Copy `docs/plan/design/openpier.css` to `src/ui/openpier.css`. Import it once, in `src/main.tsx`, and nothing else.
+   1. Copy `docs/plan/design/container-ui.css` to `src/ui/container-ui.css`. Import it once, in `src/main.tsx`, and nothing else.
    2. Delete `src/styles.css`, `src/home.css`, `src/Shell.css`, `src/ui/tokens.css`.
    3. Remove from `package.json`: `tailwindcss`, `@tailwindcss/vite`, `tailwind-merge`, `class-variance-authority` if present, `@fontsource/inter`, `@fontsource/jetbrains-mono`. Remove the Tailwind plugin from `vite.config.ts`.
-   4. Add `scripts/check-design-sync.mjs`: fails if `src/ui/openpier.css` and `docs/plan/design/openpier.css` differ. Wire it into `npm run check`.
+   4. Add `scripts/check-design-sync.mjs`: fails if `src/ui/container-ui.css` and `docs/plan/design/container-ui.css` differ. Wire it into `npm run check`.
 3. The app will look worse after this PR than before it. That is expected; phases 2 and 3 rebuild each screen. Say so in the PR.
 4. Done when: the build passes, one CSS file is imported, and `check-design-sync` passes.
 
 ### 1.2 Contrast check for the tokens
 
-1. Add `scripts/check-contrast.mjs`: parse the two token blocks of `openpier.css` and compute WCAG contrast for `--fg`, `--fg-muted`, `--accent-ink`, `--ok`, `--warn`, `--bad`, `--info` on `--bg`, `--bg-sidebar` and `--bg-raised`, in both themes. Fail under 4.5:1 for the first three, under 3:1 for the state colours (they colour icons and dots, which need 3:1).
-2. If a token fails, change the token in `docs/plan/design/openpier.css` (and the copy), re-run `node docs/plan/design/shoot.mjs`, and note the change in the PR. The values in the mockup were chosen by eye from the reference and have not been measured.
+1. Add `scripts/check-contrast.mjs`: parse the two token blocks of `container-ui.css` and compute WCAG contrast for `--fg`, `--fg-muted`, `--accent-ink`, `--ok`, `--warn`, `--bad`, `--info` on `--bg`, `--bg-sidebar` and `--bg-raised`, in both themes. Fail under 4.5:1 for the first three, under 3:1 for the state colours (they colour icons and dots, which need 3:1).
+2. If a token fails, change the token in `docs/plan/design/container-ui.css` (and the copy), re-run `node docs/plan/design/shoot.mjs`, and note the change in the PR. The values in the mockup were chosen by eye from the reference and have not been measured.
 3. Done when: the script passes and runs in `npm run check`.
 
 ### 1.3 Build the components (design spec section 6)
@@ -136,7 +136,7 @@ Nothing visible changes in this phase. It unblocks everything else.
 
 ### 1.4 Class check
 
-1. Add `scripts/check-classes.mjs`: collect every string in `className=` across `src/**/*.tsx` (static strings and the branches of `clsx(...)`), split into class names, and fail if one is not defined in `src/ui/openpier.css`.
+1. Add `scripts/check-classes.mjs`: collect every string in `className=` across `src/**/*.tsx` (static strings and the branches of `clsx(...)`), split into class names, and fail if one is not defined in `src/ui/container-ui.css`.
 2. Files in `scripts/not-migrated.json` (task 1.3) are skipped. They will render unstyled until their phase 3 task; that is the known cost of task 1.1.
 3. Done when: it passes with the list and runs in `npm run check`. This is the guard that stops a repeat of E6.
 

@@ -11,7 +11,7 @@ export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   busy?: boolean;
 };
 
-// openpier.css sets `button` and `a` colours outside any layer, so they beat plain utilities. The ! variants win over them.
+// container-ui.css sets `button` and `a` colours outside any layer, so they beat plain utilities. The ! variants win over them.
 const variants = {
   variant: {
     default: "bg-bg-raised text-fg !text-fg shadow-btn",

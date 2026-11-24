@@ -19,12 +19,12 @@ The 31 lines of classes that commit `c309e84` added to both stylesheets are gone
 
 ```bash
 $ cd docs/plan/design && shasum -a 256 -c SHA256SUMS
-openpier.css: OK
+container-ui.css: OK
 mockup.html: OK
 tray/tray-problem.png: OK
 ... every other line: OK
 $ node scripts/check-design-sync.mjs
-ok design sync: src/ui/openpier.css equals docs/plan/design/openpier.css
+ok design sync: src/ui/container-ui.css equals docs/plan/design/container-ui.css
 ```
 
 ### Step 2: the classes `check-classes` fails on after step 1
@@ -96,10 +96,10 @@ The two that pass are the ones that never read a row's markup: the Compose run a
 
 ```bash
 $ cd docs/plan/design && shasum -a 256 -c SHA256SUMS
-openpier.css: OK
+container-ui.css: OK
 ... every line: OK
 $ node scripts/check-design-sync.mjs
-ok design sync: src/ui/openpier.css equals docs/plan/design/openpier.css
+ok design sync: src/ui/container-ui.css equals docs/plan/design/container-ui.css
 $ node scripts/check-classes.mjs
 ok classes: 46 files checked, 67 skipped (not migrated), 0 with unknown classes
 ```
@@ -233,7 +233,7 @@ chromium scripts/check-classes.mjs: 0
 3. **`src/Containers.test.tsx` needed two mechanical changes to mount at all**: `ToastProvider` around it (the screen now calls `useToast`, per WO-3.1b step 13) and `live={{}} history={{}}` (the new props of WO-3.1b step 17). No assertion was changed; the 19 failures are the old selectors.
 4. **`preview/mock.ts` DESIGN fixture gained one env var**: `KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=localhost:9092` on kafka-ui, so the preview shows the "Can't reach Kafka" line and the combined fix that WO-3.1b Done when 4.4 asks to compare. The run-time fixture is unchanged.
 5. **The row action button uses `aria-disabled` for `locked`, not `disabled`, and the screen's `onAction` ignores the click while locked**, as WO-3.1b step 6.5 says. The two selection buttons use real `disabled`, as step 8 says.
-6. **The New menu's first item is painted under the sticky table head.** `.pop` has no `z-index` in `openpier.css` and `.row.th` has `z-index: 1`, and `Menu` portals its content to the end of `body`, so the top 36 px of the menu sit behind the head row. The fix is either `z-index` on `.pop` in `docs/plan/design/openpier.css` or a class on the menu content in `src/ui/op/Menu.tsx`, and both are outside what this work order may touch. It is written down here for WO-3.1c; `docs/plan/FOUND.md` is inside the folder this work order may not edit.
+6. **The New menu's first item is painted under the sticky table head.** `.pop` has no `z-index` in `container-ui.css` and `.row.th` has `z-index: 1`, and `Menu` portals its content to the end of `body`, so the top 36 px of the menu sit behind the head row. The fix is either `z-index` on `.pop` in `docs/plan/design/container-ui.css` or a class on the menu content in `src/ui/op/Menu.tsx`, and both are outside what this work order may touch. It is written down here for WO-3.1c; `docs/plan/FOUND.md` is inside the folder this work order may not edit.
 7. **`VirtualRows` is not used.** WO-3.1b step 10.6 defers it to WO-8.8; every line renders today.
 8. **`src/App.tsx` renders the generic `Header` only for the other tabs**, since Containers builds its own header. This is step 17 of WO-3.1b.
 

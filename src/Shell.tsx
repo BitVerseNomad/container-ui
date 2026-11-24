@@ -6,7 +6,7 @@ import { NavItem, Button, Dot, Tooltip, TooltipProvider } from "./ui/op";
 import { PortalProvider, ToastProvider } from "./ui/op";
 import { ConfirmProvider as OpConfirmProvider } from "./ui/op";
 
-const FOLD_KEY = "openpier:sidebar-folded";
+const FOLD_KEY = "container-ui:sidebar-folded";
 const readFolded = () => { try { return localStorage.getItem(FOLD_KEY) === "1"; } catch { return false; } };
 const saveFolded = (v: boolean) => { try { localStorage.setItem(FOLD_KEY, v ? "1" : "0"); } catch { /* not remembered */ } };
 
@@ -42,8 +42,8 @@ export default function Shell({ nav, onNav, badges = {}, hidden = [], counts = {
   const fold = () => setFolded((f) => { saveFolded(!f); return !f; });
   useEffect(() => {
     const onFold = () => fold();
-    window.addEventListener("openpier:fold", onFold);
-    return () => window.removeEventListener("openpier:fold", onFold);
+    window.addEventListener("container-ui:fold", onFold);
+    return () => window.removeEventListener("container-ui:fold", onFold);
   }, [fold]);
   const [mainEl, setMainEl] = useState<HTMLElement | null>(null);
 

@@ -3,7 +3,7 @@ wo-1.3a: the small components exist and are tested
 ## What changed
 
 The new design components exist in `src/ui/op/`, one file per component, each with a test.
-They render classes from `openpier.css` only and take their text from props.
+They render classes from `container-ui.css` only and take their text from props.
 Nothing on screen uses them yet; the old screens keep their own components.
 
 ## Steps done

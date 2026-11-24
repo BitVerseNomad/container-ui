@@ -5,11 +5,11 @@
 # The loop decides when the work is over. The agent cannot stop it by reporting.
 #
 # One command, from the repo root:   sh docs/plan/iterations/run-until-green.sh
-# Options (env): MAX=25 rounds, OPENPIER_MODEL=<opencode model id>, DRY_RUN=1 (print push and gh, do not run them)
+# Options (env): MAX=25 rounds, CONTAINER_UI_MODEL=<opencode model id>, DRY_RUN=1 (print push and gh, do not run them)
 # Results: .tw-loop/DONE.txt (what happened, in plain words) and .tw-loop/round-<n>.log.
 
 MAX="${MAX:-${1:-25}}"
-MODEL="${OPENPIER_MODEL:-openrouter/nvidia/nemotron-3.5-super-vl:free}"
+MODEL="${CONTAINER_UI_MODEL:-openrouter/nvidia/nemotron-3.5-super-vl:free}"
 START="tw-base"    # the commit before the migration: tsc was 0 here (checked 2026-11-16)
 GUARD="tw-guard"   # the commit that added these files: nothing guarded may change after it
 LOGDIR=".tw-loop"
@@ -68,7 +68,7 @@ while [ "$round" -le "$MAX" ]; do
 
   { facts; echo; echo "== FAIL lines from $VERIFY =="; grep '^FAIL ' "$LOGDIR/verify.txt"; } >"$LOGDIR/fails.txt"
   head_before=$(git rev-parse main)
-  opencode run --auto -m "$MODEL" --title "openpier tailwind round $round" \
+  opencode run --auto -m "$MODEL" --title "container-ui tailwind round $round" \
     -f docs/plan/iterations/PROMPT-tailwind.md -f "$LOGDIR/fails.txt" \
     "Round $round of $MAX. Verify says: $total. Read the attached fails.txt: the Facts section first, then the FAIL lines. Follow the attached prompt. Work until your context runs low, merge what you finished with --no-ff, then end. The loop runs the checks again and starts the next round." \
     >"$LOGDIR/round-$round.log" 2>&1
@@ -77,7 +77,7 @@ while [ "$round" -le "$MAX" ]; do
   if grep -qiE 'model unavailable|rate limit|429|quota|insufficient credits|unauthorized|ECONNRESET' "$LOGDIR/round-$round.log"; then
     apierr=$((apierr + 1))
     say "round $round: model or API error: $(grep -iE 'model unavailable|rate limit|429|quota|insufficient|unauthorized|ECONNRESET' "$LOGDIR/round-$round.log" | head -1 | cut -c1-160)"
-    [ "$apierr" -ge 3 ] && { say "STOP: 3 model or API errors. Set OPENPIER_MODEL to a working id (opencode models) and run again."; exit 4; }
+    [ "$apierr" -ge 3 ] && { say "STOP: 3 model or API errors. Set CONTAINER_UI_MODEL to a working id (opencode models) and run again."; exit 4; }
     sleep 90; continue
   fi
   apierr=0

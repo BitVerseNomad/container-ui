@@ -1,4 +1,4 @@
-// Sets <html data-theme> from the system setting, so the dark tokens in openpier.css apply. Follows later changes too.
+// Sets <html data-theme> from the system setting, so the dark tokens in container-ui.css apply. Follows later changes too.
 export const DARK_QUERY = "(prefers-color-scheme: dark)";
 
 type ThemeQuery = { matches: boolean; addEventListener?: (type: "change", listener: (event: { matches: boolean }) => void) => void };

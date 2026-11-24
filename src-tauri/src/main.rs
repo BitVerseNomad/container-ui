@@ -2818,7 +2818,7 @@ mod tests {
     // A fake home folder on disk, so symlinks and folders are real.
     fn compose_home(name: &str) -> (std::path::PathBuf, String) {
         let home =
-            std::env::temp_dir().join(format!("openpier-open-{name}-{}", std::process::id()));
+            std::env::temp_dir().join(format!("container-ui-open-{name}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&home);
         std::fs::create_dir_all(home.join("code/shop")).unwrap();
         let home = std::fs::canonicalize(&home).unwrap();
@@ -2851,8 +2851,10 @@ mod tests {
     #[test]
     fn given_a_compose_yaml_that_links_outside_home_when_opened_then_it_is_refused() {
         let (home, h) = compose_home("out");
-        let outside =
-            std::env::temp_dir().join(format!("openpier-open-outside-{}.yaml", std::process::id()));
+        let outside = std::env::temp_dir().join(format!(
+            "container-ui-open-outside-{}.yaml",
+            std::process::id()
+        ));
         std::fs::write(&outside, "services: {}\n").unwrap();
         let link = home.join("code/shop/compose.yaml");
         std::os::unix::fs::symlink(&outside, &link).unwrap();
@@ -3273,7 +3275,7 @@ mod tests {
     ) {
         let (home, h) = compose_home("linkdir");
         let outside =
-            std::env::temp_dir().join(format!("openpier-open-outdir-{}", std::process::id()));
+            std::env::temp_dir().join(format!("container-ui-open-outdir-{}", std::process::id()));
         std::fs::create_dir_all(&outside).unwrap();
         std::fs::write(outside.join("compose.yaml"), "services: {}\n").unwrap();
         std::os::unix::fs::symlink(&outside, home.join("code/linked")).unwrap();

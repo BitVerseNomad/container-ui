@@ -250,7 +250,7 @@ cd .. && npm run check
 
 ## Where the design lives
 
-`docs/plan/design/`: the stylesheet `openpier.css`, the mockup `mockup.html`, and pictures of every screen in `shots/`. The rules for every screen are in `AGENTS.md`. Do not add a colour, a size or a word that is not in the design.
+`docs/plan/design/`: the stylesheet `container-ui.css`, the mockup `mockup.html`, and pictures of every screen in `shots/`. The rules for every screen are in `AGENTS.md`. Do not add a colour, a size or a word that is not in the design.
 
 ## When reviews happen
 

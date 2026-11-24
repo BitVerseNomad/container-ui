@@ -36,9 +36,9 @@ Read this section once. Each work order says which rules it uses. A work order n
 3. Router and header (WO-2.1, WO-2.2): `go("#/images")` (the argument starts with `#`), `replace("#/containers")`, `const { route } = useRoute()` with `route.page` and `route.tab` (pages: containers, images, volumes, networks, kubernetes, doctor, projects, settings, setup). Kubernetes tabs are `pods, deployments, services, events`. Settings tabs are `general, machines, engines, registries, updates, about`. Each page renders its own `<Header title summary? back? stateDot? stateText? meters?>{search, buttons, primary last}</Header>`. Until a page is migrated, `src/App.tsx` renders `<Header title={...} />` above it; the screen work order deletes that line for its page.
 4. For the shape of a list screen (header, search, groups, row, menu, the eight states), copy `src/Containers.tsx` and `src/containers/*` as WO-3.1b and WO-3.1c left them. For a sheet, copy the Run sheet of WO-3.3a. For a confirm, copy the Remove confirm of `src/Containers.tsx`.
 5. The screen keeps its props, its data hooks and its Docker commands. Only the markup changes, unless the work order says otherwise.
-6. ESLint (WO-1.3c) rejects, in files not on the list: `<button`, `<select`, `<table`, any `style` attribute, hex colours, `NNpx` strings, `lucide-react` imports, and imports of the old `src/ui` files. No `className` that is not in `src/ui/openpier.css` (`scripts/check-classes.mjs`).
+6. ESLint (WO-1.3c) rejects, in files not on the list: `<button`, `<select`, `<table`, any `style` attribute, hex colours, `NNpx` strings, `lucide-react` imports, and imports of the old `src/ui` files. No `className` that is not in `src/ui/container-ui.css` (`scripts/check-classes.mjs`).
 7. Words come from this file, the mockup and spec section 9. A word on the old screen that is not in the mockup is dropped, unless the work order keeps it.
-8. The design is closed for this iteration: every class and component named in the steps exists in `src/ui/openpier.css` (section 11) and `src/ui/op/`. The Starting state of each work order greps the ones it uses. If a grep fails, stop and report: a class or component is still missing, and the author adds it. Do not draw a look with another class and do not write `style`.
+8. The design is closed for this iteration: every class and component named in the steps exists in `src/ui/container-ui.css` (section 11) and `src/ui/op/`. The Starting state of each work order greps the ones it uses. If a grep fails, stop and report: a class or component is still missing, and the author adds it. Do not draw a look with another class and do not write `style`.
 
 ### C2. Starting state, common to every screen work order
 
@@ -461,9 +461,9 @@ Image row (`Row`): in this order: image icon, name with the tag muted after a co
 Starting-state check for the column kinds used by Images, Networks and Kubernetes:
 
 ```sh
-grep -c 'col.id\|col.subnet\|col.ready\|col.restarts\|col.state.words' src/ui/openpier.css
+grep -c 'col.id\|col.subnet\|col.ready\|col.restarts\|col.state.words' src/ui/container-ui.css
 ```
-Expected: `5` or more (openpier.css section 11.2). If fewer, stop and report which class is missing.
+Expected: `5` or more (container-ui.css section 11.2). If fewer, stop and report which class is missing.
 
 Menu (`<Menu wide>` because the items carry hints; `MenuItem`, `MenuSeparator`):
 
@@ -733,7 +733,7 @@ grep -n 'nicolaka/netshoot' src/ConnectionTest.tsx
 Expected: one line with `v0.16`.
 
 ```sh
-grep -c 'row .members\|col.subnet' src/ui/openpier.css
+grep -c 'row .members\|col.subnet' src/ui/container-ui.css
 ```
 Expected: `2` or more. Fewer: stop and report.
 
@@ -764,7 +764,7 @@ Not verified: that "its only network is bridge" is the rule the old `diagnose` u
 
 4. The network sheet (`networkSheet` in the mockup). `Sheet` with: head `{name}` and the subnet in mono muted; body: `GroupCaption` `Containers on this network` (no left padding inside a sheet; this needs the class below), then a `.list` with one row per member (`Dot ok`, name, address in `.meta.grow.mono`, `Button` `Disconnect` with variants `xs ghost`); `GroupCaption` `Add a container`; one row with a `Select` of containers not on this network and a `Button` `Connect` (size md); then the hint `Connecting only adds. Nothing is restarted.`.
 
-The sheet's captions need no extra class: `.sheet-body .group-cap` has no left padding in `openpier.css`. Use `<Sheet stack>` for the body.
+The sheet's captions need no extra class: `.sheet-body .group-cap` has no left padding in `container-ui.css`. Use `<Sheet stack>` for the body.
 
 5. Test a connection becomes a `Sheet`, title `Test a connection`. Its body: `Field` `From` (a `Select` of running containers; preset by the `from` prop), `Field` `To` (a `Select` of running containers), `Field` `Port` (number, prefilled from what the target declares, as today), and `Button` `Check` (primary, md). Then the steps from the old `diagnose` result, each a row with a tick or a cross (`Sev` ok or bad) and one line; a failed step with a fix shows the fix button as now (for example `Connect kafka-ui to devnet`). The old title `Why can't one container reach another?` becomes the lede line under the head. Keep every sentence `diagnose` returns (the old checks assert them). Container pages and the Doctor open this sheet as before.
 
@@ -853,9 +853,9 @@ grep -n '<Kubernetes' src/*.tsx
 Expected: a mount site with `profile` and `ctx`.
 
 ```sh
-grep -c 'col\.ready\|col\.restarts' src/ui/openpier.css
+grep -c 'col\.ready\|col\.restarts' src/ui/container-ui.css
 ```
-Expected: `2` or more (`col.ready` and `col.restarts` are in openpier.css 11.2). Fewer: stop and report.
+Expected: `2` or more (`col.ready` and `col.restarts` are in container-ui.css 11.2). Fewer: stop and report.
 
 ```sh
 grep -n 'kubernetes:' src/lib/routes.ts
@@ -988,7 +988,7 @@ grep -n '<Doctor' src/*.tsx
 Expected: one mount site with the props above. Keep them. The badge in the sidebar uses `todo` from `useDoctor` or `groups`: find where, and keep that count the same.
 
 ```sh
-grep -c 'row.tall\|export function ChipButton\|export function Dim' src/ui/openpier.css src/ui/op/*.tsx | grep -v ':0' | wc -l
+grep -c 'row.tall\|export function ChipButton\|export function Dim' src/ui/container-ui.css src/ui/op/*.tsx | grep -v ':0' | wc -l
 ```
 Expected: `2` or more (the `.row.tall` class in the stylesheet, and `ChipButton` in `src/ui/op/`). Fewer: stop and report which is missing.
 
@@ -1191,7 +1191,7 @@ grep -n 'resolveJsonModule' tsconfig.json
 Expected: one line with `true`. If absent, add `"resolveJsonModule": true` to `compilerOptions` (this is allowed in this work order) and say so.
 
 ```sh
-grep -c 'data-theme' index.html src/ui/openpier.css
+grep -c 'data-theme' index.html src/ui/container-ui.css
 ```
 Expected: `0` for `index.html` and `2` or more for the CSS (the stylesheet defines `[data-theme]` rules). If the CSS has none, stop and report.
 
@@ -1374,9 +1374,9 @@ By eye, against `settings-machines-light.png` and `-dark.png`: a left list of fi
 **Starting state**: C2 with `src/Setup.tsx src/InstallCard.tsx src/InstallTool.tsx`. Then:
 
 ```sh
-grep -c 'app\.bare\|\.center' src/ui/openpier.css
+grep -c 'app\.bare\|\.center' src/ui/container-ui.css
 ```
-Expected: `2` or more (`.app.bare` and `.center` are in openpier.css). Fewer: stop and report which is missing.
+Expected: `2` or more (`.app.bare` and `.center` are in container-ui.css). Fewer: stop and report which is missing.
 
 ```sh
 grep -n 'openpier:broughtOver' src/Setup.tsx; grep -n 'colima-ui\.' src/Setup.tsx | wc -l

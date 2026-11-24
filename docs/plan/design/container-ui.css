@@ -1,4 +1,4 @@
-/* OpenPier design tokens. Components style themselves with Tailwind utilities mapped to these tokens in src/ui/tailwind.css. */
+/* Container UI design tokens. Components style themselves with Tailwind utilities mapped to these tokens in src/ui/tailwind.css. */
 
  /* ---------- 1. Tokens ---------- */
 :root {

@@ -38,7 +38,7 @@ for (const pair of pairs) {
     const name = `${mockup}-${theme}`;
     await page.goto(`file://${path.join(root, "docs/plan/design/mockup.html")}#screen=${mockup}&theme=${theme}&bare=1`);
     await page.reload();
-    // The mockup links openpier.css (tokens only since the Tailwind move); its component rules now live in components.css.
+    // The mockup links container-ui.css (tokens only since the Tailwind move); its component rules now live in components.css.
     await page.addStyleTag({ path: path.join(root, "src/ui/components.css") });
     await still(); await hide(mask);
     const want = PNG.sync.read(await page.screenshot());

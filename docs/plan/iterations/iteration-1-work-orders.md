@@ -830,7 +830,7 @@ Plus the gate.
 
 **Why**: E6, E10, U1. The app's stylesheet was deleted in the last commit, and what is left is spread over four CSS files and Tailwind. From here the app ships the design's stylesheet, unchanged.
 
-**Read first**: `docs/plan/design/openpier.css` (all of it; it is the design), `src/main.tsx`, `vite.config.ts`.
+**Read first**: `docs/plan/design/container-ui.css` (all of it; it is the design), `src/main.tsx`, `vite.config.ts`.
 
 **Starting state**
 
@@ -840,12 +840,12 @@ grep -rn '^import .*\.css' src | grep -v test
 # expect exactly: src/main.tsx (./ui/tokens.css and ./styles.css), src/Shell.tsx (./Shell.css), src/Containers.tsx (./home.css)
 ```
 
-**Do not touch**: `docs/plan/design/openpier.css`. The components and screens: they keep their old class names for now and will look unstyled. Do not try to make them look right.
+**Do not touch**: `docs/plan/design/container-ui.css`. The components and screens: they keep their old class names for now and will look unstyled. Do not try to make them look right.
 
 **Steps**
 
-1. `cp docs/plan/design/openpier.css src/ui/openpier.css`
-2. In `src/main.tsx` replace the two lines `import "./ui/tokens.css";` and `import "./styles.css";` with the one line `import "./ui/openpier.css";`.
+1. `cp docs/plan/design/container-ui.css src/ui/container-ui.css`
+2. In `src/main.tsx` replace the two lines `import "./ui/tokens.css";` and `import "./styles.css";` with the one line `import "./ui/container-ui.css";`.
 3. In `src/Shell.tsx` delete the line `import "./Shell.css";`. In `src/Containers.tsx` delete the line `import "./home.css";`.
 4. Delete `src/styles.css`, `src/home.css`, `src/Shell.css`, `src/ui/tokens.css`.
 5. `npm uninstall tailwindcss @tailwindcss/vite @fontsource/inter @fontsource/jetbrains-mono`. Leave `tailwind-merge`, `class-variance-authority` and `clsx`: old component files still import them, and WO-5.1 removes them.
@@ -854,14 +854,14 @@ grep -rn '^import .*\.css' src | grep -v test
 
    ```js
 // The app ships the design stylesheet unchanged. This fails when the two copies differ.
-// Change docs/plan/design/openpier.css first, then copy it over src/ui/openpier.css.
+// Change docs/plan/design/container-ui.css first, then copy it over src/ui/container-ui.css.
 import fs from "node:fs";
 import path from "node:path";
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
-const design = fs.readFileSync(path.join(root, "docs/plan/design/openpier.css"), "utf8");
-const shipped = fs.readFileSync(path.join(root, "src/ui/openpier.css"), "utf8");
+const design = fs.readFileSync(path.join(root, "docs/plan/design/container-ui.css"), "utf8");
+const shipped = fs.readFileSync(path.join(root, "src/ui/container-ui.css"), "utf8");
 const same = design === shipped;
-console.log(same ? "ok" : "FAIL", "design sync: src/ui/openpier.css equals docs/plan/design/openpier.css");
+console.log(same ? "ok" : "FAIL", "design sync: src/ui/container-ui.css equals docs/plan/design/container-ui.css");
 process.exit(same ? 0 : 1);
    ```
 
@@ -873,8 +873,8 @@ process.exit(same ? 0 : 1);
 **Done when**
 
 ```bash
-grep -rn 'import .*\.css' src | grep -v test     # expect exactly one line: src/main.tsx:... import "./ui/openpier.css";
-find src -name "*.css"                           # expect exactly: src/ui/openpier.css
+grep -rn 'import .*\.css' src | grep -v test     # expect exactly one line: src/main.tsx:... import "./ui/container-ui.css";
+find src -name "*.css"                           # expect exactly: src/ui/container-ui.css
 grep -c "tailwindcss\|fontsource" package.json   # expect: 0
 node scripts/check-design-sync.mjs               # expect: "ok design sync: ..."
 npm run build; echo "exit $?"                    # expect: exit 0
@@ -892,9 +892,9 @@ Plus the gate.
 
 **Why**: the token values were chosen by eye. Measured on `0bdafcf` they all pass (the lowest text pair is 5.20:1, the lowest state pair 4.35:1). The check keeps it that way.
 
-**Read first**: `docs/plan/design/openpier.css` section 1 (tokens).
+**Read first**: `docs/plan/design/container-ui.css` section 1 (tokens).
 
-**Starting state**: `test -f src/ui/openpier.css && echo ok` prints `ok`.
+**Starting state**: `test -f src/ui/container-ui.css && echo ok` prints `ok`.
 
 **Do not touch**: any token value. If the check fails, stop and report; do not change a colour.
 
@@ -907,11 +907,11 @@ Plus the gate.
 import fs from "node:fs";
 import path from "node:path";
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
-const css = fs.readFileSync(path.join(root, "docs/plan/design/openpier.css"), "utf8");
+const css = fs.readFileSync(path.join(root, "docs/plan/design/container-ui.css"), "utf8");
 
 const block = (selector) => {
   const at = css.indexOf(selector + " {");
-  if (at < 0) throw new Error(`contrast: no block "${selector}" in openpier.css`);
+  if (at < 0) throw new Error(`contrast: no block "${selector}" in container-ui.css`);
   return css.slice(at, css.indexOf("\n}", at));
 };
 const tokens = (text) => Object.fromEntries([...text.matchAll(/(--[a-z0-9-]+):\s*(#[0-9a-fA-F]{6})\b/g)].map((m) => [m[1], m[2]]));
@@ -965,9 +965,9 @@ Plus the gate (`npm run check` now runs this script too, because its name starts
 
 **Needs**: WO-1.2.
 
-**Why**: E10, U14, U15, U16. Today there are three overlapping component sets. The new set is one file per component, and each renders classes from `openpier.css` only.
+**Why**: E10, U14, U15, U16. Today there are three overlapping component sets. The new set is one file per component, and each renders classes from `container-ui.css` only.
 
-**Read first**: `../04-design-spec.md` sections 6.1 to 6.4, 6.9, 6.10, 6.11; `src/ui/openpier.css` sections 5, 6, 8, 10; the mockup pictures `containers-light.png`, `empty-state-light.png`, `loading-error-toast-light.png`, `images-light.png` in `docs/plan/design/shots/`.
+**Read first**: `../04-design-spec.md` sections 6.1 to 6.4, 6.9, 6.10, 6.11; `src/ui/container-ui.css` sections 5, 6, 8, 10; the mockup pictures `containers-light.png`, `empty-state-light.png`, `loading-error-toast-light.png`, `images-light.png` in `docs/plan/design/shots/`.
 
 **Starting state**
 
@@ -981,7 +981,7 @@ test -d src/ui/components && echo old-set-present     # expect: old-set-present
 **Rules for every component in WO-1.3a and WO-1.3b**
 
 1. One file per component in `src/ui/op/`, named as the component (`Button.tsx`). One test file next to it (`Button.test.tsx`).
-2. A component renders class names from `src/ui/openpier.css` and nothing else. No `style=` except where this work order names it. No colour, no pixel value.
+2. A component renders class names from `src/ui/container-ui.css` and nothing else. No `style=` except where this work order names it. No colour, no pixel value.
 3. Every component takes `className?: string` (appended to its own classes with `clsx`) and passes unknown props to its root element (`...rest`), so `aria-*` and `data-*` reach the DOM.
 4. Icons come from `<Icon name>` only. No new file imports `lucide-react` except `src/ui/op/Icon.tsx` (the old files in `src/ui/` that import it today stay as they are).
 5. Radix parts are used where the spec says so. The packages are already installed. Install the two that are missing: `npm install @radix-ui/react-alert-dialog @radix-ui/react-switch`.
@@ -1028,7 +1028,7 @@ test -d src/ui/components && echo old-set-present     # expect: old-set-present
      icon?: IconName;
      invalid?: string;         // the message; when set the field is invalid
      onClear?: () => void;     // when set, Escape in the input calls it
-     width?: "search" | "filter" | "port" | "num";   // a fixed width from openpier.css 11.3; none = fills its parent
+     width?: "search" | "filter" | "port" | "num";   // a fixed width from container-ui.css 11.3; none = fills its parent
    };
    export const Field: React.ForwardRefExoticComponent<FieldProps & React.RefAttributes<HTMLInputElement>>;
    export function FormRow(props: { label: string; hint?: string; htmlFor: string; children: React.ReactNode }): JSX.Element;
@@ -1121,7 +1121,7 @@ test -d src/ui/components && echo old-set-present     # expect: old-set-present
     export function SkeletonRows(props: { rows?: number }): JSX.Element;   // default 4
     ```
 
-    `<div aria-busy="true" aria-label="Loading">` with `rows` times `<div class="row"><span class="lead"></span><span class="skeleton {w}"></span><span class="grow"></span><span class="skeleton short"></span></div>`, where `{w}` cycles through `a`, `b`, `c`, `d` (the four widths in `openpier.css` 11.4).
+    `<div aria-busy="true" aria-label="Loading">` with `rows` times `<div class="row"><span class="lead"></span><span class="skeleton {w}"></span><span class="grow"></span><span class="skeleton short"></span></div>`, where `{w}` cycles through `a`, `b`, `c`, `d` (the four widths in `container-ui.css` 11.4).
     Tests: default renders 4 rows, each with 2 elements with class `skeleton`; the root has `aria-busy="true"`.
 
 13. `src/ui/op/Canvas.tsx` and `src/ui/op/Command.tsx`
@@ -1181,7 +1181,7 @@ Plus the gate.
 
 **Why**: same as WO-1.3a. These are the pieces every screen is made of.
 
-**Read first**: `../04-design-spec.md` sections 6.5 to 6.8, 6.10, 6.13 to 6.16; `src/ui/openpier.css` sections 7, 8, 12; the mockup pictures `containers-light.png`, `containers-row-menu-light.png`, `run-sheet-light.png`, `confirm-dialog-light.png`, `problem-inspector-light.png`; `docs/plan/design/mockup.html` (search for `const crow`, `const prob`, `const blocks`, `const meters`, `const spark` to see the exact markup of each piece).
+**Read first**: `../04-design-spec.md` sections 6.5 to 6.8, 6.10, 6.13 to 6.16; `src/ui/container-ui.css` sections 7, 8, 12; the mockup pictures `containers-light.png`, `containers-row-menu-light.png`, `run-sheet-light.png`, `confirm-dialog-light.png`, `problem-inspector-light.png`; `docs/plan/design/mockup.html` (search for `const crow`, `const prob`, `const blocks`, `const meters`, `const spark` to see the exact markup of each piece).
 
 **Starting state**: `test -f src/ui/op/Button.tsx && echo ok` prints `ok`.
 
@@ -1198,7 +1198,7 @@ Plus the gate.
      lead: React.ReactNode;            // a <Dot>, an <Icon>, a chevron button for a group, or a number (a step number: the cell is then `lead num`)
      dot?: React.ReactNode;            // a group row only: the <Dot> drawn after the chevron
      name: React.ReactNode;            // text, or text with a <Dim> part
-     nameClass?: string;               // extra classes for the name cell, from openpier.css 11.2: "plain", "mono", "long", "fixed"
+     nameClass?: string;               // extra classes for the name cell, from container-ui.css 11.2: "plain", "mono", "long", "fixed"
      title?: string;                   // the native tooltip of the row (the full name when it is cut)
      meta?: React.ReactNode;
      metaSelectable?: boolean;         // the meta text can be selected and copied
@@ -1218,7 +1218,7 @@ Plus the gate.
    export function Members(props: { children: React.ReactNode }): JSX.Element; // <span class="members grow">: a row of <Chip>, in place of the meta
    ```
 
-   `Col` classes per kind: `state-wide` gives `state wide`, `state-words` gives `state words`, `age-short` gives `age short`; every other kind is its own class. The widths are in `openpier.css` sections 7 and 11.2. `RowHead` takes one more prop, `menuGap?: boolean`: when true it ends with `<span class="more-gap"></span>` (the head cell over the ⋯ buttons).
+   `Col` classes per kind: `state-wide` gives `state wide`, `state-words` gives `state words`, `age-short` gives `age short`; every other kind is its own class. The widths are in `container-ui.css` sections 7 and 11.2. `RowHead` takes one more prop, `menuGap?: boolean`: when true it ends with `<span class="more-gap"></span>` (the head cell over the ⋯ buttons).
 
    `Row` markup, in this order: `<div class="row [child]" role="row" tabindex="0" aria-selected>`: `<span class="lead">{lead}</span>`, `{dot}`, `<span class="name truncate {nameClass}">{name}</span>`, `<span class="meta truncate grow [selectable]">{meta}</span>`, `{children}`, `<span class="act">{action}</span>`, `{menu}`. When `lead` is a number, the lead cell is `<span class="lead num">`. With `tall`: the root is `class="row tall"`, and in place of the name and meta cells there is `<span class="grow"><div class="name">{name}</div><div class="meta selectable">{meta}</div></span>`, and the action is in `<span class="side">{action}</span>` (not `.act`). Clicks and key presses that start inside `.act` or the menu do not call `onOpen`. Keys on the row: Enter `onOpen`, Space `onSelect(!selected)`, ArrowDown and ArrowUp move focus to the next and previous element with `role="row"` and `tabindex="0"` in the same `.list`, ArrowLeft and ArrowRight call `onToggle` when `expanded` is `true` and `false`. When `onSelect` is set and the row is hovered, focused or selected, the row shows `<input type="checkbox" class="check" aria-label="Select {name as text}">` in place of `lead` (in place of `dot` when the row is a group, so the chevron stays).
    Tests: given `onOpen`, when the row is clicked, then it is called once; when the button in `action` is clicked, then `onOpen` is not called; when Enter is pressed on the row, then `onOpen` is called; given three rows in a `List`, when ArrowDown is pressed on the first, then the second has focus; given `expanded={true}` and ArrowLeft, then `onToggle` is called; given `onSelect`, when Space is pressed, then `onSelect(true)`; given `tall`, then the root has classes `row tall` and the action is inside `.side`; given `name={<>mysql<Dim>:8</Dim></>}`, then the name cell holds a `.dim` with `:8`; `Col kind="state-words"` has classes `col state words`; given `lead={3}`, then the lead cell has classes `lead num`.
@@ -1495,7 +1495,7 @@ Plus the gate.
 
 **Read first**: `scripts/not-migrated.json`.
 
-**Starting state**: `test -f scripts/not-migrated.json && test -f src/ui/openpier.css && echo ok` prints `ok`.
+**Starting state**: `test -f scripts/not-migrated.json && test -f src/ui/container-ui.css && echo ok` prints `ok`.
 
 **Do not touch**: `scripts/not-migrated.json` (do not add files to it to make this pass).
 
@@ -1504,13 +1504,13 @@ Plus the gate.
 1. Create `scripts/check-classes.mjs`:
 
    ```js
-// Every class name used in a className must exist in src/ui/openpier.css.
+// Every class name used in a className must exist in src/ui/container-ui.css.
 // This is the guard against a deleted stylesheet leaving the app unstyled without any test failing.
 // Files in scripts/not-migrated.json are skipped until their screen is rebuilt.
 import fs from "node:fs";
 import path from "node:path";
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
-const css = fs.readFileSync(path.join(root, "src/ui/openpier.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+const css = fs.readFileSync(path.join(root, "src/ui/container-ui.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
 const defined = new Set([...css.matchAll(/\.([a-zA-Z][\w-]*)/g)].map((m) => m[1]));
 const skip = new Set(JSON.parse(fs.readFileSync(path.join(root, "scripts/not-migrated.json"), "utf8")));
 
@@ -1542,14 +1542,14 @@ for (const file of files) {
   if (skip.has(rel)) continue;
   checked++;
   const unknown = [...new Set(values(fs.readFileSync(file, "utf8")).flatMap(names))].filter((n) => !defined.has(n));
-  if (unknown.length) { console.log("FAIL", `classes: ${rel} uses classes that openpier.css does not define: ${unknown.join(", ")}`); failed++; }
+  if (unknown.length) { console.log("FAIL", `classes: ${rel} uses classes that container-ui.css does not define: ${unknown.join(", ")}`); failed++; }
 }
 console.log(failed ? "FAIL" : "ok", `classes: ${checked} files checked, ${skip.size} skipped (not migrated), ${failed} with unknown classes`);
 process.exit(failed ? 1 : 0);
    ```
 
-2. Run `node scripts/check-classes.mjs`. It checks the files of `src/ui/op/` and `src/dev/`. For each unknown class it reports: the class is a mistake in the component. Fix the component to use the class the spec names. Never add a class to `openpier.css`. If the spec names a class that `openpier.css` does not have, stop and report (it is a defect in the design).
-3. Prove it catches a mistake: in `src/ui/op/Chip.tsx` change `chip` to `chipp`, run the script, expect `FAIL classes: src/ui/op/Chip.tsx uses classes that openpier.css does not define: chipp`, then undo the change. Paste the output in the pull request.
+2. Run `node scripts/check-classes.mjs`. It checks the files of `src/ui/op/` and `src/dev/`. For each unknown class it reports: the class is a mistake in the component. Fix the component to use the class the spec names. Never add a class to `container-ui.css`. If the spec names a class that `container-ui.css` does not have, stop and report (it is a defect in the design).
+3. Prove it catches a mistake: in `src/ui/op/Chip.tsx` change `chip` to `chipp`, run the script, expect `FAIL classes: src/ui/op/Chip.tsx uses classes that container-ui.css does not define: chipp`, then undo the change. Paste the output in the pull request.
 
 **Tests to write first**: step 3 is the test.
 
