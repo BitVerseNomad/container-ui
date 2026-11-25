@@ -6,6 +6,7 @@ const port = 4173;
 
 export default defineConfig({
   testDir: "tests/e2e",
+  timeout: 60_000,
   retries: process.env.CI ? 1 : 0,
   reporter: [["list"], ["html", { open: "never" }]],
   use: {

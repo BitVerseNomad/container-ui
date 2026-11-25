@@ -14,3 +14,13 @@ export const openPage = async (page: Page, path = "/", { width = 1280, height = 
 
 // For a test that needs several pages: const open = opener(context); const a = await open("/#/images");
 export const opener = (context: BrowserContext) => async (path?: string, options?: Options) => openPage(await context.newPage(), path, options);
+
+// Where a test opens pages with their own size (browser.newPage({ viewport })), this keeps them in the test's
+// context, so traces and failure screenshots are recorded.
+export const browserLike = (context: BrowserContext) => ({
+  newPage: async ({ viewport }: { viewport?: { width: number; height: number } } = {}) => {
+    const page = await context.newPage();
+    if (viewport) await page.setViewportSize(viewport);
+    return page;
+  },
+});

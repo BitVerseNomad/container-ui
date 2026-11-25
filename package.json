@@ -12,6 +12,7 @@
     "check": "sh scripts/check-all.sh",
     "test:ui": "vitest run",
     "test:e2e": "playwright test",
+    "lint:static": "node scripts/lint-version-sync.mjs && node scripts/lint-design-sync.mjs && node scripts/lint-contrast.mjs && node scripts/lint-icon.mjs && node scripts/lint-entitlements.mjs && node scripts/lint-not-migrated.mjs && node scripts/lint-tw-classes.mjs",
     "lint": "eslint src --ext .ts,.tsx"
   },
   "dependencies": {

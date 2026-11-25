@@ -1,7 +1,7 @@
 // Every class written in src/ must produce CSS. A class Tailwind does not know (an invented name such as
 // "input-bordered" or "toggle--on", or a daisyUI name) renders nothing, so it is a bug, not a style.
 // Builds the preview CSS once, then looks for each class's selector in it.
-// Run from the repo root: node scripts/check-tw-classes.mjs   (exit 1 lists every unknown class)
+// Run from the repo root: node scripts/lint-tw-classes.mjs   (exit 1 lists every unknown class)
 import { readFileSync, readdirSync, statSync, mkdtempSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
@@ -18,10 +18,10 @@ const css = cssFiles.map((f) => readFileSync(f, "utf8")).join("\n");
 
 // Classes that are markers for other selectors (group-hover:, peer-checked:) and produce no CSS of their own.
 const MARKERS = new Set(["group", "peer", "dark", "sr-only-focusable"]);
-// Classes the browser checks find elements by (".sidebar" in scripts/*.mjs) are hooks, not styles: keep them.
+// Classes the browser checks find elements by (".sidebar" in tests/e2e/*.spec.ts) are hooks, not styles: keep them.
 const hooks = new Set();
-const walkJs = (d) => { for (const f of readdirSync(d)) { const p = path.join(d, f); if (statSync(p).isDirectory()) walkJs(p); else if (/\.m?js$/.test(p)) for (const q of readFileSync(p, "utf8").matchAll(/(["'`])((?:(?!\1).)*)\1/g)) for (const m of q[2].matchAll(/(?:^|[\s,>+~(])\.([a-z][a-z0-9-]*)/g)) hooks.add(m[1]); } };
-walkJs("scripts");
+const walkJs = (d) => { for (const f of readdirSync(d)) { const p = path.join(d, f); if (statSync(p).isDirectory()) walkJs(p); else if (/\.(m?js|ts)$/.test(p)) for (const q of readFileSync(p, "utf8").matchAll(/(["'`])((?:(?!\1).)*)\1/g)) for (const m of q[2].matchAll(/(?:^|[\s,>+~(])\.([a-z][a-z0-9-]*)/g)) hooks.add(m[1]); } };
+walkJs("scripts"); walkJs("tests/e2e");
 const escape =(c) => c.replace(/[^a-zA-Z0-9_-]/g, (ch) => "\\" + ch);
 
 const files = [];
