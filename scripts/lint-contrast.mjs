@@ -2,7 +2,7 @@
 import fs from "node:fs";
 import path from "node:path";
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
-const css = fs.readFileSync(path.join(root, "docs/plan/design/container-ui.css"), "utf8");
+const css = fs.readFileSync(path.join(root, "design/container-ui.css"), "utf8");
 
 const block = (selector) => {
   const at = css.indexOf(selector + " {");

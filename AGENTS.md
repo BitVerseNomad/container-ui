@@ -23,6 +23,10 @@ The app runs in WebKit (WKWebView), not Chromium. A change is done when it passe
 
 `PW_ENGINES=webkit sh scripts/check-all.sh` runs WebKit only. Checks click with the mouse and with the keyboard; never weaken an assertion to make one engine pass.
 
+## Design tokens
+
+`design/container-ui.css` is the source of the colours, sizes and shadows. `src/ui/container-ui.css` is its unchanged copy: change the first, then copy it over the second. `npm run lint:static` fails when they differ or when a token drops below WCAG contrast.
+
 ## Keep the README in step
 
 The README sells the app to people who will only download it. When a change alters what a screen looks like or what it does:

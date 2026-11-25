@@ -53,7 +53,8 @@ npm run check        # builds preview, runs every Playwright browser suite
 npm run preview && node scripts/readme-shots.mjs
 ```
 
-6. **Update docs** if a screen looks or acts differently: README text (benefit first, short, visual) + a line in CHANGELOG.md.
+6. **Design tokens**: `design/container-ui.css` is the source, `src/ui/container-ui.css` its unchanged copy. Change the first, copy it over the second.
+7. **Update docs** if a screen looks or acts differently: README text (benefit first, short, visual) + a line in CHANGELOG.md.
 
 7. **Commit**: small commits with a `Co-authored-by` trailer:
 
