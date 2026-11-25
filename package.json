@@ -9,7 +9,7 @@
     "tauri": "tauri",
     "test": "node --experimental-strip-types --no-warnings --test \"src/**/*.test.ts\" && vitest run",
     "preview": "vite --config vite.preview.config.ts",
-    "check": "sh scripts/check-all.sh",
+    "check": "npm run lint:static && npm run test:e2e",
     "test:ui": "vitest run",
     "test:e2e": "playwright test",
     "lint:static": "node scripts/lint-version-sync.mjs && node scripts/lint-design-sync.mjs && node scripts/lint-contrast.mjs && node scripts/lint-icon.mjs && node scripts/lint-entitlements.mjs && node scripts/lint-not-migrated.mjs && node scripts/lint-tw-classes.mjs",

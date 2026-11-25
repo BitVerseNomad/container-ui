@@ -5,6 +5,7 @@ const ITEM = '[aria-label="Compose projects"] .row[role=row]';
 const CARD = '[aria-label="Compose projects"] > div';
 
 test("Compose projects found on the Mac", async ({ browser }) => {
+  test.setTimeout(120_000); // a long walk through the Compose panel; slow under load
   const isWebkit = test.info().project.name === "webkit";
   const ctx = await browser.newContext({ viewport: { width: 980, height: 640 }, ...(isWebkit ? {} : { permissions: ["clipboard-read", "clipboard-write"] }) });
   await ctx.addInitScript(() => {

@@ -44,7 +44,10 @@ cd src-tauri && cargo test   # Rust tests
 4. **Browser checks** (WebKit + Chromium):
 
 ```bash
-npm run check        # builds preview, runs every Playwright browser suite
+npx playwright install chromium webkit   # once
+npm run test:e2e     # Playwright Test (tests/e2e) in both engines; starts the preview itself
+npm run lint:static  # design stylesheet copy, contrast, icon, entitlements, Tailwind classes
+npm run check        # both of the above
 ```
 
 5. **Screenshot review** if a screen changed:
@@ -92,7 +95,8 @@ Prefer `@ui/components/` over native elements or legacy `./ui` components.
 
 - **Unit tests**: `src/**/*.test.ts` (Node, pure logic) and `*.test.tsx` (screens in jsdom via vitest) — `npm test`
 - **Rust tests**: `cd src-tauri && cargo test`
-- **Browser checks**: Playwright suites in `scripts/` against the preview build — `npm run check` (Chromium + WebKit)
+- **Browser tests**: Playwright Test specs in `tests/e2e/` against the preview (the real UI with a fake backend) — `npm run test:e2e` (Chromium + WebKit)
+- **Static checks**: `scripts/lint-*.mjs` — `npm run lint:static`
 
 ## 7. Questions?
 

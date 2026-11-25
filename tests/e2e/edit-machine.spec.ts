@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { openPage } from "./helpers";
 
-test("The Edit panel of a machine takes a real mouse click and typing, in the engine named by PW_ENGINE", async ({ page }) => {
+test("The Edit panel of a machine takes a real mouse click and typing, in every engine", async ({ page }) => {
   await openPage(page, "/?scenario=stopped#/settings/machines");
   await page.getByRole("button", { name: /More actions for/ }).first().click();
   await page.getByRole("menuitem", { name: "Edit" }).click();

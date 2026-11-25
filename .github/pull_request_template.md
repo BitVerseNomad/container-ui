@@ -6,5 +6,5 @@
 
 ## Checked
 - [ ] `npm test` and `cargo test` pass
-- [ ] `npm run check` passes (Chromium and WebKit)
+- [ ] `npm run check` passes (static checks, then Chromium and WebKit tests)
 - [ ] README and screenshots updated if a screen changed (`node scripts/readme-shots.mjs`)

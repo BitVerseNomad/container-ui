@@ -105,9 +105,9 @@ Fixes come in four kinds:
     npm test                                   # TypeScript logic (node --test), then the screens in jsdom (vitest)
     npm run test:ui                            # only the screens
     cd src-tauri && cargo test                 # Rust: allowlists, deadlines, process groups
-    npm run check                              # builds the browser preview, runs every browser check (needs Playwright)
+    npm run check                              # static checks, then the Playwright browser tests (tests/e2e)
 
-The first time, run `npx playwright install chromium webkit`. Checks run in both engines; the app ships in WebKit.
+The first time, run `npx playwright install chromium webkit`. The browser tests run in both engines; the app ships in WebKit.
 
 ## Browser preview (no Tauri or Rust needed)
     npm run preview                            # writes preview/index.html

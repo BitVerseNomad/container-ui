@@ -4,7 +4,7 @@ import path from "node:path";
 const ITEM = '[aria-label="Compose projects"] .row[role=row]';
 const MIN_NAME = 12;
 
-test("Start a Compose project, with twenty long, similar names (?manyprojects=1): every name must read in full and differ from the others, and a row must keep its height when it starts  PW_ENGINE=webkit runs the same check in the engine the app ships with", async ({ browser }) => {
+test("Start a Compose project, with twenty long, similar names (?manyprojects=1): every name must read in full and differ from the others, and a row must keep its height when it starts", async ({ browser }) => {
   const ctx = await browser.newContext({ viewport: { width: 1180, height: 740 } });
   const p = await ctx.newPage();
   p.errors = [];
