@@ -33,7 +33,7 @@ export type RowCommon = {
   stats: string;
   history: number[];
   cpuNow: number | null;
-  action: { label: "Stop" | "Start"; busy: boolean; locked: boolean } | null;
+  action: { label: "Stop" | "Start" | "Open"; busy: boolean; locked: boolean } | null;
   selected: boolean;
   onSelect: ((v: boolean) => void) | null;
   onOpen: () => void;

@@ -30,7 +30,8 @@ Newest first. Older entries record what was true when they were written; later e
 24. **A long network name stays in the table.** A name with no spaces breaks across lines instead of pushing the table past the window.
 25. **Hovering a container row keeps its status dot.** The select box is drawn around the dot instead of replacing it, and the name no longer moves.
 26. **Buttons and boxes have an outline in the light theme.** Two border colours were missing, so those outlines were invisible.
-27. **For contributors:** `npm run preview` runs the screens in a browser with simulated data. No Mac app or Rust is needed.
+27. **The Kubernetes row has an Open button.** It still goes to the Kubernetes screen instead of unfolding, because the cluster owns its pods, and the button now says so.
+28. **For contributors:** `npm run preview` runs the screens in a browser with simulated data. No Mac app or Rust is needed.
 
 ## Design system rollout: all tabs migrated to @ui/components
 

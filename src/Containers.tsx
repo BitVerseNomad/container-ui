@@ -596,8 +596,8 @@ export default function Containers({ profile, ctx, vm, onVm, reload, setDetailId
     if (v.kube) {
       return (
         <EntryRow key={a.key} id={a.key} group={false} name="Kubernetes" meta={`${a.rows.length} container${a.rows.length === 1 ? "" : "s"}`}
-          dot="ok" stateWord="" ariaLabel={`Kubernetes, ${a.rows.length} container${a.rows.length === 1 ? "" : "s"}`} ports={[]} stats="" history={[]} cpuNow={null} action={null} selected={false} onSelect={null}
-          onOpen={() => onKubernetes?.()} onAction={() => {}} menu={null} menuOpen={false} onMenuOpenChange={() => {}} />
+          dot="ok" stateWord="" ariaLabel={`Kubernetes, ${a.rows.length} container${a.rows.length === 1 ? "" : "s"}`} ports={[]} stats="" history={[]} cpuNow={null} action={{ label: "Open", busy: false, locked: false }} selected={false} onSelect={null}
+          onOpen={() => onKubernetes?.()} onAction={() => onKubernetes?.()} menu={null} menuOpen={false} onMenuOpenChange={() => {}} />
       );
     }
     const single = v.single!;

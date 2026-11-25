@@ -91,6 +91,14 @@ describe("Containers", () => {
     expect(onKubernetes).toHaveBeenCalledOnce();
   });
 
+  it("given the Kubernetes row, when Open is clicked, then it goes to the Kubernetes tab once", async () => {
+    const user = userEvent.setup();
+    const { onKubernetes } = show();
+    const row = await rowOf("Kubernetes");
+    await user.click(within(row).getByRole("button", { name: "Open Kubernetes" }));
+    expect(onKubernetes).toHaveBeenCalledOnce();
+  });
+
   it("given rows, when the list loads, then problems first, running, then stopped, alphabetical inside, Kubernetes last", async () => {
     show();
     await rowOf("web");
