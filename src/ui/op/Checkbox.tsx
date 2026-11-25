@@ -10,7 +10,7 @@ export function Checkbox(props: {
 }): React.JSX.Element {
   const { checked, onChange, disabled, children, className } = props;
   return (
-    <label className={clsx("checkline", className)}>
+    <label data-op="" className={clsx("checkline", className)}>
       <input
         type="checkbox"
         className="check"

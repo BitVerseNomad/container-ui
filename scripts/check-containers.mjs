@@ -273,7 +273,7 @@ async function rowNames(page) {
   const page = await open("/?scenario=k8spods#/containers", { engine: "chromium", width: 1280, height: 800 });
   await page.waitForTimeout(2000);
   const names = await rowNames(page);
-  check(names.at(-1) === "Kubernetes, 2 containers" && names.filter((n) => n.startsWith("Kubernetes, ")).length === 1 && !names.some((n) => /coredns|k8s_/.test(n)), `chromium k8spods: one Kubernetes row, last, with its 2 containers and no pod rows (${names.join(" | ")})`);
+  check(names.at(-1) === "Kubernetes, 1 pod" && names.filter((n) => n.startsWith("Kubernetes, ")).length === 1 && !names.some((n) => /coredns|k8s_/.test(n)), `chromium k8spods: one Kubernetes row, last, saying 1 pod, and no pod rows (${names.join(" | ")})`);
   await page.close();
 }
 

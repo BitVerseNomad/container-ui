@@ -7,7 +7,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { Profile, StartOpts, gbOf } from "./api";
 import EditPanel from "./EditPanel";
 import { Empty } from "./ui";
-import { Button as OpButton, Field, FormRow, Menu, MenuItem, MoreButton, Select } from "./ui/op";
+import { Button as OpButton, Checkbox, Field, FormRow, Menu, MenuItem, MoreButton, Select } from "./ui/op";
 import OutputLog from "./ui/OutputLog";
 import { useFixRuns } from "./FixIt";
 import { ranVm } from "./lib/activity";
@@ -30,6 +30,7 @@ export default function Profiles({ profiles, reload, openNew = false, kubeOn = (
   const size = useHostSize();
   const confirm = useConfirm();
   const [busy, setBusy] = useState<string | null>(null);
+  const [newKube, setNewKube] = useState(false);
   // Which machine the running action is on and its word ("Starting…"), so only that row shows it.
   const [working, setWorking] = useState<{ name: string; word: string } | null>(null);
   // A container fix in the middle of a VM stop or restart is left half done, so the VM waits for it.
@@ -151,6 +152,7 @@ export default function Profiles({ profiles, reload, openNew = false, kubeOn = (
 
       <dialog ref={dialog} onClose={() => setDialogOpen(false)}>
         <form
+          className="flex flex-col gap-3"
           method="dialog"
           onSubmit={(e) => {
             const f = new FormData(e.currentTarget);
@@ -160,7 +162,7 @@ export default function Profiles({ profiles, reload, openNew = false, kubeOn = (
               memory: Number(f.get("memory")),
               disk: Number(f.get("disk")),
               runtime,
-              kubernetes: f.get("kubernetes") === "on",
+              kubernetes: newKube,
             };
             act(opts.name, "starting", "start_profile", { opts });
           }}
@@ -183,7 +185,7 @@ export default function Profiles({ profiles, reload, openNew = false, kubeOn = (
             <span className="text-meta font-medium text-fg-muted">Runtime</span>
             <Select aria-label="Runtime" value={runtime} onChange={setRuntime} options={RUNTIMES} container={dialog.current} />
           </div>
-          <label className="check w-full"><input name="kubernetes" type="checkbox" /> Enable Kubernetes</label>
+          <Checkbox checked={newKube} onChange={setNewKube}>Enable Kubernetes</Checkbox>
           <div className="actions">
             <OpButton variant="default" onClick={() => dialog.current?.close()}>Cancel</OpButton>
             <OpButton variant="primary" disabled={taken} onClick={(e) => e.currentTarget.form?.requestSubmit()}>Create and start</OpButton>
