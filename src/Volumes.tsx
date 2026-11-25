@@ -120,7 +120,7 @@ export default function Volumes({ ctx }: { ctx: string }) {
         <>
           <div className="table-tools">
             {/* .legacy label, input and .field rules would reshape the field: flatten it back to the op look. */}
-            <Field placeholder="Search your volumes" aria-label="Search your volumes" icon="search" width="search" className="!m-0 !flex !flex-row !items-center !gap-6 !text-meta [&_input]:!w-full [&_input]:!border-0 [&_input]:!bg-transparent [&_input]:!p-0" value={q} onChange={(e) => setQ(e.target.value)} />
+            <Field placeholder="Search your volumes" aria-label="Search your volumes" icon="search" width="search" value={q} onChange={(e) => setQ(e.target.value)} />
             <Select
               aria-label="Filter volumes"
               width="pick"

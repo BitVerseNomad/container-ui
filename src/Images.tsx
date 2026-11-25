@@ -45,7 +45,7 @@ export default function Images({ ctx, onRan, startPull = false, arch }: { ctx: s
         <Empty title="No images">Use <strong>Pull image</strong> to download one from Docker Hub.</Empty>
       )}
       {data && data.length > 0 && (
-        <Field placeholder="Search your images" aria-label="Search your images" icon="search" width="search" className="!m-0 !flex !flex-row !items-center !gap-6 !text-meta [&_input]:!w-full [&_input]:!border-0 [&_input]:!bg-transparent [&_input]:!p-0" value={q} onChange={(e) => setQ(e.target.value)} />
+        <Field placeholder="Search your images" aria-label="Search your images" icon="search" width="search" value={q} onChange={(e) => setQ(e.target.value)} />
       )}
       {data && data.length > 0 && shown.length === 0 && (
         <p className="hint py-2">
