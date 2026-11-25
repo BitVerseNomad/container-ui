@@ -87,12 +87,12 @@ it("given a menu, when rendered, then the menu items show inside the row", () =>
   expect(screen.getByText("Logs")).toBeInTheDocument();
 });
 
-it("given onSelect and the row is focused, when rendered, then a checkbox shows in place of the dot", () => {
+it("given onSelect and the row is focused, when rendered, then a checkbox shows around the dot, which stays", () => {
   render(<EntryRow {...entryProps} onSelect={vi.fn()} menu={null} />);
   const row = screen.getByText("web").closest(".row") as HTMLElement;
   fireEvent.focus(row);
   expect(row.querySelector('input[type="checkbox"]')).not.toBeNull();
-  expect(row.querySelector(".dot")).toBeNull();
+  expect(row.querySelector(".dot")).not.toBeNull();
 });
 
 it("given a group with onSelect, then the checkbox takes the place of its dot and the chevron stays", () => {

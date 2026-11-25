@@ -69,14 +69,15 @@ export function Row(props: RowProps): React.JSX.Element {
   const check = (
     <input
       type="checkbox"
-      className="check size-3.5 accent-accent"
+      className="check over size-3.5 accent-accent"
       aria-label={`Select ${textOf(name)}`}
       checked={selected === true}
       onChange={(event) => onSelect?.(event.target.checked)}
       onClick={(event) => event.stopPropagation()}
     />
   );
-  const leadContent = showCheck && !dot ? check : lead;
+  // The status dot stays visible: the box is drawn around it, not instead of it (it fills in once selected).
+  const leadContent = showCheck && !dot ? <>{lead}{check}</> : lead;
 
   function handleClick(event: React.MouseEvent<HTMLDivElement>): void {
     const target = event.target as HTMLElement;
@@ -125,7 +126,7 @@ export function Row(props: RowProps): React.JSX.Element {
       onBlur={() => setFocused(false)}
     >
       <span className={clsx("lead", numberLead && "num")}>{leadContent}</span>
-      {dot && (showCheck ? check : dot)}
+      {dot && (showCheck ? <span className="relative inline-flex items-center justify-center">{dot}{check}</span> : dot)}
       {tall ? (
         <>
           <span className="grow">

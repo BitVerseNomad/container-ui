@@ -26,7 +26,11 @@ Newest first. Older entries record what was true when they were written; later e
 20. **The command notice shows the whole command.** The sentence wraps instead of cutting off, the command sits in a mono pill that wraps, and the notice stops at an open sheet's edge instead of hiding under it.
 21. **One colour per state.** A running machine's dot is the same green in the Machines table and the sidebar. Starting shows the blue accent with a solid dot, and stopped stays grey.
 22. **A failed Compose start reads calmly.** One line gives the reason and the next step. Docker's raw error is under Show details, closed, with a copy button.
-23. **For contributors:** `npm run preview` runs the screens in a browser with simulated data. No Mac app or Rust is needed.
+23. **A machine that is starting says so.** Its row in Machines shows the blue Starting… dot instead of Stopped until it is up.
+24. **A long network name stays in the table.** A name with no spaces breaks across lines instead of pushing the table past the window.
+25. **Hovering a container row keeps its status dot.** The select box is drawn around the dot instead of replacing it, and the name no longer moves.
+26. **Buttons and boxes have an outline in the light theme.** Two border colours were missing, so those outlines were invisible.
+27. **For contributors:** `npm run preview` runs the screens in a browser with simulated data. No Mac app or Rust is needed.
 
 ## Design system rollout: all tabs migrated to @ui/components
 
