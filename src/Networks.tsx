@@ -13,7 +13,6 @@ const BUILTIN = new Set(["bridge", "host", "none"]);
 const NAME = /^[A-Za-z0-9][A-Za-z0-9_.-]*$/;
 const BRIDGE_DOCS = "https://docs.docker.com/engine/network/drivers/bridge/";
 // The screen sits inside .legacy, whose grid and bare-input rules would otherwise override the op Field.
-const LEGACY_FIELD_RESET = "!flex !flex-row [&_input]:!w-full [&_input]:!border-0 [&_input]:!p-0";
 
 export default function Networks({ ctx }: { ctx: string }) {
   const confirm = useConfirm();
@@ -51,14 +50,14 @@ export default function Networks({ ctx }: { ctx: string }) {
         <OpButton variant="ghost" size="sm" onClick={() => openUrl(BRIDGE_DOCS)}>Learn more <span className="font-mono text-fg-muted">(docs.docker.com)</span></OpButton>
       </p>
       <div className="flex items-center gap-2">
-        <Field width="filter" className={LEGACY_FIELD_RESET} aria-label="New network name" placeholder="New network name, like devnet" value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && valid && act(["network", "create", newName.trim()]).then(() => setNewName(""))} />
+        <Field className="w-64" aria-label="New network name" placeholder="New network name, like devnet" value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && valid && act(["network", "create", newName.trim()]).then(() => setNewName(""))} />
         <OpButton variant="primary" size="sm" disabled={!valid} onClick={async () => { await act(["network", "create", newName.trim()]); setNewName(""); }}>Create network</OpButton>
       </div>
       <Banner error={nets.error ?? err} onClose={() => setErr(null)} />
       {nets.data && nets.data.length === 0 && <Empty title="No networks">Docker creates a few built-in ones when it starts.</Empty>}
       {nets.data && nets.data.length > 0 && (
         <>
-          <Field icon="search" width="search" className={LEGACY_FIELD_RESET} placeholder="Search your networks" aria-label="Search your networks" value={q} onChange={(e) => setQ(e.target.value)} />
+          <Field icon="search" width="search" className="mt-3" placeholder="Search your networks" aria-label="Search your networks" value={q} onChange={(e) => setQ(e.target.value)} />
           {shown.length === 0 && (
             <p className="hint py-2">No network here matches "{q.trim()}".</p>
           )}
@@ -89,7 +88,7 @@ export default function Networks({ ctx }: { ctx: string }) {
                     </span>
                     {!builtin && free.length > 0 && (
                       <span className="flex items-center gap-2">
-                        <Select width="pick" className="!flex max-w-full whitespace-nowrap" aria-label={`Connect a container to ${n.name}`} value={pick[n.name] || "none"} onChange={(v) => setPick({ ...pick, [n.name]: v === "none" ? "" : v })} options={[{ value: "none", label: "Connect a container…" }, ...free.map((c) => ({ value: c.Names, label: c.Names }))]} />
+                        <Select width="pick" aria-label={`Connect a container to ${n.name}`} value={pick[n.name] || "none"} onChange={(v) => setPick({ ...pick, [n.name]: v === "none" ? "" : v })} options={[{ value: "none", label: "Connect a container…" }, ...free.map((c) => ({ value: c.Names, label: c.Names }))]} />
                         <OpButton variant="default" size="sm" disabled={!pick[n.name]} onClick={async () => { await act(["network", "connect", n.name, pick[n.name]]); setPick({ ...pick, [n.name]: "" }); }}>Connect</OpButton>
                       </span>
                     )}
