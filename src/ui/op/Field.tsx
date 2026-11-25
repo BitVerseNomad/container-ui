@@ -19,7 +19,7 @@ export const Field = forwardRef<HTMLInputElement, FieldProps>(function Field(
   const errorId = `${inputId}-error`;
   return (
     <>
-      <label className={clsx("field", size === "md" && "md", width, className)} aria-invalid={invalid ? "true" : undefined}>
+      <label data-op="" className={clsx("field", size === "md" && "md", width, className)} aria-invalid={invalid ? "true" : undefined}>
         {icon && <Icon name={icon} size="sm" />}
         <input
           {...rest}
