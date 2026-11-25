@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { openShell } from "./lib/shell";
+import { usePlatform } from "./lib/platform";
 import { activity as commands, dockerLine } from "./lib/activity";
 import { invoke } from "@tauri-apps/api/core";
 import { docker } from "./api";
@@ -50,6 +51,7 @@ export function startedAgo(startedAt: string | undefined, now = Date.now()): str
 
 export default function ContainerDetail({ ctx, id, tab: routeTab, appProblems, onReplaced, listed = [] }: Props) {
   const confirm = useConfirm();
+  const win = usePlatform().os === "windows"; // no Terminal.app there
   const tab = tabOf(routeTab);
   const [err, setErr] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
@@ -160,7 +162,7 @@ export default function ContainerDetail({ ctx, id, tab: routeTab, appProblems, o
       >
         {c && !kube && running && (
           <>
-            <Button onClick={() => openShell(ctx, name).catch((e) => setErr(e instanceof Error ? e.message : String(e)))}>Open a shell</Button>
+            {!win && <Button onClick={() => openShell(ctx, name).catch((e) => setErr(e instanceof Error ? e.message : String(e)))}>Open a shell</Button>}
             <Button disabled={frozen} onClick={() => act(["restart", id])}>Restart</Button>
             <Button disabled={frozen} onClick={() => act(["stop", id])}>Stop</Button>
           </>

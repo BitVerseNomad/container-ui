@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { usePlatform } from "./lib/platform";
 
 // Folders you added by hand, because Spotlight skips some (not indexed, or just created). Kept on this Mac only.
 const ADDED = "container-ui:compose-folders";
@@ -65,7 +66,9 @@ export function useComposeScan() {
     setPinned((p) => [...new Set([...files, ...p])]);
     return clean;
   }, []);
-  useEffect(() => void scan(), [scan]);
+  // The Spotlight scan is for the Mac; on Windows there is nothing to scan, and folders are added by hand.
+  const { os, known } = usePlatform();
+  useEffect(() => { if (!known) return; if (os === "windows") setPaths([]); else void scan(); }, [scan, known, os]);
   return { paths, pinned, scanning, error, scan, add };
 }
 export type ComposeScan = ReturnType<typeof useComposeScan>;

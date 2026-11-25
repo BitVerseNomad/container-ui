@@ -9,7 +9,7 @@ import { Icon } from "./ui/icons";
 import { Button, useToast } from "./ui/op";
 import Shell, { Tab } from "./Shell";
 import EngineSwitcher from "./EngineSwitcher";
-import { engineOfProfile, chooseEngine, busyOf, buttonLabel } from "./lib/engineModel";
+import { engineOfProfile, wslEngine, chooseEngine, busyOf, buttonLabel } from "./lib/engineModel";
 import { ShortcutId, SHORTCUTS, activeShortcuts, showKeys, isTypingTarget } from "./lib/shortcuts";
 import { MachineUsageProvider, Header } from "./Header";
 import { useRoute, go, buildPath } from "./lib/router";
@@ -44,6 +44,7 @@ import { readDesktop, readDesktopOnFocus } from "./desktopOffer";
 import { dockerLocked, setVmBusy } from "./dockerLock";
 import { useHost } from "./useHostSize";
 import { runtimeRegistry } from "./runtime";
+import { usePlatform, WSL_ENGINE } from "./lib/platform";
 
 import CommandPalette from "./CommandPalette";
 import { useKeyboardShortcuts, KeyboardShortcut } from "./hooks/useKeyboardShortcuts";
@@ -71,14 +72,20 @@ const NOUN: Record<string, string> = { Images: "images", Volumes: "volumes", Net
 // Pages that draw their own title row, with their actions in it, so App does not add the shared Header.
 const PAGES_WITH_OWN_HEADER: readonly string[] = ["Containers", "Images", "Volumes", "Networks", "Profiles"];
 
+// Windows: the docker inside WSL2 is the one engine, and it is always running.
+const WSL_PROFILE: Profile = { name: WSL_ENGINE, status: "Running", arch: "", cpus: 0, memory: 0, disk: 0, runtime: "docker" };
+
 export default function App() {
   const { route } = useRoute();
+  const { os, known } = usePlatform();
+  const win = os === "windows";
   const tab: Tab = tabOfRoute(route);
   // Settings tabs other than Machines have no page yet (see the Settings branch below).
   const unbuiltTab = route.page === "settings" && route.tab && route.tab !== "machines" ? route.tab : null;
   const unbuiltSettings = unbuiltTab !== null;
   const setTab = useCallback((t: Tab) => go(pathOfTab(t)), []);
   const [appError, setAppError] = useState<string | null>(null);
+  const reloadRef = useRef<() => void>(() => {}); // the listener below is set up once; this keeps it calling the newest reloadProfiles
   const [activeRuntimeId, setActiveRuntimeId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -88,7 +95,7 @@ export default function App() {
     const onRuntimeChange = (e: CustomEvent) => {
       setActiveRuntimeId(e.detail.runtimeId);
       // Reload profiles and data for new runtime
-      reloadProfiles();
+      reloadRef.current();
     };
     window.addEventListener("runtime-changed", onRuntimeChange as EventListener);
     return () => window.removeEventListener("runtime-changed", onRuntimeChange as EventListener);
@@ -125,6 +132,8 @@ export default function App() {
   const [profilesError, setProfilesError] = useState<string | null>(null);
 
   const reloadProfiles = useCallback(async () => {
+    if (!known) return;
+    if (win) { setProfiles([WSL_PROFILE]); setProfilesError(null); return; }
     const adapter = runtimeRegistry.getActive() ?? (await runtimeRegistry.activateFirstAvailable());
     if (adapter) {
       try {
@@ -136,8 +145,9 @@ export default function App() {
         setProfiles([]);
       }
     }
-  }, []);
+  }, [known, win]);
 
+  reloadRef.current = reloadProfiles;
   useEffect(() => {
     reloadProfiles();
     const interval = setInterval(reloadProfiles, 3000);
@@ -145,13 +155,13 @@ export default function App() {
   }, [reloadProfiles, activeRuntimeId]);
 
   // Which profiles run Kubernetes. Without kubectl there is no way to ask, so the answer stays "not known".
-  const kube = usePoll<string[]>(async () => (env?.kubectl ? contextNames(await invoke<string>("kubectl", { context: null, args: ["config", "get-contexts", "-o", "name"] })) : []), [env?.kubectl], 10000, !!env);
+  const kube = usePoll<string[]>(async () => (env?.kubectl && !win ? contextNames(await invoke<string>("kubectl", { context: null, args: ["config", "get-contexts", "-o", "name"] })) : []), [env?.kubectl, win], 10000, !!env && !win);
   // Profiles switched Kubernetes on or off this session; the tab shows up even if kubectl still has to be installed.
   const [kubeAsked, setKubeAsked] = useState<Record<string, boolean>>({});
 
   const current = profiles.find((p) => p.name === active) ?? null;
   const kubeOn = !!current && (current.name in kubeAsked ? kubeAsked[current.name] : kubernetesOn(ctxFor(current.name), kube.data) === true);
-  const engines = useMemo(() => profiles.map((p) => engineOfProfile(p, { busy: busyOf({ op: vm.op, name: opName(vm) }, p.name), kubernetes: p.name === active && kubeOn })), [profiles, vm, active, kubeOn]);
+  const engines = useMemo(() => profiles.map((p) => win ? wslEngine(p) : engineOfProfile(p, { busy: busyOf({ op: vm.op, name: opName(vm) }, p.name), kubernetes: p.name === active && kubeOn })), [profiles, vm, active, kubeOn, win]);
 
   useEffect(() => {
     if (!profiles.some((p) => p.name === active)) {
@@ -176,7 +186,7 @@ export default function App() {
 
   const ctx = current?.status === "Running" ? ctxFor(current.name) : null;
   const { live, history, usage } = useLiveStats(ctx, current?.status === "Running");
-  setMachineProfile(current ? { cpus: current.cpus, memory: current.memory, disk: current.disk } : null);
+  setMachineProfile(current && !win ? { cpus: current.cpus, memory: current.memory, disk: current.disk } : null);
   // A container page from a VM that has stopped is gone; show the list when the VM comes back.
   // Only a running VM that stops clears it. A page that loads with no VM yet keeps its address.
   const prevCtx = useRef<string | null>(ctx);
@@ -186,11 +196,15 @@ export default function App() {
   }, [ctx]);
   // The Kubernetes page goes away with its nav item once the active profile has no cluster.
   // Wait until both the engine and the cluster list are known: on startup both are still loading.
+  // Windows has no machines to set up and no setup checks: those pages are not offered, so a link to one lands here.
+  useEffect(() => {
+    if (win && (tab === "Doctor" || route.page === "settings")) setTab("Containers");
+  }, [win, tab, route.page]);
   useEffect(() => {
     if (tab === "Kubernetes" && current && kube.data !== null && !kubeOn) setTab("Containers");
   }, [tab, kubeOn, kube.data, current]);
-  const setup = useSetup(current);
-  const doc = useDoctor(ctx, current);
+  const setup = useSetup(current, !win);
+  const doc = useDoctor(ctx, win ? null : current);
   const [logOpen, setLogOpen] = useState(false);
   const mutedKeys = useMuted();
   // Held while the VM restarts for a new size, so the badge doesn't drop and come back.
@@ -235,7 +249,7 @@ export default function App() {
     });
   };
 
-  const toolsMissing = !!env && (!env.colima || !env.docker);
+  const toolsMissing = !win && !!env && (!env.colima || !env.docker);
 
   // Starts or stops a VM from any tab (Empty states, the sidebar switcher). It switches to that profile and
   // shows the progress on Containers, where the VM strip lives.
@@ -409,8 +423,8 @@ export default function App() {
     "go-volumes": () => setTab("Volumes"),
     "go-networks": () => setTab("Networks"),
     "go-kubernetes": () => { if (kubeOn) setTab("Kubernetes"); },
-    "go-doctor": () => setTab("Doctor"),
-    "go-settings": () => go("#/settings/machines"),
+    "go-doctor": win ? undefined : () => setTab("Doctor"),
+    "go-settings": win ? undefined : () => go("#/settings/machines"),
     engine: () => setEngineOpen(true),
     fold: () => window.dispatchEvent(new Event("container-ui:fold")),
     run: () => setRunPicker(true),
@@ -424,7 +438,7 @@ export default function App() {
   };
   const keyboardShortcuts = useMemo(
     () => activeShortcuts().filter((s) => handlers[s.id]).map((s) => ({ key: s.key, meta: s.meta, shift: s.shift, description: s.label, action: handlers[s.id]! })),
-    [kubeOn, setTab, setCommandPaletteOpen, setLogOpen, setPullOnOpen, setNewProfileOnOpen, setHelpOpen],
+    [kubeOn, win, setTab, setCommandPaletteOpen, setLogOpen, setPullOnOpen, setNewProfileOnOpen, setHelpOpen],
   );
 
   useKeyboardShortcuts(keyboardShortcuts);
@@ -469,9 +483,11 @@ export default function App() {
         { id: "run", group: "Actions", label: "Run an image", kbd: "⌘N", run: () => { setTab("Images"); } },
         { id: "pull", group: "Actions", label: "Pull an image", kbd: "⌘P", run: () => { setPullOnOpen(true); setTab("Images"); } },
         { id: "compose", group: "Actions", label: "Start a Compose project", run: () => { setTab("Containers"); } },
-        { id: "doctor", group: "Actions", label: "Run Doctor", kbd: "⌘D", run: () => { setTab("Doctor"); } },
-        { id: `engine-${active}`, group: "Actions", label: active ? `Stop ${active}` : `Start ${active ?? "engine"}`, run: () => { setTab("Containers"); } },
-        { id: "machines", group: "Actions", label: "Machines…", run: () => { go("#/settings/machines"); } },
+        ...(win ? [] : ([
+          { id: "doctor", group: "Actions", label: "Run Doctor", kbd: "⌘D", run: () => { setTab("Doctor"); } },
+          { id: `engine-${active}`, group: "Actions", label: active ? `Stop ${active}` : `Start ${active ?? "engine"}`, run: () => { setTab("Containers"); } },
+          { id: "machines", group: "Actions", label: "Machines…", run: () => { go("#/settings/machines"); } },
+        ] as PaletteItem[])),
       ];
       const goTo: PaletteItem[] = [
         { id: "go-containers", group: "Go to", label: "Containers", kbd: showKeys({ key: "2", meta: true }), run: () => setTab("Containers") },
@@ -480,24 +496,26 @@ export default function App() {
         { id: "go-networks", group: "Go to", label: "Networks", kbd: showKeys({ key: "5", meta: true }), run: () => setTab("Networks") },
       ];
       if (kubeOn) goTo.push({ id: "go-kubernetes", group: "Go to", label: "Kubernetes", kbd: showKeys({ key: "6", meta: true }), run: () => setTab("Kubernetes") });
-      goTo.push({ id: "go-doctor", group: "Go to", label: "Doctor", kbd: showKeys({ key: "d", meta: true }), run: () => setTab("Doctor") });
-      goTo.push({ id: "go-settings", group: "Go to", label: "Settings", kbd: showKeys({ key: ",", meta: true }), run: () => go("#/settings/machines") });
+      if (!win) {
+        goTo.push({ id: "go-doctor", group: "Go to", label: "Doctor", kbd: showKeys({ key: "d", meta: true }), run: () => setTab("Doctor") });
+        goTo.push({ id: "go-settings", group: "Go to", label: "Settings", kbd: showKeys({ key: ",", meta: true }), run: () => go("#/settings/machines") });
+      }
       setPaletteItems([...containers, ...general, ...goTo]);
     };
     void build();
-  }, [commandPaletteOpen, ctx, kubeOn, active]);
+  }, [commandPaletteOpen, ctx, kubeOn, active, win]);
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ResizeProvider value={{ profile: current, host, pick, runVm, containers: doc.containers, locked: vmLocked, vmBusy: vm.op !== null, onProfiles: () => setTab("Profiles") }}>
+      <ResizeProvider value={{ profile: win ? null : current, host, pick, runVm, containers: doc.containers, locked: vmLocked, vmBusy: vm.op !== null, onProfiles: () => setTab("Profiles") }}>
         <Shell
             nav={tab}
             onNav={(t) => setTab(t)}
             badges={{ Doctor: doctorTodo }}
             counts={{ containers: containerCount }}
-            hidden={kubeOn ? [] : ["Kubernetes"]}
-            engine={<div data-slot="engine"><EngineSwitcher engines={engines} selectedId={active} open={engineOpen} onOpenChange={setEngineOpen} onSelect={switchTo} onStart={(id) => { switchTo(id); setTab("Containers"); void vmFromAnywhere(id, "starting"); }} onStop={(id) => void vmFromAnywhere(id, "stopping")} onMachines={() => go("#/settings/machines")} /></div>}
-            onSettings={() => go("#/settings/machines")}
+            hidden={[...(kubeOn ? [] : ["Kubernetes" as Tab]), ...(win ? ["Doctor" as Tab] : [])]}
+            engine={<div data-slot="engine"><EngineSwitcher engines={engines} selectedId={active} open={engineOpen} onOpenChange={setEngineOpen} onSelect={switchTo} onStart={(id) => { switchTo(id); setTab("Containers"); void vmFromAnywhere(id, "starting"); }} onStop={(id) => void vmFromAnywhere(id, "stopping")} onMachines={win ? undefined : () => go("#/settings/machines")} /></div>}
+            onSettings={win ? undefined : () => go("#/settings/machines")}
             settingsActive={route.page === "settings"}
             onActivity={() => setLogOpen(true)}
             onHelp={() => setHelpOpen(true)}

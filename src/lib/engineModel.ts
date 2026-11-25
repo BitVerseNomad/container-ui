@@ -7,11 +7,11 @@ export type EngineState = "running" | "stopped" | "starting" | "stopping" | "unr
 export type ColimaEngine = {
   id: string;            // the Colima profile name ("default", "work")
   context: string;       // the docker context name (ctxFor)
-  caption: "Colima";
+  caption: string;
   name: string;          // "default"
   label: string;         // "Colima · default"
   state: EngineState;
-  managed: true;         // the app can start and stop it
+  managed: boolean;      // the app can start and stop it (not the WSL engine)
   cpus: number;
   memoryGb: number;
   kubernetes: boolean;
@@ -36,8 +36,12 @@ export function engineOfProfile(p: Profile, opts: EngineOptions = {}): ColimaEng
   };
 }
 
+// Windows: the docker inside WSL2. One engine, always running, nothing to start, stop or resize.
+export const wslEngine = (p: Profile): ColimaEngine => ({ ...engineOfProfile(p), caption: "Docker", name: "WSL", label: p.name, managed: false });
+
 // The muted line under the label (spec 5.3 rule 2).
 export function stateLine(e: ColimaEngine): string {
+  if (!e.managed) return "Running";
   switch (e.state) {
     case "running": return `Running · ${e.cpus} CPU · ${e.memoryGb} GB`;
     case "stopped": return "Stopped";
@@ -49,7 +53,7 @@ export function stateLine(e: ColimaEngine): string {
 
 // The facts on a row of the popover: "4 CPU · 8 GB · Kubernetes", "Stopped".
 export function factsLine(e: ColimaEngine): string {
-  if (e.state !== "running") return stateLine(e);
+  if (!e.managed || e.state !== "running") return stateLine(e);
   return [`${e.cpus} CPU`, `${e.memoryGb} GB`, ...(e.kubernetes ? ["Kubernetes"] : [])].join(" · ");
 }
 
@@ -57,10 +61,10 @@ export const dotOf = (e: ColimaEngine): "ok" | "bad" | "busy" | "off" =>
   e.state === "running" ? "ok" : e.state === "unreachable" ? "bad" : e.state === "starting" || e.state === "stopping" ? "busy" : "off";
 
 // "Engine: Colima, default. Running" (the button's accessible name, as in the mockup).
-export const buttonLabel = (e: ColimaEngine): string => `Engine: Colima, ${e.name}. ${stateLine(e).split(" · ")[0]}`;
+export const buttonLabel = (e: ColimaEngine): string => `Engine: ${e.caption}, ${e.name}. ${stateLine(e).split(" · ")[0]}`;
 
 export type EngineGroup = { caption: string; engines: ColimaEngine[] };
-export const groupEngines = (list: ColimaEngine[]): EngineGroup[] => (list.length ? [{ caption: "Colima", engines: list }] : []);
+export const groupEngines = (list: ColimaEngine[]): EngineGroup[] => (list.length ? [{ caption: list[0].caption, engines: list }] : []);
 
 // Which machine an operation in progress belongs to. App.tsx passes { op: vm.op, name: opName(vm) }; "restarting" shows as "starting".
 export type BusyInput = { op: "starting" | "stopping" | "restarting" | null; name?: string };

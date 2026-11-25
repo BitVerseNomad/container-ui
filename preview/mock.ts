@@ -305,6 +305,8 @@ export async function invoke<T>(cmd: string, a: Record<string, any> = {}): Promi
   (window as any).__mock = { setStatus: (s: string) => { db.profiles[0].status = s; }, state: () => JSON.parse(JSON.stringify(db)), failRunOnce: (name: string) => { failRun = name; }, openDesktop: () => { desktop.running = true; } };
   await sleep(60);
   switch (cmd) {
+    // ?platform=windows: the app on Windows with docker inside WSL2.
+    case "platform_info": return (new URLSearchParams(location.search).get("platform") === "windows" ? { os: "windows", wsl: true, distro: "Ubuntu" } : { os: "macos", wsl: false, distro: null }) as T;
     case "list_profiles": return db.profiles.map((p) => ({ ...p })) as T; // fresh objects per call, like the real IPC
     case "docker": {
       const args: string[] = a.args.filter((x: string) => x !== "--format" && x !== "{{json .}}");

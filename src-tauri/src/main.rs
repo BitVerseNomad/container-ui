@@ -542,8 +542,30 @@ fn terminal_command(kind: &str, context: &str, target: Option<&str>) -> Result<S
 
 // Colima registers "colima" (default profile) and "colima-<profile>" contexts; nothing else is used.
 // The suffix follows the profile-name rule, so a context can never smuggle a space or a flag into k9s.
+// Inside WSL the engine is the distro's own docker, whose one context is "default".
 fn context_ok(c: &str) -> bool {
-    c == "colima" || c.strip_prefix("colima-").is_some_and(profile_name_ok)
+    c == "colima" || c.strip_prefix("colima-").is_some_and(profile_name_ok) || (c == "default" && wsl::via_wsl())
+}
+
+#[derive(Serialize)]
+struct PlatformInfo {
+    os: &'static str,
+    wsl: bool,
+    distro: Option<String>,
+}
+
+fn os_name(os: &str) -> &'static str {
+    match os {
+        "macos" => "macos",
+        "windows" => "windows",
+        _ => "linux",
+    }
+}
+
+// Lets the UI drop what only exists on a Mac (Colima, Homebrew, Terminal.app, Finder).
+#[tauri::command]
+fn platform_info() -> PlatformInfo {
+    PlatformInfo { os: os_name(std::env::consts::OS), wsl: wsl::via_wsl(), distro: wsl::distro_from_env() }
 }
 
 // GUI apps on macOS don't inherit the shell PATH, so look in the usual Homebrew spots.
@@ -2619,6 +2641,7 @@ fn main() {
             registry::aws_profiles,
             registry::aws_sso_login,
             env_check,
+            platform_info,
             install_tools,
             network_probe,
             kubectl,
@@ -4072,7 +4095,10 @@ mod tests {
     fn only_colima_contexts_are_accepted() {
         assert!(context_ok("colima"));
         assert!(context_ok("colima-dev"));
-        assert!(!context_ok("default"));
+        assert!(!context_ok("default")); // only inside WSL
+        assert_eq!(super::os_name("macos"), "macos");
+        assert_eq!(super::os_name("windows"), "windows");
+        assert_eq!(super::os_name("freebsd"), "linux");
         assert!(!context_ok("desktop-linux"));
         assert!(!context_ok("colima-"));
         assert!(!context_ok("--host"));
