@@ -12,18 +12,6 @@ images|button|Run nginx:latest
 images|button|Run postgres:16
 images|button|Run redis:7
 images|input|Search your images
-networks|button|Connect
-networks|button|Create network
-networks|button|Disconnect api from devnet
-networks|button|Disconnect db from devnet
-networks|button|Disconnect kafka from devnet
-networks|button|Disconnect queue from devnet
-networks|button|Disconnect web from devnet
-networks|button|Disconnect worker from devnet
-networks|button|Learn more (docs.docker.com)
-networks|input|New network name
-networks|input|Search your networks
-networks|select|Connect a container to devnet
 settings/machines|input|
 settings/machines|select|dockercontainerdincus
 volumes|button|Toggle sort direction

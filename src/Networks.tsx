@@ -1,19 +1,19 @@
 import { openUrl } from "./api";
 import { useState } from "react";
 import { score } from "./lib/fuzzy";
-import { Icon } from "./ui/icons";
-import { Button as OpButton } from "./ui/op/Button";
+import { Button as OpButton, Field, Select } from "./ui/op";
 import { Header } from "./Header";
 import { docker, dockerJson } from "./api";
 import { usePoll } from "./hooks";
 import { NetInfo, parseNetworks } from "./lib/network";
 import { Banner, Empty, useConfirm } from "./ui";
-import { Button } from "@ui/components/Button";
 import ConnectionTest from "./ConnectionTest";
 
 const BUILTIN = new Set(["bridge", "host", "none"]);
 const NAME = /^[A-Za-z0-9][A-Za-z0-9_.-]*$/;
 const BRIDGE_DOCS = "https://docs.docker.com/engine/network/drivers/bridge/";
+// The screen sits inside .legacy, whose grid and bare-input rules would otherwise override the op Field.
+const LEGACY_FIELD_RESET = "!flex !flex-row [&_input]:!w-full [&_input]:!border-0 [&_input]:!p-0";
 
 export default function Networks({ ctx }: { ctx: string }) {
   const confirm = useConfirm();
@@ -48,20 +48,17 @@ export default function Networks({ ctx }: { ctx: string }) {
       </Header>
       <p className="hint lead">
         Containers on the same network reach each other by name, like <code>http://db:5432</code>. The built-in <b>bridge</b> network doesn't do name lookup, so put containers that talk to each other on a network of your own.{" "}
-        <button className="cursor-pointer border-0 bg-transparent p-0 text-accent-ink hover:underline" onClick={() => openUrl(BRIDGE_DOCS)}>Learn more <span className="font-mono text-fg-muted">(docs.docker.com)</span></button>
+        <OpButton variant="ghost" size="sm" onClick={() => openUrl(BRIDGE_DOCS)}>Learn more <span className="font-mono text-fg-muted">(docs.docker.com)</span></OpButton>
       </p>
       <div className="flex items-center gap-2">
-        <input aria-label="New network name" placeholder="New network name, like devnet" value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && valid && act(["network", "create", newName.trim()]).then(() => setNewName(""))} />
-        <button className="primary" disabled={!valid} onClick={async () => { await act(["network", "create", newName.trim()]); setNewName(""); }}>Create network</button>
+        <Field width="filter" className={LEGACY_FIELD_RESET} aria-label="New network name" placeholder="New network name, like devnet" value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && valid && act(["network", "create", newName.trim()]).then(() => setNewName(""))} />
+        <OpButton variant="primary" size="sm" disabled={!valid} onClick={async () => { await act(["network", "create", newName.trim()]); setNewName(""); }}>Create network</OpButton>
       </div>
       <Banner error={nets.error ?? err} onClose={() => setErr(null)} />
       {nets.data && nets.data.length === 0 && <Empty title="No networks">Docker creates a few built-in ones when it starts.</Empty>}
       {nets.data && nets.data.length > 0 && (
         <>
-          <label className="search-field">
-            <Icon name="search" size={14} />
-            <input placeholder="Search your networks" aria-label="Search your networks" value={q} onChange={(e) => setQ(e.target.value)} />
-          </label>
+          <Field icon="search" width="search" className={LEGACY_FIELD_RESET} placeholder="Search your networks" aria-label="Search your networks" value={q} onChange={(e) => setQ(e.target.value)} />
           {shown.length === 0 && (
             <p className="hint py-2">No network here matches "{q.trim()}".</p>
           )}
@@ -85,18 +82,15 @@ export default function Networks({ ctx }: { ctx: string }) {
                         <span key={m.id} className="inline-flex items-center gap-1">
                           <b className="break-all">{m.name}</b> <span className="font-mono text-fg-muted">{m.ip}</span>
                           {!builtin && (
-                            <Button variant="ghost" size="sm" icon={<Icon name="close" size={13} />} aria-label={`Disconnect ${m.name} from ${n.name}`} onClick={async () => (await confirm(`Disconnect ${m.name} from ${n.name}? It will no longer reach the others on this network.`, "Disconnect")) && act(["network", "disconnect", n.name, m.name])}>Disconnect</Button>
+                            <OpButton variant="ghost" size="sm" icon="close" aria-label={`Disconnect ${m.name} from ${n.name}`} onClick={async () => (await confirm(`Disconnect ${m.name} from ${n.name}? It will no longer reach the others on this network.`, "Disconnect")) && act(["network", "disconnect", n.name, m.name])}>Disconnect</OpButton>
                           )}
                         </span>
                       ))}
                     </span>
                     {!builtin && free.length > 0 && (
                       <span className="flex items-center gap-2">
-                        <select className="max-w-full" aria-label={`Connect a container to ${n.name}`} value={pick[n.name] ?? ""} onChange={(e) => setPick({ ...pick, [n.name]: e.target.value })}>
-                          <option value="">Connect a container…</option>
-                          {free.map((c) => <option key={c.Names}>{c.Names}</option>)}
-                        </select>
-                        <button disabled={!pick[n.name]} onClick={async () => { await act(["network", "connect", n.name, pick[n.name]]); setPick({ ...pick, [n.name]: "" }); }}>Connect</button>
+                        <Select width="pick" className="!flex max-w-full whitespace-nowrap" aria-label={`Connect a container to ${n.name}`} value={pick[n.name] || "none"} onChange={(v) => setPick({ ...pick, [n.name]: v === "none" ? "" : v })} options={[{ value: "none", label: "Connect a container…" }, ...free.map((c) => ({ value: c.Names, label: c.Names }))]} />
+                        <OpButton variant="default" size="sm" disabled={!pick[n.name]} onClick={async () => { await act(["network", "connect", n.name, pick[n.name]]); setPick({ ...pick, [n.name]: "" }); }}>Connect</OpButton>
                       </span>
                     )}
                   </td>
