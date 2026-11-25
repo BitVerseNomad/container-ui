@@ -2882,6 +2882,7 @@ mod tests {
         (home, s)
     }
 
+    #[cfg(unix)]
     #[test]
     fn given_a_regular_compose_file_when_checked_then_its_real_path_is_what_open_gets() {
         let (home, h) = compose_home("file");
@@ -3209,6 +3210,7 @@ mod tests {
         );
     }
 
+    #[cfg(unix)]
     #[test]
     fn given_a_run_with_a_deadline_when_it_ends_or_is_killed_then_it_says_which_and_adds_no_words()
     {
@@ -3526,6 +3528,7 @@ mod tests {
         }
     }
 
+    #[cfg(unix)]
     #[test]
     fn given_a_command_that_hangs_when_run_with_a_deadline_then_it_is_killed_and_says_so() {
         let mut c = std::process::Command::new("/bin/sleep");
@@ -3538,6 +3541,7 @@ mod tests {
         assert!(String::from_utf8_lossy(&err).contains("Stopped after"));
     }
 
+    #[cfg(unix)]
     #[test]
     fn given_a_child_that_forks_when_the_deadline_hits_then_the_whole_group_dies() {
         // The grandchild holds stdout open; killing only sh would leave the readers waiting forever.
@@ -3554,6 +3558,7 @@ mod tests {
         );
     }
 
+    #[cfg(unix)]
     #[test]
     fn given_a_quick_command_when_run_with_a_deadline_then_its_output_comes_back() {
         let mut c = std::process::Command::new("/bin/echo");
@@ -4170,6 +4175,7 @@ mod tests {
         assert!(docker_args_allowed(&args(&["system", "df", "--bogus"])).is_err());
     }
 
+    #[cfg(unix)]
     #[test]
     fn given_a_child_that_ignores_the_wait_when_bounded_then_it_gives_up() {
         let mut child = Command::new("/bin/sleep").arg("30").spawn().unwrap();
@@ -4180,6 +4186,7 @@ mod tests {
         let _ = child.wait();
     }
 
+    #[cfg(unix)]
     #[test]
     fn given_a_child_that_exits_when_bounded_then_its_status_comes_back() {
         let mut child = Command::new("/usr/bin/true").spawn().unwrap();

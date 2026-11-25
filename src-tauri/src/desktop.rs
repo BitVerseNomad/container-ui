@@ -1345,6 +1345,7 @@ mod tests {
         );
     }
 
+    #[cfg(unix)]
     #[test]
     fn given_two_processes_when_piped_then_every_byte_arrives_and_is_counted() {
         let dir = std::env::temp_dir().join(format!("container-ui-pipe-{}", std::process::id()));
