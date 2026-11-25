@@ -219,13 +219,13 @@ export default function Doctor({ ctx, setup, doc, onProfiles, onBring, onGo, onO
           {elsewhere && (
             <span className="hint inline-flex flex-wrap items-center gap-2">
               Fixed together with{" "}
-              <button className="text-accent-ink hover:underline" aria-label={`Go to the fix on ${elsewhere.subject ?? elsewhere.title}`} onClick={() => {
+              <Button variant="ghost" size="xs" className="hover:underline" aria-label={`Go to the fix on ${elsewhere.subject ?? elsewhere.title}`} onClick={() => {
                 const row = document.querySelector<HTMLElement>(`[data-key="${CSS.escape(elsewhere.key)}"]`);
                 const fixButton = row?.querySelector<HTMLElement>(".finding-actions button.small, .limit-actions button.small");
                 // A muted owner has no button here; its row (or the page) still takes focus so the move is heard.
                 if (!fixButton && row) row.tabIndex = -1;
                 (fixButton ?? row)?.focus();
-              }}>{elsewhere.subject ?? elsewhere.title}</button>.
+              }}>{elsewhere.subject ?? elsewhere.title}</Button>.
             </span>
           )}
           <span className="hint"><Ticks text={f.detail} /></span>
@@ -248,10 +248,10 @@ export default function Doctor({ ctx, setup, doc, onProfiles, onBring, onGo, onO
             <VmChangeOr from={`doctor:${f.key}`} change={f.fix.vm} title={f.title} noStatus />
           ) : f.fix?.resize ? (
             <ResizeOr from={`doctor:${f.key}`} title={f.title} need="memory" alsoStart={f.subject ? [f.subject] : []} noStatus noProfiles vmWords
-              fallback={f.subject ? <button className="small" onClick={() => onOpen(f.subject!)}>Open {f.subject}</button> : <button className="small" onClick={() => onGo("Profiles")}>Open Machines</button>} />
+              fallback={f.subject ? <Button className="small" onClick={() => onOpen(f.subject!)}>Open {f.subject}</Button> : <Button className="small" onClick={() => onGo("Profiles")}>Open Machines</Button>} />
           ) : limitRow && !isListed(f.fix!.reveal!, composePaths) ? (
-            f.subject ? <button className="small" onClick={() => onOpen(f.subject!)}>Open {f.subject}</button> : null
-          ) : limitRow ? null : f.fix ? <DoctorFix fix={f.fix} title={f.title} ctx={ctx} onGo={onGo} onFixed={() => doc.reload()} /> : f.subject ? <button className="small" onClick={() => onOpen(f.subject!)}>Open {f.subject}</button> : null}
+            f.subject ? <Button className="small" onClick={() => onOpen(f.subject!)}>Open {f.subject}</Button> : null
+          ) : limitRow ? null : f.fix ? <DoctorFix fix={f.fix} title={f.title} ctx={ctx} onGo={onGo} onFixed={() => doc.reload()} /> : f.subject ? <Button className="small" onClick={() => onOpen(f.subject!)}>Open {f.subject}</Button> : null}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" iconOnly icon="more" aria-label={`More actions for ${plain(f.title)}`} />
@@ -288,7 +288,7 @@ export default function Doctor({ ctx, setup, doc, onProfiles, onBring, onGo, onO
           {summary}{ctx || resizing(rs) ? "" : " Start the VM to also check containers, networks, images and storage."}
         </p>
         <span className="finding-actions">
-          <button className="small" disabled={checking} onClick={recheck}>{checking ? "Checking…" : "Run checks again"}</button>
+          <Button className="small" disabled={checking} onClick={recheck}>{checking ? "Checking…" : "Run checks again"}</Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" iconOnly icon="more" aria-label="More Doctor actions" />
@@ -346,7 +346,7 @@ export default function Doctor({ ctx, setup, doc, onProfiles, onBring, onGo, onO
                 <Icon name="info" />
                 <div>
                   <b>{f.title}</b>
-                  <button className="small" onClick={() => setMuted(f.key, false)}>Show it again</button>
+                  <Button className="small" onClick={() => setMuted(f.key, false)}>Show it again</Button>
                 </div>
               </li>
             ))}
@@ -365,12 +365,12 @@ function DoctorFix({ fix, title, ctx, onGo, onFixed }: { fix: NonNullable<Findin
   const runs = useFixRuns();
   // A Fix replaces containers; it waits while the VM, a resize, a copy or Compose is changing Docker.
   useDockerLocked();
-  if (fix.go) return <button className="small" aria-label={`${fix.label}: ${title}`} onClick={() => onGo(fix.go!)}>{fix.label}</button>;
+  if (fix.go) return <Button className="small" aria-label={`${fix.label}: ${title}`} onClick={() => onGo(fix.go!)}>{fix.label}</Button>;
   const run = fixAction(fix, ctx ?? undefined, confirm, runs, onFixed);
-  if (run) return <button className="small" title={run.hint} aria-label={`${run.running ? run.busyLabel : `${run.label}…`}: ${title}`} aria-disabled={run.running || run.locked || undefined} onClick={() => !run.locked && run.go()}>{run.running ? run.busyLabel : `${run.label}…`}</button>;
+  if (run) return <Button className="small" title={run.hint} aria-label={`${run.running ? run.busyLabel : `${run.label}…`}: ${title}`} aria-disabled={run.running || run.locked || undefined} onClick={() => !run.locked && run.go()}>{run.running ? run.busyLabel : `${run.label}…`}</Button>;
   // A fix only you can run (the app can't) has no main button: its command is under "Or run it yourself".
   if (fix.manual) return null;
-  return <button className="small" aria-label={`Copy commands: ${title}`} onClick={() => navigator.clipboard.writeText(fix.text)}>Copy commands</button>;
+  return <Button className="small" aria-label={`Copy commands: ${title}`} onClick={() => navigator.clipboard.writeText(fix.text)}>Copy commands</Button>;
 }
 
 // The VM size row: one button that restarts the VM with a better size, and the run's progress and result under its
@@ -389,7 +389,7 @@ function SizeRow({ f, primary, onProfiles }: { f: SetupFinding; primary: boolean
         <b>{f.title}</b>
         {/* While a result shows, it is the row's one sentence. */}
         {!o && <span className="hint"><Ticks text={f.detail} /></span>}
-        {open && f.more && <span className="hint">Other numbers? <button className="text-accent-ink hover:underline" aria-label={`${f.more.label}: ${f.title}`} onClick={onProfiles}>{f.more.label}</button></span>}
+        {open && f.more && <span className="hint">Other numbers? <Button variant="ghost" size="xs" className="hover:underline" aria-label={`${f.more.label}: ${f.title}`} onClick={onProfiles}>{f.more.label}</Button></span>}
         {open && f.command && !(mine && s.outcome) && (
           <details className="how text-meta text-fg-muted">
             <summary><Icon name="chevron" size={12} />What it does<span className="sr-only">: {f.title}</span></summary>

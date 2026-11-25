@@ -7,7 +7,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { Profile, StartOpts, gbOf } from "./api";
 import EditPanel from "./EditPanel";
 import { Empty } from "./ui";
-import { Button as OpButton, Menu, MenuItem, MoreButton } from "./ui/op";
+import { Button as OpButton, Field, FormRow, Menu, MenuItem, MoreButton, Select } from "./ui/op";
 import OutputLog from "./ui/OutputLog";
 import { useFixRuns } from "./FixIt";
 import { ranVm } from "./lib/activity";
@@ -23,6 +23,8 @@ type Props = {
   kubeOn?: (name: string) => boolean | null;
   onKubeAsked?: (name: string, on: boolean) => void;
 };
+
+const RUNTIMES = ["docker", "containerd", "incus"].map((value) => ({ value, label: value }));
 
 export default function Profiles({ profiles, reload, openNew = false, kubeOn = () => null, onKubeAsked }: Props) {
   const size = useHostSize();
@@ -44,6 +46,7 @@ export default function Profiles({ profiles, reload, openNew = false, kubeOn = (
   // The form opens on a name that is free, so it never starts with an error showing. The free name follows the list of
   // profiles (it may still be arriving when the form opens) until the user types their own.
   const [typedName, setTypedName] = useState<string | null>(null);
+  const [runtime, setRuntime] = useState("docker");
   const newName = typedName ?? (["default", "dev", "work", "test"].find((n) => !profiles.some((p) => p.name === n)) ?? "machine2");
   function openForm() {
     setTypedName(null);
@@ -156,25 +159,30 @@ export default function Profiles({ profiles, reload, openNew = false, kubeOn = (
               cpus: Number(f.get("cpus")),
               memory: Number(f.get("memory")),
               disk: Number(f.get("disk")),
-              runtime: String(f.get("runtime")),
+              runtime,
               kubernetes: f.get("kubernetes") === "on",
             };
             act(opts.name, "starting", "start_profile", { opts });
           }}
         >
           <h3>New machine</h3>
-          <label>Name<input name="name" value={newName} onChange={(e) => setTypedName(e.target.value)} required pattern="[a-zA-Z0-9_-]+" /></label>
+          <FormRow label="Name" htmlFor="new-machine-name">
+            <Field id="new-machine-name" name="name" value={newName} onChange={(e) => setTypedName(e.target.value)} required pattern="[a-zA-Z0-9_-]+" />
+          </FormRow>
           {taken && <p className="hint text-bad">A machine named "{newName}" already exists. Use Edit on it instead.</p>}
-          <label>CPUs<input key={size?.cpus} name="cpus" type="number" min={1} defaultValue={size?.cpus ?? 2} /></label>
-          <label>Memory (GiB)<input key={size?.memory} name="memory" type="number" min={1} defaultValue={size?.memory ?? 4} /></label>
-          <label>Disk (GiB)<input name="disk" type="number" min={10} defaultValue={60} /></label>
-          <label>Runtime
-            <select name="runtime" defaultValue="docker">
-              <option>docker</option>
-              <option>containerd</option>
-              <option>incus</option>
-            </select>
-          </label>
+          <FormRow label="CPUs" htmlFor="new-machine-cpus">
+            <Field id="new-machine-cpus" key={size?.cpus} name="cpus" type="number" min={1} defaultValue={size?.cpus ?? 2} />
+          </FormRow>
+          <FormRow label="Memory (GiB)" htmlFor="new-machine-memory">
+            <Field id="new-machine-memory" key={size?.memory} name="memory" type="number" min={1} defaultValue={size?.memory ?? 4} />
+          </FormRow>
+          <FormRow label="Disk (GiB)" htmlFor="new-machine-disk">
+            <Field id="new-machine-disk" name="disk" type="number" min={10} defaultValue={60} />
+          </FormRow>
+          <div className="flex flex-col gap-1">
+            <span className="text-meta font-medium text-fg-muted">Runtime</span>
+            <Select aria-label="Runtime" value={runtime} onChange={setRuntime} options={RUNTIMES} container={dialog.current} />
+          </div>
           <label className="check w-full"><input name="kubernetes" type="checkbox" /> Enable Kubernetes</label>
           <div className="actions">
             <OpButton variant="default" onClick={() => dialog.current?.close()}>Cancel</OpButton>
