@@ -20,6 +20,6 @@ The plan listed Windows and Linux as later, because Setup assumed Homebrew and t
 ## Consequences
 
 1. Windows has one always-running engine and no machine controls.
-2. Windows behaviour is tested by the Rust tests and that workflow, not by a full UI run.
+2. Windows behaviour is tested by the Rust tests, that workflow and the browser preview with `?platform=windows`. It has not been run on a real Windows machine yet.
 
 Sources: `src-tauri/src/wsl.rs`, `.github/workflows/windows-check.yml`; commits `d9e9e31` and `f40a856`; `docs/plan/03-review-product.md` (P3 item 4, P9.5) at commit 29b538e.

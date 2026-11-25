@@ -1,6 +1,6 @@
 # UI principles
 
-The design rules that still hold. The eight UX rules and the test commands live in [AGENTS.md](../../AGENTS.md); they are not repeated here. Decisions behind this page: [ADR index](../adr/README.md). The original spec is `docs/plan/04-design-spec.md` at commit 29b538e.
+The design rules that still hold. The eight UX rules and the test commands live in [AGENTS.md](../../AGENTS.md); they are not repeated here. Decisions behind this page: [ADR index](../adr/README.md). The original spec is `docs/plan/04-design-spec.md` in the git history (commit 29b538e).
 
 ## 1. How the design is built
 
