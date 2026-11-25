@@ -30,6 +30,7 @@ use tauri::Emitter;
 mod desktop;
 mod registry;
 mod setup;
+mod wsl;
 
 #[derive(Serialize, Deserialize)]
 struct Profile {
@@ -685,15 +686,13 @@ async fn exec_in(
 ) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let missing = |e: std::io::Error| format!("Could not run {bin}: {e}. Is it installed?");
+        // Interleave stdout and stderr in the order the program wrote them (needed for logs).
         let mut cmd = if merge_stderr {
-            // Interleave stdout and stderr in the order the program wrote them (needed for logs).
-            let mut c = Command::new("sh");
-            c.args(["-c", "exec \"$@\" 2>&1", "sh", &find_bin(bin)]);
-            c
+            wsl::tool_merged(bin, &args)
         } else {
-            Command::new(find_bin(bin))
+            wsl::tool(bin, &args)
         };
-        cmd.args(&args).env("PATH", path_env());
+        cmd.env("PATH", path_env());
         if let Some(dir) = &cwd {
             cmd.current_dir(dir);
         }
@@ -974,13 +973,11 @@ pub fn stream_in(
     silence: Duration,
     on_spawn: impl Fn(Option<u32>),
 ) -> Result<(), String> {
-    let mut cmd = Command::new("sh");
+    let mut cmd = wsl::tool_merged(bin, args);
     if let Some(dir) = cwd {
         cmd.current_dir(dir);
     }
     let mut child = cmd
-        .args(["-c", "exec \"$@\" 2>&1", "sh", &find_bin(bin)])
-        .args(args)
         .env("PATH", path_env())
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
@@ -2582,9 +2579,11 @@ async fn container_shell(context: String, name: String) -> Result<String, String
     }
     tauri::async_runtime::spawn_blocking(move || {
         for sh in ["bash", "sh"] {
-            let mut cmd = Command::new(find_bin("docker"));
-            cmd.args(["--context", &context, "exec", &name, sh, "-c", "exit 0"])
-                .env("PATH", path_env());
+            let mut cmd = wsl::tool(
+                "docker",
+                &["--context", &context, "exec", &name, sh, "-c", "exit 0"].map(String::from),
+            );
+            cmd.env("PATH", path_env());
             let (ok, out, err) = output_with_deadline(cmd, SHELL_PROBE_DEADLINE)
                 .map_err(|e| format!("Could not run docker: {e}"))?;
             let text = format!(

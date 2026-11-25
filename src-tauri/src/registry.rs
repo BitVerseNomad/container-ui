@@ -88,8 +88,7 @@ fn run(
     args: &[String],
     stdin: Option<&[u8]>,
 ) -> std::io::Result<(bool, Vec<u8>, Vec<u8>)> {
-    let mut child = Command::new(find_bin(bin))
-        .args(args)
+    let mut child = crate::wsl::tool(bin, args)
         .env("PATH", path_env())
         .stdin(if stdin.is_some() {
             Stdio::piped()

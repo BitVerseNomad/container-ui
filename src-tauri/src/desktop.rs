@@ -48,8 +48,9 @@ fn disk_bytes(home: &Path) -> u64 {
 }
 
 fn docker_cmd(args: &[&str]) -> Command {
-    let mut c = Command::new(find_bin("docker"));
-    c.args(args).env("PATH", path_env());
+    let owned: Vec<String> = args.iter().map(|a| a.to_string()).collect();
+    let mut c = crate::wsl::tool("docker", &owned);
+    c.env("PATH", path_env());
     c
 }
 
@@ -248,8 +249,7 @@ fn pipe(
     mut on_bytes: impl FnMut(u64),
 ) -> Result<u64, String> {
     let spawn = |bin: &str, args: &[String], stdin: Stdio| {
-        Command::new(bin)
-            .args(args)
+        crate::wsl::tool(bin, args)
             .env("PATH", path_env())
             .stdin(stdin)
             .stdout(Stdio::piped())
