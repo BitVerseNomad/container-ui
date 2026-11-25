@@ -1,0 +1,32 @@
+doctor|button|Fix kafka and kafka-ui…: Kafka UI looks 
+doctor|button|Go to the fix on kafka-ui
+doctor|button|Open api
+doctor|button|Open report-job
+doctor|button|Open worker
+doctor|button|Run checks again
+images|button|Clear build cache
+images|button|Remove unused images
+images|button|Run acme/orders-api:1.4
+images|button|Run mysql:8
+images|button|Run nginx:latest
+images|button|Run postgres:16
+images|button|Run redis:7
+images|input|Search your images
+networks|button|Connect
+networks|button|Create network
+networks|button|Disconnect api from devnet
+networks|button|Disconnect db from devnet
+networks|button|Disconnect kafka from devnet
+networks|button|Disconnect queue from devnet
+networks|button|Disconnect web from devnet
+networks|button|Disconnect worker from devnet
+networks|button|Learn more (docs.docker.com)
+networks|input|New network name
+networks|input|Search your networks
+networks|select|Connect a container to devnet
+settings/machines|input|
+settings/machines|select|dockercontainerdincus
+volumes|button|Toggle sort direction
+volumes|input|Search your volumes
+volumes|select|Filter volumes
+volumes|select|Sort volumes

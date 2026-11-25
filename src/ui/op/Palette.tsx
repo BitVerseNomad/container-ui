@@ -61,6 +61,7 @@ export function Palette(props: PaletteProps) {
                   const isHighlighted = idx === highlighted;
                   return (
                     <button
+                      data-op=""
                       key={entry.id}
                       type="button"
                       role="option"

@@ -18,7 +18,7 @@ export function Tabs(props: {
     <TabsPrimitive.Root value={value} onValueChange={onChange}>
       <TabsPrimitive.List className={clsx("tabs", className)} {...rest}>
         {items.map((item) => (
-          <TabsPrimitive.Trigger key={item.value} className="chip" value={item.value}>
+          <TabsPrimitive.Trigger key={item.value} data-op="" className="chip" value={item.value}>
             {item.label}
           </TabsPrimitive.Trigger>
         ))}

@@ -11,6 +11,7 @@ export function ChipButton(props: React.ButtonHTMLAttributes<HTMLButtonElement> 
   const { pressed, icon, className, children, ...rest } = props;
   return (
     <button
+      data-op=""
       {...rest}
       type="button"
       className={clsx("chip", className)}
