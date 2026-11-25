@@ -364,3 +364,5 @@ td:first-child:has(.tag) { white-space: nowrap; }
 .bring-late svg, .confirm-notice svg { color: var(--warn); flex: 0 0 auto; margin-top: 2px; }
 .bring-late code, .bring-late .tick, .confirm-notice code, .confirm-notice .tick { font: 12px ui-monospace, "SF Mono", Menlo, monospace; }
 .rounded-radius-md { border-radius: var(--r-md); }
+.field input[type="number"]::-webkit-inner-spin-button, .field input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.field input[type="number"] { appearance: textfield; }

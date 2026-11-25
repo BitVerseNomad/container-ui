@@ -217,15 +217,15 @@ export default function Doctor({ ctx, setup, doc, onProfiles, onBring, onGo, onO
         <div>
           <b><Ticks text={f.title} /></b>
           {elsewhere && (
-            <span className="hint inline-flex flex-wrap items-center gap-2">
-              Fixed together with{" "}
-              <Button variant="ghost" size="xs" className="hover:underline" aria-label={`Go to the fix on ${elsewhere.subject ?? elsewhere.title}`} onClick={() => {
+            <span className="hint inline-flex flex-wrap items-baseline gap-x-1">
+              Fixed together with
+              <span><Button variant="ghost" size="xs" className="!px-0 hover:underline" aria-label={`Go to the fix on ${elsewhere.subject ?? elsewhere.title}`} onClick={() => {
                 const row = document.querySelector<HTMLElement>(`[data-key="${CSS.escape(elsewhere.key)}"]`);
                 const fixButton = row?.querySelector<HTMLElement>(".finding-actions button.small, .limit-actions button.small");
                 // A muted owner has no button here; its row (or the page) still takes focus so the move is heard.
                 if (!fixButton && row) row.tabIndex = -1;
                 (fixButton ?? row)?.focus();
-              }}>{elsewhere.subject ?? elsewhere.title}</Button>.
+              }}>{elsewhere.subject ?? elsewhere.title}</Button>.</span>
             </span>
           )}
           <span className="hint"><Ticks text={f.detail} /></span>

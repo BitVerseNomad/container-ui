@@ -16,4 +16,18 @@ await vm.getByRole("button", { name: /^Start default|^Start / }).first().click()
 const busy = await vm.locator("tr", { hasText: "default" }).first().getByText("Starting…").waitFor({ timeout: 3000 }).then(() => true, () => false);
 check(busy, "Machines: the row of a starting machine says Starting…");
 await vm.close();
+
+// No browser-default checkbox or number stepper anywhere: they take the app's own look.
+const vols = await open("/?scenario=running#/volumes");
+await vols.locator("tbody input[type=checkbox]").first().waitFor({ timeout: 5000 });
+const nativeBoxes = await vols.evaluate(() => [...document.querySelectorAll("input[type=checkbox]")].filter((i) => getComputedStyle(i).appearance !== "none").length);
+check(nativeBoxes === 0, `Volumes: no checkbox looks like the system one (${nativeBoxes} do)`);
+await vols.close();
+const edit = await open("/?scenario=stopped#/settings/machines");
+await edit.getByRole("button", { name: /More actions for/ }).first().click();
+await edit.getByRole("menuitem", { name: "Edit" }).click();
+const disk = edit.getByRole("dialog", { name: /Edit machine/ }).locator("#disk");
+await disk.waitFor({ timeout: 3000 });
+check(await disk.evaluate((i) => !!i.closest("label.field")), "Edit machine: the Disk field is the app's own field, with no browser stepper");
+await edit.close();
 done();
