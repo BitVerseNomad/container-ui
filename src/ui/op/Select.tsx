@@ -18,7 +18,7 @@ export function Select(props: {
   const { value, onChange, options, size = "sm", width, disabled, className, ...rest } = props;
   return (
     <SelectPrimitive.Root value={value} onValueChange={onChange} disabled={disabled}>
-      <SelectPrimitive.Trigger className={clsx("field", size === "md" && "md", width, className)} {...rest}>
+      <SelectPrimitive.Trigger data-op="" className={clsx("field select-field", size === "md" && "md", width, className)} {...rest}>
         <SelectPrimitive.Value />
         <Icon name="chev-down" size="sm" />
       </SelectPrimitive.Trigger>

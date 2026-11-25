@@ -229,6 +229,8 @@ body:has(.drawer) .cmd-toast { right: calc(400px + 1rem); }
 .row .more-gap { width: 28px; flex: none; }
 .pop .row { border-bottom: 0; border-radius: var(--r-sm); height: var(--h-sm); }
 button.field { border: 0; text-align: left; justify-content: space-between; }
+.field.select-field { justify-content: space-between; min-width: 11rem; width: max-content; max-width: 100%; text-align: left; cursor: pointer; color: var(--fg); font: inherit; }
+.field.select-field .icon { flex: none; margin-left: auto; }
 .field.search { width: 220px; }
 .field.filter { width: 180px; }
 .field.pick { width: 170px; }

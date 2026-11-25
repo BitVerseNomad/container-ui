@@ -36,6 +36,18 @@ export function kubeName(r: { Names: string; Labels?: string }): string {
   return parts.filter(Boolean).map((p) => (p === "POD" ? "pause" : p)).join(" · ") || r.Names;
 }
 
+// Each pod runs as several docker containers (its own, a "POD" pause container, and the old ones kept after a restart),
+// so counting containers says 12 where kubectl says 3. People count pods.
+export function kubePodCount(rows: { Names: string; Labels?: string }[]): number {
+  const pods = new Set<string>();
+  for (const r of rows) {
+    const l = parseLabels(r.Labels ?? "");
+    const [, , pod, ns] = r.Names.split("_");
+    pods.add(`${l.get("io.kubernetes.pod.namespace") ?? ns}/${l.get(KUBE_POD) ?? pod ?? r.Names}`);
+  }
+  return pods.size;
+}
+
 export type Group<T> = { kind: "compose" | "loose" | "kubernetes"; project: string | null; dir: string | null; rows: T[] };
 
 export function groupByProject<T extends { Names: string; Labels?: string }>(rows: T[]): Group<T>[] {

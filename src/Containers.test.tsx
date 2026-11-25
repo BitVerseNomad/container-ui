@@ -85,7 +85,7 @@ describe("Containers", () => {
     const user = userEvent.setup();
     const { onKubernetes } = show();
     const row = await rowOf("Kubernetes");
-    expect(row).toHaveTextContent("1 container");
+    expect(row).toHaveTextContent("1 pod");
     expect(within(row).queryByRole("button", { name: /^(Stop|Start|More actions)/ })).not.toBeInTheDocument();
     await user.click(row);
     expect(onKubernetes).toHaveBeenCalledOnce();
@@ -103,7 +103,7 @@ describe("Containers", () => {
     show();
     await rowOf("web");
     const rows = [...document.querySelectorAll(".list > .row:not(.th):not(.child)")].map((r) => r.getAttribute("aria-label"));
-    expect(rows).toEqual(["web, Running", "cache, Stopped", "Kubernetes, 1 container"]);
+    expect(rows).toEqual(["web, Running", "cache, Stopped", "Kubernetes, 1 pod"]);
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
   });
 

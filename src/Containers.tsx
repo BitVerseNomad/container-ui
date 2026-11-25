@@ -12,7 +12,7 @@ import { usePoll } from "./hooks";
 import VmStrip from "./VmStrip";
 import OutputLog from "./ui/OutputLog";
 import { Icon } from "./ui/op/Icon";
-import { kubeName } from "./lib/compose";
+import { kubeName, kubePodCount } from "./lib/compose";
 import { appStoppedVersion, subscribeAppStopped } from "./lib/appStopped";
 import { App, appState, appsFrom, downLine, finished, lastRunOver, listed, runInfo, startWhat, withAppStop } from "./lib/homeRows";
 import { useHostSize } from "./useHostSize";
@@ -595,8 +595,8 @@ export default function Containers({ profile, ctx, vm, onVm, reload, setDetailId
     const v = entryView(a);
     if (v.kube) {
       return (
-        <EntryRow key={a.key} id={a.key} group={false} name="Kubernetes" meta={`${a.rows.length} container${a.rows.length === 1 ? "" : "s"}`}
-          dot="ok" stateWord="" ariaLabel={`Kubernetes, ${a.rows.length} container${a.rows.length === 1 ? "" : "s"}`} ports={[]} stats="" history={[]} cpuNow={null} action={{ label: "Open", busy: false, locked: false }} selected={false} onSelect={null}
+        <EntryRow key={a.key} id={a.key} group={false} name="Kubernetes" meta={`${kubePodCount(a.rows)} pod${kubePodCount(a.rows) === 1 ? "" : "s"}`}
+          dot="ok" stateWord="" ariaLabel={`Kubernetes, ${kubePodCount(a.rows)} pod${kubePodCount(a.rows) === 1 ? "" : "s"}`} ports={[]} stats="" history={[]} cpuNow={null} action={{ label: "Open", busy: false, locked: false }} selected={false} onSelect={null}
           onOpen={() => onKubernetes?.()} onAction={() => onKubernetes?.()} menu={null} menuOpen={false} onMenuOpenChange={() => {}} />
       );
     }

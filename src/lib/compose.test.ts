@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseLabels, groupByProject, isKubeOwned, kubeName } from "./compose.ts";
+import { parseLabels, groupByProject, isKubeOwned, kubeName, kubePodCount } from "./compose.ts";
 
 test("given a label value with commas, when parsed, then the commas stay in that value", () => {
   const l = parseLabels("com.docker.compose.project=shop,com.docker.compose.project.config_files=/a/compose.yml,/a/override.yml,com.docker.compose.service=web");
@@ -58,4 +58,12 @@ test("given a Kubernetes container with pod labels, when named for people, then 
 
 test("given a Kubernetes container with no labels, when named for people, then the parts come from its k8s_ name", () => {
   assert.equal(kubeName({ Names: "k8s_POD_coredns-6799fbcd5-x7q2k_kube-system_8a1b_0" }), "pause · coredns-6799fbcd5-x7q2k · kube-system");
+});
+
+test("given each pod as pause, app and restarted containers, when counting, then it counts pods, not containers", () => {
+  const names = [
+    "k8s_coredns_coredns-54bf_kube-system_aaa_1", "k8s_POD_coredns-54bf_kube-system_aaa_1", "k8s_coredns_coredns-54bf_kube-system_aaa_0", "k8s_POD_coredns-54bf_kube-system_aaa_0",
+    "k8s_metrics-server_metrics-server-77db_kube-system_bbb_1", "k8s_POD_metrics-server-77db_kube-system_bbb_1",
+  ];
+  assert.equal(kubePodCount(names.map((Names) => ({ Names }))), 2);
 });
