@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { score } from "./lib/fuzzy";
-import { Button } from "@ui/components/Button";
 import { useConfirm } from "./ui";
 import { docker, dockerJson } from "./api";
 import { usePoll } from "./hooks";
@@ -9,8 +8,7 @@ import PullPanel from "./PullPanel";
 import { formatBytes, parseBytes } from "./containerInfo";
 import RunPanel from "./RunPanel";
 import DiskCard from "./DiskCard";
-import { Icon } from "./ui/icons";
-import { Button as OpButton } from "./ui/op/Button";
+import { Button as OpButton, Field } from "./ui/op";
 import { Header } from "./Header";
 import { activity, dockerLine } from "./lib/activity";
 
@@ -47,14 +45,11 @@ export default function Images({ ctx, onRan, startPull = false, arch }: { ctx: s
         <Empty title="No images">Use <strong>Pull image</strong> to download one from Docker Hub.</Empty>
       )}
       {data && data.length > 0 && (
-        <label className="search-field">
-          <Icon name="search" size={14} />
-          <input placeholder="Search your images" aria-label="Search your images" value={q} onChange={(e) => setQ(e.target.value)} />
-        </label>
+        <Field placeholder="Search your images" aria-label="Search your images" icon="search" width="search" className="!m-0 !flex !flex-row !items-center !gap-6 !text-meta [&_input]:!w-full [&_input]:!border-0 [&_input]:!bg-transparent [&_input]:!p-0" value={q} onChange={(e) => setQ(e.target.value)} />
       )}
       {data && data.length > 0 && shown.length === 0 && (
         <p className="hint py-2">
-          No image here matches "{q.trim()}". <button className="inline cursor-pointer border-0 bg-transparent p-0 text-accent-ink hover:underline" onClick={() => { setHubTerm(q.trim()); setPulling(true); }}>Find it on Docker Hub</button>
+          No image here matches "{q.trim()}". <OpButton variant="ghost" size="xs" onClick={() => { setHubTerm(q.trim()); setPulling(true); }}>Find it on Docker Hub</OpButton>
         </p>
       )}
       {shown.length > 0 && (
@@ -73,7 +68,7 @@ export default function Images({ ctx, onRan, startPull = false, arch }: { ctx: s
                   <td className="text-right tabular-nums">{parseBytes(i.Size) ? formatBytes(parseBytes(i.Size)) : i.Size}</td>
                   <td>{i.CreatedSince}</td>
                   <td className="whitespace-nowrap text-right">
-                    <Button variant="ghost" size="sm" icon={<Icon name="play" size={13} />} aria-label={`Run ${ref}`} onClick={() => setRunning(ref)}>Run</Button>
+                    <OpButton variant="ghost" size="sm" icon="play" aria-label={`Run ${ref}`} onClick={() => setRunning(ref)}>Run</OpButton>
                     <OpButton variant="danger-quiet" size="sm" icon="trash" aria-label={`Remove ${ref}`} onClick={async () => (await confirm(`Remove image ${ref}?`)) && act(["rmi", ref])}>Remove</OpButton>
                   </td>
                 </tr>

@@ -3,7 +3,6 @@ import { score } from "./lib/fuzzy";
 import { docker, dockerJson } from "./api";
 import { usePoll } from "./hooks";
 import { Banner, Empty, useConfirm } from "./ui";
-import { Button } from "@ui/components/Button";
 import { isAnonymous, unusedAnonymous, volumeUsage } from "./lib/volumes";
 import { backupOf } from "./lib/bringOver";
 import { dockerLocked, useDockerLocked } from "./dockerLock";
@@ -12,8 +11,7 @@ import { dockerLocked, useDockerLocked } from "./dockerLock";
 const WAIT = "Waits for what is changing Docker now.";
 import { parseVolumeSizes } from "./lib/events";
 import { formatBytes } from "./containerInfo";
-import { Icon } from "./ui/icons";
-import { Button as OpButton } from "./ui/op/Button";
+import { Button as OpButton, Field, Select } from "./ui/op";
 import { Header } from "./Header";
 
 type V = { Name: string; Driver: string };
@@ -121,23 +119,33 @@ export default function Volumes({ ctx }: { ctx: string }) {
       {data && data.length > 0 && (
         <>
           <div className="table-tools">
-            <label className="search-field">
-              <Icon name="search" size={14} />
-              <input placeholder="Search your volumes" aria-label="Search your volumes" value={q} onChange={(e) => setQ(e.target.value)} />
-            </label>
-            <select aria-label="Filter volumes" value={filter} onChange={(e) => setFilter(e.target.value as "all" | "unused" | "inuse")}>
-              <option value="all">All</option>
-              <option value="unused">Unused</option>
-              <option value="inuse">In use</option>
-            </select>
-            <select aria-label="Sort volumes" value={sort} onChange={(e) => setSort(e.target.value as SortKey)}>
-              <option value="name">Name</option>
-              <option value="size">Size</option>
-              <option value="usage">Usage</option>
-            </select>
-            <button className="cursor-pointer text-accent hover:underline" onClick={() => setDir((d) => (d === "asc" ? "desc" : "asc"))} aria-label="Toggle sort direction">
+            {/* .legacy label, input and .field rules would reshape the field: flatten it back to the op look. */}
+            <Field placeholder="Search your volumes" aria-label="Search your volumes" icon="search" width="search" className="!m-0 !flex !flex-row !items-center !gap-6 !text-meta [&_input]:!w-full [&_input]:!border-0 [&_input]:!bg-transparent [&_input]:!p-0" value={q} onChange={(e) => setQ(e.target.value)} />
+            <Select
+              aria-label="Filter volumes"
+              width="pick"
+              value={filter}
+              onChange={(value) => setFilter(value as "all" | "unused" | "inuse")}
+              options={[
+                { value: "all", label: "All" },
+                { value: "unused", label: "Unused" },
+                { value: "inuse", label: "In use" },
+              ]}
+            />
+            <Select
+              aria-label="Sort volumes"
+              width="pick"
+              value={sort}
+              onChange={(value) => setSort(value as SortKey)}
+              options={[
+                { value: "name", label: "Name" },
+                { value: "size", label: "Size" },
+                { value: "usage", label: "Usage" },
+              ]}
+            />
+            <OpButton variant="ghost" size="sm" aria-label="Toggle sort direction" onClick={() => setDir((d) => (d === "asc" ? "desc" : "asc"))}>
               {dir === "asc" ? "↑" : "↓"}
-            </button>
+            </OpButton>
           </div>
           {shown.length === 0 && (
             <p className="hint p-4">No volume here matches "{q.trim()}".</p>

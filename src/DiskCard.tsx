@@ -2,6 +2,7 @@ import { useState } from "react";
 import { docker } from "./api";
 import { usePoll } from "./hooks";
 import { Banner, useConfirm } from "./ui";
+import { Button as OpButton } from "./ui/op";
 import { DiskKind, formatDf, parseDiskUsage } from "./lib/disk";
 import { activity, dockerLine } from "./lib/activity";
 
@@ -66,7 +67,7 @@ export default function DiskCard({ ctx, onChanged }: { ctx: string; onChanged?: 
                 <span role="cell" className="font-mono">{data ? formatDf(r.reclaimable) : "…"}</span>
                 <span role="cell" className="flex justify-end">
                   {b ? (
-                    <button disabled={busy || r.reclaimable === 0} title={r.reclaimable === 0 ? "Nothing to free" : undefined} onClick={async () => (await confirm(b.ask, b.confirmLabel)) && run(b.args, info.label.toLowerCase())}>{b.text}</button>
+                    <OpButton size="sm" disabled={busy || r.reclaimable === 0} title={r.reclaimable === 0 ? "Nothing to free" : undefined} onClick={async () => (await confirm(b.ask, b.confirmLabel)) && run(b.args, info.label.toLowerCase())}>{b.text}</OpButton>
                   ) : (
                     <span className="hint">{info.note}</span>
                   )}
