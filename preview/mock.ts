@@ -24,7 +24,7 @@ const db = {
   ],
   cacheMB: 3400,
   volumes: ["mysql-data", "redis-data", "pgdata-old", "a".repeat(64), "c".repeat(64)],
-  networks: ["bridge", "host", "none", "devnet"],
+  networks: ["bridge", "host", "none", "devnet", ...(typeof location !== "undefined" && new URLSearchParams(location.search).get("longnet") === "1" ? ["acmebillingplatformstagingeuwest1internalservicesnetworkv2xxxxxxxxxxxxxx"] : [])],
   ctrs: [
     { health: "unhealthy", streak: 5, healthOut: "curl: (7) Failed to connect to localhost port 8080 after 0 ms: Connection refused", networks: ["devnet"], exposed: [8080], id: hex(64), name: "api", image: "acme/billing-api:3.1", state: "running", ports: [], mounts: [], env: [], born: now - 3 * 36e5, cpu: 0.6, mem: 150e6 },
     { restarts: 7, networks: ["devnet"], id: hex(64), name: "worker", image: "acme/worker:2.0", state: "running", ports: [], mounts: [], env: [], born: now - 6e5, cpu: 3.2, mem: 90e6 },

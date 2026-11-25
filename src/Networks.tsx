@@ -76,14 +76,14 @@ export default function Networks({ ctx }: { ctx: string }) {
               const free = (ctrs.data ?? []).filter((c) => c.State === "running" && !n.members.some((m) => m.name === c.Names));
               return (
                 <tr key={n.name}>
-                  <td><b>{n.name}</b>{builtin && <span className="tag">Built in</span>}</td>
-                  <td className="font-mono">{n.subnet || "none"}</td>
+                  <td className="max-w-xs break-all"><b>{n.name}</b>{builtin && <span className="tag">Built in</span>}</td>
+                  <td className="font-mono whitespace-nowrap">{n.subnet || "none"}</td>
                   <td>
                     {n.members.length === 0 && <span className="hint">No containers</span>}
                     <span className="flex flex-wrap gap-2">
                       {n.members.map((m) => (
                         <span key={m.id} className="inline-flex items-center gap-1">
-                          <b>{m.name}</b> <span className="font-mono text-fg-muted">{m.ip}</span>
+                          <b className="break-all">{m.name}</b> <span className="font-mono text-fg-muted">{m.ip}</span>
                           {!builtin && (
                             <Button variant="ghost" size="sm" icon={<Icon name="close" size={13} />} aria-label={`Disconnect ${m.name} from ${n.name}`} onClick={async () => (await confirm(`Disconnect ${m.name} from ${n.name}? It will no longer reach the others on this network.`, "Disconnect")) && act(["network", "disconnect", n.name, m.name])}>Disconnect</Button>
                           )}
@@ -92,7 +92,7 @@ export default function Networks({ ctx }: { ctx: string }) {
                     </span>
                     {!builtin && free.length > 0 && (
                       <span className="flex items-center gap-2">
-                        <select aria-label={`Connect a container to ${n.name}`} value={pick[n.name] ?? ""} onChange={(e) => setPick({ ...pick, [n.name]: e.target.value })}>
+                        <select className="max-w-full" aria-label={`Connect a container to ${n.name}`} value={pick[n.name] ?? ""} onChange={(e) => setPick({ ...pick, [n.name]: e.target.value })}>
                           <option value="">Connect a container…</option>
                           {free.map((c) => <option key={c.Names}>{c.Names}</option>)}
                         </select>

@@ -28,6 +28,8 @@ export default function Profiles({ profiles, reload, openNew = false, kubeOn = (
   const size = useHostSize();
   const confirm = useConfirm();
   const [busy, setBusy] = useState<string | null>(null);
+  // Which machine the running action is on and its word ("Starting…"), so only that row shows it.
+  const [working, setWorking] = useState<{ name: string; word: string } | null>(null);
   // A container fix in the middle of a VM stop or restart is left half done, so the VM waits for it.
   const fixing = useFixRuns().some((r) => r.step != null);
   const [error, setError] = useState<string | null>(null);
@@ -53,6 +55,7 @@ export default function Profiles({ profiles, reload, openNew = false, kubeOn = (
 
   async function act(name: string, label: string, cmd: string, args: Record<string, unknown>): Promise<boolean> {
     setBusy(`${sentence(label)} ${name}…`);
+    setWorking({ name, word: `${sentence(label)}…` });
     setError(null);
     try {
       await ranVm(cmd, args, () => invoke(cmd, args));
@@ -62,6 +65,7 @@ export default function Profiles({ profiles, reload, openNew = false, kubeOn = (
       return false;
     } finally {
       setBusy(null);
+      setWorking(null);
       reload();
     }
   }
@@ -99,7 +103,7 @@ export default function Profiles({ profiles, reload, openNew = false, kubeOn = (
               return (
                 <tr key={p.name}>
                   <td>{p.name}</td>
-                  <td><Status level={up ? "on" : "off"}>{p.status}</Status></td>
+                  <td>{working?.name === p.name ? <Status level="busy">{working.word}</Status> : <Status level={up ? "on" : "off"}>{p.status}</Status>}</td>
                   <td className="font-mono">{p.cpus}</td>
                   <td className="font-mono">{gb(p.memory)}</td>
                   <td className="font-mono whitespace-nowrap">{gb(p.disk)}</td>
