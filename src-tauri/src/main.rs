@@ -718,7 +718,19 @@ async fn exec_in(
         if let Some(dir) = &cwd {
             cmd.current_dir(dir);
         }
-        let (ok, stdout, stderr) = output_with_deadline(cmd, EXEC_DEADLINE).map_err(missing)?;
+        let (ok, stdout, stderr) = output_with_deadline(cmd, EXEC_DEADLINE).map_err(|e| {
+            if wsl::via_wsl() && e.kind() == std::io::ErrorKind::NotFound {
+                "Windows Subsystem for Linux is not installed. In PowerShell run `wsl --install`, then restart Windows.".to_string()
+            } else {
+                missing(e)
+            }
+        })?;
+        if !ok && wsl::via_wsl() {
+            let said = format!("{}{}", wsl::text_of(&stdout), wsl::text_of(&stderr));
+            if let Some(plain) = wsl::explain(&said) {
+                return Err(plain);
+            }
+        }
         if ok {
             Ok(String::from_utf8_lossy(&stdout).into_owned())
         } else if merge_stderr {

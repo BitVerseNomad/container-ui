@@ -140,6 +140,35 @@ pub fn tool_merged(bin: &str, args: &[String]) -> Command {
     tool(bin, args)
 }
 
+// wsl.exe writes its own messages in UTF-16LE (NULs between letters) and the tool's in UTF-8.
+pub fn text_of(bytes: &[u8]) -> String {
+    if bytes.len() >= 2 && bytes.iter().skip(1).step_by(2).filter(|b| **b == 0).count() * 3 > bytes.len() {
+        decode_utf16le(bytes)
+    } else {
+        String::from_utf8_lossy(bytes).into_owned()
+    }
+}
+
+// The usual reasons the engine is out of reach through WSL, in plain words. None when the text is something else.
+pub fn explain(text: &str) -> Option<String> {
+    let t = text.to_lowercase();
+    let has = |s: &str| t.contains(s);
+    let msg = if has("no installed distributions") || has("there is no distribution") {
+        "No Linux distribution is installed in WSL. In PowerShell run `wsl --install -d Ubuntu`, restart, then install Docker inside it."
+    } else if has("execvpe(docker) failed") || has("\"docker\": executable file not found") || has("docker: not found") || has("docker: command not found") {
+        "Docker is not installed inside your WSL distro. Install it there (for Ubuntu: `sudo apt install docker.io`), then reopen this app."
+    } else if has("cannot connect to the docker daemon") || has("is the docker daemon running") {
+        "Docker is installed in WSL but not running. In your WSL terminal run `sudo service docker start`."
+    } else if has("permission denied while trying to connect to the docker") {
+        "Your WSL user cannot use Docker. In your WSL terminal run `sudo usermod -aG docker $USER`, then run `wsl --shutdown` and reopen this app."
+    } else if has("wsl_e_wsl_optional_component_required") || has("windows subsystem for linux has not been enabled") {
+        "Windows Subsystem for Linux is not turned on. In PowerShell run `wsl --install`, then restart Windows."
+    } else {
+        return None;
+    };
+    Some(msg.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -190,5 +219,26 @@ mod tests {
         let bytes: Vec<u8> = text.encode_utf16().flat_map(u16::to_le_bytes).collect();
         assert_eq!(parse_distros(&bytes), ["Ubuntu", "Debian"]);
         assert!(parse_distros(&[]).is_empty());
+    }
+
+    #[test]
+    fn given_wsl_messages_when_read_then_utf16_and_utf8_both_decode() {
+        let wide: Vec<u8> = "no installed distributions".encode_utf16().flat_map(u16::to_le_bytes).collect();
+        assert_eq!(text_of(&wide), "no installed distributions");
+        assert_eq!(text_of(b"Cannot connect"), "Cannot connect");
+        assert_eq!(text_of(&[]), "");
+    }
+
+    #[test]
+    fn given_known_failures_when_explained_then_the_fix_is_named_and_unknown_text_passes() {
+        for (raw, word) in [
+            ("Windows Subsystem for Linux has no installed distributions.", "wsl --install"),
+            ("wsl: execvpe(docker) failed: No such file or directory", "apt install docker.io"),
+            ("Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?", "service docker start"),
+            ("permission denied while trying to connect to the Docker daemon socket", "usermod -aG docker"),
+        ] {
+            assert!(explain(raw).is_some_and(|m| m.contains(word)), "{raw}");
+        }
+        assert_eq!(explain("no such container: web"), None);
     }
 }
