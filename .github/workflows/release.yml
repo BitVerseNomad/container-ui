@@ -1,9 +1,8 @@
 name: Release
 
+# Manual only. Publishing a release by hand must not start this workflow: it still holds text from another project
+# and has no signing secrets, so it would overwrite the release notes and add unsigned extra files.
 on:
-  push:
-    tags:
-      - 'v*'
   workflow_dispatch:
     inputs:
       version:
