@@ -312,12 +312,32 @@ fn new_bash_profile(rc: &Path) -> &'static str {
 const TC_STRATEGY: &str =
     "org.testcontainers.dockerclient.EnvironmentAndSystemPropertyClientProviderStrategy";
 
+// Java reads .properties files as ISO-8859-1, so a letter outside ASCII (a home folder named João) would be
+// misread. Each one is written as \uXXXX per UTF-16 unit, which is also how Java wants an emoji.
+fn escape_non_ascii(value: &str) -> String {
+    let mut out = String::with_capacity(value.len());
+    for ch in value.chars() {
+        if ch.is_ascii() {
+            out.push(ch);
+        } else {
+            let mut units = [0u16; 2];
+            for u in ch.encode_utf16(&mut units) {
+                out.push_str(&format!("\\u{u:04x}"));
+            }
+        }
+    }
+    out
+}
+
 // Points ~/.testcontainers.properties at `socket`. Testcontainers only reads docker.host from this file under the
 // environment strategy, so that key is set too. Every other line, comments included, stays where it was; an entry
 // split over several lines is replaced whole.
 pub fn point_testcontainers(props: &str, socket: &str) -> String {
     let wanted = [
-        ("docker.host", format!("unix\\://{socket}")),
+        (
+            "docker.host",
+            format!("unix\\://{}", escape_non_ascii(socket)),
+        ),
         ("docker.client.strategy", TC_STRATEGY.to_string()),
     ];
     let raw: Vec<&str> = props.lines().collect();
@@ -795,6 +815,20 @@ mod tests {
         let mut c = Value::Null;
         assert!(add_extra_dir(&mut c, "/x"));
         assert_eq!(c, json!({ "cliPluginsExtraDirs": ["/x"] }));
+    }
+
+    #[test]
+    fn given_non_ascii_text_when_escaped_then_each_utf16_unit_is_a_u_escape() {
+        assert_eq!(escape_non_ascii("/Users/me/.colima"), "/Users/me/.colima");
+        assert_eq!(escape_non_ascii("/Users/João"), "/Users/Jo\\u00e3o");
+        assert_eq!(escape_non_ascii("/Users/a😀"), "/Users/a\\ud83d\\ude00");
+    }
+
+    #[test]
+    fn given_an_accented_home_when_pointing_testcontainers_then_the_file_is_ascii() {
+        let out = point_testcontainers("", "/Users/João/.colima/default/docker.sock");
+        assert!(out.is_ascii());
+        assert!(out.contains("docker.host=unix\\:///Users/Jo\\u00e3o/.colima/default/docker.sock"));
     }
 
     #[test]
