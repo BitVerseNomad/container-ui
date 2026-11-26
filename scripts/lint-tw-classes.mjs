@@ -17,7 +17,8 @@ walk(out);
 const css = cssFiles.map((f) => readFileSync(f, "utf8")).join("\n");
 
 // Classes that are markers for other selectors (group-hover:, peer-checked:) and produce no CSS of their own.
-const MARKERS = new Set(["group", "peer", "dark", "sr-only-focusable"]);
+// Hooks with no style of their own: "blank" is found by App.tsx (querySelector(".blank button.primary")), "mark" wraps a row's status icon.
+const MARKERS = new Set(["group", "peer", "dark", "sr-only-focusable", "blank", "mark"]);
 // Classes the browser checks find elements by (".sidebar" in tests/e2e/*.spec.ts) are hooks, not styles: keep them.
 const hooks = new Set();
 const walkJs = (d) => { for (const f of readdirSync(d)) { const p = path.join(d, f); if (statSync(p).isDirectory()) walkJs(p); else if (/\.(m?js|ts)$/.test(p)) for (const q of readFileSync(p, "utf8").matchAll(/(["'`])((?:(?!\1).)*)\1/g)) for (const m of q[2].matchAll(/(?:^|[\s,>+~(])\.([a-z][a-z0-9-]*)/g)) hooks.add(m[1]); } };
