@@ -85,11 +85,15 @@ pub fn open_docker_desktop() -> Result<(), String> {
     if !Path::new(DESKTOP_APP).exists() {
         return Err("Docker Desktop isn't installed".into());
     }
-    Command::new("open")
+    let mut child = Command::new("open")
         .args(["-a", DESKTOP_APP])
         .spawn()
-        .map(|_| ())
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+    // Reaped in the background, or the finished `open` stays a zombie until the app quits.
+    std::thread::spawn(move || {
+        let _ = child.wait();
+    });
+    Ok(())
 }
 
 // The lists the panel reads from Docker Desktop, and nothing else.
