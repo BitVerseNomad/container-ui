@@ -18,7 +18,7 @@ export function SelectionBar(props: SelectionBarProps): JSX.Element {
 
   async function handleRemove(): Promise<void> {
     const yes = await confirm({
-      title: `Remove ${count} containers?`,
+      title: `Remove ${count} container${count === 1 ? "" : "s"}?`,
       body: "This deletes the containers. Their images and volumes are kept, so you can run them again.",
       command: `docker --context ${ctx} rm -f {names}`,
       confirm: "Remove",
