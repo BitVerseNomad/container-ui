@@ -56,3 +56,12 @@ test("5. Missing scenario: tools missing, install them, then Start; the default 
   expect.soft(defaultShows, "missing: default machine shows after Start").toBeTruthy();
   await page.close();
 });
+
+test("6. Slow first answer: a running machine never shows the first-run card while the list loads.", async ({ page }) => {
+  await openPage(page, "/?scenario=running&slowprofiles=1#/containers", { width: 1280, height: 800 });
+  await page.waitForTimeout(500);
+  expect.soft(await page.locator("text=Start your first machine").count(), "no first-run card while loading").toBe(0);
+  await expect.soft(page.locator("text=Looking for your machines")).toBeVisible();
+  await page.locator(".list .row .name").filter({ hasText: "web" }).waitFor({ state: "attached", timeout: 10000 });
+  await page.close();
+});

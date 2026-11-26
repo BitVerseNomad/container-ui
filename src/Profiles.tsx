@@ -94,7 +94,6 @@ export default function Profiles({ profiles, reload, openNew = false, kubeOn = (
         <OpButton variant="primary" size="sm" onClick={openForm}>New machine</OpButton>
       </Header>
       <p className="hint lead">A machine is a separate Colima VM with its own containers, images and volumes. Most people only need <b>default</b>.</p>
-      <OutputLog event="colima-progress" active={!!busy} status={busy ?? undefined} failure={error} onClear={() => setError(null)} />
       {profiles.length === 0 && !dialogOpen && <Empty title="No Colima machines yet">Create one to start a container runtime on this machine.</Empty>}
       {profiles.length > 0 && (
         <table>
@@ -138,6 +137,8 @@ export default function Profiles({ profiles, reload, openNew = false, kubeOn = (
           </tbody>
         </table>
       )}
+      {/* Below the list: a live log above it pushed every row down while a machine started. */}
+      <OutputLog event="colima-progress" active={!!busy} status={busy ?? undefined} failure={error} onClear={() => setError(null)} />
 
       {editing && (
         <EditPanel
