@@ -1,5 +1,5 @@
 import { openUrl } from "./api";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { score } from "./lib/fuzzy";
 import { Button as OpButton, Field, Select } from "./ui/op";
 import { Header } from "./Header";
@@ -28,15 +28,26 @@ export default function Networks({ ctx }: { ctx: string }) {
   const [q, setQ] = useState("");
   const shown = (nets.data ?? []).filter((n) => score(`${n.name} ${n.subnet} ${n.members.map((m) => m.name).join(" ")}`, q) > 0);
 
-  async function act(args: string[]) {
+  // One action at a time: a second Enter or click while the first runs would only fail with "already exists".
+  const working = useRef(false);
+  // Resolves true when Docker accepted it.
+  async function act(args: string[]): Promise<boolean> {
+    if (working.current) return false;
+    working.current = true;
+    let ok = true;
     try {
       await docker(ctx, args);
       setErr(null);
     } catch (e) {
       setErr(String(e));
+      ok = false;
+    } finally {
+      working.current = false;
     }
     nets.reload();
+    return ok;
   }
+  const create = async () => { if (await act(["network", "create", newName.trim()])) setNewName(""); };
 
   const valid = NAME.test(newName.trim()) && !BUILTIN.has(newName.trim());
 
@@ -50,8 +61,8 @@ export default function Networks({ ctx }: { ctx: string }) {
         <OpButton variant="ghost" size="sm" onClick={() => openUrl(BRIDGE_DOCS)}>Learn more on <span className="font-mono text-fg-muted">docs.docker.com</span></OpButton>
       </p>
       <div className="flex items-center gap-2">
-        <Field className="w-64" aria-label="New network name" placeholder="New network name, like devnet" value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && valid && act(["network", "create", newName.trim()]).then(() => setNewName(""))} />
-        <OpButton variant="primary" size="sm" disabled={!valid} onClick={async () => { await act(["network", "create", newName.trim()]); setNewName(""); }}>Create network</OpButton>
+        <Field className="w-64" aria-label="New network name" placeholder="New network name, like devnet" value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && valid && void create()} />
+        <OpButton variant="primary" size="sm" disabled={!valid} onClick={create}>Create network</OpButton>
       </div>
       <Banner error={nets.error ?? err} onClose={() => setErr(null)} />
       {nets.data && nets.data.length === 0 && <Empty title="No networks">Docker creates a few built-in ones when it starts.</Empty>}
@@ -89,7 +100,7 @@ export default function Networks({ ctx }: { ctx: string }) {
                     {!builtin && free.length > 0 && (
                       <span className="flex items-center gap-2">
                         <Select width="pick" aria-label={`Connect a container to ${n.name}`} value={pick[n.name] || "none"} onChange={(v) => setPick({ ...pick, [n.name]: v === "none" ? "" : v })} options={[{ value: "none", label: "Connect a container…" }, ...free.map((c) => ({ value: c.Names, label: c.Names }))]} />
-                        <OpButton variant="default" size="sm" disabled={!pick[n.name]} onClick={async () => { await act(["network", "connect", n.name, pick[n.name]]); setPick({ ...pick, [n.name]: "" }); }}>Connect</OpButton>
+                        <OpButton variant="default" size="sm" disabled={!pick[n.name]} onClick={async () => { if (await act(["network", "connect", n.name, pick[n.name]])) setPick({ ...pick, [n.name]: "" }); }}>Connect</OpButton>
                       </span>
                     )}
                   </td>

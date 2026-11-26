@@ -278,6 +278,11 @@ fn run_port_ok(s: &str) -> bool {
 // A named volume, or a folder inside the Mac home that Colima shares. Never the home itself, never a
 // hidden path (~/.ssh, ~/.aws, ~/.zshrc), never ~/Library (keychains, app data), never the VM's own root or /var/run.
 fn run_source_ok(src: &str, home: &str) -> bool {
+    run_source_ok_lexical(src, home)
+        && (!src.starts_with('/') || target_ok(src, home, run_source_ok_lexical))
+}
+
+fn run_source_ok_lexical(src: &str, home: &str) -> bool {
     if !src.starts_with('/') {
         return run_name_ok(src);
     }
@@ -352,6 +357,11 @@ fn probe_args(context: &str, from: &str, target: &str, port: u16) -> Vec<String>
     .collect()
 }
 
+// The first probe pulls the helper image (about 400 MB), which takes minutes on a slow link. The ordinary 60 s read
+// limit would kill it mid-pull and blame Docker or Colima. The probe container is started with --rm and no fixed
+// name, so a killed run leaves nothing that blocks the next try.
+const PROBE_DEADLINE: Duration = Duration::from_secs(600);
+
 #[tauri::command]
 async fn network_probe(
     context: String,
@@ -360,7 +370,8 @@ async fn network_probe(
     port: u16,
 ) -> Result<String, String> {
     probe_inputs_ok(&context, &from, &target, port)?;
-    exec("docker", probe_args(&context, &from, &target, port), true).await
+    let args = probe_args(&context, &from, &target, port);
+    exec_with_deadline("docker", args, true, None, PROBE_DEADLINE).await
 }
 
 // `docker events` streams forever unless it has an end time, so it only runs with a --since and --until window
@@ -487,6 +498,16 @@ fn terminal_script(command: &str) -> Option<String> {
 }
 
 // Opens Terminal.app on one fixed command: k9s for a cluster, or a shell inside a running container.
+// Starts a program and does not wait for it. A thread collects its exit status, so the finished child does not
+// stay behind as a zombie for as long as the app runs.
+fn spawn_detached(cmd: &mut Command) -> std::io::Result<()> {
+    let mut child = cmd.spawn()?;
+    std::thread::spawn(move || {
+        let _ = child.wait();
+    });
+    Ok(())
+}
+
 #[tauri::command]
 fn open_terminal(kind: String, context: String, target: Option<String>) -> Result<(), String> {
     let command = terminal_command(&kind, &context, target.as_deref())?;
@@ -494,16 +515,13 @@ fn open_terminal(kind: String, context: String, target: Option<String>) -> Resul
         return Err("Opening Terminal is only supported on macOS".into());
     }
     let script = terminal_script(&command).ok_or("That command isn't safe to open")?;
-    Command::new("osascript")
-        .args([
-            "-e",
-            &script,
-            "-e",
-            "tell application \"Terminal\" to activate",
-        ])
-        .spawn()
-        .map(|_| ())
-        .map_err(|e| e.to_string())
+    spawn_detached(Command::new("osascript").args([
+        "-e",
+        &script,
+        "-e",
+        "tell application \"Terminal\" to activate",
+    ]))
+    .map_err(|e| e.to_string())
 }
 
 // Homebrew's own installer line, fixed text. It asks for the person's password, so it runs in Terminal, not in the app.
@@ -514,16 +532,13 @@ fn open_homebrew_install() -> Result<(), String> {
     if !cfg!(target_os = "macos") {
         return Err("Opening Terminal is only supported on macOS".into());
     }
-    Command::new("osascript")
-        .args([
-            "-e",
-            BREW_INSTALL_SCRIPT,
-            "-e",
-            "tell application \"Terminal\" to activate",
-        ])
-        .spawn()
-        .map(|_| ())
-        .map_err(|e| e.to_string())
+    spawn_detached(Command::new("osascript").args([
+        "-e",
+        BREW_INSTALL_SCRIPT,
+        "-e",
+        "tell application \"Terminal\" to activate",
+    ]))
+    .map_err(|e| e.to_string())
 }
 
 fn terminal_command(kind: &str, context: &str, target: Option<&str>) -> Result<String, String> {
@@ -712,6 +727,16 @@ async fn exec_in(
     merge_stderr: bool,
     cwd: Option<String>,
 ) -> Result<String, String> {
+    exec_with_deadline(bin, args, merge_stderr, cwd, EXEC_DEADLINE).await
+}
+
+async fn exec_with_deadline(
+    bin: &'static str,
+    args: Vec<String>,
+    merge_stderr: bool,
+    cwd: Option<String>,
+    deadline: Duration,
+) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let missing = |e: std::io::Error| format!("Could not run {bin}: {e}. Is it installed?");
         // Interleave stdout and stderr in the order the program wrote them (needed for logs).
@@ -724,7 +749,7 @@ async fn exec_in(
         if let Some(dir) = &cwd {
             cmd.current_dir(dir);
         }
-        let (ok, stdout, stderr) = output_with_deadline(cmd, EXEC_DEADLINE).map_err(|e| {
+        let (ok, stdout, stderr) = output_with_deadline(cmd, deadline).map_err(|e| {
             if wsl::via_wsl() && e.kind() == std::io::ErrorKind::NotFound {
                 "Windows Subsystem for Linux is not installed. In PowerShell run `wsl --install`, then restart Windows.".to_string()
             } else {
@@ -1249,6 +1274,31 @@ async fn start_profile(app: tauri::AppHandle, opts: StartOpts) -> Result<(), Str
     colima_stream(app, vec![start_args(&opts)]).await
 }
 
+// Checked before the VM is stopped, so a refusal changes nothing.
+// shortcut: the disk is only checked for being at least 1 GiB; "not smaller than now" needs the current size, which StartOpts does not carry.
+fn validate_resources(o: &StartOpts, host_cpus: u32) -> Result<(), String> {
+    let refuse = |why: String| Err(format!("Nothing changed: {why}"));
+    if let Some(r) = o.runtime.as_deref() {
+        if !matches!(r, "docker" | "containerd" | "incus") {
+            return refuse(format!(
+                "\"{r}\" is not a runtime (docker, containerd or incus)."
+            ));
+        }
+    }
+    if let Some(c) = o.cpus {
+        if c < 1 || c > host_cpus {
+            return refuse(format!("CPUs must be from 1 to {host_cpus}, not {c}."));
+        }
+    }
+    if o.memory == Some(0) {
+        return refuse("memory must be at least 1 GiB.".into());
+    }
+    if o.disk == Some(0) {
+        return refuse("disk must be at least 1 GiB.".into());
+    }
+    Ok(())
+}
+
 // Colima applies CPU/memory/disk changes on the next start, so a running VM is stopped first.
 // If the stop fails, nothing has changed. If the start fails, the profile is left stopped.
 #[tauri::command]
@@ -1258,6 +1308,10 @@ async fn apply_resources(
     restart: bool,
 ) -> Result<(), String> {
     profile(&opts.name)?;
+    validate_resources(&opts, host_resources().cpus)?;
+    if restart {
+        refuse_while_copying()?;
+    }
     let mut steps = Vec::new();
     if restart {
         steps.push(vec!["stop".to_string(), opts.name.clone()]);
@@ -1384,15 +1438,33 @@ struct MountSpec {
 // CSV), not the Mac's root or system folders, and never another user's. Under the home folder it is never hidden
 // (~/.ssh) or ~/Library. Same rule as src/lib/mounts.ts.
 fn mount_ok(path: &str, home: &str) -> bool {
+    mount_ok_lexical(path, home) && target_ok(path, home, mount_ok_lexical)
+}
+
+// A symlink is judged by where it leads (~/Desktop/k -> ~/.aws), so the real path must pass the same rule.
+// A path that does not exist yet has no target to check.
+fn target_ok(path: &str, home: &str, rule: fn(&str, &str) -> bool) -> bool {
+    let Ok(real) = std::fs::canonicalize(path) else {
+        return true;
+    };
+    let real_home = std::fs::canonicalize(home).unwrap_or_else(|_| home.into());
+    match (real.to_str(), real_home.to_str()) {
+        (Some(r), Some(h)) => rule(r, h),
+        _ => false,
+    }
+}
+
+fn mount_ok_lexical(path: &str, home: &str) -> bool {
+    // macOS folders are case-insensitive by default, so every comparison is on lowercase text.
     const SYSTEM: &[&str] = &[
-        "System",
+        "system",
         "usr",
         "bin",
         "sbin",
         "etc",
         "var",
-        "Library",
-        "Applications",
+        "library",
+        "applications",
         "cores",
         "dev",
         "private/etc",
@@ -1414,6 +1486,14 @@ fn mount_ok(path: &str, home: &str) -> bool {
     {
         return false;
     }
+    let (path, home) = (path.to_lowercase(), home.to_lowercase());
+    if path == home {
+        return true;
+    }
+    if let Some(inner) = path.strip_prefix(&format!("{home}/")) {
+        let first = inner.split('/').next().unwrap_or("");
+        return !first.starts_with("library") && inner.split('/').all(|c| !c.starts_with('.'));
+    }
     let rest = &path[1..];
     if SYSTEM
         .iter()
@@ -1421,15 +1501,7 @@ fn mount_ok(path: &str, home: &str) -> bool {
     {
         return false;
     }
-    if path == home {
-        return true;
-    }
-    if let Some(inner) = path.strip_prefix(&format!("{home}/")) {
-        let first = inner.split('/').next().unwrap_or("");
-        return !first.to_lowercase().starts_with("library")
-            && inner.split('/').all(|c| !c.starts_with('.'));
-    }
-    !path.starts_with("/Users/") && path.split('/').count() >= 3
+    !path.starts_with("/users/") && path.split('/').count() >= 3
 }
 
 // Colima refuses two folders when one path starts with the other; refused here first, before anything stops.
@@ -1501,6 +1573,7 @@ async fn apply_mounts(
     force: Option<bool>,
 ) -> Result<(), String> {
     profile(&name)?;
+    refuse_while_copying()?;
     let home = std::env::var("HOME").unwrap_or_default();
     let steps = mounts_steps(
         &name,
@@ -1580,6 +1653,7 @@ async fn apply_env(
     force: Option<bool>,
 ) -> Result<(), String> {
     profile(&name)?;
+    refuse_while_copying()?;
     let steps = env_steps(&name, &env, restart.unwrap_or(true))?;
     colima_stream(
         app,
@@ -1592,9 +1666,26 @@ async fn apply_env(
     .await
 }
 
+// A copy or replace from Docker Desktop holds COPY_LOCK. Stopping or deleting the VM under it would cut the copy
+// in half, so those commands refuse while it runs. A poisoned lock means a copy panicked, so nothing is running.
+const COPY_BUSY: &str =
+    "A copy from Docker Desktop is still running. Wait for it or stop it first.";
+
+fn copy_busy(lock: &Mutex<()>) -> Result<(), String> {
+    match lock.try_lock() {
+        Err(TryLockError::WouldBlock) => Err(COPY_BUSY.into()),
+        _ => Ok(()),
+    }
+}
+
+fn refuse_while_copying() -> Result<(), String> {
+    copy_busy(&desktop::COPY_LOCK)
+}
+
 #[tauri::command]
 async fn stop_profile(app: tauri::AppHandle, name: String) -> Result<(), String> {
     profile(&name)?;
+    refuse_while_copying()?;
     colima_stream(app, vec![vec!["stop".into(), name]]).await
 }
 
@@ -1602,12 +1693,14 @@ async fn stop_profile(app: tauri::AppHandle, name: String) -> Result<(), String>
 #[tauri::command]
 async fn force_stop_profile(app: tauri::AppHandle, name: String) -> Result<(), String> {
     profile(&name)?;
+    refuse_while_copying()?;
     colima_stream(app, vec![vec!["stop".into(), "--force".into(), name]]).await
 }
 
 #[tauri::command]
 async fn restart_profile(app: tauri::AppHandle, name: String) -> Result<(), String> {
     profile(&name)?;
+    refuse_while_copying()?;
     colima_stream(app, vec![vec!["restart".into(), name]]).await
 }
 
@@ -1615,6 +1708,7 @@ async fn restart_profile(app: tauri::AppHandle, name: String) -> Result<(), Stri
 #[tauri::command]
 async fn force_restart_profile(app: tauri::AppHandle, name: String) -> Result<(), String> {
     profile(&name)?;
+    refuse_while_copying()?;
     colima_stream(
         app,
         vec![
@@ -1717,17 +1811,13 @@ fn vm_log_path(name: &str) -> Result<std::path::PathBuf, String> {
 #[tauri::command]
 fn reveal_vm_log(name: String) -> Result<(), String> {
     let path = vm_log_path(&name)?;
-    Command::new("/usr/bin/open")
-        .args(["-R"])
-        .arg(path)
-        .spawn()
-        .map(|_| ())
-        .map_err(|e| e.to_string())
+    spawn_detached(Command::new("/usr/bin/open").args(["-R"]).arg(path)).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 async fn delete_profile(app: tauri::AppHandle, name: String) -> Result<(), String> {
     profile(&name)?;
+    refuse_while_copying()?;
     colima_stream(app, vec![vec!["delete".into(), "--force".into(), name]]).await
 }
 
@@ -1763,16 +1853,23 @@ fn open_url(url: String) -> Result<(), String> {
     if !localhost_url(&url) && !https_url_ok(&url) {
         return Err("Only http://localhost and https links can be opened".into());
     }
-    let opener = if cfg!(target_os = "macos") {
-        "open"
-    } else {
-        "xdg-open"
-    };
-    Command::new(opener)
-        .arg(&url)
-        .spawn()
-        .map(|_| ())
-        .map_err(|e| e.to_string())
+    let (program, args) = opener_command(std::env::consts::OS, &url);
+    let mut cmd = Command::new(program);
+    cmd.args(args).isolate();
+    spawn_detached(&mut cmd).map_err(|e| e.to_string())
+}
+
+// The program that opens a link in the default browser: `open` on macOS, the URL handler on Windows (no
+// xdg-open there), xdg-open elsewhere. `os` is std::env::consts::OS, passed in so each choice can be tested.
+fn opener_command(os: &str, url: &str) -> (&'static str, Vec<String>) {
+    match os {
+        "macos" => ("open", vec![url.into()]),
+        "windows" => (
+            "rundll32",
+            vec!["url.dll,FileProtocolHandler".into(), url.into()],
+        ),
+        _ => ("xdg-open", vec![url.into()]),
+    }
 }
 
 // The native macOS folder chooser, so the Run panel never asks for a typed path. Ok(None) means the user cancelled.
@@ -1878,7 +1975,7 @@ fn compose_paths(out: &str, home: &str) -> Vec<String> {
             };
             dir.starts_with('/')
                 && COMPOSE_NAMES.contains(&file)
-                && run_source_ok(dir, home)
+                && run_source_ok_lexical(dir, home)
                 && !dir.split('/').any(|c| COMPOSE_SKIP_DIRS.contains(&c))
                 && !format!("{dir}/").contains("/pkg/mod/")
         })
@@ -2199,11 +2296,7 @@ fn open_with_fallback(
 fn reveal_compose(path: String) -> Result<(), String> {
     let home = std::env::var("HOME").unwrap_or_default();
     let real = compose_real_path(&path, &home)?;
-    Command::new("/usr/bin/open")
-        .args(["-R", &real])
-        .spawn()
-        .map(|_| ())
-        .map_err(|e| e.to_string())
+    spawn_detached(Command::new("/usr/bin/open").args(["-R", &real])).map_err(|e| e.to_string())
 }
 
 // Which app Open would use for this file ("textedit" or "editor"), so the page can say the smart quotes hint before
@@ -2658,6 +2751,7 @@ fn main() {
             registry::registry_login,
             registry::aws_profiles,
             registry::aws_sso_login,
+            registry::aws_sso_cancel,
             env_check,
             platform_info,
             install_tools,
@@ -4373,6 +4467,139 @@ mod tests {
             assert!(!mount_ok(bad, home), "{bad}");
         }
         assert!(!mount_ok("/Users/me", ""), "no home known");
+    }
+
+    #[test]
+    fn given_folders_in_other_letter_case_when_checked_for_sharing_then_they_are_judged_like_the_real_ones(
+    ) {
+        let home = "/Users/me";
+        for bad in [
+            "/users/me/.ssh",
+            "/Users/ME/.ssh",
+            "/library/Keychains",
+            "/ETC/ssh",
+            "/PRIVATE/var/root",
+            "/users/other/x",
+            "/USERS/other/x",
+        ] {
+            assert!(!mount_ok(bad, home), "{bad}");
+        }
+        assert!(mount_ok("/users/me/code", home), "same folder, other case");
+    }
+
+    fn res_opts(cpus: Option<u32>, memory: Option<u32>, runtime: Option<&str>) -> StartOpts {
+        StartOpts {
+            name: "default".into(),
+            cpus,
+            memory,
+            disk: None,
+            runtime: runtime.map(String::from),
+            kubernetes: None,
+        }
+    }
+
+    #[test]
+    fn given_bad_resources_when_validated_then_nothing_changed_is_the_answer() {
+        for (o, why) in [
+            (res_opts(Some(0), None, None), "CPUs"),
+            (res_opts(Some(9), None, None), "CPUs"),
+            (res_opts(None, Some(0), None), "memory"),
+            (res_opts(None, None, Some("podman")), "podman"),
+        ] {
+            let err = validate_resources(&o, 8).unwrap_err();
+            assert!(err.starts_with("Nothing changed: "), "{err}");
+            assert!(err.contains(why), "{err}");
+        }
+        for r in ["docker", "containerd", "incus"] {
+            assert!(validate_resources(&res_opts(Some(8), Some(1), Some(r)), 8).is_ok());
+        }
+        assert!(validate_resources(&res_opts(None, None, None), 8).is_ok());
+    }
+
+    #[test]
+    fn given_each_os_when_a_link_is_opened_then_the_right_program_runs() {
+        let u = "https://example.com/a";
+        assert_eq!(opener_command("macos", u), ("open", vec![u.to_string()]));
+        assert_eq!(
+            opener_command("windows", u),
+            (
+                "rundll32",
+                vec!["url.dll,FileProtocolHandler".to_string(), u.to_string()]
+            )
+        );
+        assert_eq!(
+            opener_command("linux", u),
+            ("xdg-open", vec![u.to_string()])
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn given_a_detached_child_when_it_ends_then_it_is_collected_and_a_missing_program_is_an_error()
+    {
+        assert!(spawn_detached(&mut Command::new("/usr/bin/true")).is_ok());
+        assert!(spawn_detached(&mut Command::new("/no/such/program")).is_err());
+    }
+
+    #[test]
+    fn given_a_copy_holding_the_lock_when_checked_then_it_is_busy_and_a_poisoned_lock_is_not() {
+        let lock = Mutex::new(());
+        assert_eq!(copy_busy(&lock), Ok(()));
+        {
+            let _held = lock.lock().unwrap();
+            assert_eq!(copy_busy(&lock), Err(COPY_BUSY.to_string()));
+        }
+        assert_eq!(copy_busy(&lock), Ok(()), "released again");
+        let poisoned = Mutex::new(());
+        let _ = std::thread::scope(|sc| {
+            sc.spawn(|| {
+                let _g = poisoned.lock().unwrap();
+                panic!("copy died");
+            })
+            .join()
+        });
+        assert!(poisoned.is_poisoned());
+        assert_eq!(copy_busy(&poisoned), Ok(()));
+    }
+
+    #[test]
+    fn given_the_probe_when_it_pulls_its_image_then_it_gets_more_time_than_a_read_and_leaves_no_named_container(
+    ) {
+        assert!(PROBE_DEADLINE >= Duration::from_secs(600));
+        assert!(PROBE_DEADLINE > EXEC_DEADLINE);
+        let args = probe_args("colima", "web", "db", 5432);
+        assert!(args.contains(&"--rm".to_string()));
+        assert!(!args.contains(&"--name".to_string()));
+    }
+
+    fn scratch_dir(tag: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("container-ui-{tag}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn given_a_link_to_a_hidden_folder_when_checked_then_it_is_judged_by_its_target() {
+        let root = scratch_dir("mount-link");
+        let home = root.join("home");
+        std::fs::create_dir_all(home.join(".aws")).unwrap();
+        std::fs::create_dir_all(home.join("Desktop")).unwrap();
+        std::fs::create_dir_all(home.join("code")).unwrap();
+        std::os::unix::fs::symlink(home.join(".aws"), home.join("Desktop/k")).unwrap();
+        std::os::unix::fs::symlink(home.join("code"), home.join("Desktop/c")).unwrap();
+        let h = home.to_str().unwrap();
+        let link = home.join("Desktop/k");
+        let fine = home.join("Desktop/c");
+        assert!(!mount_ok(link.to_str().unwrap(), h), "mount link to .aws");
+        assert!(
+            !run_source_ok(link.to_str().unwrap(), h),
+            "run link to .aws"
+        );
+        assert!(mount_ok(fine.to_str().unwrap(), h), "mount link to code");
+        assert!(run_source_ok(fine.to_str().unwrap(), h), "run link to code");
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]

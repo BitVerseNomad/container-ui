@@ -17,12 +17,10 @@
   "src/Profiles.tsx",
   "src/Resize.tsx",
   "src/Setup.tsx",
-  "src/Sparkline.tsx",
   "src/VmStrip.tsx",
   "src/Volumes.tsx",
   "src/main.tsx",
   "src/ui.tsx",
-  "src/ui/Badge.tsx",
   "src/ui/Button.tsx",
   "src/ui/Card.tsx",
   "src/ui/Dialog.tsx",
@@ -30,7 +28,6 @@
   "src/ui/ErrorBoundary.tsx",
   "src/ui/IconButton.tsx",
   "src/ui/Input.tsx",
-  "src/ui/Label.tsx",
   "src/ui/Menu.tsx",
   "src/ui/Meter.tsx",
   "src/ui/OutputLog.tsx",
@@ -55,6 +52,5 @@
   "src/ui/components/Sidebar.tsx",
   "src/ui/components/Table.tsx",
   "src/ui/components/Tooltip.tsx",
-  "src/ui/icons.tsx",
-  "src/ui/ui.tsx"
+  "src/ui/icons.tsx"
 ]
