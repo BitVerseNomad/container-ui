@@ -961,9 +961,64 @@ fn replace_inputs_ok(name: &str, context: &str, backup: &str) -> Result<(), Stri
     Ok(())
 }
 
-// A helper run inside Colima that Stop can end: its own process group, its pid with the copy's, its container
-// removed by name after a kill (killing the CLI leaves the container running).
-fn run_stoppable(context: &str, args: &[String], helper: &str) -> Result<(), String> {
+// How long, in the words the panel shows.
+fn span_words(d: Duration) -> String {
+    let s = d.as_secs();
+    if s < 120 {
+        format!("{s} seconds")
+    } else {
+        format!("{} minutes", s / 60)
+    }
+}
+
+// `docker rm -f` on a helper that is already gone is fine.
+fn helper_removed(r: &Result<String, String>) -> bool {
+    match r {
+        Ok(_) => true,
+        Err(e) => e.contains("No such container"),
+    }
+}
+
+fn helper_failure(
+    timed_out: bool,
+    stopped: bool,
+    stderr: &str,
+    deadline: Duration,
+    removed: bool,
+) -> String {
+    if stopped {
+        return "Stopped.".into();
+    }
+    let mut m = if timed_out {
+        format!("The step did not finish in {}.", span_words(deadline))
+    } else if stderr.is_empty() {
+        "The copy failed with no message.".into()
+    } else {
+        stderr.chars().take(2000).collect()
+    };
+    m.push_str(if removed {
+        if timed_out {
+            " Its helper was removed."
+        } else {
+            ""
+        }
+    } else {
+        " The helper could not be removed; remove it in Containers before trying again."
+    });
+    m
+}
+
+// A helper container run inside Colima. A kill or a deadline only ends the docker CLI, the container keeps running
+// (an `rm -rf` would go on emptying the volume), so on any failure the container is removed by name and that is
+// awaited before returning: the restore that may follow must not find the volume still in use.
+// stoppable: Stop can end it (its pid joins the copy's). The restore is never stoppable: it is the way back.
+fn run_helper(
+    args: &[String],
+    helper: &str,
+    context: &str,
+    deadline: Duration,
+    stoppable: bool,
+) -> Result<(), String> {
     let mut child = Command::new(find_bin("docker"))
         .args(args)
         .env("PATH", path_env())
@@ -973,36 +1028,36 @@ fn run_stoppable(context: &str, args: &[String], helper: &str) -> Result<(), Str
         .isolate()
         .spawn()
         .map_err(|e| e.to_string())?;
-    *COPY_PIDS.lock().unwrap_or_else(|p| p.into_inner()) = vec![child.id()];
-    if COPY_STOPPED.load(Ordering::SeqCst) {
-        kill_group(child.id());
+    if stoppable {
+        *COPY_PIDS.lock().unwrap_or_else(|p| p.into_inner()) = vec![child.id()];
+        if COPY_STOPPED.load(Ordering::SeqCst) {
+            kill_group(child.id());
+        }
     }
     let err = read_capped(child.stderr.take().expect("piped"));
-    let ok = match wait_bounded(&mut child, AFTER_LAST_BYTE) {
+    let mut timed_out = false;
+    let ok = match wait_bounded(&mut child, deadline) {
         Some(s) => s.success(),
         None => {
+            timed_out = true;
             kill_group(child.id());
             let _ = child.kill();
             let _ = child.wait();
             false
         }
     };
-    COPY_PIDS.lock().unwrap_or_else(|p| p.into_inner()).clear();
+    if stoppable {
+        COPY_PIDS.lock().unwrap_or_else(|p| p.into_inner()).clear();
+    }
     let msg = String::from_utf8_lossy(&err.join().unwrap_or_default())
         .trim()
         .to_string();
     if ok {
         return Ok(());
     }
-    let _ = quick(&strs(&["--context", context, "rm", "-f", helper]));
-    if COPY_STOPPED.load(Ordering::SeqCst) {
-        return Err("Stopped.".into());
-    }
-    Err(if msg.is_empty() {
-        "The copy failed with no message.".into()
-    } else {
-        msg.chars().take(2000).collect()
-    })
+    let removed = helper_removed(&quick(&strs(&["--context", context, "rm", "-f", helper])));
+    let stopped = stoppable && COPY_STOPPED.load(Ordering::SeqCst);
+    Err(helper_failure(timed_out, stopped, &msg, deadline, removed))
 }
 
 // The steps of a replace, so the order and the restore can be tested without Docker.
@@ -1134,10 +1189,12 @@ impl<F: FnMut(u64), S: FnMut(&str)> ReplaceOps for RealReplace<'_, F, S> {
             None,
         ))?;
         let h = self.helper("backup");
-        run_stoppable(
-            self.context,
+        run_helper(
             &volume_fill(self.context, self.name, self.backup, &h),
             &h,
+            self.context,
+            AFTER_LAST_BYTE,
+            true,
         )?;
         let (a, b) = (
             count(self.context, self.name, wait),
@@ -1176,7 +1233,13 @@ impl<F: FnMut(u64), S: FnMut(&str)> ReplaceOps for RealReplace<'_, F, S> {
         plain_volume(self.name, &inspect_volume(self.context, self.name)?)?;
         (self.on_step)("empty");
         let h = self.helper("empty");
-        quick_for(&volume_empty(self.context, self.name, &h), COPY_SILENCE).map(|_| ())
+        run_helper(
+            &volume_empty(self.context, self.name, &h),
+            &h,
+            self.context,
+            COPY_SILENCE,
+            true,
+        )
     }
     fn copy_in(&mut self) -> Result<u64, String> {
         self.quiet(true)?;
@@ -1211,10 +1274,19 @@ impl<F: FnMut(u64), S: FnMut(&str)> ReplaceOps for RealReplace<'_, F, S> {
         (self.on_step)("restore");
         let (e, f) = (self.helper("restore-empty"), self.helper("restore"));
         plain_volume(self.name, &inspect_volume(self.context, self.name)?)?;
-        quick_for(&volume_empty(self.context, self.name, &e), COPY_SILENCE)?;
-        quick_for(
+        run_helper(
+            &volume_empty(self.context, self.name, &e),
+            &e,
+            self.context,
+            COPY_SILENCE,
+            false,
+        )?;
+        run_helper(
             &volume_fill(self.context, self.backup, self.name, &f),
+            &f,
+            self.context,
             AFTER_LAST_BYTE,
+            false,
         )?;
         self.same(self.backup, self.name, "The restored copy")
     }
@@ -1872,5 +1944,33 @@ mod tests {
         let e = created_ours(&Ok("null".into()), "m1").unwrap_err();
         assert!(e.contains("Another program") && e.contains("left alone"));
         assert!(created_ours(&Err("boom".into()), "m1").is_err());
+    }
+
+    #[test]
+    fn given_a_helper_that_timed_out_when_the_failure_is_worded_then_it_says_so_and_whether_it_was_removed(
+    ) {
+        let d = Duration::from_secs(600);
+        let m = helper_failure(true, false, "", d, true);
+        assert!(m.contains("10 minutes") && m.contains("was removed"), "{m}");
+        let m = helper_failure(true, false, "", d, false);
+        assert!(m.contains("could not be removed"), "{m}");
+        assert_eq!(helper_failure(false, true, "x", d, true), "Stopped.");
+        assert_eq!(
+            helper_failure(false, false, "disk full", d, true),
+            "disk full"
+        );
+        assert!(helper_failure(false, false, "", d, true).contains("no message"));
+        assert!(
+            helper_failure(false, false, "disk full", d, false).contains("could not be removed")
+        );
+    }
+
+    #[test]
+    fn given_a_remove_result_when_checked_then_a_missing_container_counts_as_removed() {
+        assert!(helper_removed(&Ok(String::new())));
+        assert!(helper_removed(&Err(
+            "Error response: No such container: h".into()
+        )));
+        assert!(!helper_removed(&Err("cannot connect to the daemon".into())));
     }
 }
