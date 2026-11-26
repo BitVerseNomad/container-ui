@@ -357,9 +357,7 @@ pub fn point_testcontainers(props: &str, socket: &str) -> String {
 pub fn report() -> SetupReport {
     let config = read_json(&docker_config_path());
     let creds_store = config["credsStore"].as_str().map(String::from);
-    let creds_helper_found = creds_store
-        .as_ref()
-        .is_none_or(|s| crate::locate(&format!("docker-credential-{s}")).is_some());
+    let creds_helper_found = creds_store.as_ref().is_none_or(|s| creds_helper_found(s));
     let brew_plugin_dir = BREW_PLUGIN_DIRS
         .iter()
         .find(|d| Path::new(d).is_dir())
@@ -425,6 +423,73 @@ pub fn add_extra_dir(config: &mut Value, dir: &str) -> bool {
     }
     list.push(Value::String(dir.into()));
     true
+}
+
+// A store name becomes part of a file name and reaches a shell, so only these characters are accepted.
+fn cred_store_name_ok(store: &str) -> bool {
+    !store.is_empty()
+        && store
+            .bytes()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || matches!(b, b'_' | b'-'))
+}
+
+// Where users keep helpers that a Finder-launched app's short PATH does not list: Rancher Desktop, MacPorts, pipx.
+fn cred_helper_dirs(home: &Path) -> Vec<PathBuf> {
+    vec![
+        home.join(".rd/bin"),
+        PathBuf::from("/opt/local/bin"),
+        home.join(".local/bin"),
+    ]
+}
+
+// The store goes in as a positional argument, never into the script text. fish names its arguments differently.
+fn shell_probe_args(shell: &str, store: &str) -> Vec<String> {
+    let first = if shell.rsplit('/').next() == Some("fish") {
+        "$argv[1]"
+    } else {
+        "$1"
+    };
+    vec![
+        "-lc".into(),
+        format!("command -v \"docker-credential-{first}\""),
+        "sh".into(),
+        store.into(),
+    ]
+}
+
+// The app's own PATH is short, so a helper in a place only the login shell knows (Nix, a custom PATH) is
+// asked for there too. A login shell may print noise, so only the last line counts, and only a real file.
+fn creds_helper_found(store: &str) -> bool {
+    if crate::locate(&format!("docker-credential-{store}")).is_some() {
+        return true;
+    }
+    if !cred_store_name_ok(store) {
+        return false;
+    }
+    let file = format!("docker-credential-{store}");
+    if cred_helper_dirs(&home())
+        .iter()
+        .any(|d| d.join(&file).is_file())
+    {
+        return true;
+    }
+    let shell = std::env::var("SHELL").unwrap_or_default();
+    if !Path::new(&shell).is_absolute() {
+        return false;
+    }
+    let mut cmd = Command::new(&shell);
+    cmd.args(shell_probe_args(&shell, store));
+    crate::output_with_deadline(cmd, std::time::Duration::from_secs(5))
+        .ok()
+        .filter(|(ok, _, _)| *ok)
+        .and_then(|(_, out, _)| {
+            String::from_utf8_lossy(&out)
+                .lines()
+                .map(str::trim)
+                .rfind(|l| !l.is_empty())
+                .map(PathBuf::from)
+        })
+        .is_some_and(|p| p.is_absolute() && p.is_file())
 }
 
 pub fn drop_missing_creds_store(config: &mut Value) -> bool {
@@ -566,7 +631,7 @@ pub fn fix(id: &str, profile: &str) -> Result<String, String> {
                 .as_str()
                 .map(String::from)
                 .ok_or("There is no credsStore to remove.")?;
-            if crate::locate(&format!("docker-credential-{store}")).is_some() {
+            if creds_helper_found(&store) {
                 return Err(format!(
                     "docker-credential-{store} is installed, so the setting works; leaving it."
                 ));
@@ -730,6 +795,39 @@ mod tests {
         let mut c = Value::Null;
         assert!(add_extra_dir(&mut c, "/x"));
         assert_eq!(c, json!({ "cliPluginsExtraDirs": ["/x"] }));
+    }
+
+    #[test]
+    fn given_store_names_when_validated_then_only_file_name_characters_pass() {
+        for ok in ["desktop", "osxkeychain", "ecr-login", "pass_2"] {
+            assert!(cred_store_name_ok(ok), "{ok}");
+        }
+        for bad in ["", "a b", "a;b", "$(id)", "Desktop", "../x", "a\nb", "a/b"] {
+            assert!(!cred_store_name_ok(bad), "{bad:?}");
+        }
+    }
+
+    #[test]
+    fn given_a_home_when_listing_helper_dirs_then_the_user_dirs_come_with_it() {
+        let dirs = cred_helper_dirs(Path::new("/Users/me"));
+        assert_eq!(
+            dirs,
+            [
+                PathBuf::from("/Users/me/.rd/bin"),
+                PathBuf::from("/opt/local/bin"),
+                PathBuf::from("/Users/me/.local/bin")
+            ]
+        );
+    }
+
+    #[test]
+    fn given_a_store_when_probing_the_shell_then_it_is_an_argument_not_script_text() {
+        let args = shell_probe_args("/bin/zsh", "desktop");
+        assert_eq!(args[0], "-lc");
+        assert_eq!(args[1], "command -v \"docker-credential-$1\"");
+        assert_eq!(args[3], "desktop");
+        assert!(!args[1].contains("desktop"));
+        assert!(shell_probe_args("/usr/bin/fish", "x")[1].contains("$argv[1]"));
     }
 
     #[test]
