@@ -114,8 +114,14 @@ export default function App() {
     if (id) go(buildPath({ page: "containers", id, tab: "logs" }));
     else if (parseRoute(window.location.hash)?.id) go("#/containers");
   }, []);
-  const [pullOnOpen, setPullOnOpen] = useState(false);
+  // One-shot asks: a count, so asking again on the same page opens it again; both go back to nothing when the page is left.
+  const [pullAsked, setPullAsked] = useState(0);
   const [newProfileOnOpen, setNewProfileOnOpen] = useState(false);
+  useEffect(() => {
+    if (tab !== "Images") setPullAsked(0);
+    if (tab !== "Profiles") setNewProfileOnOpen(false);
+  }, [tab]);
+  const askPull = useCallback(() => { setPullAsked((n) => n + 1); setTab("Images"); }, [setTab]);
   const [runPicker, setRunPicker] = useState(false);
   const [runImage, setRunImage] = useState<string | null>(null);
 
@@ -335,7 +341,7 @@ export default function App() {
             onVm={setVm}
             reload={reloadProfiles}
             setDetailId={setDetailId}
-            onPull={() => { setPullOnOpen(true); setTab("Images"); }}
+            onPull={askPull}
             onProfiles={() => { setNewProfileOnOpen(true); setTab("Profiles"); }}
             compose={compose}
             onImages={() => setTab("Images")}
@@ -394,9 +400,9 @@ export default function App() {
       )
     ) : tab === "Images" ? (
       <Images
-        key={`${ctx}-${pullOnOpen}`}
+        key={`${ctx}-${pullAsked}`}
         ctx={ctx}
-        startPull={pullOnOpen}
+        startPull={pullAsked > 0}
         arch={current?.arch}
         onRan={(id) => {
           setDetailId(id);
@@ -428,7 +434,7 @@ export default function App() {
     engine: () => setEngineOpen(true),
     fold: () => window.dispatchEvent(new Event("container-ui:fold")),
     run: () => setRunPicker(true),
-    pull: () => { setPullOnOpen(true); setTab("Images"); },
+    pull: askPull,
     search: focusPageSearch,
     "search-slash": focusPageSearch,
     back: () => window.history.back(),
@@ -438,7 +444,7 @@ export default function App() {
   };
   const keyboardShortcuts = useMemo(
     () => activeShortcuts().filter((s) => handlers[s.id]).map((s) => ({ key: s.key, meta: s.meta, shift: s.shift, description: s.label, action: handlers[s.id]! })),
-    [kubeOn, win, setTab, setCommandPaletteOpen, setLogOpen, setPullOnOpen, setNewProfileOnOpen, setHelpOpen],
+    [kubeOn, win, setTab, setCommandPaletteOpen, setLogOpen, askPull, setNewProfileOnOpen, setHelpOpen],
   );
 
   useKeyboardShortcuts(keyboardShortcuts);
@@ -481,7 +487,7 @@ export default function App() {
       } catch { /* group stays empty */ }
       const general: PaletteItem[] = [
         { id: "run", group: "Actions", label: "Run an image", kbd: "⌘N", run: () => { setTab("Images"); } },
-        { id: "pull", group: "Actions", label: "Pull an image", kbd: "⌘P", run: () => { setPullOnOpen(true); setTab("Images"); } },
+        { id: "pull", group: "Actions", label: "Pull an image", kbd: "⌘P", run: askPull },
         { id: "compose", group: "Actions", label: "Start a Compose project", run: () => { setTab("Containers"); } },
         ...(win ? [] : ([
           { id: "doctor", group: "Actions", label: "Run Doctor", kbd: "⌘D", run: () => { setTab("Doctor"); } },
