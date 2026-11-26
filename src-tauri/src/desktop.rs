@@ -7,7 +7,7 @@ use std::io::{Read, Write};
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard, TryLockError};
 use std::time::{Duration, Instant};
 use tauri::Emitter;
 
@@ -305,6 +305,27 @@ fn discard_decision(labels: &Result<String, String>, marker: &str) -> Discard {
 static COPY_PIDS: Mutex<Vec<u32>> = Mutex::new(Vec::new());
 static COPY_STOPPED: AtomicBool = AtomicBool::new(false);
 static COPY_LOCK: Mutex<()> = Mutex::new(());
+
+// A panic in an earlier copy poisons the lock; that is not "busy", the guard holds no data.
+fn try_lock_recover<T>(m: &Mutex<T>) -> Option<MutexGuard<'_, T>> {
+    match m.try_lock() {
+        Ok(g) => Some(g),
+        Err(TryLockError::Poisoned(p)) => Some(p.into_inner()),
+        Err(TryLockError::WouldBlock) => None,
+    }
+}
+
+// Takes the one copy slot and clears a Stop left over from an earlier run, so a page that never sent
+// desktop_copy_stop(false) can't make every later copy answer "Stopped.".
+fn begin_with<'a>(lock: &'a Mutex<()>, stopped: &AtomicBool) -> Result<MutexGuard<'a, ()>, String> {
+    let guard = try_lock_recover(lock).ok_or("Another copy is still running.")?;
+    stopped.store(false, Ordering::SeqCst);
+    Ok(guard)
+}
+
+fn begin_copy() -> Result<MutexGuard<'static, ()>, String> {
+    begin_with(&COPY_LOCK, &COPY_STOPPED)
+}
 
 // Streams `from`'s stdout into `to`'s stdin and counts the bytes on the way, which is the progress.
 // Both run in their own process group, so Stop and the silence watchdog also reach what docker started.
@@ -744,12 +765,7 @@ pub async fn desktop_copy(
         return Err(format!("\"{name}\" isn't a {kind} name the app can copy"));
     }
     tauri::async_runtime::spawn_blocking(move || {
-        let Ok(_guard) = COPY_LOCK.try_lock() else {
-            return Err("Another copy is still running.".to_string());
-        };
-        if COPY_STOPPED.load(Ordering::SeqCst) {
-            return Err("Stopped.".to_string());
-        }
+        let _guard = begin_copy()?;
         let mut sent = Instant::now() - Duration::from_secs(1);
         let report = |bytes: u64| {
             if sent.elapsed() >= Duration::from_millis(200) {
@@ -1376,12 +1392,7 @@ pub async fn desktop_replace(
 ) -> Result<Replaced, String> {
     replace_inputs_ok(&name, &context, &backup)?;
     tauri::async_runtime::spawn_blocking(move || {
-        let Ok(_guard) = COPY_LOCK.try_lock() else {
-            return Err("Another copy is still running.".to_string());
-        };
-        if COPY_STOPPED.load(Ordering::SeqCst) {
-            return Err("Stopped.".to_string());
-        }
+        let _guard = begin_copy()?;
         let mut sent = Instant::now() - Duration::from_secs(1);
         let report = |bytes: u64| {
             if sent.elapsed() >= Duration::from_millis(200) {
@@ -1972,5 +1983,37 @@ mod tests {
             "Error response: No such container: h".into()
         )));
         assert!(!helper_removed(&Err("cannot connect to the daemon".into())));
+    }
+
+    #[test]
+    fn given_a_lock_held_or_poisoned_when_taken_then_held_is_busy_and_poisoned_is_recovered() {
+        let m = Mutex::new(());
+        let held = m.lock().unwrap();
+        assert!(try_lock_recover(&m).is_none());
+        drop(held);
+        assert!(try_lock_recover(&m).is_some());
+
+        let m = Arc::new(Mutex::new(()));
+        let m2 = Arc::clone(&m);
+        let _ = std::thread::spawn(move || {
+            let _g = m2.lock().unwrap();
+            panic!("poison it");
+        })
+        .join();
+        assert!(m.is_poisoned());
+        assert!(try_lock_recover(&m).is_some());
+    }
+
+    #[test]
+    fn given_a_stale_stop_flag_when_a_copy_begins_then_the_flag_is_cleared_and_a_second_copy_is_busy(
+    ) {
+        let (lock, stopped) = (Mutex::new(()), AtomicBool::new(true));
+        let first = begin_with(&lock, &stopped).unwrap();
+        assert!(!stopped.load(Ordering::SeqCst));
+        assert_eq!(
+            begin_with(&lock, &stopped).err().unwrap(),
+            "Another copy is still running."
+        );
+        drop(first);
     }
 }
