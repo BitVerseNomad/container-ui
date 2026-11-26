@@ -1,7 +1,7 @@
 // Sign in to Amazon ECR for Docker: `aws ecr get-login-password | docker login --password-stdin`.
 // The password only ever travels from aws to docker through this process's memory and docker's stdin. It is never
 // an argument, never emitted, and never part of an error.
-use super::{kill_group, path_env, read_capped, stream, wait_bounded};
+use super::{kill_group, path_env, read_capped, stream, wait_bounded, Isolate};
 use serde::Serialize;
 use std::io::Write;
 use std::process::Stdio;
@@ -88,8 +88,19 @@ fn run(
     args: &[String],
     stdin: Option<&[u8]>,
 ) -> std::io::Result<(bool, Vec<u8>, Vec<u8>)> {
+    run_within(bin, args, stdin, DEADLINE)
+}
+
+fn run_within(
+    bin: &str,
+    args: &[String],
+    stdin: Option<&[u8]>,
+    deadline: Duration,
+) -> std::io::Result<(bool, Vec<u8>, Vec<u8>)> {
+    // Own process group, so the kill at the deadline also reaches a credential helper holding the pipes.
     let mut child = crate::wsl::tool(bin, args)
         .env("PATH", path_env())
+        .isolate()
         .stdin(if stdin.is_some() {
             Stdio::piped()
         } else {
@@ -108,7 +119,7 @@ fn run(
         if let Some(s) = child.try_wait()? {
             break s.success();
         }
-        if start.elapsed() > DEADLINE {
+        if start.elapsed() > deadline {
             kill_group(child.id());
             let _ = child.kill();
             let _ = wait_bounded(&mut child, Duration::from_secs(5));
@@ -210,6 +221,20 @@ pub async fn aws_sso_login(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn given_a_grandchild_holding_the_pipe_when_the_deadline_passes_then_run_returns_promptly() {
+        let started = Instant::now();
+        let args: Vec<String> = vec!["-c".into(), "sleep 30 & sleep 30".into()];
+        let (ok, _, _) = run_within("sh", &args, None, Duration::from_millis(300)).unwrap();
+        assert!(!ok);
+        assert!(
+            started.elapsed() < Duration::from_secs(10),
+            "{:?}",
+            started.elapsed()
+        );
+    }
 
     const HOST: &str = "123456789012.dkr.ecr.us-west-2.amazonaws.com";
 
