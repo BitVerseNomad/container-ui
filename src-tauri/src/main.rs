@@ -492,6 +492,16 @@ fn terminal_script(command: &str) -> Option<String> {
 }
 
 // Opens Terminal.app on one fixed command: k9s for a cluster, or a shell inside a running container.
+// Starts a program and does not wait for it. A thread collects its exit status, so the finished child does not
+// stay behind as a zombie for as long as the app runs.
+fn spawn_detached(cmd: &mut Command) -> std::io::Result<()> {
+    let mut child = cmd.spawn()?;
+    std::thread::spawn(move || {
+        let _ = child.wait();
+    });
+    Ok(())
+}
+
 #[tauri::command]
 fn open_terminal(kind: String, context: String, target: Option<String>) -> Result<(), String> {
     let command = terminal_command(&kind, &context, target.as_deref())?;
@@ -499,16 +509,13 @@ fn open_terminal(kind: String, context: String, target: Option<String>) -> Resul
         return Err("Opening Terminal is only supported on macOS".into());
     }
     let script = terminal_script(&command).ok_or("That command isn't safe to open")?;
-    Command::new("osascript")
-        .args([
-            "-e",
-            &script,
-            "-e",
-            "tell application \"Terminal\" to activate",
-        ])
-        .spawn()
-        .map(|_| ())
-        .map_err(|e| e.to_string())
+    spawn_detached(Command::new("osascript").args([
+        "-e",
+        &script,
+        "-e",
+        "tell application \"Terminal\" to activate",
+    ]))
+    .map_err(|e| e.to_string())
 }
 
 // Homebrew's own installer line, fixed text. It asks for the person's password, so it runs in Terminal, not in the app.
@@ -519,16 +526,13 @@ fn open_homebrew_install() -> Result<(), String> {
     if !cfg!(target_os = "macos") {
         return Err("Opening Terminal is only supported on macOS".into());
     }
-    Command::new("osascript")
-        .args([
-            "-e",
-            BREW_INSTALL_SCRIPT,
-            "-e",
-            "tell application \"Terminal\" to activate",
-        ])
-        .spawn()
-        .map(|_| ())
-        .map_err(|e| e.to_string())
+    spawn_detached(Command::new("osascript").args([
+        "-e",
+        BREW_INSTALL_SCRIPT,
+        "-e",
+        "tell application \"Terminal\" to activate",
+    ]))
+    .map_err(|e| e.to_string())
 }
 
 fn terminal_command(kind: &str, context: &str, target: Option<&str>) -> Result<String, String> {
@@ -1766,12 +1770,7 @@ fn vm_log_path(name: &str) -> Result<std::path::PathBuf, String> {
 #[tauri::command]
 fn reveal_vm_log(name: String) -> Result<(), String> {
     let path = vm_log_path(&name)?;
-    Command::new("/usr/bin/open")
-        .args(["-R"])
-        .arg(path)
-        .spawn()
-        .map(|_| ())
-        .map_err(|e| e.to_string())
+    spawn_detached(Command::new("/usr/bin/open").args(["-R"]).arg(path)).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -1815,7 +1814,7 @@ fn open_url(url: String) -> Result<(), String> {
     let (program, args) = opener_command(std::env::consts::OS, &url);
     let mut cmd = Command::new(program);
     cmd.args(args).isolate();
-    cmd.spawn().map(|_| ()).map_err(|e| e.to_string())
+    spawn_detached(&mut cmd).map_err(|e| e.to_string())
 }
 
 // The program that opens a link in the default browser: `open` on macOS, the URL handler on Windows (no
@@ -2255,11 +2254,7 @@ fn open_with_fallback(
 fn reveal_compose(path: String) -> Result<(), String> {
     let home = std::env::var("HOME").unwrap_or_default();
     let real = compose_real_path(&path, &home)?;
-    Command::new("/usr/bin/open")
-        .args(["-R", &real])
-        .spawn()
-        .map(|_| ())
-        .map_err(|e| e.to_string())
+    spawn_detached(Command::new("/usr/bin/open").args(["-R", &real])).map_err(|e| e.to_string())
 }
 
 // Which app Open would use for this file ("textedit" or "editor"), so the page can say the smart quotes hint before
@@ -4493,6 +4488,14 @@ mod tests {
             opener_command("linux", u),
             ("xdg-open", vec![u.to_string()])
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn given_a_detached_child_when_it_ends_then_it_is_collected_and_a_missing_program_is_an_error()
+    {
+        assert!(spawn_detached(&mut Command::new("/usr/bin/true")).is_ok());
+        assert!(spawn_detached(&mut Command::new("/no/such/program")).is_err());
     }
 
     fn scratch_dir(tag: &str) -> std::path::PathBuf {
