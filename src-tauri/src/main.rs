@@ -357,6 +357,11 @@ fn probe_args(context: &str, from: &str, target: &str, port: u16) -> Vec<String>
     .collect()
 }
 
+// The first probe pulls the helper image (about 400 MB), which takes minutes on a slow link. The ordinary 60 s read
+// limit would kill it mid-pull and blame Docker or Colima. The probe container is started with --rm and no fixed
+// name, so a killed run leaves nothing that blocks the next try.
+const PROBE_DEADLINE: Duration = Duration::from_secs(600);
+
 #[tauri::command]
 async fn network_probe(
     context: String,
@@ -365,7 +370,8 @@ async fn network_probe(
     port: u16,
 ) -> Result<String, String> {
     probe_inputs_ok(&context, &from, &target, port)?;
-    exec("docker", probe_args(&context, &from, &target, port), true).await
+    let args = probe_args(&context, &from, &target, port);
+    exec_with_deadline("docker", args, true, None, PROBE_DEADLINE).await
 }
 
 // `docker events` streams forever unless it has an end time, so it only runs with a --since and --until window
@@ -721,6 +727,16 @@ async fn exec_in(
     merge_stderr: bool,
     cwd: Option<String>,
 ) -> Result<String, String> {
+    exec_with_deadline(bin, args, merge_stderr, cwd, EXEC_DEADLINE).await
+}
+
+async fn exec_with_deadline(
+    bin: &'static str,
+    args: Vec<String>,
+    merge_stderr: bool,
+    cwd: Option<String>,
+    deadline: Duration,
+) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let missing = |e: std::io::Error| format!("Could not run {bin}: {e}. Is it installed?");
         // Interleave stdout and stderr in the order the program wrote them (needed for logs).
@@ -733,7 +749,7 @@ async fn exec_in(
         if let Some(dir) = &cwd {
             cmd.current_dir(dir);
         }
-        let (ok, stdout, stderr) = output_with_deadline(cmd, EXEC_DEADLINE).map_err(|e| {
+        let (ok, stdout, stderr) = output_with_deadline(cmd, deadline).map_err(|e| {
             if wsl::via_wsl() && e.kind() == std::io::ErrorKind::NotFound {
                 "Windows Subsystem for Linux is not installed. In PowerShell run `wsl --install`, then restart Windows.".to_string()
             } else {
@@ -4543,6 +4559,16 @@ mod tests {
         });
         assert!(poisoned.is_poisoned());
         assert_eq!(copy_busy(&poisoned), Ok(()));
+    }
+
+    #[test]
+    fn given_the_probe_when_it_pulls_its_image_then_it_gets_more_time_than_a_read_and_leaves_no_named_container(
+    ) {
+        assert!(PROBE_DEADLINE >= Duration::from_secs(600));
+        assert!(PROBE_DEADLINE > EXEC_DEADLINE);
+        let args = probe_args("colima", "web", "db", 5432);
+        assert!(args.contains(&"--rm".to_string()));
+        assert!(!args.contains(&"--name".to_string()));
     }
 
     fn scratch_dir(tag: &str) -> std::path::PathBuf {
