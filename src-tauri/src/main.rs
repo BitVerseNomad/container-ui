@@ -2751,6 +2751,7 @@ fn main() {
             registry::registry_login,
             registry::aws_profiles,
             registry::aws_sso_login,
+            registry::aws_sso_cancel,
             env_check,
             platform_info,
             install_tools,
