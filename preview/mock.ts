@@ -295,6 +295,7 @@ const ecrNeedsLogin = () => flag("ecrfail") && !ecrSignedIn;
 async function registryMock(cmd: string, a: Record<string, any>): Promise<unknown> {
   if (cmd === "aws_profiles") return ["default"];
   if (cmd === "aws_sso_login") return undefined;
+  if (cmd === "aws_sso_cancel") return false;
   await sleep(300);
   ecrSignedIn = a.registry === ECR;
   return undefined;
@@ -361,7 +362,7 @@ export async function invoke<T>(cmd: string, a: Record<string, any> = {}): Promi
       if (a.kind === "volume") { db.volumes.push(a.name); colimaSizes[a.name] = ddVolumes.find(([n]) => n === a.name)![1]; } else { const [repo, tag] = a.name.split(":"); db.images.unshift({ Repository: repo, Tag: tag, Size: "142MB", ID: hex(12), CreatedSince: "1 second ago" }); }
       return size as T;
     }
-    case "registry_login": case "aws_profiles": case "aws_sso_login": return registryMock(cmd, a) as Promise<T>;
+    case "registry_login": case "aws_profiles": case "aws_sso_login": case "aws_sso_cancel": return registryMock(cmd, a) as Promise<T>;
     case "docker_pull": {
       if (ecrNeedsLogin() && a.image.startsWith(ECR)) throw ecrDenied(a.image);
       if (flag("pullfail")) { await progress("pull-progress", [["Using default tag: latest", 150]]); throw `Error response from daemon: Get "https://registry-1.docker.io/v2/": net/http: request canceled while waiting for connection (Client.Timeout exceeded)`; }
