@@ -2,6 +2,14 @@
 
 Newest first. Older entries record what was true when they were written; later entries supersede them (the Overview, for example, was replaced by the Containers home screen).
 
+## 0.3.1
+
+1. **Checkboxes and number fields look like the rest of the app.** Volumes, Bring over and the pod drawer no longer show system checkboxes. The Disk, CPUs and Memory fields in Edit machine have no browser stepper.
+2. **Doctor reads clearly.** The top line says "Your setup is healthy." and where the container problems are. The "Fixed together with" name no longer has extra gaps.
+3. **Smaller fixes.** The Kubernetes status dot is easy to see. The Networks intro has space under the header. The Pull panel tabs no longer look like a breadcrumb, and its search field fills the panel.
+4. **Windows (experimental, separate download).** Docker inside WSL2 works without Docker Desktop. Not tested on a real Windows machine yet.
+5. **Tests.** The browser checks now run with Playwright Test in Chromium and WebKit, and the planning notes became ADRs in `docs/adr/`.
+
 ## 0.3.0
 
 1. The app is now called Container UI. Your saved settings are kept.
