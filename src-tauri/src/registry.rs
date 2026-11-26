@@ -1,13 +1,18 @@
 // Sign in to Amazon ECR for Docker: `aws ecr get-login-password | docker login --password-stdin`.
 // The password only ever travels from aws to docker through this process's memory and docker's stdin. It is never
 // an argument, never emitted, and never part of an error.
-use super::{kill_group, path_env, read_capped, stream, wait_bounded};
+use super::{
+    kill_group, path_env, read_capped, stream_with, wait_bounded, Isolate, STREAM_SILENCE,
+};
 use serde::Serialize;
 use std::io::Write;
 use std::process::Stdio;
+use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 const DEADLINE: Duration = Duration::from_secs(60);
+// The `aws sso login` in progress, so Cancel can stop it.
+static SSO_PID: Mutex<Option<u32>> = Mutex::new(None);
 
 #[derive(Serialize, Debug, PartialEq)]
 pub struct LoginError {
@@ -88,8 +93,19 @@ fn run(
     args: &[String],
     stdin: Option<&[u8]>,
 ) -> std::io::Result<(bool, Vec<u8>, Vec<u8>)> {
+    run_within(bin, args, stdin, DEADLINE)
+}
+
+fn run_within(
+    bin: &str,
+    args: &[String],
+    stdin: Option<&[u8]>,
+    deadline: Duration,
+) -> std::io::Result<(bool, Vec<u8>, Vec<u8>)> {
+    // Own process group, so the kill at the deadline also reaches a credential helper holding the pipes.
     let mut child = crate::wsl::tool(bin, args)
         .env("PATH", path_env())
+        .isolate()
         .stdin(if stdin.is_some() {
             Stdio::piped()
         } else {
@@ -108,7 +124,7 @@ fn run(
         if let Some(s) = child.try_wait()? {
             break s.success();
         }
-        if start.elapsed() > DEADLINE {
+        if start.elapsed() > deadline {
             kill_group(child.id());
             let _ = child.kill();
             let _ = wait_bounded(&mut child, Duration::from_secs(5));
@@ -201,15 +217,45 @@ pub async fn aws_sso_login(
     let mut args: Vec<String> = vec!["sso".into(), "login".into()];
     args.extend(profile_args(profile.as_deref())?);
     tauri::async_runtime::spawn_blocking(move || {
-        stream(&app, "compose-progress", "aws", &args).map_err(|e| err("login", e))
+        let track = |pid| *SSO_PID.lock().unwrap_or_else(|p| p.into_inner()) = pid;
+        stream_with(
+            &app,
+            "aws-sso-progress",
+            "aws",
+            &args,
+            STREAM_SILENCE,
+            track,
+        )
+        .map_err(|e| err("login", e))
     })
     .await
     .map_err(|e| err("login", e.to_string()))?
 }
 
+// Stops the sign-in in progress (the browser tab it opened is left for the user to close).
+#[tauri::command]
+pub fn aws_sso_cancel() -> bool {
+    let pid = *SSO_PID.lock().unwrap_or_else(|p| p.into_inner());
+    pid.map(kill_group).is_some()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn given_a_grandchild_holding_the_pipe_when_the_deadline_passes_then_run_returns_promptly() {
+        let started = Instant::now();
+        let args: Vec<String> = vec!["-c".into(), "sleep 30 & sleep 30".into()];
+        let (ok, _, _) = run_within("sh", &args, None, Duration::from_millis(300)).unwrap();
+        assert!(!ok);
+        assert!(
+            started.elapsed() < Duration::from_secs(10),
+            "{:?}",
+            started.elapsed()
+        );
+    }
 
     const HOST: &str = "123456789012.dkr.ecr.us-west-2.amazonaws.com";
 

@@ -1,8 +1,9 @@
 // A start or pull that failed because the registry wants a sign-in. For Amazon ECR the app can do it: ask first,
 // then `aws ecr get-login-password | docker login`. The password goes from aws to docker and nowhere else.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Banner, Button, Select, useConfirm } from "./ui/op";
+import OutputLog from "./ui/OutputLog";
 import { detectRegistryAuth, type RegistryAuth } from "./lib/registryAuth";
 
 type LoginError = { kind: "aws-session" | "no-aws" | "login"; message: string };
@@ -24,6 +25,7 @@ function Fix({ found }: { found: RegistryAuth }) {
   const [problem, setProblem] = useState("");
   const [profiles, setProfiles] = useState<string[]>([]);
   const [profile, setProfile] = useState<string | undefined>();
+  const cancelled = useRef(false);
 
   useEffect(() => {
     let live = true;
@@ -59,14 +61,24 @@ function Fix({ found }: { found: RegistryAuth }) {
   }
 
   async function awsFirst() {
+    cancelled.current = false;
     setStep("aws-running");
     try {
       await invoke<void>("aws_sso_login", { profile });
       setStep("aws-done");
     } catch (e) {
+      if (cancelled.current) {
+        setStep("aws-session");
+        return;
+      }
       setProblem(asError(e).message);
       setStep("failed");
     }
+  }
+
+  async function cancelAws() {
+    cancelled.current = true;
+    await invoke<boolean>("aws_sso_cancel").catch(() => false);
   }
 
   if (step === "no-aws") return <Banner tone="warn">The AWS command line tool is not installed.</Banner>;
@@ -81,6 +93,7 @@ function Fix({ found }: { found: RegistryAuth }) {
     <>
       {picker}
       {awsStep && <Button size="xs" variant="primary" busy={step === "aws-running"} disabled={busy} onClick={() => void awsFirst()}>Sign in to AWS first</Button>}
+      {step === "aws-running" && <Button size="xs" onClick={() => void cancelAws()}>Cancel</Button>}
       {!awsStep && <Button size="xs" variant="primary" busy={step === "running"} disabled={busy} onClick={() => void signIn()}>Sign in to AWS registry</Button>}
     </>
   );
@@ -89,5 +102,10 @@ function Fix({ found }: { found: RegistryAuth }) {
     : step === "aws-done" ? "Signed in to AWS. Now sign in to the registry."
     : step === "failed" ? `Signing in did not work. ${problem}`
     : `This image needs a sign-in to ${found.registry}.`;
-  return <Banner tone={step === "failed" ? "bad" : "info"} actions={step === "aws-done" ? <Button size="xs" variant="primary" onClick={() => void signIn()}>Sign in to AWS registry</Button> : actions}>{line}</Banner>;
+  return (
+    <>
+      <Banner tone={step === "failed" ? "bad" : "info"} actions={step === "aws-done" ? <Button size="xs" variant="primary" onClick={() => void signIn()}>Sign in to AWS registry</Button> : actions}>{line}</Banner>
+      {(awsStep || step === "aws-done") && <OutputLog event="aws-sso-progress" active={step === "aws-running"} status="Waiting for AWS sign-in…" />}
+    </>
+  );
 }
