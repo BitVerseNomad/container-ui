@@ -15,14 +15,28 @@ pub fn wsl_prefix(distro: Option<&str>) -> Vec<String> {
     v
 }
 
+// Resolves "." and ".." in a path below a root, so `C:\..\..\etc` stays on the drive. Nothing climbs above the root.
+fn normalize(rest: &str) -> String {
+    let mut parts: Vec<&str> = Vec::new();
+    for seg in rest.split('/') {
+        match seg {
+            "" | "." => {}
+            ".." => {
+                parts.pop();
+            }
+            s => parts.push(s),
+        }
+    }
+    parts.join("/")
+}
+
 // C:\Users\me\x, c:/x, \\wsl$\Ubuntu\home\me and \\wsl.localhost\Ubuntu\home\me become Linux paths.
 // Anything else (a flag, an image name, a Linux path) comes back unchanged.
 pub fn to_wsl_path(p: &str) -> String {
     let b = p.as_bytes();
     if b.len() >= 3 && b[0].is_ascii_alphabetic() && b[1] == b':' && (b[2] == b'\\' || b[2] == b'/')
     {
-        let rest = p[3..].replace('\\', "/");
-        let rest = rest.trim_end_matches('/');
+        let rest = normalize(&p[3..].replace('\\', "/"));
         let drive = (b[0] as char).to_ascii_lowercase();
         return if rest.is_empty() {
             format!("/mnt/{drive}")
@@ -34,8 +48,7 @@ pub fn to_wsl_path(p: &str) -> String {
         if let Some(rest) = p.strip_prefix(unc) {
             // drop the distro name, keep the path inside it
             let inside = rest.split_once('\\').map_or("", |(_, r)| r);
-            let inside = inside.replace('\\', "/");
-            let inside = inside.trim_end_matches('/');
+            let inside = normalize(&inside.replace('\\', "/"));
             return format!("/{inside}");
         }
     }
@@ -205,6 +218,20 @@ mod tests {
             "/home/me/app"
         );
         assert_eq!(to_wsl_path(r"\\wsl$\Ubuntu"), "/");
+    }
+
+    #[test]
+    fn given_dot_segments_when_translated_then_they_resolve_and_never_leave_the_root() {
+        assert_eq!(to_wsl_path(r"C:\..\..\etc"), "/mnt/c/etc");
+        assert_eq!(to_wsl_path(r"C:\a\.\b\..\c"), "/mnt/c/a/c");
+        assert_eq!(to_wsl_path("c:/a/../../.."), "/mnt/c");
+        assert_eq!(to_wsl_path(r"C:\a\\b"), "/mnt/c/a/b");
+        assert_eq!(to_wsl_path(r"\\wsl$\Ubuntu\..\..\etc"), "/etc");
+        assert_eq!(
+            to_wsl_path(r"\\wsl.localhost\Ubuntu\home\me\..\you"),
+            "/home/you"
+        );
+        assert_eq!(to_wsl_path(r"\\wsl$\Ubuntu\.."), "/");
     }
 
     #[test]
