@@ -1812,16 +1812,23 @@ fn open_url(url: String) -> Result<(), String> {
     if !localhost_url(&url) && !https_url_ok(&url) {
         return Err("Only http://localhost and https links can be opened".into());
     }
-    let opener = if cfg!(target_os = "macos") {
-        "open"
-    } else {
-        "xdg-open"
-    };
-    Command::new(opener)
-        .arg(&url)
-        .spawn()
-        .map(|_| ())
-        .map_err(|e| e.to_string())
+    let (program, args) = opener_command(std::env::consts::OS, &url);
+    let mut cmd = Command::new(program);
+    cmd.args(args).isolate();
+    cmd.spawn().map(|_| ()).map_err(|e| e.to_string())
+}
+
+// The program that opens a link in the default browser: `open` on macOS, the URL handler on Windows (no
+// xdg-open there), xdg-open elsewhere. `os` is std::env::consts::OS, passed in so each choice can be tested.
+fn opener_command(os: &str, url: &str) -> (&'static str, Vec<String>) {
+    match os {
+        "macos" => ("open", vec![url.into()]),
+        "windows" => (
+            "rundll32",
+            vec!["url.dll,FileProtocolHandler".into(), url.into()],
+        ),
+        _ => ("xdg-open", vec![url.into()]),
+    }
 }
 
 // The native macOS folder chooser, so the Run panel never asks for a typed path. Ok(None) means the user cancelled.
@@ -4469,6 +4476,23 @@ mod tests {
             assert!(validate_resources(&res_opts(Some(8), Some(1), Some(r)), 8).is_ok());
         }
         assert!(validate_resources(&res_opts(None, None, None), 8).is_ok());
+    }
+
+    #[test]
+    fn given_each_os_when_a_link_is_opened_then_the_right_program_runs() {
+        let u = "https://example.com/a";
+        assert_eq!(opener_command("macos", u), ("open", vec![u.to_string()]));
+        assert_eq!(
+            opener_command("windows", u),
+            (
+                "rundll32",
+                vec!["url.dll,FileProtocolHandler".to_string(), u.to_string()]
+            )
+        );
+        assert_eq!(
+            opener_command("linux", u),
+            ("xdg-open", vec![u.to_string()])
+        );
     }
 
     fn scratch_dir(tag: &str) -> std::path::PathBuf {
