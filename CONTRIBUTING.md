@@ -87,7 +87,6 @@ Co-authored-by: Your Name <you@example.com>
 Shared components and tokens live in `src/ui/`:
 - `src/ui/tokens.css` — semantic colors, typography, spacing, elevation, radius
 - `src/ui/components/` — Button, Card, Table, Badge, DropdownMenu, Sidebar, Avatar, Separator, ScrollArea, ScrollBar, Tooltip
-- `src/ui/index.ts` — barrel exports
 
 Prefer `@ui/components/` over native elements or legacy `./ui` components.
 
