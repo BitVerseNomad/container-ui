@@ -1,13 +1,18 @@
 // Sign in to Amazon ECR for Docker: `aws ecr get-login-password | docker login --password-stdin`.
 // The password only ever travels from aws to docker through this process's memory and docker's stdin. It is never
 // an argument, never emitted, and never part of an error.
-use super::{kill_group, path_env, read_capped, stream, wait_bounded, Isolate};
+use super::{
+    kill_group, path_env, read_capped, stream_with, wait_bounded, Isolate, STREAM_SILENCE,
+};
 use serde::Serialize;
 use std::io::Write;
 use std::process::Stdio;
+use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 const DEADLINE: Duration = Duration::from_secs(60);
+// The `aws sso login` in progress, so Cancel can stop it.
+static SSO_PID: Mutex<Option<u32>> = Mutex::new(None);
 
 #[derive(Serialize, Debug, PartialEq)]
 pub struct LoginError {
@@ -212,10 +217,26 @@ pub async fn aws_sso_login(
     let mut args: Vec<String> = vec!["sso".into(), "login".into()];
     args.extend(profile_args(profile.as_deref())?);
     tauri::async_runtime::spawn_blocking(move || {
-        stream(&app, "compose-progress", "aws", &args).map_err(|e| err("login", e))
+        let track = |pid| *SSO_PID.lock().unwrap_or_else(|p| p.into_inner()) = pid;
+        stream_with(
+            &app,
+            "aws-sso-progress",
+            "aws",
+            &args,
+            STREAM_SILENCE,
+            track,
+        )
+        .map_err(|e| err("login", e))
     })
     .await
     .map_err(|e| err("login", e.to_string()))?
+}
+
+// Stops the sign-in in progress (the browser tab it opened is left for the user to close).
+#[tauri::command]
+pub fn aws_sso_cancel() -> bool {
+    let pid = *SSO_PID.lock().unwrap_or_else(|p| p.into_inner());
+    pid.map(kill_group).is_some()
 }
 
 #[cfg(test)]
