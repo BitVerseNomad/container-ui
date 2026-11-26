@@ -278,6 +278,11 @@ fn run_port_ok(s: &str) -> bool {
 // A named volume, or a folder inside the Mac home that Colima shares. Never the home itself, never a
 // hidden path (~/.ssh, ~/.aws, ~/.zshrc), never ~/Library (keychains, app data), never the VM's own root or /var/run.
 fn run_source_ok(src: &str, home: &str) -> bool {
+    run_source_ok_lexical(src, home)
+        && (!src.starts_with('/') || target_ok(src, home, run_source_ok_lexical))
+}
+
+fn run_source_ok_lexical(src: &str, home: &str) -> bool {
     if !src.starts_with('/') {
         return run_name_ok(src);
     }
@@ -1384,15 +1389,33 @@ struct MountSpec {
 // CSV), not the Mac's root or system folders, and never another user's. Under the home folder it is never hidden
 // (~/.ssh) or ~/Library. Same rule as src/lib/mounts.ts.
 fn mount_ok(path: &str, home: &str) -> bool {
+    mount_ok_lexical(path, home) && target_ok(path, home, mount_ok_lexical)
+}
+
+// A symlink is judged by where it leads (~/Desktop/k -> ~/.aws), so the real path must pass the same rule.
+// A path that does not exist yet has no target to check.
+fn target_ok(path: &str, home: &str, rule: fn(&str, &str) -> bool) -> bool {
+    let Ok(real) = std::fs::canonicalize(path) else {
+        return true;
+    };
+    let real_home = std::fs::canonicalize(home).unwrap_or_else(|_| home.into());
+    match (real.to_str(), real_home.to_str()) {
+        (Some(r), Some(h)) => rule(r, h),
+        _ => false,
+    }
+}
+
+fn mount_ok_lexical(path: &str, home: &str) -> bool {
+    // macOS folders are case-insensitive by default, so every comparison is on lowercase text.
     const SYSTEM: &[&str] = &[
-        "System",
+        "system",
         "usr",
         "bin",
         "sbin",
         "etc",
         "var",
-        "Library",
-        "Applications",
+        "library",
+        "applications",
         "cores",
         "dev",
         "private/etc",
@@ -1414,6 +1437,14 @@ fn mount_ok(path: &str, home: &str) -> bool {
     {
         return false;
     }
+    let (path, home) = (path.to_lowercase(), home.to_lowercase());
+    if path == home {
+        return true;
+    }
+    if let Some(inner) = path.strip_prefix(&format!("{home}/")) {
+        let first = inner.split('/').next().unwrap_or("");
+        return !first.starts_with("library") && inner.split('/').all(|c| !c.starts_with('.'));
+    }
     let rest = &path[1..];
     if SYSTEM
         .iter()
@@ -1421,15 +1452,7 @@ fn mount_ok(path: &str, home: &str) -> bool {
     {
         return false;
     }
-    if path == home {
-        return true;
-    }
-    if let Some(inner) = path.strip_prefix(&format!("{home}/")) {
-        let first = inner.split('/').next().unwrap_or("");
-        return !first.to_lowercase().starts_with("library")
-            && inner.split('/').all(|c| !c.starts_with('.'));
-    }
-    !path.starts_with("/Users/") && path.split('/').count() >= 3
+    !path.starts_with("/users/") && path.split('/').count() >= 3
 }
 
 // Colima refuses two folders when one path starts with the other; refused here first, before anything stops.
@@ -1878,7 +1901,7 @@ fn compose_paths(out: &str, home: &str) -> Vec<String> {
             };
             dir.starts_with('/')
                 && COMPOSE_NAMES.contains(&file)
-                && run_source_ok(dir, home)
+                && run_source_ok_lexical(dir, home)
                 && !dir.split('/').any(|c| COMPOSE_SKIP_DIRS.contains(&c))
                 && !format!("{dir}/").contains("/pkg/mod/")
         })
@@ -4373,6 +4396,54 @@ mod tests {
             assert!(!mount_ok(bad, home), "{bad}");
         }
         assert!(!mount_ok("/Users/me", ""), "no home known");
+    }
+
+    #[test]
+    fn given_folders_in_other_letter_case_when_checked_for_sharing_then_they_are_judged_like_the_real_ones(
+    ) {
+        let home = "/Users/me";
+        for bad in [
+            "/users/me/.ssh",
+            "/Users/ME/.ssh",
+            "/library/Keychains",
+            "/ETC/ssh",
+            "/PRIVATE/var/root",
+            "/users/other/x",
+            "/USERS/other/x",
+        ] {
+            assert!(!mount_ok(bad, home), "{bad}");
+        }
+        assert!(mount_ok("/users/me/code", home), "same folder, other case");
+    }
+
+    fn scratch_dir(tag: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("container-ui-{tag}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn given_a_link_to_a_hidden_folder_when_checked_then_it_is_judged_by_its_target() {
+        let root = scratch_dir("mount-link");
+        let home = root.join("home");
+        std::fs::create_dir_all(home.join(".aws")).unwrap();
+        std::fs::create_dir_all(home.join("Desktop")).unwrap();
+        std::fs::create_dir_all(home.join("code")).unwrap();
+        std::os::unix::fs::symlink(home.join(".aws"), home.join("Desktop/k")).unwrap();
+        std::os::unix::fs::symlink(home.join("code"), home.join("Desktop/c")).unwrap();
+        let h = home.to_str().unwrap();
+        let link = home.join("Desktop/k");
+        let fine = home.join("Desktop/c");
+        assert!(!mount_ok(link.to_str().unwrap(), h), "mount link to .aws");
+        assert!(
+            !run_source_ok(link.to_str().unwrap(), h),
+            "run link to .aws"
+        );
+        assert!(mount_ok(fine.to_str().unwrap(), h), "mount link to code");
+        assert!(run_source_ok(fine.to_str().unwrap(), h), "run link to code");
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
