@@ -9,7 +9,7 @@ export type ProblemInspectorProps = {
   onClose: () => void;
   onFix: () => void;
   onLogs: () => void;
-  onShell: () => void;
+  onShell?: () => void; // absent where there is no Terminal to open it in (Windows)
 };
 
 export function ProblemInspector(props: ProblemInspectorProps): JSX.Element {
@@ -22,7 +22,7 @@ export function ProblemInspector(props: ProblemInspectorProps): JSX.Element {
         {content.primary.label}
       </Button>
       {content.also.includes("logs") && <Button size="md" onClick={onLogs}>Open logs</Button>}
-      {content.also.includes("shell") && <Button size="md" onClick={onShell}>Open a shell</Button>}
+      {content.also.includes("shell") && onShell && <Button size="md" onClick={onShell}>Open a shell</Button>}
     </>
   );
 

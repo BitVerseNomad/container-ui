@@ -11,7 +11,7 @@ export type EngineSwitcherProps = {
   onSelect: (id: string) => void;
   onStart: (id: string) => void;
   onStop: (id: string) => void;
-  onMachines: () => void;
+  onMachines?: () => void; // absent where there are no machines to manage (Windows)
 };
 
 export default function EngineSwitcher({
@@ -69,19 +69,19 @@ export default function EngineSwitcher({
               </React.Fragment>
             ))}
           </MenuRadioGroup>
-          <MenuSeparator />
-          {selected.state === "running" ? (
+          {selected.managed || onMachines ? <MenuSeparator /> : null}
+          {selected.managed && selected.state === "running" ? (
             <MenuItem
               label={`Stop ${selected.name}`}
               why="Stops the VM. Containers and data are kept"
               onSelect={() => onStop(selected.id)}
             />
           ) : null}
-          <MenuItem label="Machines…" why="Create, resize or delete a Colima VM" onSelect={onMachines} />
+          {onMachines ? <MenuItem label="Machines…" why="Create, resize or delete a Colima VM" onSelect={onMachines} /> : null}
         </>
-      ) : (
+      ) : onMachines ? (
         <MenuItem label="Machines…" why="Create, resize or delete a Colima VM" onSelect={onMachines} />
-      )}
+      ) : null}
     </Menu>
   );
 }

@@ -363,7 +363,7 @@ export default function BringOver({ ctx, only, forVm, onClose, onDone, onProfile
     return (
       <li key={key(i)} className={`bring-item${r ? ` ${r.state}` : ""}${settled ? " settled" : ""}`}>
         <Line className="flex items-center gap-2">
-          <span className="mark flex w-4 shrink-0 items-center justify-center">{mark ?? <input type="checkbox" checked={pick.has(key(i))} disabled={busy} aria-describedby={swap && !r ? `${ids.note}-${i.name}` : undefined} onChange={() => toggle(i)} />}</span>
+          <span className="mark flex w-4 shrink-0 items-center justify-center">{mark ?? <input type="checkbox" data-op="" className="check" checked={pick.has(key(i))} disabled={busy} aria-describedby={swap && !r ? `${ids.note}-${i.name}` : undefined} onChange={() => toggle(i)} />}</span>
           <span className="bring-name" title={i.name}>{i.name}</span>
           <span className="hint bring-size">{r?.state === "failed" && <Icon name="close" size={12} />} {status}</span>
         </Line>

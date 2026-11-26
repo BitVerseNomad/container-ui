@@ -44,7 +44,7 @@ export default function PodDrawer({ kctx, pod, problems, events, onClose }: Prop
         <h4>Logs</h4>
         {pod.restarts > 0 && (
           <label className="check">
-            <input type="checkbox" checked={previous} onChange={(e) => setPrevious(e.target.checked)} />
+            <input type="checkbox" data-op="" className="check" checked={previous} onChange={(e) => setPrevious(e.target.checked)} />
             Show the previous run (before the last restart)
           </label>
         )}

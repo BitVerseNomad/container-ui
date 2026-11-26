@@ -4,8 +4,6 @@
 // Nothing there is deleted, so Docker Desktop keeps its copy.
 use serde::Serialize;
 use std::io::{Read, Write};
-use std::os::unix::fs::MetadataExt;
-use std::os::unix::process::CommandExt;
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -15,7 +13,7 @@ use tauri::Emitter;
 
 use crate::{
     context_ok, find_bin, kill_group, output_with_deadline, path_env, read_capped, run_name_ok,
-    wait_bounded, BUSYBOX_IMAGE,
+    wait_bounded, Isolate, BUSYBOX_IMAGE,
 };
 
 const DESKTOP_CTX: &str = "desktop-linux";
@@ -37,13 +35,22 @@ pub struct DesktopState {
     disk_bytes: u64,
 }
 
+#[cfg(unix)]
 fn disk_bytes(home: &Path) -> u64 {
+    use std::os::unix::fs::MetadataExt;
     std::fs::metadata(home.join(DESKTOP_DISK)).map_or(0, |m| m.blocks() * 512)
 }
 
+// No sparse-file blocks to ask for here: the length is the best answer.
+#[cfg(windows)]
+fn disk_bytes(home: &Path) -> u64 {
+    std::fs::metadata(home.join(DESKTOP_DISK)).map_or(0, |m| m.len())
+}
+
 fn docker_cmd(args: &[&str]) -> Command {
-    let mut c = Command::new(find_bin("docker"));
-    c.args(args).env("PATH", path_env());
+    let owned: Vec<String> = args.iter().map(|a| a.to_string()).collect();
+    let mut c = crate::wsl::tool("docker", &owned);
+    c.env("PATH", path_env());
     c
 }
 
@@ -242,13 +249,12 @@ fn pipe(
     mut on_bytes: impl FnMut(u64),
 ) -> Result<u64, String> {
     let spawn = |bin: &str, args: &[String], stdin: Stdio| {
-        Command::new(bin)
-            .args(args)
+        crate::wsl::tool(bin, args)
             .env("PATH", path_env())
             .stdin(stdin)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
-            .process_group(0)
+            .isolate()
             .spawn()
     };
     let mut src = spawn(from.0, from.1, Stdio::null())
@@ -886,7 +892,7 @@ fn run_stoppable(context: &str, args: &[String], helper: &str) -> Result<(), Str
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
-        .process_group(0)
+        .isolate()
         .spawn()
         .map_err(|e| e.to_string())?;
     *COPY_PIDS.lock().unwrap_or_else(|p| p.into_inner()) = vec![child.id()];
@@ -1339,6 +1345,7 @@ mod tests {
         );
     }
 
+    #[cfg(unix)]
     #[test]
     fn given_two_processes_when_piped_then_every_byte_arrives_and_is_counted() {
         let dir = std::env::temp_dir().join(format!("container-ui-pipe-{}", std::process::id()));

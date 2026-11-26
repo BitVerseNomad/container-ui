@@ -54,12 +54,10 @@ This is early, and your feedback shapes it.
 1. Download the `.dmg` from the [latest release](../../releases/latest), open it, and drag Container UI to Applications.
 2. The app isn't signed by Apple, so the first time you open it macOS says it can't check it. Open System Settings, then Privacy & Security, and click **Open Anyway**. You only do this once.
 
-**For contributors:** `docs/plan/README.md` (the reviews, design and plan, in reading order), `docs/research/verify-on-your-mac.md` (15-minute real-machine check), `docs/research/evaluation-kit.md` (comparison with other tools), `CHANGELOG.md`.
+**For contributors:** `docs/adr/README.md` (the decisions behind the app) and `docs/design/ui-principles.md` (the UI rules), `docs/research/verify-on-your-mac.md` (15-minute real-machine check), `docs/research/evaluation-kit.md` (comparison with other tools), `CHANGELOG.md`.
 
 ## Release
-Push a version tag and GitHub Actions builds a `.dmg` for Apple Silicon and one for Intel Macs, and attaches both to a Release (`.github/workflows/release.yml`). The tests run in `.github/workflows/ci.yml` on every push and pull request:
-
-    git tag v0.3.0 && git push origin v0.3.0
+Releases are made by hand. Build the Apple Silicon `.dmg` with `npm run tauri build`, then create a GitHub Release as a draft, attach the file, and publish it when you are happy. The workflow `.github/workflows/release.yml` only runs when started by hand from the Actions tab, because it has no signing secrets. The tests run in `.github/workflows/ci.yml` on every push and pull request.
 
 Bump `version` in `package.json`, `src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml` first, so the file name matches the tag.
 
@@ -105,9 +103,9 @@ Fixes come in four kinds:
     npm test                                   # TypeScript logic (node --test), then the screens in jsdom (vitest)
     npm run test:ui                            # only the screens
     cd src-tauri && cargo test                 # Rust: allowlists, deadlines, process groups
-    npm run check                              # builds the browser preview, runs every browser check (needs Playwright)
+    npm run check                              # static checks, then the Playwright browser tests (tests/e2e)
 
-The first time, run `npx playwright install chromium webkit`. Checks run in both engines; the app ships in WebKit.
+The first time, run `npx playwright install chromium webkit`. The browser tests run in both engines; the app ships in WebKit.
 
 ## Browser preview (no Tauri or Rust needed)
     npm run preview                            # writes preview/index.html

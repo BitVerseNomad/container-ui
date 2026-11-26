@@ -10,6 +10,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { Profile, docker, dockerJson } from "./api";
 import { usePoll } from "./hooks";
 import VmStrip from "./VmStrip";
+import { usePlatform } from "./lib/platform";
 import OutputLog from "./ui/OutputLog";
 import { Icon } from "./ui/op/Icon";
 import { kubeName, kubePodCount } from "./lib/compose";
@@ -108,6 +109,7 @@ function readOpen(): Record<string, boolean> {
 
 export default function Containers({ profile, ctx, vm, onVm, reload, setDetailId, onPull, onProfiles, compose, onImages, onKubernetes, report, onReport, onBring, onRun, inspected, live, history }: Props) {
   const runs = useFixRuns();
+  const win = usePlatform().os === "windows"; // no Terminal.app or Finder there
   const confirm = useConfirm();
   // `fixAction` is still on the old three-argument confirm until WO-3.8 rebuilds FixIt.
   const oldConfirm = ((message: string, label = "Remove", opts?: { safe?: boolean }) =>
@@ -485,7 +487,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, setDetailId
     const verb = up ? "stop" : "start";
     return [
       <MenuItem key="logs" label="Logs" why="To see what it printed" onSelect={() => setDetailId(c.ID)} />,
-      ...(up ? [<MenuItem key="shell" label="Open a shell" why="To run commands inside it" disabled={lock} onSelect={() => void openShell(ctx!, c.Names).catch((e: unknown) => fail(a, e instanceof Error ? e.message : String(e)))} />] : []),
+      ...(up && !win ? [<MenuItem key="shell" label="Open a shell" why="To run commands inside it" disabled={lock} onSelect={() => void openShell(ctx!, c.Names).catch((e: unknown) => fail(a, e instanceof Error ? e.message : String(e)))} />] : []),
       ...(up ? [<MenuItem key="restart" label="Restart" why="After you change a setting or it got stuck" disabled={lock} onSelect={() => void act(a, ["restart", c.ID], null, `${c.Names} restarted`)} />] : []),
       ...(p ? [<MenuItem key="not-issue" label="Not an issue" why="Stops showing this problem" onSelect={() => setMuted(p.key, true)} />] : []),
       <MenuSeparator key="sep-1" />,
@@ -521,7 +523,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, setDetailId
       ...(known ? [<MenuItem key="pull" label="Update images and start" why="When a newer version of an image is out" disabled={lock} onSelect={() => void project(a, "pull", { target: "running", word: "Updating…", since: Date.now() }, `${a.name} updated`)} />] : []),
       ...(anyUp ? [<MenuItem key="restart" label="Restart" why="After you change a setting in compose.yaml" disabled={lock} onSelect={() => void project(a, "restart", null, `${a.name} restarted`)} />] : []),
       ...(known ? [<MenuItem key="logs" label="Show logs" onSelect={() => setLogsOf(a)} />] : []),
-      ...(known ? [<MenuItem key="finder" label="Show in Finder" disabled={lock} onSelect={() => void invoke("reveal_compose", { path: `${a.dir}/${a.files[0]}` }).catch((e) => fail(a, String(e)))} />] : []),
+      ...(known && !win ? [<MenuItem key="finder" label="Show in Finder" disabled={lock} onSelect={() => void invoke("reveal_compose", { path: `${a.dir}/${a.files[0]}` }).catch((e) => fail(a, String(e)))} />] : []),
       <MenuSeparator key="sep-1" />,
       <MenuItem key="yourself" label="Run it yourself" why="Shows the command, if you'd rather use Terminal" onSelect={() => void runYourself(`Run ${a.name} yourself`, command)} />,
       <MenuSeparator key="sep-2" />,
@@ -892,7 +894,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, setDetailId
         onClose={() => setInspect(null)}
         onFix={() => { if (inspectFix && !inspectFix.locked) void inspectFix.go(); }}
         onLogs={() => { const c = inspect?.c; setInspect(null); if (c) setDetailId(c.ID); }}
-        onShell={() => {
+        onShell={win ? undefined : () => {
           const c = inspect?.c;
           const a = c ? apps.find((x) => x.rows.some((r) => r.ID === c.ID)) : undefined;
           setInspect(null);

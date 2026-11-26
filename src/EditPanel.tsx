@@ -3,6 +3,7 @@ import Drawer from "./ui/Drawer";
 import { invoke } from "@tauri-apps/api/core";
 import { Profile, StartOpts, gbOf } from "./api";
 import { Banner } from "./ui";
+import { Field } from "./ui/op";
 
 type Props = { profile: Profile; onClose: () => void; onApplied: () => void };
 
@@ -39,7 +40,7 @@ export default function EditPanel({ profile, onClose, onApplied }: Props) {
   const field = (id: string, label: string, value: number, set: (n: number) => void, prev: number, unit: string, min: number) => (
     <div className="flex flex-col gap-1.5">
       <label htmlFor={id}>{label}</label>
-      <input id={id} type="number" min={min} value={value || ""} disabled={busy} onChange={(e) => set(Number(e.target.value))} />
+      <Field id={id} type="number" width="num" min={min} value={value || ""} disabled={busy} onChange={(e) => set(Number(e.target.value))} />
       {value !== prev && <span className="delta changed">{`${prev}${unit} → ${value || "?"}${unit}`}</span>}
     </div>
   );

@@ -931,6 +931,7 @@ mod tests {
     }
 
     #[cfg(unix)]
+    #[cfg(unix)]
     #[test]
     fn given_the_file_is_a_symlink_when_written_then_the_link_stays_and_its_target_changes() {
         let d = scratch("link");

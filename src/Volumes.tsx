@@ -154,7 +154,7 @@ export default function Volumes({ ctx }: { ctx: string }) {
             <table>
               <thead>
                 <tr>
-                  <th scope="col"><input type="checkbox" aria-label="Select all shown volumes" checked={shown.length > 0 && shown.every((v) => selected.has(v.Name))} onChange={(e) => {
+                  <th scope="col"><input type="checkbox" data-op="" className="check" aria-label="Select all shown volumes" checked={shown.length > 0 && shown.every((v) => selected.has(v.Name))} onChange={(e) => {
                     if (e.target.checked) setSelected(new Set([...selected, ...shown.map((v) => v.Name)]));
                     else setSelected(new Set([...selected].filter((n) => !shown.some((v) => v.Name === n))));
                   }} /></th>
@@ -167,7 +167,7 @@ export default function Volumes({ ctx }: { ctx: string }) {
               const removeLabel = by.length ? `Remove volume ${v.Name} (in use by ${by.join(", ")})` : `Remove volume ${v.Name}`;
               return (
                 <tr key={v.Name}>
-                  <td><input type="checkbox" aria-label={`Select ${v.Name}`} checked={selected.has(v.Name)} onChange={() => toggleSelect(v.Name)} /></td>
+                  <td><input type="checkbox" data-op="" className="check" aria-label={`Select ${v.Name}`} checked={selected.has(v.Name)} onChange={() => toggleSelect(v.Name)} /></td>
                   <td className="font-mono max-w-xs break-words" title={v.Name}>
                     {isAnonymous(v.Name) ? `${v.Name.slice(0, 12)}… (anonymous)` : v.Name}
                     {/* A backup Bring over made: easy to find, and to remove once the data is checked. */}

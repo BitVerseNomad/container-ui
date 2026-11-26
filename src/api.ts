@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { Ended } from "./lib/appStopped.ts";
+import { WSL_ENGINE } from "./lib/platform.ts";
 import { noteDocker, pinStopped, projectKey, runOf } from "./lib/appStopped.ts";
 
 export type Profile = {
@@ -25,8 +26,9 @@ export type StartOpts = {
 
 export const gbOf = (bytes: number) => Math.round(bytes / 1024 ** 3);
 
+// On Windows the one engine is the docker inside WSL, which has only its "default" context.
 // Colima registers a docker context per profile: "colima" for default, "colima-<name>" otherwise.
-export const ctxFor = (name: string) => (name === "default" ? "colima" : `colima-${name}`);
+export const ctxFor = (name: string) => (name === WSL_ENGINE ? "default" : name === "default" ? "colima" : `colima-${name}`);
 
 // Every stop and start the app runs is noted, so a service it stopped never reads Finished.
 export const docker = (ctx: string, args: string[], mergeStderr = false) => {

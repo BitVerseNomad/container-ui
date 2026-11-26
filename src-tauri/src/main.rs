@@ -2,7 +2,25 @@
 
 use serde::{Deserialize, Serialize};
 use std::io::{BufReader, Read};
-use std::os::unix::process::CommandExt;
+// Runs a child in its own process group (Unix) or without a console window (Windows), so Cancel and the deadline
+// kill it together with the helpers it started.
+trait Isolate {
+    fn isolate(&mut self) -> &mut Self;
+}
+impl Isolate for Command {
+    fn isolate(&mut self) -> &mut Self {
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::CommandExt;
+            self.process_group(0)
+        }
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            self.creation_flags(0x0800_0000) // CREATE_NO_WINDOW
+        }
+    }
+}
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, TryLockError};
@@ -12,6 +30,7 @@ use tauri::Emitter;
 mod desktop;
 mod registry;
 mod setup;
+mod wsl;
 
 #[derive(Serialize, Deserialize)]
 struct Profile {
@@ -523,11 +542,40 @@ fn terminal_command(kind: &str, context: &str, target: Option<&str>) -> Result<S
 
 // Colima registers "colima" (default profile) and "colima-<profile>" contexts; nothing else is used.
 // The suffix follows the profile-name rule, so a context can never smuggle a space or a flag into k9s.
+// Inside WSL the engine is the distro's own docker, whose one context is "default".
 fn context_ok(c: &str) -> bool {
-    c == "colima" || c.strip_prefix("colima-").is_some_and(profile_name_ok)
+    c == "colima"
+        || c.strip_prefix("colima-").is_some_and(profile_name_ok)
+        || (c == "default" && wsl::via_wsl())
+}
+
+#[derive(Serialize)]
+struct PlatformInfo {
+    os: &'static str,
+    wsl: bool,
+    distro: Option<String>,
+}
+
+fn os_name(os: &str) -> &'static str {
+    match os {
+        "macos" => "macos",
+        "windows" => "windows",
+        _ => "linux",
+    }
+}
+
+// Lets the UI drop what only exists on a Mac (Colima, Homebrew, Terminal.app, Finder).
+#[tauri::command]
+fn platform_info() -> PlatformInfo {
+    PlatformInfo {
+        os: os_name(std::env::consts::OS),
+        wsl: wsl::via_wsl(),
+        distro: wsl::distro_from_env(),
+    }
 }
 
 // GUI apps on macOS don't inherit the shell PATH, so look in the usual Homebrew spots.
+#[cfg(unix)]
 fn find_bin(name: &str) -> String {
     [
         "/opt/homebrew/bin",
@@ -540,9 +588,36 @@ fn find_bin(name: &str) -> String {
     .unwrap_or_else(|| name.to_string())
 }
 
+// Where Docker Desktop, Podman and Rancher Desktop put their command line tools on Windows.
+#[cfg(windows)]
+const WINDOWS_BIN_DIRS: [&str; 3] = [
+    r"C:\Program Files\Docker\Docker\resources\bin",
+    r"C:\Program Files\RedHat\Podman",
+    r"C:\Program Files\Rancher Desktop\resources\resources\win32\bin",
+];
+
+#[cfg(windows)]
+fn find_bin(name: &str) -> String {
+    WINDOWS_BIN_DIRS
+        .iter()
+        .map(|d| format!(r"{d}\{name}.exe"))
+        .find(|p| std::path::Path::new(p).exists())
+        .unwrap_or_else(|| name.to_string())
+}
+
+#[cfg(unix)]
 fn path_env() -> String {
     format!(
         "/opt/homebrew/bin:/usr/local/bin:{}",
+        std::env::var("PATH").unwrap_or_default()
+    )
+}
+
+#[cfg(windows)]
+fn path_env() -> String {
+    format!(
+        "{};{}",
+        WINDOWS_BIN_DIRS.join(";"),
         std::env::var("PATH").unwrap_or_default()
     )
 }
@@ -603,7 +678,7 @@ pub(crate) fn run_with_deadline(
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .process_group(0)
+        .isolate()
         .spawn()?;
     let out = read_capped(child.stdout.take().expect("piped stdout"));
     let err = read_capped(child.stderr.take().expect("piped stderr"));
@@ -639,19 +714,29 @@ async fn exec_in(
 ) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let missing = |e: std::io::Error| format!("Could not run {bin}: {e}. Is it installed?");
+        // Interleave stdout and stderr in the order the program wrote them (needed for logs).
         let mut cmd = if merge_stderr {
-            // Interleave stdout and stderr in the order the program wrote them (needed for logs).
-            let mut c = Command::new("sh");
-            c.args(["-c", "exec \"$@\" 2>&1", "sh", &find_bin(bin)]);
-            c
+            wsl::tool_merged(bin, &args)
         } else {
-            Command::new(find_bin(bin))
+            wsl::tool(bin, &args)
         };
-        cmd.args(&args).env("PATH", path_env());
+        cmd.env("PATH", path_env());
         if let Some(dir) = &cwd {
             cmd.current_dir(dir);
         }
-        let (ok, stdout, stderr) = output_with_deadline(cmd, EXEC_DEADLINE).map_err(missing)?;
+        let (ok, stdout, stderr) = output_with_deadline(cmd, EXEC_DEADLINE).map_err(|e| {
+            if wsl::via_wsl() && e.kind() == std::io::ErrorKind::NotFound {
+                "Windows Subsystem for Linux is not installed. In PowerShell run `wsl --install`, then restart Windows.".to_string()
+            } else {
+                missing(e)
+            }
+        })?;
+        if !ok && wsl::via_wsl() {
+            let said = format!("{}{}", wsl::text_of(&stdout), wsl::text_of(&stderr));
+            if let Some(plain) = wsl::explain(&said) {
+                return Err(plain);
+            }
+        }
         if ok {
             Ok(String::from_utf8_lossy(&stdout).into_owned())
         } else if merge_stderr {
@@ -858,9 +943,19 @@ fn emit_frame(app: &tauri::AppHandle, event: &str, tail: &mut Vec<String>, frame
 
 // Runs a command and emits each output line as an event, so slow work (pulls, VM starts) is visible.
 // On failure the last lines are returned as the error.
+#[cfg(unix)]
 fn kill_group(pid: u32) {
     let _ = Command::new("/bin/kill")
         .args(["-KILL", "--", &format!("-{pid}")])
+        .status();
+}
+
+// /T ends the whole tree, the same reach as the process group on Unix.
+#[cfg(windows)]
+fn kill_group(pid: u32) {
+    let _ = Command::new("taskkill")
+        .args(["/PID", &pid.to_string(), "/T", "/F"])
+        .isolate()
         .status();
 }
 
@@ -918,17 +1013,15 @@ pub fn stream_in(
     silence: Duration,
     on_spawn: impl Fn(Option<u32>),
 ) -> Result<(), String> {
-    let mut cmd = Command::new("sh");
+    let mut cmd = wsl::tool_merged(bin, args);
     if let Some(dir) = cwd {
         cmd.current_dir(dir);
     }
     let mut child = cmd
-        .args(["-c", "exec \"$@\" 2>&1", "sh", &find_bin(bin)])
-        .args(args)
         .env("PATH", path_env())
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
-        .process_group(0)
+        .isolate()
         .spawn()
         .map_err(|e| format!("Could not run {bin}: {e}. Is it installed?"))?;
     let pid = child.id();
@@ -2526,9 +2619,11 @@ async fn container_shell(context: String, name: String) -> Result<String, String
     }
     tauri::async_runtime::spawn_blocking(move || {
         for sh in ["bash", "sh"] {
-            let mut cmd = Command::new(find_bin("docker"));
-            cmd.args(["--context", &context, "exec", &name, sh, "-c", "exit 0"])
-                .env("PATH", path_env());
+            let mut cmd = wsl::tool(
+                "docker",
+                &["--context", &context, "exec", &name, sh, "-c", "exit 0"].map(String::from),
+            );
+            cmd.env("PATH", path_env());
             let (ok, out, err) = output_with_deadline(cmd, SHELL_PROBE_DEADLINE)
                 .map_err(|e| format!("Could not run docker: {e}"))?;
             let text = format!(
@@ -2564,6 +2659,7 @@ fn main() {
             registry::aws_profiles,
             registry::aws_sso_login,
             env_check,
+            platform_info,
             install_tools,
             network_probe,
             kubectl,
@@ -2826,6 +2922,7 @@ mod tests {
         (home, s)
     }
 
+    #[cfg(unix)]
     #[test]
     fn given_a_regular_compose_file_when_checked_then_its_real_path_is_what_open_gets() {
         let (home, h) = compose_home("file");
@@ -2836,6 +2933,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&home);
     }
 
+    #[cfg(unix)]
     #[test]
     fn given_a_compose_yaml_that_links_to_a_script_when_opened_then_it_is_refused() {
         let (home, h) = compose_home("link");
@@ -2848,6 +2946,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&home);
     }
 
+    #[cfg(unix)]
     #[test]
     fn given_a_compose_yaml_that_links_outside_home_when_opened_then_it_is_refused() {
         let (home, h) = compose_home("out");
@@ -3151,6 +3250,7 @@ mod tests {
         );
     }
 
+    #[cfg(unix)]
     #[test]
     fn given_a_run_with_a_deadline_when_it_ends_or_is_killed_then_it_says_which_and_adds_no_words()
     {
@@ -3270,6 +3370,7 @@ mod tests {
         assert_eq!(*tried.borrow(), 1);
     }
 
+    #[cfg(unix)]
     #[test]
     fn given_a_compose_file_under_a_linked_folder_outside_home_when_opened_then_it_says_so_and_refuses(
     ) {
@@ -3467,6 +3568,7 @@ mod tests {
         }
     }
 
+    #[cfg(unix)]
     #[test]
     fn given_a_command_that_hangs_when_run_with_a_deadline_then_it_is_killed_and_says_so() {
         let mut c = std::process::Command::new("/bin/sleep");
@@ -3479,6 +3581,7 @@ mod tests {
         assert!(String::from_utf8_lossy(&err).contains("Stopped after"));
     }
 
+    #[cfg(unix)]
     #[test]
     fn given_a_child_that_forks_when_the_deadline_hits_then_the_whole_group_dies() {
         // The grandchild holds stdout open; killing only sh would leave the readers waiting forever.
@@ -3495,6 +3598,7 @@ mod tests {
         );
     }
 
+    #[cfg(unix)]
     #[test]
     fn given_a_quick_command_when_run_with_a_deadline_then_its_output_comes_back() {
         let mut c = std::process::Command::new("/bin/echo");
@@ -4009,7 +4113,10 @@ mod tests {
     fn only_colima_contexts_are_accepted() {
         assert!(context_ok("colima"));
         assert!(context_ok("colima-dev"));
-        assert!(!context_ok("default"));
+        assert!(!context_ok("default")); // only inside WSL
+        assert_eq!(super::os_name("macos"), "macos");
+        assert_eq!(super::os_name("windows"), "windows");
+        assert_eq!(super::os_name("freebsd"), "linux");
         assert!(!context_ok("desktop-linux"));
         assert!(!context_ok("colima-"));
         assert!(!context_ok("--host"));
@@ -4111,6 +4218,7 @@ mod tests {
         assert!(docker_args_allowed(&args(&["system", "df", "--bogus"])).is_err());
     }
 
+    #[cfg(unix)]
     #[test]
     fn given_a_child_that_ignores_the_wait_when_bounded_then_it_gives_up() {
         let mut child = Command::new("/bin/sleep").arg("30").spawn().unwrap();
@@ -4121,6 +4229,7 @@ mod tests {
         let _ = child.wait();
     }
 
+    #[cfg(unix)]
     #[test]
     fn given_a_child_that_exits_when_bounded_then_its_status_comes_back() {
         let mut child = Command::new("/usr/bin/true").spawn().unwrap();

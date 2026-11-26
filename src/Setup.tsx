@@ -47,8 +47,9 @@ const BROUGHT = "container-ui:broughtOver";
 export const broughtOver = () => { try { return localStorage.getItem(BROUGHT) === "1"; } catch { return false; } };
 export const markBroughtOver = (done: boolean) => { try { if (done) localStorage.setItem(BROUGHT, "1"); else localStorage.removeItem(BROUGHT); } catch { /* the row just stays */ } };
 
-export function useSetup(profile: Profile | null) {
-  const { data, error, reload } = usePoll(() => invoke<SetupReport>("setup_report"), [], 60_000);
+// `enabled` is false on Windows, where there is no Colima or Homebrew to check.
+export function useSetup(profile: Profile | null, enabled = true) {
+  const { data, error, reload } = usePoll(() => invoke<SetupReport>("setup_report"), [], 60_000, enabled);
   const vm = profile?.status === "Running" ? { cpus: profile.cpus, memory: profile.memory } : null;
   const name = profile?.name ?? "default";
   const { host, pick } = useHost();

@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import OutputLog from "./ui/OutputLog";
+import { usePlatform } from "./lib/platform";
 import RegistryLoginFix from "./RegistryLoginFix";
 import ComposeLogs from "./ComposeLogs";
 import { Banner, Button, Col, Dot, Empty, Field, Icon, List, Menu, MenuItem, MenuSeparator, MoreButton, Problem, Row, Sheet, useConfirm } from "./ui/op";
@@ -86,6 +87,7 @@ type Props = { ctx: string; scan: ComposeScan; containers: Ctr[]; attention?: Ma
 
 export default function ComposeProjects({ ctx, scan, containers, attention, onClose, onChanged, query = "" }: Props) {
   const confirm = useConfirm();
+  const win = usePlatform().os === "windows"; // no Finder there
   const [q, setQ] = useState(query);
   const [err, setErr] = useState<string | null>(null);
   const [cmdsOpen, setCmdsOpen] = useState<Set<string>>(new Set());
@@ -195,7 +197,7 @@ export default function ComposeProjects({ ctx, scan, containers, attention, onCl
                 <MenuItem label={logsHere ? "Hide logs" : "Show logs"} why="When something misbehaves and you want to see why." disabled={off} onSelect={() => setLogsDir(logsHere ? null : p.dir)} />
               )}
               <MenuItem label={cmdsOpen.has(p.dir) ? "Hide the commands" : "Show the commands to run yourself"} why="If you'd rather run it in Terminal yourself." onSelect={() => setCmdsOpen((o) => { const n = new Set(o); if (!n.delete(p.dir)) n.add(p.dir); return n; })} />
-              <MenuItem label="Show in Finder" why="To edit compose.yaml or the project's files." onSelect={() => void invoke("reveal_compose", { path: `${p.dir}/${p.files[0]}` }).then(() => setErr(null), (e) => setErr(String(e)))} />
+              {!win && <MenuItem label="Show in Finder" why="To edit compose.yaml or the project's files." onSelect={() => void invoke("reveal_compose", { path: `${p.dir}/${p.files[0]}` }).then(() => setErr(null), (e) => setErr(String(e)))} />}
               {(up || leftovers) && <MenuSeparator />}
               {(up || leftovers) && (
                 <MenuItem label="Remove containers" why="To start clean. Volumes and data are kept." danger disabled={off} onSelect={() => void run(p, "down")} />

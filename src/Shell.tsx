@@ -30,7 +30,7 @@ type ShellProps = {
   counts?: { containers?: number };
   hidden?: Tab[];
   engine: React.ReactNode;
-  onSettings: () => void;
+  onSettings?: () => void; // absent where there are no machines to set up (Windows)
   settingsActive: boolean;
   onActivity: () => void;
   onHelp: () => void;
@@ -79,7 +79,7 @@ export default function Shell({ nav, onNav, badges = {}, hidden = [], counts = {
         <div>{engine}</div>
         <nav className="nav" aria-label="Main" onClick={handleNavClick}>
           {navItems.main.map(({ tab, label, icon }) => {
-            if (tab === "Kubernetes" && hidden.includes(tab)) return null;
+            if (hidden.includes(tab)) return null;
             const count = (tab === "Containers" ? counts.containers : badges[tab]) || undefined;
             return (
               <NavItem
@@ -97,7 +97,7 @@ export default function Shell({ nav, onNav, badges = {}, hidden = [], counts = {
         </nav>
         <div className="flex-1" />
         <nav className="nav" aria-label="Health" onClick={handleNavClick}>
-          {navItems.health.map(({ tab, label, icon }) => (
+          {navItems.health.filter(({ tab }) => !hidden.includes(tab)).map(({ tab, label, icon }) => (
             <NavItem
               key={tab}
               href={PATH_OF[tab]}
@@ -112,9 +112,11 @@ export default function Shell({ nav, onNav, badges = {}, hidden = [], counts = {
         </nav>
         <TooltipProvider>
           <div className="sidebar-foot">
-            <Tooltip text="Settings">
-              <Button variant="ghost" iconOnly icon="settings" aria-label="Settings" aria-current={settingsActive ? "page" : undefined} onClick={onSettings} />
-            </Tooltip>
+            {onSettings && (
+              <Tooltip text="Settings">
+                <Button variant="ghost" iconOnly icon="settings" aria-label="Settings" aria-current={settingsActive ? "page" : undefined} onClick={onSettings} />
+              </Tooltip>
+            )}
             <Tooltip text="Commands the app ran">
               <Button variant="ghost" iconOnly icon="activity" aria-label="Activity: commands the app ran" onClick={onActivity} />
             </Tooltip>

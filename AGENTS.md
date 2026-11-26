@@ -19,9 +19,15 @@ The app runs in WebKit (WKWebView), not Chromium. A change is done when it passe
 
     npm test && (cd src-tauri && cargo test)
     npm run preview         # the app in a browser with a fake backend, http://localhost:4173
-    npm run check            # every browser check, in Chromium and WebKit
+    npm run test:e2e         # Playwright Test, tests/e2e, in Chromium and WebKit (starts the preview itself)
+    npm run lint:static      # design stylesheet copy, contrast, icon, entitlements, Tailwind classes
+    npm run check            # both of the above
 
-`PW_ENGINES=webkit sh scripts/check-all.sh` runs WebKit only. Checks click with the mouse and with the keyboard; never weaken an assertion to make one engine pass.
+`npx playwright test --project=webkit` runs WebKit only; `npx playwright test tests/e2e/containers.spec.ts` runs one file. Tests click with the mouse and with the keyboard; never weaken an assertion to make one engine pass. The design system gate (`tests/e2e/design-system.spec.ts`) fails on a new native button, select or text box outside `src/ui/op`; its list of known leftovers is `tests/e2e/design-system-baseline.txt`, and `UPDATE_BASELINE=1` rewrites it.
+
+## Design tokens
+
+`design/container-ui.css` is the source of the colours, sizes and shadows. `src/ui/container-ui.css` is its unchanged copy: change the first, then copy it over the second. `npm run lint:static` fails when they differ or when a token drops below WCAG contrast.
 
 ## Keep the README in step
 

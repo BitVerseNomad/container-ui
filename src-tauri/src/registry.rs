@@ -1,10 +1,10 @@
 // Sign in to Amazon ECR for Docker: `aws ecr get-login-password | docker login --password-stdin`.
 // The password only ever travels from aws to docker through this process's memory and docker's stdin. It is never
 // an argument, never emitted, and never part of an error.
-use super::{find_bin, kill_group, path_env, read_capped, stream, wait_bounded};
+use super::{kill_group, path_env, read_capped, stream, wait_bounded};
 use serde::Serialize;
 use std::io::Write;
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 use std::time::{Duration, Instant};
 
 const DEADLINE: Duration = Duration::from_secs(60);
@@ -88,8 +88,7 @@ fn run(
     args: &[String],
     stdin: Option<&[u8]>,
 ) -> std::io::Result<(bool, Vec<u8>, Vec<u8>)> {
-    let mut child = Command::new(find_bin(bin))
-        .args(args)
+    let mut child = crate::wsl::tool(bin, args)
         .env("PATH", path_env())
         .stdin(if stdin.is_some() {
             Stdio::piped()

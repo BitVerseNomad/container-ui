@@ -1,0 +1,37 @@
+import { test, expect } from "@playwright/test";
+import { browserLike } from "./helpers";
+
+test("A start that fails because the registry needs a sign-in offers the fix, asks first, and says it worked", async ({ context }) => {
+  const browser = browserLike(context);
+  const p = await browser.newPage({ viewport: { width: 980, height: 700 } });
+  const errors = [];
+  p.on("pageerror", (e) => errors.push(e.message));
+  await p.goto(`/?scenario=running&ecrfail=1#/containers`);
+  await p.getByRole("button", { name: "New" }).click();
+  await p.getByRole("menuitem", { name: /^Start a Compose project/ }).click();
+  const drawer = p.getByRole("dialog", { name: "Start a Compose project" });
+  await drawer.waitFor({ timeout: 3000 });
+  await drawer.getByRole("button", { name: "Start orders-api" }).click();
+  const sign = drawer.getByRole("button", { name: "Sign in to AWS registry" });
+  await sign.waitFor({ timeout: 5000 }).catch(() => {});
+  await expect.soft(sign, "a failed start offers Sign in to AWS registry").toHaveCount(1);
+  expect.soft(/needs a sign-in to 123456789012\.dkr\.ecr\.us-west-2\.amazonaws\.com/.test(await drawer.innerText()), "it says which registry needs the sign-in").toBeTruthy();
+  const signLine = await drawer.getByText(/needs a sign-in to/).first().boundingBox({ timeout: 1000 }).catch(() => null);
+  const banner = await drawer.getByText(/Docker couldn't start orders-api/).first().boundingBox({ timeout: 1000 }).catch(() => null);
+  expect.soft(signLine && banner && signLine.y < banner.y, "the sign-in line sits directly above the failure banner").toBeTruthy();
+  await sign.click();
+  const ask = p.getByRole("alertdialog");
+  await ask.waitFor({ timeout: 3000 }).catch(() => {});
+  const words = await ask.innerText().catch(() => "");
+  expect.soft(/aws ecr get-login-password --region us-west-2 .*\| docker login --username AWS --password-stdin 123456789012/.test(words), "the dialog shows the exact command it will run").toBeTruthy();
+  expect.soft(/about 12 hours/.test(words), "the dialog says Docker keeps the login for about 12 hours").toBeTruthy();
+  expect.soft(await p.evaluate(() => !(window.__calls ?? []).includes("registry_login")), "nothing ran before the answer").toBeTruthy();
+  await ask.getByRole("button", { name: "Sign in" }).click();
+  await p.getByText("Signed in. Start it again.").waitFor({ timeout: 5000 }).catch(() => {});
+  await expect.soft(p.getByText("Signed in. Start it again."), "after the sign-in it says: Signed in. Start it again.").toHaveCount(1);
+  expect.soft(await p.evaluate(() => (window.__calls ?? []).includes("registry_login")), "registry_login ran once confirmed").toBeTruthy();
+  await drawer.getByRole("button", { name: "Start orders-api" }).click();
+  await p.waitForTimeout(1200);
+  await expect.soft(drawer.getByRole("button", { name: "Sign in to AWS registry" }), "starting again no longer asks for a sign-in").toHaveCount(0);
+  expect.soft(errors.length === 0, `no page errors ${errors.join("; ")}`).toBeTruthy();
+});
