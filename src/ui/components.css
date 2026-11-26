@@ -62,7 +62,7 @@ a:hover { text-decoration: underline; }
 .field.md { height: var(--h-md); }
 .field input, .field select { border: 0; background: none; outline: none; width: 100%; min-width: 0; user-select: text; }
 .field input::placeholder { color: var(--fg-faint); }
-.field:focus-within { box-shadow: 0 0 0 1px var(--edge-strong), 0 0 0 3px var(--accent-fill); }
+.field:focus-within { box-shadow: 0 0 0 1px var(--accent-fill), 0 0 0 4px color-mix(in srgb, var(--accent-fill) 22%, transparent); }
 .field[aria-invalid="true"] { box-shadow: 0 0 0 1px var(--bad-edge); }
 .field .icon { color: var(--fg-muted); }
 .label { display: block; font-size: var(--text-meta); font-weight: 500; margin: 0 0 5px; }

@@ -136,6 +136,8 @@ export default function App() {
   // Load profiles from active runtime adapter
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [profilesError, setProfilesError] = useState<string | null>(null);
+  // Until the first answer, an empty list means "not known yet", not "no machines": the first-run card must not flash.
+  const [profilesLoaded, setProfilesLoaded] = useState(false);
 
   const reloadProfiles = useCallback(async () => {
     if (!known) return;
@@ -147,9 +149,10 @@ export default function App() {
         setProfiles(list);
         setProfilesError(null);
       } catch (e) {
+        // A failed read keeps the last list: one slow or failed poll must not make a running machine vanish.
         setProfilesError(String(e));
-        setProfiles([]);
       }
+      setProfilesLoaded(true);
     }
   }, [known, win]);
 
@@ -329,6 +332,11 @@ export default function App() {
             <div className="flex justify-center py-16">
               <InstallCard env={env} onDone={recheck} />
             </div>
+          </>
+        ) : !profilesLoaded && !win ? (
+          <>
+            <Header title="Containers" />
+            <p className="hint lead" role="status">Looking for your machines…</p>
           </>
         ) : (
           <Containers

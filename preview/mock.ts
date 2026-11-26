@@ -308,7 +308,13 @@ export async function invoke<T>(cmd: string, a: Record<string, any> = {}): Promi
   switch (cmd) {
     // ?platform=windows: the app on Windows with docker inside WSL2.
     case "platform_info": return (new URLSearchParams(location.search).get("platform") === "windows" ? { os: "windows", wsl: true, distro: "Ubuntu" } : { os: "macos", wsl: false, distro: null }) as T;
-    case "list_profiles": return db.profiles.map((p) => ({ ...p })) as T; // fresh objects per call, like the real IPC
+    // ?slowprofiles=1: the first answer takes 2 s, like `colima list` on a cold start.
+    case "list_profiles": {
+      const slow = new URLSearchParams(location.search).get("slowprofiles") && !(window as any).__listed;
+      (window as any).__listed = true;
+      if (slow) await new Promise((r) => setTimeout(r, 2000));
+      return db.profiles.map((p) => ({ ...p })) as T; // fresh objects per call, like the real IPC
+    }
     case "docker": {
       const args: string[] = a.args.filter((x: string) => x !== "--format" && x !== "{{json .}}");
       // ?scenario=loading: the first docker ps never answers, so the skeleton stays on screen.
