@@ -1254,6 +1254,31 @@ async fn start_profile(app: tauri::AppHandle, opts: StartOpts) -> Result<(), Str
     colima_stream(app, vec![start_args(&opts)]).await
 }
 
+// Checked before the VM is stopped, so a refusal changes nothing.
+// shortcut: the disk is only checked for being at least 1 GiB; "not smaller than now" needs the current size, which StartOpts does not carry.
+fn validate_resources(o: &StartOpts, host_cpus: u32) -> Result<(), String> {
+    let refuse = |why: String| Err(format!("Nothing changed: {why}"));
+    if let Some(r) = o.runtime.as_deref() {
+        if !matches!(r, "docker" | "containerd" | "incus") {
+            return refuse(format!(
+                "\"{r}\" is not a runtime (docker, containerd or incus)."
+            ));
+        }
+    }
+    if let Some(c) = o.cpus {
+        if c < 1 || c > host_cpus {
+            return refuse(format!("CPUs must be from 1 to {host_cpus}, not {c}."));
+        }
+    }
+    if o.memory == Some(0) {
+        return refuse("memory must be at least 1 GiB.".into());
+    }
+    if o.disk == Some(0) {
+        return refuse("disk must be at least 1 GiB.".into());
+    }
+    Ok(())
+}
+
 // Colima applies CPU/memory/disk changes on the next start, so a running VM is stopped first.
 // If the stop fails, nothing has changed. If the start fails, the profile is left stopped.
 #[tauri::command]
@@ -1263,6 +1288,7 @@ async fn apply_resources(
     restart: bool,
 ) -> Result<(), String> {
     profile(&opts.name)?;
+    validate_resources(&opts, host_resources().cpus)?;
     let mut steps = Vec::new();
     if restart {
         steps.push(vec!["stop".to_string(), opts.name.clone()]);
@@ -4414,6 +4440,35 @@ mod tests {
             assert!(!mount_ok(bad, home), "{bad}");
         }
         assert!(mount_ok("/users/me/code", home), "same folder, other case");
+    }
+
+    fn res_opts(cpus: Option<u32>, memory: Option<u32>, runtime: Option<&str>) -> StartOpts {
+        StartOpts {
+            name: "default".into(),
+            cpus,
+            memory,
+            disk: None,
+            runtime: runtime.map(String::from),
+            kubernetes: None,
+        }
+    }
+
+    #[test]
+    fn given_bad_resources_when_validated_then_nothing_changed_is_the_answer() {
+        for (o, why) in [
+            (res_opts(Some(0), None, None), "CPUs"),
+            (res_opts(Some(9), None, None), "CPUs"),
+            (res_opts(None, Some(0), None), "memory"),
+            (res_opts(None, None, Some("podman")), "podman"),
+        ] {
+            let err = validate_resources(&o, 8).unwrap_err();
+            assert!(err.starts_with("Nothing changed: "), "{err}");
+            assert!(err.contains(why), "{err}");
+        }
+        for r in ["docker", "containerd", "incus"] {
+            assert!(validate_resources(&res_opts(Some(8), Some(1), Some(r)), 8).is_ok());
+        }
+        assert!(validate_resources(&res_opts(None, None, None), 8).is_ok());
     }
 
     fn scratch_dir(tag: &str) -> std::path::PathBuf {
