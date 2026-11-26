@@ -7,7 +7,7 @@ import PodDrawer from "./PodDrawer";
 import { K8sEvent, Pod, parseDeployments, parseK8sEvents, parseNamespaces, parseNodes, parsePods, parseServices, podProblems } from "./lib/k8s";
 import { ago } from "./lib/events";
 import { Banner } from "./ui";
-import { Button, Select, TabPanel, Tabs } from "./ui/op";
+import { Button, Dot, Select, TabPanel, Tabs } from "./ui/op";
 import Card from "./ui/Card";
 import { Badge } from "@ui/components/Badge";
 import OutputLog from "./ui/OutputLog";
@@ -88,7 +88,7 @@ export default function Kubernetes({ profile, ctx }: { profile: Profile; ctx: st
   return (
     <section className="flex min-h-0 flex-col gap-4">
       <div className="vm-strip k8s-summary">
-        <span className={`sdot ${nodes.error ? "bad" : ready ? "on" : ""}`} aria-hidden="true" />
+        <Dot state={nodes.error ? "bad" : ready ? "ok" : "off"} />
         <b>{ready} node{ready === 1 ? "" : "s"} ready</b>
         <span className="hint">{nodes.error ? "The cluster isn't answering yet" : (nodes.data ?? []).map((n) => n.version).filter(Boolean)[0] ?? ""}</span>
         <span className="text-meta text-fg-muted"><span>{running} of {(pods.data ?? []).length} pods running</span>{sick.length > 0 && <><span aria-hidden="true"> · </span><span className="font-medium text-bad">{sick.length} need attention</span></>}</span>

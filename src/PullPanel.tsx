@@ -101,14 +101,14 @@ export default function PullPanel({ ctx, onClose, onPulled, onRun, searchFor }: 
   return (
     <Sheet open={true} onClose={onClose} title="Pull an image" busy={pulling} footer={sheetFoot}>
       <div className="flex gap-1.5">
-        <ChipButton icon="search" pressed={!priv} onClick={() => switchMode("hub")}>Docker Hub</ChipButton>
-        <ChipButton icon="chev-right" pressed={priv} onClick={() => switchMode("private")}>Other registry</ChipButton>
+        <ChipButton pressed={!priv} onClick={() => switchMode("hub")}>Docker Hub</ChipButton>
+        <ChipButton pressed={priv} onClick={() => switchMode("private")}>Other registry</ChipButton>
       </div>
 
       {!priv && (
         <>
           <FormRow label="Image to pull" htmlFor="image-to-pull">
-            <Field id="image-to-pull" width="search" placeholder="nginx or postgres:16" value={image} disabled={copyBusy || pulling} onChange={(e) => setImage(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && name && idle) void pull(); }} />
+            <Field id="image-to-pull" placeholder="nginx or postgres:16" value={image} disabled={copyBusy || pulling} onChange={(e) => setImage(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && name && idle) void pull(); }} />
           </FormRow>
           <div className="flex flex-wrap gap-1.5">
             {SUGGESTIONS.map((n) => (
@@ -117,7 +117,7 @@ export default function PullPanel({ ctx, onClose, onPulled, onRun, searchFor }: 
           </div>
 
           <FormRow label="Search Docker Hub" htmlFor="search-docker-hub">
-            <Field id="search-docker-hub" aria-label="Search Docker Hub" icon="search" width="search" value={term} disabled={searching || pulling} onChange={(e) => setTerm(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") void search(); }} />
+            <Field id="search-docker-hub" aria-label="Search Docker Hub" icon="search" value={term} disabled={searching || pulling} onChange={(e) => setTerm(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") void search(); }} />
           </FormRow>
           <p className="hint">Searching downloads nothing. It only lists images; nothing is downloaded until you pull.</p>
           <Button disabled={!query || searching || pulling} onClick={search}>{searching ? "Searching…" : "Search"}</Button>

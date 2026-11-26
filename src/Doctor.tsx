@@ -279,8 +279,8 @@ export default function Doctor({ ctx, setup, doc, onProfiles, onBring, onGo, onO
   };
 
   // The container problems below are counted on their own rows, not here, so the line says where they are.
-  const onScreen = onHome.length ? ` ${onHome.length} ${todo ? "more" : onHome.length === 1 ? "container problem" : "container problems"} ${onHome.length === 1 ? "is" : "are"} on the Containers screen.` : "";
-  const summary = `${todo === 0 && onHome.length ? "Nothing needs action here." : summaryOf(todo)}${onScreen}`;
+  const onScreen = onHome.length ? ` ${onHome.length}${todo ? " more" : ""} ${onHome.length === 1 ? "container problem" : "container problems"} ${onHome.length === 1 ? "is" : "are"} listed below.` : "";
+  const summary = `${todo === 0 && onHome.length ? "Your setup is healthy." : summaryOf(todo)}${onScreen}`;
   return (
     <div className="setup doctor !max-w-none pt-4" onFocus={onFocusIn} onMouseDown={(e) => controlAt(e.target) && noteRow(e.target)}>
       <div className="doctor-head">

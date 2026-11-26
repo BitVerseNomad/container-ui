@@ -45,9 +45,9 @@ export default function Networks({ ctx }: { ctx: string }) {
       <Header title="Networks">
         <OpButton variant="default" size="sm" onClick={() => setTesting(true)}>Test a connection…</OpButton>
       </Header>
-      <p className="hint lead">
+      <p className="hint lead mt-3">
         Containers on the same network reach each other by name, like <code>http://db:5432</code>. The built-in <b>bridge</b> network doesn't do name lookup, so put containers that talk to each other on a network of your own.{" "}
-        <OpButton variant="ghost" size="sm" onClick={() => openUrl(BRIDGE_DOCS)}>Learn more <span className="font-mono text-fg-muted">(docs.docker.com)</span></OpButton>
+        <OpButton variant="ghost" size="sm" onClick={() => openUrl(BRIDGE_DOCS)}>Learn more on <span className="font-mono text-fg-muted">docs.docker.com</span></OpButton>
       </p>
       <div className="flex items-center gap-2">
         <Field className="w-64" aria-label="New network name" placeholder="New network name, like devnet" value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && valid && act(["network", "create", newName.trim()]).then(() => setNewName(""))} />
