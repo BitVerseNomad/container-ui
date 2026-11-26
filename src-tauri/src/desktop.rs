@@ -7,7 +7,7 @@ use std::io::{Read, Write};
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard, TryLockError};
 use std::time::{Duration, Instant};
 use tauri::Emitter;
 
@@ -85,11 +85,15 @@ pub fn open_docker_desktop() -> Result<(), String> {
     if !Path::new(DESKTOP_APP).exists() {
         return Err("Docker Desktop isn't installed".into());
     }
-    Command::new("open")
+    let mut child = Command::new("open")
         .args(["-a", DESKTOP_APP])
         .spawn()
-        .map(|_| ())
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+    // Reaped in the background, or the finished `open` stays a zombie until the app quits.
+    std::thread::spawn(move || {
+        let _ = child.wait();
+    });
+    Ok(())
 }
 
 // The lists the panel reads from Docker Desktop, and nothing else.
@@ -216,29 +220,116 @@ fn compare_counts(
 }
 
 // Compose finds its volumes by these labels; without them it warns that the volume "was not created by Compose".
+// marker: a copy's own label, so later steps can tell its volume from one somebody else made under the same name.
 fn volume_create(
     context: &str,
     name: &str,
     labels: &serde_json::Map<String, serde_json::Value>,
+    marker: Option<&str>,
 ) -> Vec<String> {
     let mut a: Vec<String> = ["--context", context, "volume", "create"]
         .iter()
         .map(|s| s.to_string())
         .collect();
     for (k, v) in labels {
+        if k == COPY_LABEL {
+            continue;
+        }
         if let Some(v) = v.as_str().filter(|v| label_ok(k, v)) {
             a.push("--label".into());
             a.push(format!("{k}={v}"));
         }
     }
+    if let Some(m) = marker {
+        a.push("--label".into());
+        a.push(format!("{COPY_LABEL}={m}"));
+    }
     a.push(name.to_string());
     a
+}
+
+const COPY_LABEL: &str = "com.container-ui.copy";
+
+fn copy_marker(n: u64) -> String {
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_nanos());
+    format!("{}-{n}-{nanos}", std::process::id())
+}
+
+// `volume inspect --format '{{json .Labels}}'` output: does the volume carry this copy's marker?
+fn label_is_ours(labels_json: &str, marker: &str) -> bool {
+    serde_json::from_str::<serde_json::Value>(labels_json.trim())
+        .ok()
+        .and_then(|v| {
+            v.get(COPY_LABEL)
+                .and_then(|m| m.as_str().map(|m| m == marker))
+        })
+        .unwrap_or(false)
+}
+
+fn volume_labels_args(context: &str, name: &str) -> Vec<String> {
+    strs(&[
+        "--context",
+        context,
+        "volume",
+        "inspect",
+        "--format",
+        "{{json .Labels}}",
+        name,
+    ])
+}
+
+// Right after `volume create` returned 0: that also happens when the name already existed (create is idempotent),
+// and then the volume is somebody else's and must not be written to or removed.
+fn created_ours(labels: &Result<String, String>, marker: &str) -> Result<(), String> {
+    match labels {
+        Ok(l) if label_is_ours(l, marker) => Ok(()),
+        _ => Err("Another program made this volume in Colima while the copy was getting ready, so it was left alone."
+            .to_string()),
+    }
+}
+
+#[derive(Debug, PartialEq)]
+enum Discard {
+    Gone,
+    Remove,
+    LeaveAlone,
+}
+
+fn discard_decision(labels: &Result<String, String>, marker: &str) -> Discard {
+    match labels {
+        Err(_) => Discard::Gone,
+        Ok(l) if label_is_ours(l, marker) => Discard::Remove,
+        Ok(_) => Discard::LeaveAlone,
+    }
 }
 
 // The copy in progress, so Stop can end both sides.
 static COPY_PIDS: Mutex<Vec<u32>> = Mutex::new(Vec::new());
 static COPY_STOPPED: AtomicBool = AtomicBool::new(false);
 pub(crate) static COPY_LOCK: Mutex<()> = Mutex::new(());
+
+// A panic in an earlier copy poisons the lock; that is not "busy", the guard holds no data.
+fn try_lock_recover<T>(m: &Mutex<T>) -> Option<MutexGuard<'_, T>> {
+    match m.try_lock() {
+        Ok(g) => Some(g),
+        Err(TryLockError::Poisoned(p)) => Some(p.into_inner()),
+        Err(TryLockError::WouldBlock) => None,
+    }
+}
+
+// Takes the one copy slot and clears a Stop left over from an earlier run, so a page that never sent
+// desktop_copy_stop(false) can't make every later copy answer "Stopped.".
+fn begin_with<'a>(lock: &'a Mutex<()>, stopped: &AtomicBool) -> Result<MutexGuard<'a, ()>, String> {
+    let guard = try_lock_recover(lock).ok_or("Another copy is still running.")?;
+    stopped.store(false, Ordering::SeqCst);
+    Ok(guard)
+}
+
+fn begin_copy() -> Result<MutexGuard<'static, ()>, String> {
+    begin_with(&COPY_LOCK, &COPY_STOPPED)
+}
 
 // Streams `from`'s stdout into `to`'s stdin and counts the bytes on the way, which is the progress.
 // Both run in their own process group, so Stop and the silence watchdog also reach what docker started.
@@ -492,14 +583,18 @@ fn parse_users(out: &str) -> Vec<(String, String)> {
 
 // After a failed or stopped copy: remove both helpers, then the half-made volume. The helper must be gone first,
 // or the volume is still in use and can't be removed.
-fn discard(context: &str, name: &str, helpers: [&str; 2]) -> Result<(), String> {
+// Only a volume that carries this copy's marker is removed; anything else under the name is not ours to delete.
+fn discard(context: &str, name: &str, helpers: [&str; 2], marker: &str) -> Result<(), String> {
     let _ = quick(&strs(&["--context", DESKTOP_CTX, "rm", "-f", helpers[0]]));
     let _ = quick(&strs(&["--context", context, "rm", "-f", helpers[1]]));
     for _ in 0..5 {
-        if quick(&strs(&["--context", context, "volume", "rm", name])).is_ok()
-            || quick(&strs(&["--context", context, "volume", "inspect", name])).is_err()
-        {
-            return Ok(());
+        match discard_decision(&quick(&volume_labels_args(context, name)), marker) {
+            Discard::Gone | Discard::LeaveAlone => return Ok(()),
+            Discard::Remove => {
+                if quick(&strs(&["--context", context, "volume", "rm", name])).is_ok() {
+                    return Ok(());
+                }
+            }
         }
         std::thread::sleep(Duration::from_secs(1));
     }
@@ -593,15 +688,23 @@ fn copy_volume(
         .and_then(|v| v.as_object().cloned())
         .unwrap_or_default();
     halt(DESKTOP_CTX, name, stop_users)?;
-    quick(&volume_create(context, name, &labels))?;
+    // halt can take minutes; the name may have been taken meanwhile. Look again right before creating.
+    if quick(&strs(&["--context", context, "volume", "inspect", name])).is_ok() {
+        return Err(format!(
+            "Colima already has a volume called {name}, so it was left alone."
+        ));
+    }
     let n = HELPER_N.fetch_add(1, Ordering::SeqCst);
+    let marker = copy_marker(n);
+    quick(&volume_create(context, name, &labels, Some(&marker)))?;
+    created_ours(&quick(&volume_labels_args(context, name)), &marker)?;
     let (out, into) = (
         format!("container-ui-copy-out-{}-{n}", std::process::id()),
         format!("container-ui-copy-in-{}-{n}", std::process::id()),
     );
     let copied = stream_in(context, name, [&out, &into], bytes, on_bytes, || {});
     // Half a database is worse than none, and a leftover would block the next try.
-    copied.map_err(|e| match discard(context, name, [&out, &into]) {
+    copied.map_err(|e| match discard(context, name, [&out, &into], &marker) {
         Ok(()) => e,
         Err(left) => format!("{e}\n{left}"),
     })
@@ -666,12 +769,7 @@ pub async fn desktop_copy(
         return Err(format!("\"{name}\" isn't a {kind} name the app can copy"));
     }
     tauri::async_runtime::spawn_blocking(move || {
-        let Ok(_guard) = COPY_LOCK.try_lock() else {
-            return Err("Another copy is still running.".to_string());
-        };
-        if COPY_STOPPED.load(Ordering::SeqCst) {
-            return Err("Stopped.".to_string());
-        }
+        let _guard = begin_copy()?;
         let mut sent = Instant::now() - Duration::from_secs(1);
         let report = |bytes: u64| {
             if sent.elapsed() >= Duration::from_millis(200) {
@@ -883,9 +981,64 @@ fn replace_inputs_ok(name: &str, context: &str, backup: &str) -> Result<(), Stri
     Ok(())
 }
 
-// A helper run inside Colima that Stop can end: its own process group, its pid with the copy's, its container
-// removed by name after a kill (killing the CLI leaves the container running).
-fn run_stoppable(context: &str, args: &[String], helper: &str) -> Result<(), String> {
+// How long, in the words the panel shows.
+fn span_words(d: Duration) -> String {
+    let s = d.as_secs();
+    if s < 120 {
+        format!("{s} seconds")
+    } else {
+        format!("{} minutes", s / 60)
+    }
+}
+
+// `docker rm -f` on a helper that is already gone is fine.
+fn helper_removed(r: &Result<String, String>) -> bool {
+    match r {
+        Ok(_) => true,
+        Err(e) => e.contains("No such container"),
+    }
+}
+
+fn helper_failure(
+    timed_out: bool,
+    stopped: bool,
+    stderr: &str,
+    deadline: Duration,
+    removed: bool,
+) -> String {
+    if stopped {
+        return "Stopped.".into();
+    }
+    let mut m = if timed_out {
+        format!("The step did not finish in {}.", span_words(deadline))
+    } else if stderr.is_empty() {
+        "The copy failed with no message.".into()
+    } else {
+        stderr.chars().take(2000).collect()
+    };
+    m.push_str(if removed {
+        if timed_out {
+            " Its helper was removed."
+        } else {
+            ""
+        }
+    } else {
+        " The helper could not be removed; remove it in Containers before trying again."
+    });
+    m
+}
+
+// A helper container run inside Colima. A kill or a deadline only ends the docker CLI, the container keeps running
+// (an `rm -rf` would go on emptying the volume), so on any failure the container is removed by name and that is
+// awaited before returning: the restore that may follow must not find the volume still in use.
+// stoppable: Stop can end it (its pid joins the copy's). The restore is never stoppable: it is the way back.
+fn run_helper(
+    args: &[String],
+    helper: &str,
+    context: &str,
+    deadline: Duration,
+    stoppable: bool,
+) -> Result<(), String> {
     let mut child = Command::new(find_bin("docker"))
         .args(args)
         .env("PATH", path_env())
@@ -895,36 +1048,36 @@ fn run_stoppable(context: &str, args: &[String], helper: &str) -> Result<(), Str
         .isolate()
         .spawn()
         .map_err(|e| e.to_string())?;
-    *COPY_PIDS.lock().unwrap_or_else(|p| p.into_inner()) = vec![child.id()];
-    if COPY_STOPPED.load(Ordering::SeqCst) {
-        kill_group(child.id());
+    if stoppable {
+        *COPY_PIDS.lock().unwrap_or_else(|p| p.into_inner()) = vec![child.id()];
+        if COPY_STOPPED.load(Ordering::SeqCst) {
+            kill_group(child.id());
+        }
     }
     let err = read_capped(child.stderr.take().expect("piped"));
-    let ok = match wait_bounded(&mut child, AFTER_LAST_BYTE) {
+    let mut timed_out = false;
+    let ok = match wait_bounded(&mut child, deadline) {
         Some(s) => s.success(),
         None => {
+            timed_out = true;
             kill_group(child.id());
             let _ = child.kill();
             let _ = child.wait();
             false
         }
     };
-    COPY_PIDS.lock().unwrap_or_else(|p| p.into_inner()).clear();
+    if stoppable {
+        COPY_PIDS.lock().unwrap_or_else(|p| p.into_inner()).clear();
+    }
     let msg = String::from_utf8_lossy(&err.join().unwrap_or_default())
         .trim()
         .to_string();
     if ok {
         return Ok(());
     }
-    let _ = quick(&strs(&["--context", context, "rm", "-f", helper]));
-    if COPY_STOPPED.load(Ordering::SeqCst) {
-        return Err("Stopped.".into());
-    }
-    Err(if msg.is_empty() {
-        "The copy failed with no message.".into()
-    } else {
-        msg.chars().take(2000).collect()
-    })
+    let removed = helper_removed(&quick(&strs(&["--context", context, "rm", "-f", helper])));
+    let stopped = stoppable && COPY_STOPPED.load(Ordering::SeqCst);
+    Err(helper_failure(timed_out, stopped, &msg, deadline, removed))
 }
 
 // The steps of a replace, so the order and the restore can be tested without Docker.
@@ -1049,12 +1202,19 @@ impl<F: FnMut(u64), S: FnMut(&str)> ReplaceOps for RealReplace<'_, F, S> {
             count(self.context, self.name, wait).map(|(_, bytes)| bytes),
             self.shown,
         )?;
-        quick(&volume_create(self.context, self.backup, &self.labels))?;
-        let h = self.helper("backup");
-        run_stoppable(
+        quick(&volume_create(
             self.context,
+            self.backup,
+            &self.labels,
+            None,
+        ))?;
+        let h = self.helper("backup");
+        run_helper(
             &volume_fill(self.context, self.name, self.backup, &h),
             &h,
+            self.context,
+            AFTER_LAST_BYTE,
+            true,
         )?;
         let (a, b) = (
             count(self.context, self.name, wait),
@@ -1093,7 +1253,13 @@ impl<F: FnMut(u64), S: FnMut(&str)> ReplaceOps for RealReplace<'_, F, S> {
         plain_volume(self.name, &inspect_volume(self.context, self.name)?)?;
         (self.on_step)("empty");
         let h = self.helper("empty");
-        quick_for(&volume_empty(self.context, self.name, &h), COPY_SILENCE).map(|_| ())
+        run_helper(
+            &volume_empty(self.context, self.name, &h),
+            &h,
+            self.context,
+            COPY_SILENCE,
+            true,
+        )
     }
     fn copy_in(&mut self) -> Result<u64, String> {
         self.quiet(true)?;
@@ -1128,10 +1294,19 @@ impl<F: FnMut(u64), S: FnMut(&str)> ReplaceOps for RealReplace<'_, F, S> {
         (self.on_step)("restore");
         let (e, f) = (self.helper("restore-empty"), self.helper("restore"));
         plain_volume(self.name, &inspect_volume(self.context, self.name)?)?;
-        quick_for(&volume_empty(self.context, self.name, &e), COPY_SILENCE)?;
-        quick_for(
+        run_helper(
+            &volume_empty(self.context, self.name, &e),
+            &e,
+            self.context,
+            COPY_SILENCE,
+            false,
+        )?;
+        run_helper(
             &volume_fill(self.context, self.backup, self.name, &f),
+            &f,
+            self.context,
             AFTER_LAST_BYTE,
+            false,
         )?;
         self.same(self.backup, self.name, "The restored copy")
     }
@@ -1221,12 +1396,7 @@ pub async fn desktop_replace(
 ) -> Result<Replaced, String> {
     replace_inputs_ok(&name, &context, &backup)?;
     tauri::async_runtime::spawn_blocking(move || {
-        let Ok(_guard) = COPY_LOCK.try_lock() else {
-            return Err("Another copy is still running.".to_string());
-        };
-        if COPY_STOPPED.load(Ordering::SeqCst) {
-            return Err("Stopped.".to_string());
-        }
+        let _guard = begin_copy()?;
         let mut sent = Instant::now() - Duration::from_secs(1);
         let report = |bytes: u64| {
             if sent.elapsed() >= Duration::from_millis(200) {
@@ -1332,7 +1502,7 @@ mod tests {
             serde_json::from_str(r#"{"com.docker.compose.project":"shop","bad\nkey":"x","n":1}"#)
                 .unwrap();
         assert_eq!(
-            volume_create("colima", "shop_db", &labels),
+            volume_create("colima", "shop_db", &labels, None),
             s(&[
                 "--context",
                 "colima",
@@ -1731,5 +1901,123 @@ mod tests {
         let r =
             tauri::async_runtime::block_on(desktop_start(s(&["web"]), Some("elsewhere".into())));
         assert!(r.unwrap_err().contains("Unknown Docker context"));
+    }
+
+    #[test]
+    fn given_a_marker_when_the_copy_volume_is_created_then_it_carries_our_label_and_source_cannot_forge_it(
+    ) {
+        let labels: serde_json::Map<String, serde_json::Value> = serde_json::from_str(&format!(
+            r#"{{"com.docker.compose.project":"shop","{COPY_LABEL}":"forged"}}"#
+        ))
+        .unwrap();
+        assert_eq!(
+            volume_create("colima", "shop_db", &labels, Some("m1")),
+            s(&[
+                "--context",
+                "colima",
+                "volume",
+                "create",
+                "--label",
+                "com.docker.compose.project=shop",
+                "--label",
+                "com.container-ui.copy=m1",
+                "shop_db"
+            ])
+        );
+    }
+
+    #[test]
+    fn given_labels_json_when_checked_then_only_our_marker_counts() {
+        let ours = r#"{"com.container-ui.copy":"m1","a":"b"}"#;
+        assert!(label_is_ours(ours, "m1"));
+        assert!(!label_is_ours(ours, "m2"));
+        assert!(!label_is_ours("null", "m1"));
+        assert!(!label_is_ours("{}", "m1"));
+        assert!(!label_is_ours("not json", "m1"));
+        assert!(!label_is_ours("", "m1"));
+    }
+
+    #[test]
+    fn given_an_inspect_result_when_discarding_then_only_our_volume_is_removed() {
+        let ours = Ok(r#"{"com.container-ui.copy":"m1"}"#.to_string());
+        let theirs = Ok(r#"{"app":"x"}"#.to_string());
+        let gone: Result<String, String> = Err("No such volume".into());
+        assert_eq!(discard_decision(&ours, "m1"), Discard::Remove);
+        assert_eq!(discard_decision(&theirs, "m1"), Discard::LeaveAlone);
+        assert_eq!(discard_decision(&gone, "m1"), Discard::Gone);
+    }
+
+    #[test]
+    fn given_two_copies_when_markers_are_made_then_they_differ() {
+        assert_ne!(copy_marker(1), copy_marker(2));
+    }
+
+    #[test]
+    fn given_the_volume_appeared_or_is_not_ours_when_checked_then_the_copy_aborts_without_deleting()
+    {
+        assert!(created_ours(&Ok(r#"{"com.container-ui.copy":"m1"}"#.into()), "m1").is_ok());
+        let e = created_ours(&Ok("null".into()), "m1").unwrap_err();
+        assert!(e.contains("Another program") && e.contains("left alone"));
+        assert!(created_ours(&Err("boom".into()), "m1").is_err());
+    }
+
+    #[test]
+    fn given_a_helper_that_timed_out_when_the_failure_is_worded_then_it_says_so_and_whether_it_was_removed(
+    ) {
+        let d = Duration::from_secs(600);
+        let m = helper_failure(true, false, "", d, true);
+        assert!(m.contains("10 minutes") && m.contains("was removed"), "{m}");
+        let m = helper_failure(true, false, "", d, false);
+        assert!(m.contains("could not be removed"), "{m}");
+        assert_eq!(helper_failure(false, true, "x", d, true), "Stopped.");
+        assert_eq!(
+            helper_failure(false, false, "disk full", d, true),
+            "disk full"
+        );
+        assert!(helper_failure(false, false, "", d, true).contains("no message"));
+        assert!(
+            helper_failure(false, false, "disk full", d, false).contains("could not be removed")
+        );
+    }
+
+    #[test]
+    fn given_a_remove_result_when_checked_then_a_missing_container_counts_as_removed() {
+        assert!(helper_removed(&Ok(String::new())));
+        assert!(helper_removed(&Err(
+            "Error response: No such container: h".into()
+        )));
+        assert!(!helper_removed(&Err("cannot connect to the daemon".into())));
+    }
+
+    #[test]
+    fn given_a_lock_held_or_poisoned_when_taken_then_held_is_busy_and_poisoned_is_recovered() {
+        let m = Mutex::new(());
+        let held = m.lock().unwrap();
+        assert!(try_lock_recover(&m).is_none());
+        drop(held);
+        assert!(try_lock_recover(&m).is_some());
+
+        let m = Arc::new(Mutex::new(()));
+        let m2 = Arc::clone(&m);
+        let _ = std::thread::spawn(move || {
+            let _g = m2.lock().unwrap();
+            panic!("poison it");
+        })
+        .join();
+        assert!(m.is_poisoned());
+        assert!(try_lock_recover(&m).is_some());
+    }
+
+    #[test]
+    fn given_a_stale_stop_flag_when_a_copy_begins_then_the_flag_is_cleared_and_a_second_copy_is_busy(
+    ) {
+        let (lock, stopped) = (Mutex::new(()), AtomicBool::new(true));
+        let first = begin_with(&lock, &stopped).unwrap();
+        assert!(!stopped.load(Ordering::SeqCst));
+        assert_eq!(
+            begin_with(&lock, &stopped).err().unwrap(),
+            "Another copy is still running."
+        );
+        drop(first);
     }
 }
