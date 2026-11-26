@@ -43,6 +43,8 @@ pub fn to_wsl_path(p: &str) -> String {
 }
 
 // The way back, for showing a path to the user: /mnt/c/x is C:\x, anything else lives in the distro.
+// shortcut: not called by the UI yet, it is for showing a distro path to the user; remove the allow when it is used.
+#[allow(dead_code)]
 pub fn to_windows_path(p: &str, distro: &str) -> String {
     if let Some(rest) = p.strip_prefix("/mnt/") {
         let (drive, tail) = rest.split_once('/').unwrap_or((rest, ""));
@@ -60,13 +62,16 @@ pub fn to_windows_path(p: &str, distro: &str) -> String {
 // `wsl.exe -l -q` prints UTF-16LE with no BOM; read as UTF-8 it has a NUL between letters.
 pub fn decode_utf16le(bytes: &[u8]) -> String {
     let units: Vec<u16> = bytes
-        .chunks_exact(2)
+        .chunks(2)
+        .filter(|c| c.len() == 2)
         .map(|c| u16::from_le_bytes([c[0], c[1]]))
         .collect();
     String::from_utf16_lossy(&units)
 }
 
 // Names only. `docker-desktop` and `docker-desktop-data` are Docker Desktop's own, not a place to run docker.
+// shortcut: not called yet, the distro picker will use it; remove the allow when it is used.
+#[allow(dead_code)]
 pub fn parse_distros(bytes: &[u8]) -> Vec<String> {
     decode_utf16le(bytes)
         .lines()
@@ -142,7 +147,9 @@ pub fn tool_merged(bin: &str, args: &[String]) -> Command {
 
 // wsl.exe writes its own messages in UTF-16LE (NULs between letters) and the tool's in UTF-8.
 pub fn text_of(bytes: &[u8]) -> String {
-    if bytes.len() >= 2 && bytes.iter().skip(1).step_by(2).filter(|b| **b == 0).count() * 3 > bytes.len() {
+    if bytes.len() >= 2
+        && bytes.iter().skip(1).step_by(2).filter(|b| **b == 0).count() * 3 > bytes.len()
+    {
         decode_utf16le(bytes)
     } else {
         String::from_utf8_lossy(bytes).into_owned()
@@ -155,13 +162,19 @@ pub fn explain(text: &str) -> Option<String> {
     let has = |s: &str| t.contains(s);
     let msg = if has("no installed distributions") || has("there is no distribution") {
         "No Linux distribution is installed in WSL. In PowerShell run `wsl --install -d Ubuntu`, restart, then install Docker inside it."
-    } else if has("execvpe(docker) failed") || has("\"docker\": executable file not found") || has("docker: not found") || has("docker: command not found") {
+    } else if has("execvpe(docker) failed")
+        || has("\"docker\": executable file not found")
+        || has("docker: not found")
+        || has("docker: command not found")
+    {
         "Docker is not installed inside your WSL distro. Install it there (for Ubuntu: `sudo apt install docker.io`), then reopen this app."
     } else if has("cannot connect to the docker daemon") || has("is the docker daemon running") {
         "Docker is installed in WSL but not running. In your WSL terminal run `sudo service docker start`."
     } else if has("permission denied while trying to connect to the docker") {
         "Your WSL user cannot use Docker. In your WSL terminal run `sudo usermod -aG docker $USER`, then run `wsl --shutdown` and reopen this app."
-    } else if has("wsl_e_wsl_optional_component_required") || has("windows subsystem for linux has not been enabled") {
+    } else if has("wsl_e_wsl_optional_component_required")
+        || has("windows subsystem for linux has not been enabled")
+    {
         "Windows Subsystem for Linux is not turned on. In PowerShell run `wsl --install`, then restart Windows."
     } else {
         return None;
@@ -178,19 +191,33 @@ mod tests {
         assert_eq!(to_wsl_path(r"C:\Users\me\x"), "/mnt/c/Users/me/x");
         assert_eq!(to_wsl_path("c:/Users/me/x"), "/mnt/c/Users/me/x");
         assert_eq!(to_wsl_path(r"D:\"), "/mnt/d");
-        assert_eq!(to_wsl_path(r"C:\Program Files\app\"), "/mnt/c/Program Files/app");
+        assert_eq!(
+            to_wsl_path(r"C:\Program Files\app\"),
+            "/mnt/c/Program Files/app"
+        );
     }
 
     #[test]
     fn given_a_wsl_unc_path_when_translated_then_the_distro_name_goes() {
         assert_eq!(to_wsl_path(r"\\wsl$\Ubuntu\home\me"), "/home/me");
-        assert_eq!(to_wsl_path(r"\\wsl.localhost\Ubuntu\home\me\app\"), "/home/me/app");
+        assert_eq!(
+            to_wsl_path(r"\\wsl.localhost\Ubuntu\home\me\app\"),
+            "/home/me/app"
+        );
         assert_eq!(to_wsl_path(r"\\wsl$\Ubuntu"), "/");
     }
 
     #[test]
     fn given_things_that_are_not_windows_paths_when_translated_then_they_are_untouched() {
-        for s in ["ps", "--format", "/home/me", "nginx:latest", "a:b", "C:", ""] {
+        for s in [
+            "ps",
+            "--format",
+            "/home/me",
+            "nginx:latest",
+            "a:b",
+            "C:",
+            "",
+        ] {
             assert_eq!(to_wsl_path(s), s, "{s:?}");
         }
     }
@@ -223,7 +250,10 @@ mod tests {
 
     #[test]
     fn given_wsl_messages_when_read_then_utf16_and_utf8_both_decode() {
-        let wide: Vec<u8> = "no installed distributions".encode_utf16().flat_map(u16::to_le_bytes).collect();
+        let wide: Vec<u8> = "no installed distributions"
+            .encode_utf16()
+            .flat_map(u16::to_le_bytes)
+            .collect();
         assert_eq!(text_of(&wide), "no installed distributions");
         assert_eq!(text_of(b"Cannot connect"), "Cannot connect");
         assert_eq!(text_of(&[]), "");

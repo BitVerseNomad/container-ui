@@ -544,7 +544,9 @@ fn terminal_command(kind: &str, context: &str, target: Option<&str>) -> Result<S
 // The suffix follows the profile-name rule, so a context can never smuggle a space or a flag into k9s.
 // Inside WSL the engine is the distro's own docker, whose one context is "default".
 fn context_ok(c: &str) -> bool {
-    c == "colima" || c.strip_prefix("colima-").is_some_and(profile_name_ok) || (c == "default" && wsl::via_wsl())
+    c == "colima"
+        || c.strip_prefix("colima-").is_some_and(profile_name_ok)
+        || (c == "default" && wsl::via_wsl())
 }
 
 #[derive(Serialize)]
@@ -565,7 +567,11 @@ fn os_name(os: &str) -> &'static str {
 // Lets the UI drop what only exists on a Mac (Colima, Homebrew, Terminal.app, Finder).
 #[tauri::command]
 fn platform_info() -> PlatformInfo {
-    PlatformInfo { os: os_name(std::env::consts::OS), wsl: wsl::via_wsl(), distro: wsl::distro_from_env() }
+    PlatformInfo {
+        os: os_name(std::env::consts::OS),
+        wsl: wsl::via_wsl(),
+        distro: wsl::distro_from_env(),
+    }
 }
 
 // GUI apps on macOS don't inherit the shell PATH, so look in the usual Homebrew spots.

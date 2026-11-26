@@ -11,7 +11,7 @@ The plan listed Windows and Linux as later, because Setup assumed Homebrew and t
 ## Decision
 
 1. On Windows the engine is the `docker` inside a WSL2 distro. There is no `docker.exe`, so every engine command goes through `wsl.exe --exec <tool>`. Only `docker`, `kubectl` and `aws` are routed this way.
-2. A distro can be picked; otherwise WSL's default answers. Docker Desktop's own distros are not offered.
+2. A distro can be picked with the `CONTAINER_UI_WSL_DISTRO` variable; otherwise WSL's default answers. A helper that lists distros and hides Docker Desktop's own exists, but no screen uses it yet.
 3. Windows paths are translated to Linux paths (`C:\x` to `/mnt/c/x`, and the `\\wsl$` forms) before they reach a command. The pure parts (argv, paths, distro list) compile and test on every OS.
 4. The backend reports the platform. On Windows the app skips Colima and Homebrew setup, Machines, Doctor, VM resize, Open a shell, Show in Finder and the Spotlight Compose scan. macOS is unchanged.
 5. Common WSL and Docker failures get plain-word explanations.
