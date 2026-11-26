@@ -1293,6 +1293,9 @@ async fn apply_resources(
 ) -> Result<(), String> {
     profile(&opts.name)?;
     validate_resources(&opts, host_resources().cpus)?;
+    if restart {
+        refuse_while_copying()?;
+    }
     let mut steps = Vec::new();
     if restart {
         steps.push(vec!["stop".to_string(), opts.name.clone()]);
@@ -1554,6 +1557,7 @@ async fn apply_mounts(
     force: Option<bool>,
 ) -> Result<(), String> {
     profile(&name)?;
+    refuse_while_copying()?;
     let home = std::env::var("HOME").unwrap_or_default();
     let steps = mounts_steps(
         &name,
@@ -1633,6 +1637,7 @@ async fn apply_env(
     force: Option<bool>,
 ) -> Result<(), String> {
     profile(&name)?;
+    refuse_while_copying()?;
     let steps = env_steps(&name, &env, restart.unwrap_or(true))?;
     colima_stream(
         app,
@@ -1645,9 +1650,26 @@ async fn apply_env(
     .await
 }
 
+// A copy or replace from Docker Desktop holds COPY_LOCK. Stopping or deleting the VM under it would cut the copy
+// in half, so those commands refuse while it runs. A poisoned lock means a copy panicked, so nothing is running.
+const COPY_BUSY: &str =
+    "A copy from Docker Desktop is still running. Wait for it or stop it first.";
+
+fn copy_busy(lock: &Mutex<()>) -> Result<(), String> {
+    match lock.try_lock() {
+        Err(TryLockError::WouldBlock) => Err(COPY_BUSY.into()),
+        _ => Ok(()),
+    }
+}
+
+fn refuse_while_copying() -> Result<(), String> {
+    copy_busy(&desktop::COPY_LOCK)
+}
+
 #[tauri::command]
 async fn stop_profile(app: tauri::AppHandle, name: String) -> Result<(), String> {
     profile(&name)?;
+    refuse_while_copying()?;
     colima_stream(app, vec![vec!["stop".into(), name]]).await
 }
 
@@ -1655,12 +1677,14 @@ async fn stop_profile(app: tauri::AppHandle, name: String) -> Result<(), String>
 #[tauri::command]
 async fn force_stop_profile(app: tauri::AppHandle, name: String) -> Result<(), String> {
     profile(&name)?;
+    refuse_while_copying()?;
     colima_stream(app, vec![vec!["stop".into(), "--force".into(), name]]).await
 }
 
 #[tauri::command]
 async fn restart_profile(app: tauri::AppHandle, name: String) -> Result<(), String> {
     profile(&name)?;
+    refuse_while_copying()?;
     colima_stream(app, vec![vec!["restart".into(), name]]).await
 }
 
@@ -1668,6 +1692,7 @@ async fn restart_profile(app: tauri::AppHandle, name: String) -> Result<(), Stri
 #[tauri::command]
 async fn force_restart_profile(app: tauri::AppHandle, name: String) -> Result<(), String> {
     profile(&name)?;
+    refuse_while_copying()?;
     colima_stream(
         app,
         vec![
@@ -1776,6 +1801,7 @@ fn reveal_vm_log(name: String) -> Result<(), String> {
 #[tauri::command]
 async fn delete_profile(app: tauri::AppHandle, name: String) -> Result<(), String> {
     profile(&name)?;
+    refuse_while_copying()?;
     colima_stream(app, vec![vec!["delete".into(), "--force".into(), name]]).await
 }
 
@@ -4496,6 +4522,27 @@ mod tests {
     {
         assert!(spawn_detached(&mut Command::new("/usr/bin/true")).is_ok());
         assert!(spawn_detached(&mut Command::new("/no/such/program")).is_err());
+    }
+
+    #[test]
+    fn given_a_copy_holding_the_lock_when_checked_then_it_is_busy_and_a_poisoned_lock_is_not() {
+        let lock = Mutex::new(());
+        assert_eq!(copy_busy(&lock), Ok(()));
+        {
+            let _held = lock.lock().unwrap();
+            assert_eq!(copy_busy(&lock), Err(COPY_BUSY.to_string()));
+        }
+        assert_eq!(copy_busy(&lock), Ok(()), "released again");
+        let poisoned = Mutex::new(());
+        let _ = std::thread::scope(|sc| {
+            sc.spawn(|| {
+                let _g = poisoned.lock().unwrap();
+                panic!("copy died");
+            })
+            .join()
+        });
+        assert!(poisoned.is_poisoned());
+        assert_eq!(copy_busy(&poisoned), Ok(()));
     }
 
     fn scratch_dir(tag: &str) -> std::path::PathBuf {

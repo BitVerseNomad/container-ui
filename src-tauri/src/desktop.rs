@@ -238,7 +238,7 @@ fn volume_create(
 // The copy in progress, so Stop can end both sides.
 static COPY_PIDS: Mutex<Vec<u32>> = Mutex::new(Vec::new());
 static COPY_STOPPED: AtomicBool = AtomicBool::new(false);
-static COPY_LOCK: Mutex<()> = Mutex::new(());
+pub(crate) static COPY_LOCK: Mutex<()> = Mutex::new(());
 
 // Streams `from`'s stdout into `to`'s stdin and counts the bytes on the way, which is the progress.
 // Both run in their own process group, so Stop and the silence watchdog also reach what docker started.
