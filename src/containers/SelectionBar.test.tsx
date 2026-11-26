@@ -30,3 +30,14 @@ it("given Remove… is pressed, when the confirm shows, then the title is Remove
   const dialog = screen.getByRole("alertdialog");
   expect(dialog).toHaveTextContent("Remove 2 containers?");
 });
+
+it("given one container is selected, when Remove… is pressed, then the title says container, not containers", async () => {
+  const user = userEvent.setup();
+  render(
+    <ConfirmProvider>
+      <SelectionBar count={1} canStart={true} canStop={true} onStart={vi.fn()} onStop={vi.fn()} onRemove={vi.fn()} onCancel={vi.fn()} ctx="colima" />
+    </ConfirmProvider>,
+  );
+  await user.click(screen.getByRole("button", { name: "Remove…" }));
+  expect(screen.getByRole("alertdialog")).toHaveTextContent("Remove 1 container?");
+});

@@ -124,7 +124,7 @@ export default function BringOver({ ctx, only, forVm, onClose, onDone, onProfile
     // Home's line, the badge and Doctor's row follow this read at once (a volume that grew drops out there too).
     void adoptDesktop(ctx, inv.items, colimaPs);
     setPick(keep ? new Set(inv.items.map(key).filter((k) => keep.has(k))) : named ? named.pick : defaultPick(inv.items));
-    setSaid(`Docker Desktop has ${inv.items.length} volumes and images.`);
+    setSaid(`Docker Desktop has ${inv.items.length} ${inv.items.length === 1 ? "volume or image" : "volumes and images"}.`);
     return inv.items;
   }
 

@@ -144,13 +144,16 @@ export default function RunPanel({ ctx, image, arch, onClose, onRan }: Props) {
     setErrors([]);
     setDockerError(null);
     setBusy(true);
+    // Only a failed `docker run` can leave a half-made container; before it runs, a container with this name is someone else's.
+    let started = false;
     try {
       if (network && !exists) await docker(ctx, ["network", "create", network]);
+      started = true;
       const id = (await docker(ctx, built.args)).trim();
       onRan(id, finalName);
     } catch (e) {
       const msg = String(e);
-      if (shouldCleanup(msg)) await docker(ctx, ["rm", "-f", finalName]).catch(() => {});
+      if (started && shouldCleanup(msg)) await docker(ctx, ["rm", "-f", finalName]).catch(() => {});
       setDockerError(msg);
       setShowOutput(false);
       setBusy(false);

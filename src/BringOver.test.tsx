@@ -36,4 +36,11 @@ describe("BringOver", () => {
     expect(stoppedAt("colima-work", ["shop-db-1"])).toBeUndefined();
     resetAppStopped();
   });
+
+  it("given Docker Desktop has one volume, when the list is read, then the status line says 1 volume or image, not 1 volumes", async () => {
+    render(<ConfirmProvider><BringOver ctx="colima" onClose={() => {}} onDone={() => {}} onProfiles={() => {}} /></ConfirmProvider>);
+    await screen.findByRole("button", { name: /^Bring 1 volume over/ });
+    expect(document.body.textContent).toContain("Docker Desktop has 1 volume or image.");
+    expect(document.body.textContent).not.toContain("1 volumes");
+  });
 });

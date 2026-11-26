@@ -37,7 +37,8 @@ export default function Volumes({ ctx }: { ctx: string }) {
   const locked = useDockerLocked();
 
   const used = usage.data ?? new Map<string, string[]>();
-  const loose = unusedAnonymous((data ?? []).map((v) => v.Name), used);
+  // Until Docker has said which containers use what, nothing counts as unused.
+  const loose = usage.data ? unusedAnonymous((data ?? []).map((v) => v.Name), used) : [];
 
   const shown = (data ?? [])
     .filter((v) => score(`${v.Name} ${v.Driver}`, q) > 0)
@@ -77,7 +78,7 @@ export default function Volumes({ ctx }: { ctx: string }) {
     setSelected(new Set());
   }
 
-  const selectedUnused = [...selected].filter((n) => (used.get(n)?.length ?? 0) === 0);
+  const selectedUnused = usage.data ? [...selected].filter((n) => (used.get(n)?.length ?? 0) === 0) : [];
 
   return (
     <>
@@ -179,7 +180,7 @@ export default function Volumes({ ctx }: { ctx: string }) {
                   </td>
                   <td className="font-mono whitespace-nowrap">{sizes.data?.has(v.Name) ? formatBytes(sizes.data.get(v.Name)!) : "—"}</td>
                   <td className="whitespace-nowrap text-right align-middle">
-                    <OpButton variant="danger-quiet" size="sm" icon="trash" aria-label={locked ? `${removeLabel}. ${WAIT}` : removeLabel} disabled={by.length > 0 || locked} busy={locked} onClick={async () => (await confirm(`Remove volume ${v.Name}? Its data is lost.`)) && act(["volume", "rm", v.Name])}>Remove</OpButton>
+                    <OpButton variant="danger-quiet" size="sm" icon="trash" aria-label={locked ? `${removeLabel}. ${WAIT}` : removeLabel} disabled={by.length > 0 || locked || usage.data === null} busy={locked} onClick={async () => (await confirm(`Remove volume ${v.Name}? Its data is lost.`)) && act(["volume", "rm", v.Name])}>Remove</OpButton>
                   </td>
                 </tr>
               );

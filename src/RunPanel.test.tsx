@@ -201,4 +201,21 @@ describe("RunPanel", () => {
     expect(screen.getByText(/^docker run /)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Copy the command" })).toBeInTheDocument();
   });
+
+  it("Given the network cannot be created and a container already has the typed name, When Run is pressed, Then that container is not removed", async () => {
+    const user = userEvent.setup();
+    // Same answers as setup(), except that creating a network fails.
+    setup("nginx:1.27", { ps: [{ Names: "web", State: "running", Ports: "" }], networks: [] });
+    backend.current = fakeBackend({
+      image: () => "[]",
+      ps: () => jsonLines([{ Names: "web", State: "running", Ports: "" }]),
+      network: (args) => { if (args[1] === "create") throw new Error("all predefined address pools have been fully subnetted"); return ""; },
+      volume: () => "",
+    });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Run" })).toBeInTheDocument());
+    await user.type(screen.getByLabelText("Name"), "web");
+    await user.click(screen.getByRole("button", { name: "Run" }));
+    await waitFor(() => expect(screen.getByText("The container didn't start")).toBeInTheDocument());
+    expect(backend.current!.dockerCalls().some((args) => args[0] === "rm")).toBe(false);
+  });
 });
