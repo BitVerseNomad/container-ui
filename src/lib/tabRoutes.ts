@@ -7,6 +7,7 @@ const PATH_OF: Record<Tab, string> = {
   Images: "#/images",
   Volumes: "#/volumes",
   Networks: "#/networks",
+  Registries: "#/registries",
   Kubernetes: "#/kubernetes/pods",
   Doctor: "#/doctor",
   // Machines are in Settings (spec 7.8). Until WO-3.9 that route shows today's Profiles page.
@@ -20,6 +21,7 @@ export function tabOfRoute(route: Route): Tab {
     case "images": return "Images";
     case "volumes": return "Volumes";
     case "networks": return "Networks";
+    case "registries": return "Registries";
     case "kubernetes": return "Kubernetes";
     case "doctor": return "Doctor";
     case "settings": return "Profiles";

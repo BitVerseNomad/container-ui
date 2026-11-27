@@ -42,12 +42,12 @@ a:hover { text-decoration: underline; }
 .engine .state { font-size: var(--text-micro); color: var(--fg-muted); line-height: 1.25; }
 .engine .chev { margin-left: auto; color: var(--fg-muted); }
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: var(--h-sm); padding: 0 10px; border: 0; border-radius: var(--r-md); background: var(--bg-raised); color: var(--fg); font-weight: 500; font-size: var(--text-meta); white-space: nowrap; box-shadow: 0 0 0 0.5px var(--edge), var(--shadow-control); transition: background var(--fast) var(--ease); }
-.btn:hover { background: color-mix(in srgb, var(--bg-raised) 94%, var(--fg)); }
-.btn:active { background: color-mix(in srgb, var(--bg-raised) 90%, var(--fg)); }
+.btn:hover { background: color-mix(in srgb, var(--bg-raised) 88%, var(--fg)); }
+.btn:active { background: color-mix(in srgb, var(--bg-raised) 82%, var(--fg)); }
 .btn.md { height: var(--h-md); padding: 0 12px; font-size: var(--text-body); }
 .btn.xs { height: var(--h-xs); padding: 0 8px; border-radius: var(--r-sm); font-size: var(--text-micro); }
 .btn.primary { background: var(--accent); color: var(--on-accent); box-shadow: var(--shadow-control); }
-.btn.primary:hover { background: color-mix(in srgb, var(--accent) 88%, var(--fg)); }
+.btn.primary:hover { background: color-mix(in srgb, var(--accent) 80%, var(--fg)); }
 .btn.danger { background: var(--bad-fill); color: var(--bad); box-shadow: 0 0 0 0.5px var(--bad-edge), var(--shadow-control); }
 /* A row's quiet destructive action: red text, a light red tint on hover. Solid red is only for the confirm. */
 .danger-quiet { color: var(--bad); }
@@ -90,13 +90,15 @@ button.chip:hover, a.chip:hover { background: var(--tile-hover); color: var(--fg
 .sev.warn { color: var(--warn); }
 .sev.info { color: var(--info); }
 .sev.ok { color: var(--ok); }
-.banner { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border-radius: var(--r-lg); background: var(--tile); }
+.banner { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 10px; padding: 10px 12px; border-radius: var(--r-lg); background: var(--tile); }
 .banner.bad { background: var(--bad-fill); }
 .banner.warn { background: var(--warn-fill); }
 .banner.info { background: var(--info-fill); }
 .banner .title { font-weight: 500; }
 .banner .body { color: var(--fg-muted); font-size: var(--text-meta); }
-.banner .actions { margin-left: auto; display: flex; gap: 6px; flex: none; }
+.banner .actions { margin-left: auto; display: flex; flex-wrap: wrap; gap: 6px; flex: none; }
+/* The text takes the room that is left and wraps anywhere (a long path has no spaces); the buttons drop under it when it is narrow, never off screen. */
+.banner > :not(.actions):not(svg):not(.sev) { flex: 1 1 16rem; min-width: 0; overflow-wrap: anywhere; }
 .list { display: flex; flex-direction: column; }
 .group-cap { display: flex; align-items: baseline; gap: 6px; font-size: var(--text-micro); color: var(--fg-muted); padding: 16px 8px 4px; }
 .row { display: flex; align-items: center; gap: 10px; height: var(--row); padding: 0 8px; border-bottom: 1px solid var(--line); min-width: 0; }
@@ -110,7 +112,7 @@ button.chip:hover, a.chip:hover { background: var(--tile-hover); color: var(--fg
 .row .name { font-weight: 500; }
 .row .meta { color: var(--fg-muted); font-size: var(--text-meta); }
 .row .col { flex: none; color: var(--fg-muted); font-size: var(--text-meta); text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.row .col.ports { width: 110px; display: flex; gap: 4px; justify-content: flex-end; }
+.row .col.ports { width: 110px; display: flex; gap: 4px; justify-content: flex-end; justify-content: safe flex-end; white-space: nowrap; }
 .row .col.stats { width: 120px; }
 .row .col.state { width: 112px; }
 .row .col.size { width: 76px; }
@@ -356,7 +358,7 @@ td:first-child:has(.tag) { white-space: nowrap; }
 .resize-status .out-more { margin-top: 0; }
 .problem.result.stopped .out-more { padding-left: 20px; }
 .more-slot { width: 28px; }
-.out-fail { color: var(--bad); font-weight: 600; margin: 0 0 8px; }
+.out-fail { color: var(--bad); font-weight: 500; font-size: var(--text-meta); margin: 0; }
 .scrim { position: fixed; inset: 0; background: rgb(0 0 0 / .3); z-index: 10; }
 .scrim-top { z-index: 20; }
 .modal-title { font-weight: 600; font-size: 13px; margin-bottom: 4px; }

@@ -58,7 +58,7 @@ test("Given every page and every tab in DETAIL_TABS and PAGE_TABS, when built an
       assert.deepStrictEqual(parseRoute(buildPath(route)), route);
     }
   }
-  for (const page of ["volumes", "networks", "doctor", "setup"]) {
+  for (const page of ["volumes", "networks", "registries", "doctor", "setup"]) {
     const route = { page } as Route;
     assert.deepStrictEqual(parseRoute(buildPath(route)), route);
   }

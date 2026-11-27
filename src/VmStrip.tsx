@@ -61,7 +61,7 @@ export default function VmStrip({ profile, totals, op, failure, failedOp, onStar
   const state = op === "starting" ? "Starting…" : op === "restarting" ? "Restarting…" : op === "stopping" ? "Stopping…" : failure && !stopFailed ? "Failed" : profile.status;
   const dot = stopFailed ? "warn" : running && !failure ? "on" : failure ? "bad" : "";
   return (
-    <div className="vm-strip-wrap flex flex-col gap-1.5">
+    <div className="vm-strip-wrap flex flex-col gap-1.5 pt-1">
       <div className="vm-strip flex min-h-8 flex-wrap items-center gap-2.5">
         {op ? <span className="mark" aria-hidden="true"><span className="spin" /></span> : <span className={`sdot ${dot}`} aria-hidden="true" />}
         <span className="hint whitespace-nowrap">{state}</span>
@@ -73,7 +73,7 @@ export default function VmStrip({ profile, totals, op, failure, failedOp, onStar
             <Use label="Disk" value={`${formatBytes(t.diskBytes)} of ${gbOf(profile.disk)} GiB`} part={fraction(t.diskBytes, profile.disk)} />
           </span>
         )}
-        <span className="inline-flex items-center gap-2">
+        <span className="ml-auto mr-11 inline-flex items-center gap-2">
           {busy && line ? null : busy ? (
             <Button size="sm" onClick={() => invoke("cancel_vm_op").catch(() => {})}>Cancel</Button>
           ) : running && !failure ? (
@@ -88,8 +88,8 @@ export default function VmStrip({ profile, totals, op, failure, failedOp, onStar
       </div>
       {!busy && note}
       {why && !busy && (
-        <div className="problem-line text-bad">
-          <b><Icon name="alert" size="sm" /> {why.title}</b>
+        <div className="problem-line flex flex-col items-start gap-1 text-bad">
+          <b className="inline-flex items-center gap-1.5"><Icon name="alert" size="sm" />{why.title}</b>
           <span className="hint">{why.detail}</span>
           {why.line && <pre className="cmd">{why.line}</pre>}
           <span className="actions-inline">

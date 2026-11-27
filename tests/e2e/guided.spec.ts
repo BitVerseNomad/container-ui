@@ -71,7 +71,8 @@ test("Guided Run sheet checks", async ({ context }) => {
   expect.soft(/host port is taken/i.test(portErr) && !/Error response from daemon|driver failed/i.test(await p.locator(".sheet").innerText()), `guided: Run on a port clash says it in plain words, never raw docker output (${portErr})`).toBeTruthy();
   await p.locator('.sheet input[aria-label="Host port"]').first().fill(newPort);
   await p.getByRole("button", { name: "Run", exact: true }).click();
-  await p.waitForSelector(".sheet", { state: "detached", timeout: 6000 }).catch(() => {});
+  // The sheet hides the moment Run is pressed; the run is over when the container exists.
+  await p.waitForFunction(() => window.__mock.state().ctrs.some((c) => c.image === "acme/orders-api:1.4"), null, { timeout: 6000 }).catch(() => {});
   const st = await p.evaluate(() => window.__mock.state());
   const made = st.ctrs.find((c) => c.image === "acme/orders-api:1.4");
   expect.soft(!!made && made.networks.includes("devnet"), "guided: the container is created on the shared network").toBeTruthy();
@@ -103,7 +104,7 @@ test("Guided Run sheet checks", async ({ context }) => {
   await p.screenshot({ path: "/tmp/guided-nonet.png" });
   await p.locator('.sheet input[aria-label="Host port"]').first().fill("8090").catch(() => {});
   await p.getByRole("button", { name: "Run", exact: true }).click();
-  await p.waitForSelector(".sheet", { state: "detached", timeout: 6000 }).catch(() => {});
+  await p.waitForFunction(() => window.__mock.state().ctrs.some((c) => c.image === "nginx:latest" && c.networks.includes("devnet")), null, { timeout: 6000 }).catch(() => {});
   const st2 = await p.evaluate(() => window.__mock.state());
   expect.soft(st2.networks.includes("devnet"), "nonet: the network was created when running").toBeTruthy();
   expect.soft(st2.ctrs.some((c) => c.image === "nginx:latest" && c.networks.includes("devnet")), "nonet: the container joined it").toBeTruthy();
@@ -125,7 +126,7 @@ test("Guided Run sheet checks", async ({ context }) => {
   await p.waitForFunction((t) => (document.querySelector(".sheet")?.innerText ?? "").includes(t), "Read the setup notes", { timeout: 6000 }).catch(() => {});
   await p.locator('.sheet input[aria-label="Host port"]').first().fill("8090");
   await p.getByRole("button", { name: "Run", exact: true }).click();
-  await p.waitForSelector(".sheet", { state: "detached", timeout: 6000 }).catch(() => {});
+  await p.getByText(/^Started /).first().waitFor({ timeout: 6000 }).catch(() => {});
   await expect.soft(p.getByText(/^Started /), "keys: after Run from the picker the toast says Started").not.toHaveCount(0);
   await p.waitForFunction(() => !!document.activeElement?.closest('[role="row"]'), null, { timeout: 3000 }).catch(() => {});
   expect.soft(await p.evaluate(() => !!document.activeElement?.closest('[role="row"]')), "keys: the new container's row takes focus (unproven in a browser until the loop runs this)").toBeTruthy();

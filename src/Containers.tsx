@@ -117,6 +117,18 @@ export default function Containers({ profile, ctx, vm, onVm, reload, setDetailId
   const toast = useToast();
   const composeRun = useComposeRun();
   const running = !!ctx;
+  // Docker's socket appears a few seconds after the machine says Running. During a start and for a moment after it,
+  // "can't reach Docker" is not an error to show, only something to wait for (the list retries by itself).
+  const [afterStart, setAfterStart] = useState(false);
+  const hadOp = useRef(false);
+  useEffect(() => {
+    if (vm.op) { hadOp.current = true; return; }
+    if (!hadOp.current) return;
+    hadOp.current = false;
+    setAfterStart(true);
+    const t = setTimeout(() => setAfterStart(false), 20000);
+    return () => clearTimeout(t);
+  }, [vm.op]);
   const containers = usePoll<C[]>(async () => (ctx ? dockerJson<C>(ctx, ["ps", "-a"]) : []), [ctx], 3000);
   const [q, setQ] = useState("");
   const [picking, setPicking] = useState(false);
@@ -127,6 +139,15 @@ export default function Containers({ profile, ctx, vm, onVm, reload, setDetailId
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [menuFor, setMenuFor] = useState<string | null>(null);
   const [inspect, setInspect] = useState<{ c: C; f: Finding } | null>(null);
+  // A container that stopped with an error: its last log lines are the answer to "why", so they show right here.
+  const [tail, setTail] = useState<string[]>([]);
+  useEffect(() => {
+    setTail([]);
+    if (!inspect || inspect.f.id !== "crashed" || !ctx) return;
+    let live = true;
+    docker(ctx, ["logs", "--tail", "12", inspect.c.ID], true).then((out) => live && setTail(out.split("\n").map((l) => l.trimEnd()).filter(Boolean)), () => {});
+    return () => { live = false; };
+  }, [inspect, ctx]);
   const [pending, setPending] = useState<Map<string, Pending>>(new Map());
   const [failed, setFailed] = useState<Map<string, Failure>>(new Map());
   // Read aloud by VoiceOver: what just finished, or what went wrong. Both regions exist from the first render,
@@ -599,7 +620,7 @@ export default function Containers({ profile, ctx, vm, onVm, reload, setDetailId
       return (
         <EntryRow key={a.key} id={a.key} group={false} name="Kubernetes" meta={`${kubePodCount(a.rows)} pod${kubePodCount(a.rows) === 1 ? "" : "s"}`}
           dot="ok" stateWord="" ariaLabel={`Kubernetes, ${kubePodCount(a.rows)} pod${kubePodCount(a.rows) === 1 ? "" : "s"}`} ports={[]} stats="" history={[]} cpuNow={null} action={{ label: "Open", busy: false, locked: false }} selected={false} onSelect={null}
-          onOpen={() => onKubernetes?.()} onAction={() => onKubernetes?.()} menu={null} menuOpen={false} onMenuOpenChange={() => {}} />
+          onOpen={() => onKubernetes?.()} onAction={() => onKubernetes?.()} menu={<span className="ml-1 inline-block w-6" aria-hidden="true" />} menuOpen={false} onMenuOpenChange={() => {}} />
       );
     }
     const single = v.single!;
@@ -768,7 +789,8 @@ export default function Containers({ profile, ctx, vm, onVm, reload, setDetailId
 
   // The Inspector: the whole finding in plain words, with the same fix the line offers.
   const inspectFix = inspect?.f.fix ? fixAction(inspect.f.fix, ctx ?? undefined, oldConfirm, runs, fixed) : null;
-  const inspector = inspect ? inspectorContent(inspect.f, inspect.c.Names, projectOf(inspect.c), inspectFix?.label ?? null, inspect.f.fix?.text ?? null) : null;
+  const inspectorBase = inspect ? inspectorContent(inspect.f, inspect.c.Names, projectOf(inspect.c), inspectFix?.label ?? null, inspect.f.fix?.text ?? null) : null;
+  const inspector = inspectorBase && tail.length ? { ...inspectorBase, evidence: tail.map((text) => ({ text, bad: true })) } : inspectorBase;
 
   // A start shows its own card (StartingCard) in place of the stopped one, so the strip only covers the other operations and failures.
   const starting = vm.op === "starting";
@@ -830,7 +852,8 @@ export default function Containers({ profile, ctx, vm, onVm, reload, setDetailId
 
       {running ? (
         <>
-          {containers.error && (
+          {containers.error && (vm.op || afterStart) && <p className="hint lead" role="status">Waiting for Docker to answer…</p>}
+          {containers.error && !vm.op && !afterStart && (
             <Banner
               tone="bad"
               title="Couldn't list containers"
@@ -903,7 +926,9 @@ export default function Containers({ profile, ctx, vm, onVm, reload, setDetailId
       />
 
       {composeOpen && ctx && (
-        <ComposeProjects ctx={ctx} scan={compose} containers={all} attention={problems} query={term && shown.length === 0 ? term : ""} onClose={() => setComposeOpen(false)} onChanged={fixed} />
+        <div className="legacy">
+          <ComposeProjects ctx={ctx} scan={compose} containers={all} attention={problems} query={term && shown.length === 0 ? term : ""} onClose={() => setComposeOpen(false)} onChanged={fixed} />
+        </div>
       )}
       {logsOf && ctx && logsOf.dir && (
         <Sheet open={logsOf !== null} onClose={() => setLogsOf(null)} title={`Logs of ${logsOf.name}`}>

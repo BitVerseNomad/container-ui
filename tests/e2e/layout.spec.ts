@@ -22,11 +22,11 @@ test("Layout checks against the preview (WO-2.2)", async ({ context }) => {
     expect.soft(footLabels[footLabels.length - 1] === "Fold sidebar", `[${width}x${height}] the foot ends with Fold sidebar`).toBeTruthy();
     expect.soft(footLabels.includes("Settings") && footLabels.includes("Activity: commands the app ran") && footLabels.includes("Help and shortcuts"), `[${width}x${height}] the foot holds Settings, Activity, Help`).toBeTruthy();
 
-    // 3. Nav order: Containers, Images, Volumes, Networks, Kubernetes, then Doctor in the second nav, no Profiles.
+    // 3. Nav order: Containers, Images, Volumes, Networks, Registries, Kubernetes, then Doctor in the second nav, no Profiles.
     await page.waitForFunction(() => Array.from(document.querySelectorAll('.nav[aria-label="Main"] .nav-item')).some((e) => e.textContent === "Kubernetes"), { timeout: 10000 });
     const mainLabels = (await page.locator('.nav[aria-label="Main"] .nav-item').allInnerTexts()).map((s) => s.trim());
     const healthLabels = (await page.locator('.nav[aria-label="Health"] .nav-item').allInnerTexts()).map((s) => s.trim());
-    expect.soft(JSON.stringify(mainLabels) === JSON.stringify(["Containers", "Images", "Volumes", "Networks", "Kubernetes"]), `[${width}x${height}] main nav order is Containers, Images, Volumes, Networks, Kubernetes`).toBeTruthy();
+    expect.soft(JSON.stringify(mainLabels) === JSON.stringify(["Containers", "Images", "Volumes", "Networks", "Registries", "Kubernetes"]), `[${width}x${height}] main nav order is Containers, Images, Volumes, Networks, Registries, Kubernetes`).toBeTruthy();
     expect.soft(healthLabels.includes("Doctor") && !mainLabels.includes("Profiles") && !healthLabels.includes("Profiles"), `[${width}x${height}] Doctor is in the second nav and there is no Profiles item`).toBeTruthy();
 
     // 4. Clicking every nav item does not scroll the window.

@@ -21,11 +21,15 @@ async function fillLog(page) {
 
 test("1. Stopping on the Containers screen: the strip shows Stopping… with Cancel on the same row.", async ({ page }) => {
   const engine = test.info().project.name;
-  await openPage(page, "/?scenario=running#/containers", VIEW);
+  await openPage(page, "/?scenario=running&slowstop=1#/containers", VIEW);
   await page.locator("[data-slot=engine] button").first().click();
   await page.getByRole("menuitem", { name: /^Stop / }).click();
   const log = page.locator("pre.out-log").first();
   await log.waitFor({ state: "attached", timeout: 3000 }).catch(() => {});
+  // The output is one click away, closed by default: open it to measure the window.
+  const more = page.locator("details.out-more > summary").first();
+  await more.waitFor({ state: "visible", timeout: 5000 }).catch(() => {});
+  await more.click().catch(() => {});
   const measured = await fillLog(page);
   expect.soft(measured !== null, `${engine} stopping: the output window shows while the machine stops`).toBeTruthy();
   if (measured) {

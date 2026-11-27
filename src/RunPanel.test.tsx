@@ -189,7 +189,7 @@ describe("RunPanel", () => {
     setup("nginx:1.27", { image: [{ Config: { ExposedPorts: { "80/tcp": {} } } }] });
     await user.click(await screen.findByRole("button", { name: "More options" }));
     await user.click(screen.getByRole("button", { name: "Add a folder or volume" }));
-    await user.type(screen.getByLabelText("Volume source"), "/Users/fsousa/Library/Keychains");
+    await user.type(screen.getByLabelText("Volume source"), "/Users/me/Library/Keychains");
     expect(screen.getByText(/Library or hidden folders can't be shared/)).toBeInTheDocument();
     expect(screen.queryByRole("checkbox", { name: "Let the container change files here" })).not.toBeInTheDocument();
   });

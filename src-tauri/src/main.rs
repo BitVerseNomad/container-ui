@@ -1262,10 +1262,62 @@ async fn install_tools(app: tauri::AppHandle, names: Vec<String>) -> Result<(), 
 async fn list_profiles() -> Result<Vec<Profile>, String> {
     // `colima list --json` prints one JSON object per line.
     let out = run(vec!["list".into(), "--json".into()]).await?;
-    out.lines()
+    let profiles: Vec<Profile> = out
+        .lines()
         .filter(|l| !l.trim().is_empty())
         .map(|l| serde_json::from_str(l).map_err(|e| format!("Unexpected colima output: {e}")))
+        .collect::<Result<_, _>>()?;
+    let running: Vec<String> = profiles
+        .iter()
+        .filter(|p| p.status == "Running")
+        .map(|p| p.name.clone())
+        .collect();
+    tauri::async_runtime::spawn_blocking(move || restore_docker_contexts(&running));
+    Ok(profiles)
+}
+
+// The running profiles whose Docker context is gone (deleted by hand, by Docker Desktop's reset, ...).
+fn missing_contexts<'a>(running: &'a [String], existing: &str) -> Vec<&'a String> {
+    running
+        .iter()
+        .filter(|p| !existing.lines().any(|l| l.trim() == setup::context_for(p)))
         .collect()
+}
+
+// A running VM whose context is missing makes every screen say "context not found" although Docker is fine.
+// Colima recreates the context only on its next start, so make the same one it would. Best effort, never an error.
+fn restore_docker_contexts(running: &[String]) {
+    let Ok(home) = std::env::var("HOME") else {
+        return;
+    };
+    let Ok(out) = wsl::tool(
+        "docker",
+        &[
+            "context".into(),
+            "ls".into(),
+            "--format".into(),
+            "{{.Name}}".into(),
+        ],
+    )
+    .output() else {
+        return;
+    };
+    let existing = String::from_utf8_lossy(&out.stdout).into_owned();
+    for p in missing_contexts(running, &existing) {
+        let _ = wsl::tool(
+            "docker",
+            &[
+                "context".into(),
+                "create".into(),
+                setup::context_for(p),
+                "--docker".into(),
+                format!("host=unix://{home}/.colima/{p}/docker.sock"),
+                "--description".into(),
+                format!("colima [profile={p}]"),
+            ],
+        )
+        .output();
+    }
 }
 
 #[tauri::command]
@@ -2750,8 +2802,11 @@ fn main() {
             docker_pull,
             registry::registry_login,
             registry::aws_profiles,
+            registry::aws_profile_accounts,
+            registry::find_registries,
             registry::aws_sso_login,
             registry::aws_sso_cancel,
+            registry::set_docker_aws_profile,
             env_check,
             platform_info,
             install_tools,
@@ -4754,5 +4809,14 @@ mod tests {
         )
         .unwrap();
         assert_eq!(super::forced(already_stopped, "work"), f);
+    }
+    #[test]
+    fn given_a_running_profile_without_its_docker_context_when_checked_then_it_is_listed() {
+        let running = vec!["default".to_string(), "dev".to_string()];
+        assert_eq!(
+            missing_contexts(&running, "colima-dev\ndefault\ndesktop-linux\n"),
+            vec![&"default".to_string()]
+        );
+        assert!(missing_contexts(&running, "colima\ncolima-dev\n").is_empty());
     }
 }

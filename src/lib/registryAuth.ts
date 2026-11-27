@@ -10,3 +10,7 @@ export function detectRegistryAuth(text: string): RegistryAuth | null {
   const m = ECR_HOST.exec(text);
   return m ? { registry: m[1], region: m[2] } : null;
 }
+
+// The sign-in worked, but the AWS profile in use may not read this registry. Signing in again cannot fix that.
+const NOT_ALLOWED = /not authorized to perform: ecr:/i;
+export const detectRegistryDenied = (text: string): boolean => NOT_ALLOWED.test(text);

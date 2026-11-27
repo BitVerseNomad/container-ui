@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 import { opener } from "./helpers";
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 
-const routes = ["containers", "images", "volumes", "networks", "settings/machines", "doctor", "kubernetes", "settings"];
+const routes = ["containers", "images", "volumes", "networks", "registries", "settings/machines", "doctor", "kubernetes", "settings"];
 const scenarios = ["running", "k8spods", "stopped"];
 const mine = process.env.UPDATE_BASELINE === "1";
 
