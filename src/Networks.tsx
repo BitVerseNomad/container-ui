@@ -83,7 +83,7 @@ export default function Networks({ ctx }: { ctx: string }) {
               const free = (ctrs.data ?? []).filter((c) => c.State === "running" && !n.members.some((m) => m.name === c.Names));
               return (
                 <tr key={n.name}>
-                  <td className="max-w-xs break-all"><b>{n.name}</b>{builtin && <span className="tag">Built in</span>}</td>
+                  <td className="min-w-[12rem] max-w-[22rem] [overflow-wrap:anywhere]"><b>{n.name}</b>{builtin && <span className="tag">Built in</span>}</td>
                   <td className="font-mono whitespace-nowrap">{n.subnet || "none"}</td>
                   <td>
                     {n.members.length === 0 && <span className="hint">No containers</span>}

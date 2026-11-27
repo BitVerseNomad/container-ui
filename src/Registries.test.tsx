@@ -2,11 +2,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-const calls = vi.hoisted(() => ({ list: [] as { cmd: string; a: Record<string, unknown> }[] }));
+const calls = vi.hoisted(() => ({ list: [] as { cmd: string; a: Record<string, unknown> }[], sameAccount: false }));
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: async (cmd: string, a: Record<string, unknown> = {}) => {
     calls.list.push({ cmd, a });
     if (cmd === "aws_profiles") return ["default", "prod-readonly"];
+    if (cmd === "aws_profile_accounts") return [{ name: "default", account: calls.sameAccount ? "123456789012" : "111122223333" }, { name: "prod-readonly", account: "123456789012" }];
     return undefined;
   },
 }));
@@ -66,10 +67,12 @@ describe("Registries", () => {
 
   it("given a saved registry, when its AWS profile is changed, then the new profile is saved and the backend is told", async () => {
     localStorage.setItem("container-ui:registries", JSON.stringify([{ registry: HOST, region: "us-west-2", profile: "default" }]));
+    calls.sameAccount = true;
     render(<Registries />);
-    await userEvent.click(screen.getByRole("combobox", { name: `AWS profile for ${HOST}` }));
+    await userEvent.click(await screen.findByRole("combobox", { name: `AWS profile for ${HOST}` }));
     await userEvent.click(await screen.findByRole("option", { name: "prod-readonly" }));
     expect(loadRegistries()[0].profile).toBe("prod-readonly");
     expect(calls.list.find((c) => c.cmd === "set_docker_aws_profile")?.a).toEqual({ profile: "prod-readonly" });
+    calls.sameAccount = false;
   });
 });

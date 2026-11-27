@@ -2,12 +2,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-const calls = vi.hoisted(() => ({ list: [] as { cmd: string; a: Record<string, unknown> }[], failWith: null as unknown, stopLogin: null as null | (() => void), expiredOnce: false, ssoHangs: true, profiles: ["default"] }));
+const calls = vi.hoisted(() => ({ list: [] as { cmd: string; a: Record<string, unknown> }[], failWith: null as unknown, stopLogin: null as null | (() => void), expiredOnce: false, ssoHangs: true, profiles: ["default"], accounts: [] as { name: string; account: string | null }[] }));
 vi.mock("@tauri-apps/api/event", () => ({ listen: async () => () => {} }));
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: async (cmd: string, a: Record<string, unknown> = {}) => {
     calls.list.push({ cmd, a });
     if (cmd === "aws_profiles") return calls.profiles;
+    if (cmd === "aws_profile_accounts") return calls.accounts;
     if (cmd === "aws_sso_login") return calls.ssoHangs ? new Promise((_, reject) => { calls.stopLogin = () => reject("Killed"); }) : undefined;
     if (cmd === "registry_login" && calls.expiredOnce) { calls.expiredOnce = false; throw { kind: "aws-session", message: "Token has expired" }; }
     if (cmd === "aws_sso_cancel") { calls.stopLogin?.(); return true; }
@@ -32,7 +33,7 @@ const failure = (repo: string) => `failed to resolve reference "${HOST}/${repo}:
 const notAllowed = `failed to resolve reference "${HOST}/shop/api:latest": denied: User: arn:aws:sts::123456789012:assumed-role/sandbox/me is not authorized to perform: ecr:BatchGetImage on resource: arn:aws:ecr:us-west-2:123456789012:repository/shop/api`;
 const show = (text: string, onDone?: () => void) => render(<ConfirmProvider><RegistryLoginFix text={text} onDone={onDone} /></ConfirmProvider>);
 
-afterEach(() => { localStorage.clear(); calls.profiles = ["default"]; });
+afterEach(() => { localStorage.clear(); calls.profiles = ["default"]; calls.accounts = []; });
 
 describe("RegistryLoginFix", () => {
   it("given an unrelated error, when shown, then it draws nothing", () => {
@@ -57,7 +58,7 @@ describe("RegistryLoginFix", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Sign in to AWS registry" }));
     await userEvent.click(await screen.findByRole("button", { name: "Sign in" }));
     await waitFor(() => expect(onDone).toHaveBeenCalledTimes(1));
-    expect(calls.list.map((c) => c.cmd).filter((c) => c !== "aws_profiles" && c !== "set_docker_aws_profile")).toEqual(["registry_login", "aws_sso_login", "registry_login"]);
+    expect(calls.list.map((c) => c.cmd).filter((c) => c !== "aws_profiles" && c !== "aws_profile_accounts" && c !== "set_docker_aws_profile")).toEqual(["registry_login", "aws_sso_login", "registry_login"]);
   });
 
   it("given aws is missing, when signing in fails, then it says so and offers no fix", async () => {
@@ -117,13 +118,14 @@ describe("RegistryLoginFix", () => {
     expect(calls.list.find((c) => c.cmd === "set_docker_aws_profile")?.a).toEqual({ profile: "default" });
   });
 
-  it("given several AWS profiles, then the prod and ecr ones come first and the first is the default", async () => {
-    calls.failWith = null; calls.expiredOnce = false; calls.list.length = 0; calls.profiles = ["sandbox-dev", "prod-readonly"];
+  it("given several AWS profiles, then the one whose account is in the address is picked, whatever its name", async () => {
+    calls.failWith = null; calls.expiredOnce = false; calls.list.length = 0; calls.profiles = ["sandbox-dev", "team-a"];
+    calls.accounts = [{ name: "sandbox-dev", account: "111122223333" }, { name: "team-a", account: HOST.split(".")[0] }];
     show(failure("order"));
     await userEvent.click(await screen.findByRole("button", { name: "Sign in to AWS registry" }));
     await userEvent.click(await screen.findByRole("button", { name: "Sign in" }));
     await screen.findByText("Signed in. Start it again.");
-    expect(calls.list.find((c) => c.cmd === "registry_login")?.a).toEqual({ registry: HOST, profile: "prod-readonly" });
+    expect(calls.list.find((c) => c.cmd === "registry_login")?.a).toEqual({ registry: HOST, profile: "team-a" });
   });
 
   it("given the same failure comes back after an automatic sign-in, then it does not sign in again or restart again", async () => {

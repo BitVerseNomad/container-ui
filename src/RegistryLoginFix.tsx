@@ -6,7 +6,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { Banner, Button, Select, useConfirm } from "./ui/op";
 import OutputLog from "./ui/OutputLog";
 import { detectRegistryAuth, detectRegistryDenied, type RegistryAuth } from "./lib/registryAuth";
-import { addRegistry, asLoginError, cancelAwsSignIn, orderProfiles, rememberProfile, rememberedProfile, savedRegistry, setDockerAwsProfile, signInToRegistry } from "./lib/registries";
+import { addRegistry, asLoginError, cancelAwsSignIn, profilesFor, rememberProfile, rememberedProfile, savedRegistry, setDockerAwsProfile, signInToRegistry, signInTrying, type AwsProfile } from "./lib/registries";
 
 type Step = "ask" | "running" | "done" | "aws-running" | "no-aws" | "failed";
 
@@ -34,28 +34,36 @@ function Fix({ found, text, onDone }: { found: RegistryAuth; text: string; onDon
   const [problem, setProblem] = useState("");
   const [profiles, setProfiles] = useState<string[]>([]);
   const [profile, setProfile] = useState<string | undefined>(saved?.profile);
+  const [matches, setMatches] = useState<string[]>([]);
   const cancelled = useRef(false);
   const started = useRef(false);
 
   useEffect(() => {
     let live = true;
-    invoke<string[]>("aws_profiles").then((list) => {
+    // The profile of the account named in the address comes first; the rest is the AWS config's own order.
+    Promise.all([
+      invoke<string[]>("aws_profiles").catch(() => [] as string[]),
+      invoke<AwsProfile[]>("aws_profile_accounts").catch(() => [] as AwsProfile[]),
+    ]).then(([list, accounts]) => {
       if (!live) return;
-      setProfiles(orderProfiles(list));
+      const same = profilesFor(found.registry, Array.isArray(accounts) ? accounts : []);
+      setProfiles(list);
+      setMatches(same);
       if (saved) return;
       const remembered = rememberedProfile();
-      setProfile(remembered && list.includes(remembered) ? remembered : orderProfiles(list)[0]);
-    }, () => {});
+      setProfile(same[0] ?? (remembered && list.includes(remembered) ? remembered : list[0]));
+    });
     return () => { live = false; };
-  }, [saved]);
+  }, [saved, found.registry]);
 
   async function run(p: string | undefined) {
     cancelled.current = false;
     setStep("running");
     try {
-      await signInToRegistry({ registry: found.registry, region: found.region, profile: p }, (s) => setStep(s === "aws" ? "aws-running" : "running"));
+      // Tries the other profiles of the same account when this one is not allowed to read the registry.
+      const worked = await signInTrying({ registry: found.registry, region: found.region, profile: p }, matches, (s) => setStep(s === "aws" ? "aws-running" : "running"));
       // Next time this registry signs in by itself.
-      if (!saved) addRegistry({ registry: found.registry, region: found.region, profile: p });
+      if (!saved) addRegistry({ registry: found.registry, region: found.region, profile: worked ?? p });
       setStep("done");
       onDone?.();
     } catch (e) {
@@ -135,9 +143,8 @@ function WrongProfile({ found, onDone }: { found: RegistryAuth; onDone?: () => v
     let live = true;
     invoke<string[]>("aws_profiles").then((list) => {
       if (!live) return;
-      const ordered = orderProfiles(list);
-      setProfiles(ordered);
-      setPick((p) => p ?? ordered[0]);
+      setProfiles(list);
+      setPick((p) => p ?? list[0]);
     }, () => {});
     return () => { live = false; };
   }, []);

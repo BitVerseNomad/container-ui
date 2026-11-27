@@ -54,7 +54,11 @@ export default function PullPanel({ ctx, onClose, onPulled, onRun, searchFor }: 
     setSearching(true);
     setSearchError(null);
     try {
-      setHits(await dockerJson<Hit>(ctx, ["search", "--limit", "25", query]));
+      // Docker Hub reads "kafka ui" as two loose words and misses "kafka-ui", the name most images use: ask both.
+      const terms = [...new Set([query, query.replace(/\s+/g, "-")])];
+      const lists = await Promise.all(terms.map((t) => dockerJson<Hit>(ctx, ["search", "--limit", "25", t])));
+      const seen = new Set<string>();
+      setHits(lists.flat().filter((h) => !seen.has(h.Name) && !!seen.add(h.Name)));
     } catch (e) {
       setSearchError(String(e));
     } finally {

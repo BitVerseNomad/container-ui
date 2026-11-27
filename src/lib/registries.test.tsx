@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { signInTrying, orderProfiles, addRegistry, loadRegistries, parseEcrHost, removeRegistry, savedRegistry, withRegistry, withoutRegistry } from "./registries";
+import { signInTrying, addRegistry, loadRegistries, parseEcrHost, removeRegistry, savedRegistry, withRegistry, withoutRegistry } from "./registries";
 
 const HOST = "123456789012.dkr.ecr.us-west-2.amazonaws.com";
 afterEach(() => localStorage.clear());
@@ -56,14 +56,6 @@ describe("saved registries", () => {
   });
 });
 
-describe("orderProfiles", () => {
-  it("given sandbox and prod profiles, then prod and ecr names come first and the rest keep their order", () => {
-    expect(orderProfiles(["sandbox-dev", "default", "prod-readonly", "team-ECR-push"])).toEqual(["prod-readonly", "team-ECR-push", "sandbox-dev", "default"]);
-  });
-  it("given no prod or ecr names, then the order is unchanged", () => {
-    expect(orderProfiles(["b", "a"])).toEqual(["b", "a"]);
-  });
-});
 
 const denied = { kind: "login", message: "AccessDeniedException ... is not authorized to perform: ecr:GetAuthorizationToken" };
 describe("signInTrying", () => {
@@ -76,9 +68,6 @@ describe("signInTrying", () => {
     expect(worked).toBe("prod-readonly");
     expect(calls).toEqual(["prod-admin", "prod-readonly"]);
     vi.doUnmock("@tauri-apps/api/core");
-  });
-  it("given a read-only profile and a role profile, when ordered, then the read-only one leads", () => {
-    expect(orderProfiles(["prod-admin", "sandbox", "prod-readonly"])).toEqual(["prod-readonly", "prod-admin", "sandbox"]);
   });
 });
 void signInTrying;

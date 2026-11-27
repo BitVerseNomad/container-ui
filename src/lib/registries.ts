@@ -69,13 +69,6 @@ export async function signInToRegistry(r: Registry, onStep?: (step: SignInStep) 
 export const setDockerAwsProfile = (profile: string | null): Promise<void> =>
   invoke<void>("set_docker_aws_profile", { profile }).catch(() => {});
 
-// Profiles for a production or ECR registry come first, so a sandbox profile is not the default pick.
-// Read-only and ECR profiles lead, since pulling images only needs read access; then the other production ones.
-export const orderProfiles = (list: string[]): string[] => {
-  const rank = (p: string) => (/(^|[-_.])(ro|read|readonly|ecr)([-_.]|$)/i.test(p) ? 0 : /prod/i.test(p) ? 1 : 2);
-  return [...list].sort((a, b) => rank(a) - rank(b));
-};
-
 // Tries the profile of the registry, then the other profiles of the same account, while AWS answers "not allowed"
 // (a profile can sign in to the account and still lack ecr:GetAuthorizationToken). Returns the profile that worked.
 export async function signInTrying(r: Registry, others: string[], onStep?: (step: SignInStep) => void): Promise<string | undefined> {
@@ -95,6 +88,7 @@ export const cancelAwsSignIn = (): Promise<boolean> => invoke<boolean>("aws_sso_
 
 export type AwsProfile = { name: string; account: string | null };
 export type FoundRegistry = { registry: string; region: string; project: string };
-// The AWS profiles that sign in to the account named in a registry host (its first 12 digits), most useful first.
+// The AWS profiles of the account named in a registry host (its first 12 digits), in the order of the AWS config.
+// No name is trusted to mean read access: signInTrying finds out by trying.
 export const profilesFor = (host: string, all: AwsProfile[]): string[] =>
-  orderProfiles(all.filter((p) => p.account === host.split(".")[0]).map((p) => p.name));
+  all.filter((p) => p.account === host.split(".")[0]).map((p) => p.name);

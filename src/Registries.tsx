@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Banner, Button, Empty, Field, Select } from "./ui/op";
 import {
-  addRegistry, orderProfiles, setDockerAwsProfile, asLoginError, cancelAwsSignIn, loadRegistries, parseEcrHost, rememberProfile, rememberedProfile,
+  addRegistry, setDockerAwsProfile, asLoginError, cancelAwsSignIn, loadRegistries, parseEcrHost, rememberProfile, rememberedProfile,
   profilesFor, removeRegistry, saveRegistries, signedInSince, signInTrying, type AwsProfile, type FoundRegistry, type Registry,
 } from "./lib/registries";
 
@@ -46,9 +46,8 @@ export default function Registries() {
     let live = true;
     invoke<string[]>("aws_profiles").then((p) => {
       if (!live) return;
-      const ordered = orderProfiles(p);
-      setProfiles(ordered);
-      if (!rememberedProfile() && ordered[0]) setProfile(ordered[0]);
+      setProfiles(p);
+      if (!rememberedProfile() && p[0]) setProfile(p[0]);
     }, () => {});
     invoke<AwsProfile[]>("aws_profile_accounts").then((a) => live && setAccounts(Array.isArray(a) ? a : []), () => {});
     invoke<FoundRegistry[]>("find_registries").then((f) => live && setFound(Array.isArray(f) ? f : []), () => {});

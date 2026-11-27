@@ -40,7 +40,6 @@ export default function Images({ ctx, onRan, startPull = false, arch }: { ctx: s
         <OpButton variant="primary" icon="download" onClick={() => { setHubTerm(undefined); setPulling(true); }}>Pull image</OpButton>
       </Header>
       <Banner error={error ?? err} onClose={() => setErr(null)} />
-      <DiskCard ctx={ctx} onChanged={reload} />
       {data && data.length === 0 && (
         <Empty title="No images">Use <strong>Pull image</strong> to download one from Docker Hub.</Empty>
       )}
@@ -62,11 +61,11 @@ export default function Images({ ctx, onRan, startPull = false, arch }: { ctx: s
               const ref = i.Repository === "<none>" ? i.ID : `${i.Repository}:${i.Tag}`;
               return (
                 <tr key={i.ID + ref}>
-                  <td>{i.Repository}</td>
+                  <td className="break-all">{i.Repository}</td>
                   <td className="font-mono">{i.Tag}</td>
                   <td className="font-mono">{i.ID}</td>
-                  <td className="text-right tabular-nums">{parseBytes(i.Size) ? formatBytes(parseBytes(i.Size)) : i.Size}</td>
-                  <td>{i.CreatedSince}</td>
+                  <td className="whitespace-nowrap text-right tabular-nums">{parseBytes(i.Size) ? formatBytes(parseBytes(i.Size)) : i.Size}</td>
+                  <td className="whitespace-nowrap">{i.CreatedSince}</td>
                   <td className="whitespace-nowrap text-right">
                     <OpButton variant="ghost" size="sm" icon="play" aria-label={`Run ${ref}`} onClick={() => setRunning(ref)}>Run</OpButton>
                     <OpButton variant="danger-quiet" size="sm" icon="trash" aria-label={`Remove ${ref}`} onClick={async () => (await confirm(`Remove image ${ref}?`)) && act(["rmi", ref])}>Remove</OpButton>
@@ -77,6 +76,10 @@ export default function Images({ ctx, onRan, startPull = false, arch }: { ctx: s
           </tbody>
         </table>
       )}
+      <details className="mt-4">
+        <summary className="hint cursor-pointer">Free up space in the VM</summary>
+        <div className="mt-2"><DiskCard ctx={ctx} onChanged={reload} /></div>
+      </details>
       {pulling && (
         <PullPanel
           ctx={ctx}
