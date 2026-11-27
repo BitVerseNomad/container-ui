@@ -23,6 +23,8 @@ import RunPanel from "./RunPanel";
 import { focusWhenShown } from "./lib/focusRow";
 import Volumes from "./Volumes";
 import Networks from "./Networks";
+import Registries from "./Registries";
+import { loadRegistries, setDockerAwsProfile } from "./lib/registries";
 import Kubernetes from "./Kubernetes";
 import Profiles from "./Profiles";
 import InstallCard from "./InstallCard";
@@ -67,7 +69,7 @@ const queryClient = new QueryClient({
 const opName = (vm: VmState) => { const a = vm.last?.args as { name?: string; opts?: { name?: string } } | undefined; return a?.opts?.name ?? a?.name; };
 
 // Written out by hand: "its kubernetes" reads wrong.
-const NOUN: Record<string, string> = { Images: "images", Volumes: "volumes", Networks: "networks", Kubernetes: "cluster" };
+const NOUN: Record<string, string> = { Images: "images", Volumes: "volumes", Networks: "networks", Registries: "registries", Kubernetes: "cluster" };
 
 // Pages that draw their own title row, with their actions in it, so App does not add the shared Header.
 const PAGES_WITH_OWN_HEADER: readonly string[] = ["Containers", "Images", "Volumes", "Networks", "Profiles"];
@@ -100,6 +102,8 @@ export default function App() {
     window.addEventListener("runtime-changed", onRuntimeChange as EventListener);
     return () => window.removeEventListener("runtime-changed", onRuntimeChange as EventListener);
   }, []);
+  // The backend forgets the AWS profile for docker between runs: tell it the saved one at start.
+  useEffect(() => { const first = loadRegistries()[0]; if (first) void setDockerAwsProfile(first.profile ?? null); }, []);
   useEffect(() => {
     const on = (e: Event) => setAppError((e as CustomEvent<string>).detail);
     window.addEventListener("app-error", on);
@@ -392,6 +396,8 @@ export default function App() {
           onKubeAsked={(name, on) => setKubeAsked((m) => ({ ...m, [name]: on }))}
         />
       </div>
+    ) : tab === "Registries" ? (
+      <Registries />
     ) : !ctx ? (
       toolsMissing ? (
         <Empty title="No container runtime yet" action={<Button variant="primary" onClick={() => setTab("Containers")}>Install one</Button>}>
@@ -508,6 +514,7 @@ export default function App() {
         { id: "go-images", group: "Go to", label: "Images", kbd: showKeys({ key: "3", meta: true }), run: () => setTab("Images") },
         { id: "go-volumes", group: "Go to", label: "Volumes", kbd: showKeys({ key: "4", meta: true }), run: () => setTab("Volumes") },
         { id: "go-networks", group: "Go to", label: "Networks", kbd: showKeys({ key: "5", meta: true }), run: () => setTab("Networks") },
+        ...(win ? [] : ([{ id: "go-registries", group: "Go to", label: "Registries", run: () => setTab("Registries") }] as PaletteItem[])),
       ];
       if (kubeOn) goTo.push({ id: "go-kubernetes", group: "Go to", label: "Kubernetes", kbd: showKeys({ key: "6", meta: true }), run: () => setTab("Kubernetes") });
       if (!win) {
@@ -527,7 +534,7 @@ export default function App() {
             onNav={(t) => setTab(t)}
             badges={{ Doctor: doctorTodo }}
             counts={{ containers: containerCount }}
-            hidden={[...(kubeOn ? [] : ["Kubernetes" as Tab]), ...(win ? ["Doctor" as Tab] : [])]}
+            hidden={[...(kubeOn ? [] : ["Kubernetes" as Tab]), ...(win ? ["Doctor" as Tab, "Registries" as Tab] : [])]}
             engine={<div data-slot="engine"><EngineSwitcher engines={engines} selectedId={active} open={engineOpen} onOpenChange={setEngineOpen} onSelect={switchTo} onStart={(id) => { switchTo(id); setTab("Containers"); void vmFromAnywhere(id, "starting"); }} onStop={(id) => void vmFromAnywhere(id, "stopping")} onMachines={win ? undefined : () => go("#/settings/machines")} /></div>}
             onSettings={win ? undefined : () => go("#/settings/machines")}
             settingsActive={route.page === "settings"}
@@ -541,7 +548,7 @@ export default function App() {
                 <Header title={unbuiltSettings ? "Settings" : tab === "Profiles" ? "Machines" : tab} />
               ) : null}
               {/* Screens not yet on the op components keep their v0.2.1 look (src/ui/legacy.css). */}
-              <div className={tab === "Containers" && ctx ? undefined : "legacy"}>{page}</div>
+              <div className={(tab === "Containers" && ctx) || tab === "Registries" ? undefined : "legacy"}>{page}</div>
             </MachineUsageProvider>
             <CommandToast onOpenLog={() => setLogOpen(true)} />
             <ResizeAnnouncer />
@@ -549,32 +556,35 @@ export default function App() {
             <CommandPalette open={commandPaletteOpen} onClose={() => setCommandPaletteOpen(false)} items={paletteItems} />
             <HelpModal open={helpOpen} onClose={() => setHelpOpen(false)} />
             <div className="sr-only" data-app-announcer role="status" aria-live="polite">{bringSaid}</div>
-            {bringing && (
-              <BringOver
-                ctx={bringing.ctx}
-                only={bringing.only}
-                forVm={current && bringing.name !== current.name ? bringing.name : undefined}
-                onClose={closeBring}
-                onDone={(ok) => { if (ok) copied.current = true; void Promise.all([setup.reload(), doc.reload(), readDesktop(bringing.ctx)]); }}
-                onProfiles={() => { setBringing(null); setTab("Profiles"); }}
-              />
-            )}
-            {runPicker && ctx && (
-              <RunPicker
-                ctx={ctx}
-                onClose={() => setRunPicker(false)}
-                onPick={(ref) => { setRunPicker(false); setRunImage(ref); }}
-              />
-            )}
-            {runImage && ctx && (
-              <RunPanel
-                ctx={ctx}
-                image={runImage}
-                arch={current?.arch}
-                onClose={() => setRunImage(null)}
-                onRan={(_id, name) => { setRunImage(null); setTab("Containers"); focusWhenShown(name); toast({ text: `Started ${name}` }); }}
-              />
-            )}
+            {/* These sheets use the v0.2.1 classes (hint, how, out-more), so they sit inside .legacy even over a migrated page. */}
+            <div className="legacy">
+              {bringing && (
+                <BringOver
+                  ctx={bringing.ctx}
+                  only={bringing.only}
+                  forVm={current && bringing.name !== current.name ? bringing.name : undefined}
+                  onClose={closeBring}
+                  onDone={(ok) => { if (ok) copied.current = true; void Promise.all([setup.reload(), doc.reload(), readDesktop(bringing.ctx)]); }}
+                  onProfiles={() => { setBringing(null); setTab("Profiles"); }}
+                />
+              )}
+              {runPicker && ctx && (
+                <RunPicker
+                  ctx={ctx}
+                  onClose={() => setRunPicker(false)}
+                  onPick={(ref) => { setRunPicker(false); setRunImage(ref); }}
+                />
+              )}
+              {runImage && ctx && (
+                <RunPanel
+                  ctx={ctx}
+                  image={runImage}
+                  arch={current?.arch}
+                  onClose={() => setRunImage(null)}
+                  onRan={(_id, name) => { setRunImage(null); setTab("Containers"); focusWhenShown(name); toast({ text: `Started ${name}` }); }}
+                />
+              )}
+            </div>
           </Shell>
       </ResizeProvider>
     </QueryClientProvider>

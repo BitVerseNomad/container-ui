@@ -219,7 +219,7 @@ export default function ComposeProjects({ ctx, scan, containers, attention, onCl
                 <Col kind="state"><span className="flex items-center gap-1.5"><Dot state={up ? "ok" : "off"} /><span className="status">{p.total ? `${p.running} of ${p.total} running` : "Not running"}</span></span></Col>
               </Row>
               {sick.length > 0 && <Problem level="warn" text={sick.length === 1 ? "1 needs attention" : `${sick.length} need attention`} />}
-              {failed?.dir === p.dir && !mine && <RegistryLoginFix text={failed.text} />}
+              {failed?.dir === p.dir && !mine && <RegistryLoginFix text={failed.text} onDone={() => void run(p, failed.action)} />}
               {failed?.dir === p.dir && failed.why && !mine && (
                 <Problem
                   level="bad"
@@ -238,7 +238,7 @@ export default function ComposeProjects({ ctx, scan, containers, attention, onCl
                 </details>
               )}
               {logsHere && <ComposeLogs ctx={ctx} file={`${p.dir}/${p.files[0]}`} project={p.name} />}
-              {(mine || failed?.dir === p.dir) && <OutputLog event="compose-progress" active={mine} />}
+              {(mine || failed?.dir === p.dir) && <OutputLog event="compose-progress" active={mine} collapsed={!mine} />}
               {cmdsOpen.has(p.dir) && (
                 <div className="mt-2 flex flex-col gap-1.5" role="group" aria-label={`Commands for ${p.name}`}>
                   {(up ? (["up", "restart", "stop", "down", "build", "pull"] as Action[]) : (["up", "build", "pull"] as Action[])).map((a) => (

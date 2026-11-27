@@ -139,6 +139,11 @@ fn run_within(
     ))
 }
 
+// `docker login` against a credential helper that cannot store (docker-credential-ecr-login).
+fn store_unsupported(docker_err: &str) -> bool {
+    docker_err.contains("error storing credentials") && docker_err.contains("not implemented")
+}
+
 fn sign_in(registry: &str, profile: Option<&str>) -> Result<(), LoginError> {
     let region = ecr_region(registry)
         .ok_or_else(|| err("login", "That is not an Amazon ECR registry address."))?;
@@ -171,8 +176,18 @@ fn sign_in(registry: &str, profile: Option<&str>) -> Result<(), LoginError> {
             )
         })?;
     if ok {
-        Ok(())
-    } else {
+        return Ok(());
+    }
+    // With docker-credential-ecr-login as the credential store, `docker login` cannot store anything ("not implemented"),
+    // and does not need to: the helper fetches a token at pull time from the AWS profile, which every docker command
+    // the app runs now carries. The password above only proved the AWS session works.
+    if store_unsupported(&String::from_utf8_lossy(&docker_err))
+        && super::locate("docker-credential-ecr-login").is_some()
+    {
+        crate::wsl::set_docker_aws_profile(profile.map(String::from));
+        return Ok(());
+    }
+    {
         // Docker's own words, without the password in case a helper ever echoed it.
         Err(err(
             "login",
@@ -190,6 +205,20 @@ pub async fn registry_login(registry: String, profile: Option<String>) -> Result
         .map_err(|e| err("login", e.to_string()))?
 }
 
+// The frontend sends the profile of a saved registry at start and whenever it changes.
+#[tauri::command]
+pub fn set_docker_aws_profile(profile: Option<String>) -> Result<(), String> {
+    match profile.as_deref() {
+        Some(p) if !profile_ok(p) || p.starts_with('-') => {
+            Err("That AWS profile name is not valid.".into())
+        }
+        _ => {
+            crate::wsl::set_docker_aws_profile(profile);
+            Ok(())
+        }
+    }
+}
+
 #[tauri::command]
 pub async fn aws_profiles() -> Result<Vec<String>, String> {
     tauri::async_runtime::spawn_blocking(|| {
@@ -204,6 +233,108 @@ pub async fn aws_profiles() -> Result<Vec<String>, String> {
             .filter(|l| profile_ok(l))
             .map(String::from)
             .collect())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[derive(Serialize, Debug, PartialEq)]
+pub struct AwsProfile {
+    name: String,
+    // The 12-digit AWS account the profile signs in to, when the config says so.
+    account: Option<String>,
+}
+
+// "[profile x]" / "[default]" sections with sso_account_id or a role_arn, read from the AWS config file.
+fn parse_aws_config(text: &str) -> Vec<AwsProfile> {
+    let mut out: Vec<AwsProfile> = vec![];
+    for line in text.lines().map(str::trim) {
+        if let Some(head) = line.strip_prefix('[').and_then(|l| l.strip_suffix(']')) {
+            let name = head.strip_prefix("profile ").unwrap_or(head).trim();
+            if head == "default" || head.starts_with("profile ") {
+                out.push(AwsProfile {
+                    name: name.to_string(),
+                    account: None,
+                });
+            } else {
+                out.push(AwsProfile {
+                    name: String::new(), // sso-session and other sections: dropped below
+                    account: None,
+                });
+            }
+        } else if let (Some(cur), Some((k, v))) = (out.last_mut(), line.split_once('=')) {
+            let v = v.trim();
+            let digits = |d: &str| d.len() == 12 && d.bytes().all(|b| b.is_ascii_digit());
+            match k.trim() {
+                "sso_account_id" if digits(v) => cur.account = Some(v.to_string()),
+                "role_arn" if cur.account.is_none() => {
+                    if let Some(acc) = v.split(':').nth(4).filter(|a| digits(a)) {
+                        cur.account = Some(acc.to_string());
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    out.retain(|p| profile_ok(&p.name));
+    out
+}
+
+// Every profile with its account, so the screen can pick the one that matches a registry's account.
+#[tauri::command]
+pub fn aws_profile_accounts() -> Vec<AwsProfile> {
+    let path = std::env::var("AWS_CONFIG_FILE")
+        .unwrap_or_else(|_| format!("{}/.aws/config", std::env::var("HOME").unwrap_or_default()));
+    std::fs::read_to_string(path)
+        .map(|t| parse_aws_config(&t))
+        .unwrap_or_default()
+}
+
+#[derive(Serialize, Debug, PartialEq)]
+pub struct FoundRegistry {
+    registry: String,
+    region: String,
+    // The folder of the first Compose file that names it.
+    project: String,
+}
+
+// ECR hosts named in some text: every word that is exactly <12 digits>.dkr.ecr.<region>.amazonaws.com.
+fn ecr_hosts_in(text: &str) -> Vec<(String, String)> {
+    let mut v: Vec<(String, String)> = text
+        .split(|c: char| !(c.is_ascii_alphanumeric() || c == '.' || c == '-'))
+        .filter_map(|w| ecr_region(w).map(|r| (w.to_string(), r.to_string())))
+        .collect();
+    v.sort();
+    v.dedup();
+    v
+}
+
+// The ECR hosts the owner's Compose projects already pull from, found by reading the Compose files Spotlight lists.
+#[tauri::command]
+pub async fn find_registries() -> Result<Vec<FoundRegistry>, String> {
+    let files = super::find_compose_files().await?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut found: Vec<FoundRegistry> = vec![];
+        for f in files.iter().take(300) {
+            // shortcut: a Compose file over 256 KB is skipped, none of the real ones are that big.
+            let Ok(text) =
+                std::fs::read_to_string(f)
+                    .map(|t| if t.len() > 262_144 { String::new() } else { t })
+            else {
+                continue;
+            };
+            let project = f.rsplit('/').nth(1).unwrap_or("").to_string();
+            for (registry, region) in ecr_hosts_in(&text) {
+                if !found.iter().any(|x| x.registry == registry) {
+                    found.push(FoundRegistry {
+                        registry,
+                        region,
+                        project: project.clone(),
+                    });
+                }
+            }
+        }
+        Ok(found)
     })
     .await
     .map_err(|e| e.to_string())?
@@ -254,6 +385,29 @@ mod tests {
             started.elapsed() < Duration::from_secs(10),
             "{:?}",
             started.elapsed()
+        );
+    }
+
+    #[test]
+    fn given_an_aws_config_when_parsed_then_each_profile_has_its_account() {
+        let cfg = "[default]\nregion = us-west-2\n[profile prod-readonly]\nsso_account_id = 123456789012\nsso_role_name = ReadOnly\n[sso-session corp]\nsso_start_url = x\n[profile via-role]\nrole_arn = arn:aws:iam::111122223333:role/Admin\n";
+        let got = parse_aws_config(cfg);
+        let names: Vec<&str> = got.iter().map(|p| p.name.as_str()).collect();
+        assert_eq!(names, ["default", "prod-readonly", "via-role"]);
+        assert_eq!(got[1].account.as_deref(), Some("123456789012"));
+        assert_eq!(got[2].account.as_deref(), Some("111122223333"));
+        assert_eq!(got[0].account, None);
+    }
+
+    #[test]
+    fn given_compose_text_when_scanned_then_only_ecr_hosts_come_back() {
+        let text = "image: 123456789012.dkr.ecr.us-west-2.amazonaws.com/gss/api:1.0\nimage: nginx\n  - \"123456789012.dkr.ecr.us-west-2.amazonaws.com/x\"\nimage: 12.dkr.ecr.x.amazonaws.com/y";
+        assert_eq!(
+            ecr_hosts_in(text),
+            [(
+                "123456789012.dkr.ecr.us-west-2.amazonaws.com".to_string(),
+                "us-west-2".to_string()
+            )]
         );
     }
 
@@ -333,5 +487,13 @@ mod tests {
         let shown = String::from_utf8_lossy(format!("login failed for {password}").as_bytes())
             .replace(password, "***");
         assert!(!shown.contains(password));
+    }
+
+    #[test]
+    fn given_a_helper_that_cannot_store_when_docker_login_fails_then_it_is_recognised() {
+        assert!(store_unsupported("Error saving credentials: error storing credentials - err: exit status 1, out: `not implemented`"));
+        assert!(!store_unsupported(
+            "unauthorized: incorrect username or password"
+        ));
     }
 }

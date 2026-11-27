@@ -293,9 +293,12 @@ let ecrSignedIn = false;
 const ecrDenied = (image: string) => `Error response from daemon: failed to resolve reference "${image}": pull access denied, repository does not exist or may require authorization: authorization failed: no basic auth credentials`;
 const ecrNeedsLogin = () => flag("ecrfail") && !ecrSignedIn;
 async function registryMock(cmd: string, a: Record<string, any>): Promise<unknown> {
-  if (cmd === "aws_profiles") return ["default"];
+  if (cmd === "aws_profile_accounts") return flag("manyprofiles") ? [{ name: "default", account: null }, { name: "prod-readonly", account: ECR.split(".")[0] }, { name: "sandbox-dev", account: "111122223333" }, ...Array.from({ length: 19 }, (_, i) => ({ name: `account-${100 + i}-developer-access`, account: `2000000000${String(i).padStart(2, "0")}` }))] : [];
+  if (cmd === "find_registries") return flag("found") ? [{ registry: ECR, region: "us-west-2", project: "global-search-service" }] : [];
+  if (cmd === "aws_profiles") return flag("manyprofiles") ? ["default", "prod-readonly", "sandbox-dev", ...Array.from({ length: 19 }, (_, i) => `account-${100 + i}-developer-access`)] : ["default"];
   if (cmd === "aws_sso_login") return undefined;
   if (cmd === "aws_sso_cancel") return false;
+  if (cmd === "set_docker_aws_profile") return undefined;
   await sleep(300);
   ecrSignedIn = a.registry === ECR;
   return undefined;
@@ -368,7 +371,7 @@ export async function invoke<T>(cmd: string, a: Record<string, any> = {}): Promi
       if (a.kind === "volume") { db.volumes.push(a.name); colimaSizes[a.name] = ddVolumes.find(([n]) => n === a.name)![1]; } else { const [repo, tag] = a.name.split(":"); db.images.unshift({ Repository: repo, Tag: tag, Size: "142MB", ID: hex(12), CreatedSince: "1 second ago" }); }
       return size as T;
     }
-    case "registry_login": case "aws_profiles": case "aws_sso_login": case "aws_sso_cancel": return registryMock(cmd, a) as Promise<T>;
+    case "registry_login": case "set_docker_aws_profile": case "aws_profile_accounts": case "find_registries": case "aws_profiles": case "aws_sso_login": case "aws_sso_cancel": return registryMock(cmd, a) as Promise<T>;
     case "docker_pull": {
       if (ecrNeedsLogin() && a.image.startsWith(ECR)) throw ecrDenied(a.image);
       if (flag("pullfail")) { await progress("pull-progress", [["Using default tag: latest", 150]]); throw `Error response from daemon: Get "https://registry-1.docker.io/v2/": net/http: request canceled while waiting for connection (Client.Timeout exceeded)`; }
@@ -592,7 +595,12 @@ export async function invoke<T>(cmd: string, a: Record<string, any> = {}): Promi
     case "force_stop_profile": { await progress("colima-progress", [['level=info msg="stopping colima (forced)"', 300]]); db.profiles.find((x) => x.name === a.name)!.status = "Stopped"; return undefined as T; }
     case "force_restart_profile": { await progress("colima-progress", [['level=info msg="stopping colima (forced)"', 300], ['level=info msg="done"', 300]]); db.profiles.find((x) => x.name === a.name)!.status = "Running"; return undefined as T; }
     case "stop_profile": case "restart_profile": {
-      if (scenario === "stopfail" && cmd === "stop_profile") throw "FATA[0003] could not stop the VM: timeout"; await progress("colima-progress", [[`level=info msg="stopping colima"`, 300], ['level=info msg="done"', 500]]); db.profiles.find((x) => x.name === a.name)!.status = cmd === "stop_profile" ? "Stopped" : "Running"; if (cmd === "restart_profile") { if (!flag("stuckdns")) dnsBroken = false; (window as any).__vmChange = { cmd, args: JSON.parse(JSON.stringify(a)) }; } return undefined as T; }
+      if (scenario === "stoplong" && cmd === "stop_profile") {
+        // A real colima stop that fails: dozens of progress lines, then one long error with no spaces to wrap on.
+        await progress("colima-progress", Array.from({ length: 60 }, (_, i): [string, number] => [`time="2026-11-27T15:30:${String(i).padStart(2, "0")}Z" level=info msg="stopping ... context=kubernetes step ${i}"`, 20]));
+        throw `FATA[0061] error stopping colima: exit status 1: limactl stop colima: failed to stop: ssh -F /Users/me/.colima/_lima/colima/ssh.config lima-colima sudo systemctl stop k3s.service: signal: killed: /Users/me/.colima/_lima/colima/ha.stderr.log`;
+      }
+      if (scenario === "stopfail" && cmd === "stop_profile") throw "FATA[0003] could not stop the VM: timeout"; await progress("colima-progress", [[`level=info msg="stopping colima"`, 300], ['level=info msg="done"', flag("slowstop") ? 6000 : 500]]); db.profiles.find((x) => x.name === a.name)!.status = cmd === "stop_profile" ? "Stopped" : "Running"; if (cmd === "restart_profile") { if (!flag("stuckdns")) dnsBroken = false; (window as any).__vmChange = { cmd, args: JSON.parse(JSON.stringify(a)) }; } return undefined as T; }
     case "delete_profile": db.profiles = db.profiles.filter((x) => x.name !== a.name); return undefined as T;
     case "open_url": { if (/^https:\/\//.test(a.url)) { ((window as any).__opened ??= []).push(a.url); return undefined as T; } throw "Preview only: localhost links don't open here."; }
   }

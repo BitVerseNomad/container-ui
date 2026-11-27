@@ -4,6 +4,27 @@ use std::process::Command;
 
 const TOOLS: [&str; 3] = ["docker", "kubectl", "aws"];
 
+// The AWS profile docker-credential-ecr-login reads for ECR pulls (it takes AWS_PROFILE from docker's environment).
+// Set when a registry sign-in used that helper, so every docker command the app runs can pull from private ECR.
+static DOCKER_AWS_PROFILE: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
+
+pub fn set_docker_aws_profile(profile: Option<String>) {
+    *DOCKER_AWS_PROFILE.lock().unwrap_or_else(|p| p.into_inner()) = profile;
+}
+
+fn with_aws_profile(bin: &str, mut c: Command) -> Command {
+    if bin == "docker" {
+        if let Some(p) = DOCKER_AWS_PROFILE
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .as_ref()
+        {
+            c.env("AWS_PROFILE", p);
+        }
+    }
+    c
+}
+
 // `-d` is always explicit when the user picked a distro; otherwise WSL's default distro answers.
 pub fn wsl_prefix(distro: Option<&str>) -> Vec<String> {
     let mut v = vec![];
@@ -133,7 +154,7 @@ pub fn tool(bin: &str, args: &[String]) -> Command {
     }
     let mut c = Command::new(super::find_bin(bin));
     c.args(args);
-    c
+    with_aws_profile(bin, c)
 }
 
 // Same, with stderr folded into stdout in the order written (logs, pulls). The shell that does it runs
@@ -152,7 +173,7 @@ pub fn tool_merged(bin: &str, args: &[String]) -> Command {
         let mut c = Command::new("sh");
         c.args([FOLD[0], FOLD[1], FOLD[2], &super::find_bin(bin)])
             .args(args);
-        c
+        with_aws_profile(bin, c)
     }
     #[cfg(not(unix))]
     tool(bin, args)

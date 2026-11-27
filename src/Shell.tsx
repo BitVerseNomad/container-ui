@@ -10,7 +10,7 @@ const FOLD_KEY = "container-ui:sidebar-folded";
 const readFolded = () => { try { return localStorage.getItem(FOLD_KEY) === "1"; } catch { return false; } };
 const saveFolded = (v: boolean) => { try { localStorage.setItem(FOLD_KEY, v ? "1" : "0"); } catch { /* not remembered */ } };
 
-export type Tab = "Containers" | "Images" | "Volumes" | "Networks" | "Kubernetes" | "Profiles" | "Doctor";
+export type Tab = "Containers" | "Images" | "Volumes" | "Networks" | "Registries" | "Kubernetes" | "Profiles" | "Doctor";
 
 const BOTTOM: Tab = "Doctor";
 const PATH_OF: Record<Tab, string> = {
@@ -18,6 +18,7 @@ const PATH_OF: Record<Tab, string> = {
   Images: "#/images",
   Volumes: "#/volumes",
   Networks: "#/networks",
+  Registries: "#/registries",
   Kubernetes: "#/kubernetes/pods",
   Doctor: "#/doctor",
   Profiles: "#/settings/machines",
@@ -64,6 +65,7 @@ export default function Shell({ nav, onNav, badges = {}, hidden = [], counts = {
       { tab: "Images", label: "Images", icon: "image" },
       { tab: "Volumes", label: "Volumes", icon: "database" },
       { tab: "Networks", label: "Networks", icon: "network" },
+      { tab: "Registries", label: "Registries", icon: "download" },
       { tab: "Kubernetes", label: "Kubernetes", icon: "cluster" },
     ];
     const health: { tab: Tab; label: string; icon: IconName }[] = [

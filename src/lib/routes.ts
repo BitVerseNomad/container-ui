@@ -1,5 +1,5 @@
 // Routes of the app. Pure functions only: no React, no window. The hook is in router.ts.
-export type Page = "containers" | "images" | "volumes" | "networks" | "kubernetes" | "doctor" | "projects" | "settings" | "setup";
+export type Page = "containers" | "images" | "volumes" | "networks" | "registries" | "kubernetes" | "doctor" | "projects" | "settings" | "setup";
 
 export type Route = { page: Page; id?: string; tab?: string };
 
@@ -16,7 +16,7 @@ export const PAGE_TABS = {
   settings: ["general", "machines", "engines", "registries", "updates", "about"],
 } as const;
 
-const PLAIN: Page[] = ["volumes", "networks", "doctor", "setup"];
+const PLAIN: Page[] = ["volumes", "networks", "registries", "doctor", "setup"];
 
 export const DEFAULT_PATH = "#/containers";
 

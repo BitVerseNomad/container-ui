@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { detectRegistryAuth } from "./registryAuth.ts";
+import { detectRegistryAuth, detectRegistryDenied } from "./registryAuth.ts";
 
 const HOST = "123456789012.dkr.ecr.us-west-2.amazonaws.com";
 
@@ -28,4 +28,9 @@ test("Given an ECR host that is only a suffix of another domain, when detected, 
 
 test("Given an unrelated error, when detected, then it is null", () => {
   assert.equal(detectRegistryAuth("Bind for 0.0.0.0:8080 failed: port is already allocated"), null);
+});
+
+test("Given an ECR 'not authorized to perform' denial, when checked, then it is a wrong-profile denial, and a plain missing login is not", () => {
+  assert.equal(detectRegistryDenied(`denied: User: arn:aws:sts::123456789012:assumed-role/sandbox/me is not authorized to perform: ecr:BatchGetImage on resource: x`), true);
+  assert.equal(detectRegistryDenied("pull access denied, no basic auth credentials"), false);
 });

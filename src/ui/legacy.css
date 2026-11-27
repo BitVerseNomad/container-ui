@@ -138,7 +138,7 @@
 .legacy .meter-top span { color: var(--fg-muted); }
 .legacy .bar { height: 6px; border-radius: 3px; background: var(--line); margin-top: 6px; overflow: hidden; }
 .legacy .bar i { display: block; height: 100%; background: var(--accent-fill); }
-.legacy .out-fail { color: var(--bad); font-weight: 600; margin: 0 0 8px; }
+.legacy .out-fail { color: var(--bad); font-weight: 500; font-size: var(--text-meta); margin: 0; }
 .legacy .out-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
 .legacy .out-bar .state { margin-right: auto; }
 .legacy .out-bar button:not([data-op]) { display: inline-flex; align-items: center; gap: 6px; }
