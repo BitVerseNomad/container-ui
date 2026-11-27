@@ -183,7 +183,15 @@ export default function RunPanel({ ctx, image, arch, onClose, onRan }: Props) {
     : null;
 
   return (
-    <Sheet open={true} onClose={onClose} title={`Run ${image}`} busy={busy} stack footer={
+    <>
+    {busy && (
+      <div role="status" className="fixed bottom-4 right-4 z-50 flex max-w-sm items-center gap-3 rounded-lg border border-line bg-bg-raised px-4 py-3 shadow-lg">
+        <span className="spin" aria-hidden="true" />
+        <span className="text-body">{`Starting ${finalName}… If the image isn't downloaded yet, this includes the pull.`}</span>
+        <Button size="sm" onClick={() => void askStop()}>Stop</Button>
+      </div>
+    )}
+    <Sheet open={!busy} onClose={onClose} title={`Run ${image}`} busy={busy} stack footer={
       <>
         <Button variant="ghost" size="md" disabled={busy} onClick={onClose}>Cancel</Button>
         <Button
@@ -366,7 +374,7 @@ export default function RunPanel({ ctx, image, arch, onClose, onRan }: Props) {
         </Banner>
       )}
 
-      {busy && <p className="hint">Starting the container. If the image isn't downloaded yet, this includes the pull.</p>}
     </Sheet>
+    </>
   );
 }
