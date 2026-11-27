@@ -5,7 +5,7 @@ import { ImageInfo, Link, checkImage, docsLinks, hostArch, nameWarning, nextFree
 import { PortRow, VolRow, buildRunArgs, defaultName, folderProblem, hintFor, isHostFolder, presetEnv, repoName, shouldCleanup } from "./runArgs";
 import { rememberWritable, wasWritable } from "./lib/folderMemory";
 import RegistryLoginFix from "./RegistryLoginFix";
-import { Banner, Button, Canvas, Checkbox, ChipButton, Command, Field, Fields, FormRow, Select, Sheet, useConfirm } from "./ui/op";
+import { Banner, Button, Canvas, Checkbox, ChipButton, Command, Field, Fields, FormRow, Select, Sheet, useConfirm, useToast } from "./ui/op";
 import { useDockerLocked } from "./dockerLock";
 
 type Props = { ctx: string; image: string; arch?: string; onClose: () => void; onRan: (id: string, name: string) => void };
@@ -35,6 +35,7 @@ function Ext({ link, children }: { link: Link; children: ReactNode }) {
 
 export default function RunPanel({ ctx, image, arch, onClose, onRan }: Props) {
   const confirm = useConfirm();
+  const toast = useToast();
   const [name, setName] = useState("");
   const [placeholder] = useState(() => defaultName(image, suffix()));
   const [info, setInfo] = useState<ImageInfo | null>(null);
@@ -144,16 +145,20 @@ export default function RunPanel({ ctx, image, arch, onClose, onRan }: Props) {
     setErrors([]);
     setDockerError(null);
     setBusy(true);
+    // The sheet hides while the container starts; this toast stays until the start ends.
+    toast({ text: `Starting ${finalName}… If the image isn't downloaded yet, this includes the pull.`, sticky: true, action: { label: "Stop", onSelect: () => void askStop() } });
     // Only a failed `docker run` can leave a half-made container; before it runs, a container with this name is someone else's.
     let started = false;
     try {
       if (network && !exists) await docker(ctx, ["network", "create", network]);
       started = true;
       const id = (await docker(ctx, built.args)).trim();
+      toast(null);
       onRan(id, finalName);
     } catch (e) {
       const msg = String(e);
       if (started && shouldCleanup(msg)) await docker(ctx, ["rm", "-f", finalName]).catch(() => {});
+      toast(null);
       setDockerError(msg);
       setShowOutput(false);
       setBusy(false);
@@ -184,13 +189,6 @@ export default function RunPanel({ ctx, image, arch, onClose, onRan }: Props) {
 
   return (
     <>
-    {busy && (
-      <div role="status" className="fixed bottom-4 right-4 z-50 flex max-w-sm items-center gap-3 rounded-lg border border-line bg-bg-raised px-4 py-3 shadow-lg">
-        <span className="spin" aria-hidden="true" />
-        <span className="text-body">{`Starting ${finalName}… If the image isn't downloaded yet, this includes the pull.`}</span>
-        <Button size="sm" onClick={() => void askStop()}>Stop</Button>
-      </div>
-    )}
     <Sheet open={!busy} onClose={onClose} title={`Run ${image}`} busy={busy} stack footer={
       <>
         <Button variant="ghost" size="md" disabled={busy} onClick={onClose}>Cancel</Button>

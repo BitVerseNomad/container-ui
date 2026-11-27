@@ -139,6 +139,15 @@ export default function Containers({ profile, ctx, vm, onVm, reload, setDetailId
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [menuFor, setMenuFor] = useState<string | null>(null);
   const [inspect, setInspect] = useState<{ c: C; f: Finding } | null>(null);
+  // A container that stopped with an error: its last log lines are the answer to "why", so they show right here.
+  const [tail, setTail] = useState<string[]>([]);
+  useEffect(() => {
+    setTail([]);
+    if (!inspect || inspect.f.id !== "crashed" || !ctx) return;
+    let live = true;
+    docker(ctx, ["logs", "--tail", "12", inspect.c.ID], true).then((out) => live && setTail(out.split("\n").map((l) => l.trimEnd()).filter(Boolean)), () => {});
+    return () => { live = false; };
+  }, [inspect, ctx]);
   const [pending, setPending] = useState<Map<string, Pending>>(new Map());
   const [failed, setFailed] = useState<Map<string, Failure>>(new Map());
   // Read aloud by VoiceOver: what just finished, or what went wrong. Both regions exist from the first render,
@@ -780,7 +789,8 @@ export default function Containers({ profile, ctx, vm, onVm, reload, setDetailId
 
   // The Inspector: the whole finding in plain words, with the same fix the line offers.
   const inspectFix = inspect?.f.fix ? fixAction(inspect.f.fix, ctx ?? undefined, oldConfirm, runs, fixed) : null;
-  const inspector = inspect ? inspectorContent(inspect.f, inspect.c.Names, projectOf(inspect.c), inspectFix?.label ?? null, inspect.f.fix?.text ?? null) : null;
+  const inspectorBase = inspect ? inspectorContent(inspect.f, inspect.c.Names, projectOf(inspect.c), inspectFix?.label ?? null, inspect.f.fix?.text ?? null) : null;
+  const inspector = inspectorBase && tail.length ? { ...inspectorBase, evidence: tail.map((text) => ({ text, bad: true })) } : inspectorBase;
 
   // A start shows its own card (StartingCard) in place of the stopped one, so the strip only covers the other operations and failures.
   const starting = vm.op === "starting";

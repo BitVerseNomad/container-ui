@@ -3,9 +3,10 @@ import { createPortal } from "react-dom";
 import { Button } from "./Button";
 import { usePortalContainer } from "./Portal";
 
-export type ToastOptions = { text: string; action?: { label: string; onSelect: () => void } };
+// sticky: stays until another toast replaces it or Toast(null) clears it (a job that is still running).
+export type ToastOptions = { text: string; sticky?: boolean; action?: { label: string; onSelect: () => void } };
 
-type Toast = (options: ToastOptions) => void;
+type Toast = (options: ToastOptions | null) => void;
 
 const ToastContext = createContext<Toast | null>(null);
 
@@ -18,6 +19,7 @@ export function ToastProvider(props: { children: React.ReactNode }): React.JSX.E
   const container = usePortalContainer();
 
   const show = useCallback<Toast>((options) => {
+    if (!options) { setToast(null); return; }
     remaining.current = 6000;
     pausedRef.current = false;
     setPaused(false);
@@ -26,7 +28,7 @@ export function ToastProvider(props: { children: React.ReactNode }): React.JSX.E
   }, []);
 
   useEffect(() => {
-    if (!toast || paused) return;
+    if (!toast || paused || toast.options.sticky) return;
     const left = remaining.current;
     const start = Date.now();
     const timer = setTimeout(() => setToast(null), left);
